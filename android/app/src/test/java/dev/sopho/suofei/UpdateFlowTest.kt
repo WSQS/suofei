@@ -12,6 +12,7 @@ import java.security.MessageDigest
 import kotlin.concurrent.thread
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -248,7 +249,7 @@ class UpdateFlowTest {
     }
 
     @Test
-    fun secondUpdate_switchesAgainAndKeepsOnlyTwoSnapshots() {
+    fun secondUpdate_switchesAgainAndLeavesOnlyCurrentSnapshot() {
         val store = store()
         for (v in listOf("2026.10.14.1", "2026.10.14.2", "2026.10.14.3")) {
             val body = payload(v)
@@ -256,8 +257,12 @@ class UpdateFlowTest {
             responses["/content.json"] = 200 to body.toByteArray()
             val outcome = ContentUpdater.checkAndUpdate("$base/latest.json", currentVersionOf(store), 1, store)
             assertTrue("$v -> $outcome", outcome is UpdateOutcome.Activated)
+            // 每次激活后，磁盘上就只剩刚刚生效的那一个快照
+            assertEquals(listOf(v), store.installedVersions())
         }
         assertEquals("2026.10.14.3", currentVersionOf(store))
-        assertEquals(listOf("2026.10.14.3", "2026.10.14.2"), store.installedVersions())
+        assertEquals(listOf("2026.10.14.3"), store.installedVersions())
+        assertFalse(File(tmp.root, "content/versions/2026.10.14.1").exists())
+        assertFalse(File(tmp.root, "content/versions/2026.10.14.2").exists())
     }
 }

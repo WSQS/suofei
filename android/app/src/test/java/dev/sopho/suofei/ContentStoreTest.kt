@@ -15,7 +15,7 @@ import org.junit.rules.TemporaryFolder
 
 /**
  * 离线更新的核心不变量，在 JVM 上用临时目录真跑一遍（ContentStore 不依赖任何 Android API）：
- * 失败/损坏/不兼容 ⇒ **旧版一个字节都不动**；成功 ⇒ 指针原子切换、旧快照被清理。
+ * 失败/损坏/不兼容 ⇒ **旧版一个字节都不动**；成功 ⇒ 指针原子切换、旧快照被清理（只留当前那一个）。
  */
 class ContentStoreTest {
 
@@ -54,23 +54,52 @@ class ContentStoreTest {
     }
 
     @Test
-    fun install_secondVersion_keepsPreviousReadable_thenPrunesOlderOnes() {
+    fun install_secondVersion_leavesExactlyOneSnapshot() {
         val store = ContentStore(tmp.newFolder("content"))
         store.install(stage(store, "2026.10.14.1", payload("2026.10.14.1")), "2026.10.14.1", null, null)
+        assertEquals(listOf("2026.10.14.1"), store.installedVersions())
+
         store.install(stage(store, "2026.10.14.2", payload("2026.10.14.2")), "2026.10.14.2", null, null)
 
         assertEquals("2026.10.14.2", store.activeVersion())
-        assertEquals("2026.10.14.1", store.previousVersion())
-        // 上一个版本仍在磁盘上（唯一回滚候选）
-        assertTrue(File(tmp.root, "content/versions/2026.10.14.1/content.json").isFile)
-        assertTrue(store.rollbackToPrevious())
-        assertEquals("2026.10.14.1", store.activeVersion())
-        store.rollbackToPrevious()
+        // 新语义（用户 2026-10-14 决定）：磁盘上**只剩当前这一个**版本目录。
+        // 既不是「留两个」，也不是含糊的「至少留一个」。
+        assertEquals(listOf("2026.10.14.2"), store.installedVersions())
+        assertEquals(
+            "versions/ 下有且只有一个子目录",
+            1,
+            File(tmp.root, "content/versions").listFiles()!!.count { it.isDirectory },
+        )
+        assertTrue(
+            "切换后 staging 必须为空",
+            (File(tmp.root, "content/staging").listFiles() ?: emptyArray()).isEmpty(),
+        )
+        // 存储层不再有「上一个版本」这个状态：内容根目录就这三项，多一个少一个都算回归。
+        assertEquals(
+            "filesDir/content 下只有 current / versions / staging",
+            setOf("current", "versions", "staging"),
+            File(tmp.root, "content").listFiles()!!.map { it.name }.toSet(),
+        )
+        assertTrue(File(tmp.root, "content/current").isFile)
+    }
 
-        // 装第三个：最早那个必须被删掉（新版可删改，不是只累积）
-        store.install(stage(store, "2026.10.14.3", payload("2026.10.14.3")), "2026.10.14.3", null, null)
-        assertEquals(listOf("2026.10.14.3", "2026.10.14.2"), store.installedVersions())
-        assertFalse(File(tmp.root, "content/versions/2026.10.14.1").exists())
+    @Test
+    fun upgrade_deletesOldVersionDirectory() {
+        val store = ContentStore(tmp.newFolder("content"))
+        store.install(stage(store, "2026.10.14.1", payload("2026.10.14.1")), "2026.10.14.1", null, null)
+        val oldDir = File(tmp.root, "content/versions/2026.10.14.1")
+        assertTrue("升级前旧快照确实在磁盘上：${oldDir.absolutePath}", oldDir.isDirectory)
+
+        store.install(stage(store, "2026.10.14.2", payload("2026.10.14.2")), "2026.10.14.2", null, null)
+
+        // 这就是「删掉上一个快照」这次决策的可见后果：旧目录连同里面的 content.json 都必须消失。
+        assertFalse("旧版本目录必须被清掉", oldDir.exists())
+        assertFalse("旧版本内容文件也必须消失", File(oldDir, ContentStore.CONTENT_FILE).exists())
+        assertTrue(
+            "当前版本的内容文件在",
+            File(tmp.root, "content/versions/2026.10.14.2/${ContentStore.CONTENT_FILE}").isFile,
+        )
+        assertEquals("2026.10.14.2", store.loadActive()!!.content.contentVersion)
     }
 
     @Test
@@ -89,6 +118,9 @@ class ContentStoreTest {
         )
         val now = store.loadActive()!!.content
         assertEquals(listOf("另一首占位诗"), now.poems.map { it.title })
+        // 被删掉的旧内容不会以「累积副本」的形式留在磁盘上
+        assertEquals(listOf("2026.10.14.2"), store.installedVersions())
+        assertFalse(File(tmp.root, "content/versions/2026.10.14.1").exists())
     }
 
     @Test
@@ -107,6 +139,7 @@ class ContentStoreTest {
         assertEquals("旧版必须原封不动", "2026.10.14.1", store.activeVersion())
         assertEquals("2026.10.14.1", store.loadActive()!!.content.contentVersion)
         assertFalse(File(tmp.root, "content/versions/2026.10.14.2").exists())
+        assertEquals("失败后仍然只剩那一个旧快照", listOf("2026.10.14.1"), store.installedVersions())
     }
 
     @Test

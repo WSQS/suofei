@@ -78,15 +78,15 @@
 ```
 filesDir/content/
 ├── current                                  # 指针：当前生效的 contentVersion（纯文本）
-├── previous                                 # 指针：上一个生效版本（唯一回滚候选）
 ├── staging/<contentVersion>.part            # 下载临时文件；读者永远看不到它
-└── versions/<contentVersion>/
+└── versions/<contentVersion>/               # 只会有「当前版本」这一个目录
     ├── content.json                         # 完整内容快照，落盘后只读
     └── meta.json                            # {contentVersion, sha256, sourceUrl, installedAtMillis}
 ```
 
-- 目录名／文件名就是接口：`versions/` 下的目录名**等于** `contentVersion`；内容文件名固定 `content.json`；指针文件名固定 `current` / `previous`。改动它们＝改动已发布客户端的磁盘布局，需要迁移逻辑。
-- 只保留「当前 + 上一个」两个快照，其余目录连同 `staging/` 残留一并删除（`pruneOldVersions`），所以是「新版可删改、不是只累积」。
+- 目录名／文件名就是接口：`versions/` 下的目录名**等于** `contentVersion`；内容文件名固定 `content.json`；指针文件名固定 `current`。改动它们＝改动已发布客户端的磁盘布局，需要迁移逻辑。
+- **只保留「当前版本」一个快照**：其余快照目录连同 `staging/` 残留一并删除（`pruneOldVersions`），所以是「新版可删改、不是只累积」。
+- ⚠️ **曾经存在的 `previous` 指针已按用户决定删除（2026-10-14）**，理由与代价见第 6 节。
 
 ## 5. 原子切换怎么做
 
@@ -95,12 +95,24 @@ filesDir/content/
 1. 下载只写 `staging/<v>.part`（读者看不见）；
 2. `ContentStore.install()` 先**解析校验**暂存文件（结构版本、版本号一致性），任何一步失败 ⇒ 移除暂存、**磁盘上旧指针与旧快照一个字节都不动**；
 3. 通过后，把暂存文件移进 `versions/<v>/content.json`，并写 `meta.json`；此时该版本目录已完整，但还没有任何读者知道它；
-4. **最后一步**才切指针：写 `current.tmp` → 单次 `rename()` 覆盖 `current`（同目录、同文件系统 ⇒ 内核保证原子）。同时把旧值写进 `previous`；
-5. `Files.move(..., ATOMIC_MOVE)` 不被文件系统支持时退回 `REPLACE_EXISTING`（Windows 上即 `MoveFileEx+REPLACE`）；该回退路径在**本机 Windows JVM 单测里真实跑过**。
+4. **最后一步**才切指针：写 `current.tmp` → 单次 `rename()` 覆盖 `current`（同目录、同文件系统 ⇒ 内核保证原子）；
+5. 切完指针**立即清理旧快照目录**（`pruneOldVersions`：只留当前版本目录）与 `staging/` 残留；
+6. `Files.move(..., ATOMIC_MOVE)` 不被文件系统支持时退回 `REPLACE_EXISTING`（Windows 上即 `MoveFileEx+REPLACE`）；该回退路径在**本机 Windows JVM 单测里真实跑过**。
 
-因为内容文件一旦落盘就不再被改写，正在读旧版本的读者手里那份文件不会变；新读者要么看到旧版本号、要么看到新版本号，不存在「半个文件」的中间态。
+因为内容文件一旦落盘就不再被改写，新读者要么看到旧版本号、要么看到新版本号，不存在「半个文件」的中间态。
+第 5 步会在切换后**删掉旧快照目录**，但这对正在阅读的会话没有影响——它手里是解析后的数据（`LoadedContent`），不是磁盘文件句柄。
 
-## 6. 失败 / 损坏 / 不兼容怎么处理
+## 6. 保旧版的两道防线（2026-10-14 起由三道改两道）
+
+1. **下载/校验失败就不切换**（第一道，最常用）：更新全程只写 `staging/`；`ContentStore.install()` 先解析校验，最后一步才原子换指针。任何一步失败 ⇒ 磁盘上的旧指针与旧快照**一个字节都不动**。
+2. **APK 内置 assets**（永久兜底，但它可能很旧）：内置内容是该次发布的完整内容，只读、随 APK 存在，且从来不参与更新流程（所以不可能「也被更新弄坏」）；已下载快照损坏或结构过新时自动退回它（第 3 节）。代价：它是**打包那一刻**的内容版本，可能比远端旧好几版——所以退回它只保证「还能读」，不等于「读到了最新」。
+
+> **事后回退（原 `ContentStore.rollbackToPrevious()` 与 `previous` 指针）已按用户 2026-10-14 的决定移除。**
+> 理由：它**全项目没有任何调用者、也没有界面入口**，是「有实现、没人用」的路径；留着会让读者误以为「内容回退」是一个已经生效的能力。
+> 代价（如实写明）：**一次成功的更新不会自动退回旧内容**（它本来也不是自动的——没有界面入口）；要拿回旧版本只能等发布了更高版本的修复内容，或重装旧 APK（那属于应用版本层面的事，不是内容通道）。
+> 删它没有减少任何**用户实际能触发**的能力：它从来就不在任何界面或流程的调用链上。
+
+## 6.1 失败 / 损坏 / 不兼容矩阵
 
 | 情形 | 处理 | 结果 |
 |---|---|---|
@@ -113,14 +125,15 @@ filesDir/content/
 | SHA-256 不符（下载损坏/被篡改） | 报 `CHECKSUM_MISMATCH` | 丢弃下载，旧内容保留 |
 | 内容 JSON 非法 / 载荷版本与清单不符 | 报 `PAYLOAD_INVALID` | 不落盘，旧内容保留 |
 | 已生效快照后来损坏 | 读取时退回内置内容 | 仍可读，且如实提示 |
-| 需要回退 | `ContentStore.rollbackToPrevious()` | 备用路径，正常流程用不到，保留是为了「保旧版」有第二道手 |
+
+**没有「事后回退」这一条**（已按用户决定删除，见第 6 节开头）。
 
 所有失败都满足同一个不变量：**读者看得到的内容不变，且失败原因对用户可见**。
 
 ## 7. 新版可删改（不是只累积）
 
 - 每次更新激活的都是**完整快照**：新快照里删掉的作品自然不存在，不需要「按 id 删条目」的增量逻辑；
-- 旧快照在切换成功后被清理（只留 `current` 与 `previous`），因此被删改的内容不会以「累积副本」的形式残留在磁盘上；
+- 旧快照在切换成功后被清理（**只留当前生效的那一个**），因此被删改的内容不会以「累积副本」的形式残留在磁盘上；
 - 内存侧同理：切换后是一次整体替换，不做逐条合并。
 
 ## 8. 阅读中不突然替换
@@ -145,14 +158,17 @@ filesDir/content/
 
 **已验证（可复现）**
 - `./gradlew assembleDebug` 通过；APK 内 `assets/content/content.json` 存在且与源文件字节一致（命令见 `android/README.md`）。
-- 45 个 JVM 单测通过（`./gradlew testDebugUnitTest`），其中 `UpdateFlowTest`(9) 用本机临时 HTTP 服务真跑「检查→下载→校验→切换」，覆盖成功、校验失败、体积不符、结构过新、应用过旧、HTTP 500、清单非法、连续升级与快照清理。
-- `ContentStoreTest`(8) / `ContentStoreTest`+`ContentRepositoryTest` 覆盖失败保旧版、不兼容拒绝、损坏退回内置。
+- **50 个 JVM 单测通过**（`./gradlew testDebugUnitTest`）：`ContentParserTest`(14)、`ContentStoreTest`(9)、`ContentRepositoryTest`(6)、`ContentVersionTest`(5)、`UpdateFlowTest`(9)、`UpdateManifestParserTest`(7)。
+  - 其中 `UpdateFlowTest` 用本机临时 HTTP 服务真跑「检查→下载→校验→切换」，覆盖成功、校验失败、体积不符、结构过新、应用过旧、HTTP 500、清单非法、连续升级与「只剩当前一个快照」。
+  - 覆盖的降级/保旧版路径：失败保旧版、不兼容拒绝、损坏退回内置、指针与载荷不一致、结构过新不解析。
+- 存储层新语义有专门断言：升级后**旧版本目录确实被删除**（`upgrade_deletesOldVersionDirectory`），且内容根目录恰好只有 `current`/`versions`/`staging` 三项（多一项少一项都算回归）。
 
 **未验证（不要当成已成立）**
 - **未在真机/模拟器上运行过**（本轮授权禁止 adb/模拟器操作）：界面渲染效果、实际点击路径、Android 平台 `assets` 读取与 `filesDir` 行为「按代码正确」但未在设备上观察。
 - **未对真实发布源验证过更新流程**：`BASE_URL` 是占位地址，成功路径只在本地临时 HTTP 服务上验证过；HTTPS、真实 CDN、真实 Token 都没跑过。
 - 未做断网/弱网/大文件/并发多次点击「检查更新」的真实设备测试。
-- 未做应用升级（`versionCode` 增长）与内容回滚的真机验证。
+- 未做应用升级（`versionCode` 增长）的真机验证。
+- 未在真机上验证「删掉上一个快照」对真实用户路径的影响（它没有界面入口，所以预期无影响，但未在设备上观察过）。
 
 ## 11. 接口决定（暂定，待用户确认）
 
@@ -166,17 +182,18 @@ filesDir/content/
 | A4 | `url` 允许相对路径 | 允许（按 `BASE_URL` 解析） | 发布脚本可自由换域名 | `ContentUpdater.resolveUrl` |
 | A5 | 内容体积上限 | 32 MiB | 未来内容规模 | `ContentUpdater.MAX_CONTENT_BYTES` |
 | A6 | 下载协议 | 明文 HTTPS `GET`，不支持断点续传 | 发布侧带宽/成本 | 若日后要续传需改清单与 `ContentUpdater` |
-| B1 | 本地目录布局 | `filesDir/content/{current,previous,staging,versions/<v>/{content.json,meta.json}}` | 已发布客户端的磁盘状态；日后若做导入/导出工具 | `ContentStore` 常量；改动需要迁移逻辑 |
-| B2 | 快照保留策略 | 只留当前 + 上一个 | 存储占用 vs 回滚能力 | `ContentStore.pruneOldVersions` |
+| B1 | 本地目录布局 | `filesDir/content/{current,staging,versions/<v>/{content.json,meta.json}}`（**无 `previous`**，用户 2026-10-14 定） | 已发布客户端的磁盘状态；日后若做导入/导出工具 | `ContentStore` 常量；改动需要迁移逻辑 |
+| B2 | 快照保留策略 | **只留当前版本一个快照，不做事后回退**（用户 2026-10-14 拍板，取代早先的「当前＋上一个」） | 存储占用 vs 「能不能撤回一次坏更新」 | `ContentStore.pruneOldVersions`；要恢复回退＝重新引入指针 + 界面入口（现在一个都没有） |
 | C1 | 应用内读取入口 | `ContentRepository.load()` 单一入口，已下载优先、失败退回内置 | 所有 UI 代码 | `ContentRepository` |
 | C2 | `formatVersion` 更高的行为 | 不解析、退回内置、磁盘上保留该快照 | 与 A2 配套；Web 端需同样语义 | `ContentStore.loadActive` |
 | C3 | 空内容/无笔记语义 | `notes == null` ⇒ 显示「（无笔记）」，绝不生成占位笔记 | 内容线产出、Web 端一致性 | `PoemScreen`；契约 §2 已定 `notes: null` |
 
-## 12. 建议改接口（由负责人转交用户，本轮**未**擅自改契约）
+## 12. 早期提出的三处契约问题：均已由契约线解决（2026-10-14 更新）
 
-1. **`contentVersion` 比较规则措辞（`content-contract.md` §4）**：契约写「按 ISO 日期前缀＋递增序号的**字典序**比较」，但字典序会把 `2026.10.14.10` 判成比 `2026.10.14.9` 小。实现改为**纯数字分段按数值比较**（对契约举的例子结果一致，见 `ContentVersionTest`）。
-   - 代价：几乎为零；建议契约改成「按 `.` 分段，纯数字段按数值比较，其余按字典序」。
-   - 风险：若 Web 端按纯字典序实现，两端在同一份版本号上可能判定不同。
-2. **`dist/content.json` 示例缺 `authorSortKey` / `titleSortKey`**：§2 正文要求编译器写入这两个排序键，但同节的 JSON 示例里没有这两个字段。Android 端当前**允许缺失**（缺失时退回 `author`/`title` 本身，且「佚名/未详排最后」由客户端规则保证）。
-   - 建议：契约明确「`authorSortKey`/`titleSortKey` 是否必填」，并说明「佚名排最后」是靠编译期键编码还是靠客户端规则（两端必须一致）。
-3. **`dynastyLabel` / `dynastyOrder` 冗余字段**：契约同时要求诗对象携带这两个字段、又要求 `dynastyKey` 必须在 `dynasties` 中声明。Android 端**以 `dynasties` 声明表为准**，忽略诗对象里的冗余值（不静默采用冲突值）。建议契约写明「以声明表为准，诗对象内为冗余快照」。
+本节保留原始记录（它们当时确实拦住了实现），但**三条现在都已落地**，不要再当成待决事项：
+
+1. ~~`contentVersion` 比较规则措辞~~ → **已解决**：契约新增 §4.1（`[年,月,日,N]` 数值逐段比较；release/dev 两类版本串；单调性由发布流水线显式给出并强制），与本端 `ContentVersion` 的数值分段实现一致。
+2. ~~`dist/content.json` 示例缺 `authorSortKey`/`titleSortKey`~~ → **已解决且结论相反**：契约 §2.1.1 决定**不发布任何排序字段**（编译期是唯一排序权威），产物改用整数 `orderInSource`；本端 `Domain.kt` 已按「产物给了 `orderInSource` 就照数组次序渲染、一首都没有才本机兜底」实现。
+3. ~~`dynastyLabel`/`dynastyOrder` 冗余字段~~ → **已解决**：契约 §2.1 写明「诗对象里的是冗余快照，**权威是顶层 `dynasties` 声明表**」，与 `ContentParser` 的实际行为一致（组序/组名一律读声明表）。
+
+后续如再发现契约层问题，按同样格式记在这里并由负责人转交用户，**D 线不自行改契约字段**。
