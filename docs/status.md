@@ -110,6 +110,7 @@
 - 本机**全局** `~/.gradle/gradle.properties` 配了 `localhost:7890` 代理，而该代理到不了 `dl.google.com` / `repo.maven.apache.org`（直连 200、走代理 000）。Gradle 单测若要下新依赖会撞墙；D 留了 `-PextraMavenMirror=…` 开关。CI 会撞同一堵墙。
 - **新建的 git worktree 没有 `node_modules`**：在子线里跑 `npm test` 会因 import 不到 `ajv` 而 `ERR_MODULE_NOT_FOUND`，看着像测试挂了、实际是环境问题（A 线遇到：51 pass / 1 fail）。在**项目本地** `npm install` 即可（别装全局）。
 - **Markdown 表格改坏不会报错、只会错位**：负责人连续 4 次把台账表格的行改多/改少一列，渲染出来「看着还能读」但信息落进错误的列。已做一个小检查：`node tools/check-doc-tables.mjs`（检查 `docs/` 下所有 .md 的表格列数是否与表头一致，不一致则非 0 退出）。改台账后跑一次。
+- **子线自查前必须先 `git merge master`**：C 与 E 都在自己旧基点上自查，于是分别向我报「找不到 `schema/unknown-authors.json`」「契约 §2.1 仍写着两个拼音键」——**两条都是它们读了旧版**，并非真的不一致。**教训**：报告里要把「我实测/已核对」与「我从旧代码读到的」分开说；负责人派任务书时要写明「先对齐主线再自查」。
 - **「跑绿了」不等于「跑的是当前内容」**：内置产物落后时，客户端单测会对着**旧内容**全绿。已做第二个小检查：`node tools/check-bundled-content.mjs`（编译当前 `content/poems/` 与 `android/app/src/main/assets/content/content.json`、`web/content.json` 逐字段比对；不一致就非 0 退出并打印修法）。**内容变了一定跑它**。
 - **「谁是匿名作者」清单的唯一机器可读来源是 `schema/unknown-authors.json`**：编译器、Android、Web 三方都必须与它一致（此前三端各拄一份、抄歪过；Web 的 e2e 还曾用正则解析契约散文，一改措辞就假红）。
 
