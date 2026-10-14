@@ -18,7 +18,12 @@ export const CONTENT_KEYS = Object.freeze(['formatVersion', 'contentVersion', 'g
 /** 分组对象键序。 */
 export const DYNASTY_KEYS = Object.freeze(['key', 'label', 'order']);
 
-/** 每首诗在产物里的键序（含 era/genre/notes 的 null 占位，客户端形状恒定）。 */
+/** 每首诗在产物里的键序（含 era/genre/notes 的 null 占位，客户端形状恒定）。
+ *
+ * 2026-10-14 用户拍板：产物只发布 `orderInSource`；`authorSortKey`/`titleSortKey` **不再发布**
+ * （只在编译期内部用于算次序，见 INTERNAL_SORT_KEYS）。理由：编译期是唯一排序权威、客户端不得
+ * 重排，所以两端在正式路径上一个排序字段都不用，产物保持最小。
+ */
 export const POEM_KEYS = Object.freeze([
   'id',
   'title',
@@ -33,9 +38,14 @@ export const POEM_KEYS = Object.freeze([
   'variants',
   'stanzas',
   'notes',
-  'authorSortKey',
-  'titleSortKey',
 ]);
+
+/**
+ * **仅编译期内部使用**的排序名次键：算完次序即丢弃，**不写进 dist/content.json**。
+ * 它们只在 `content-build.mjs` 内部作为整数名次比较用（拼音 `Intl.Collator` 排出来的名次）。
+ * 将来若真要做「按诗名排序」视图或拼音搜索，再作为新字段增量发布（那是一次接口变更）。
+ */
+export const INTERNAL_SORT_KEYS = Object.freeze(['authorSortKey', 'titleSortKey']);
 
 /** 异文对象键序。 */
 export const VARIANT_KEYS = Object.freeze(['text', 'note']);
@@ -69,7 +79,7 @@ export const ID_PATTERN = '^[a-z0-9]+(?:-[a-z0-9]+)*-\\d+$';
 // ---------- 排序 ----------
 
 /**
- * 组内排序策略（编译期可切，见排序一节）。
+ * 组内排序策略（编译期可切，见排序一节）。**客户端不排**：产物已按此处结果排好。
  *   source：先排底本原次序 orderInSource（有值者在先、升序），无值者再按作者/诗名拼音；
  *   pinyin：完全按作者拼音 → 诗名拼音（佚名/未知作者在组内排最后）。
  */

@@ -5,6 +5,7 @@ import {
   buildContentFromRecords,
   buildStanzas,
   collatorRankMap,
+  computeSortKeys,
   isUnknownAuthor,
   sortPoems,
   validatePoemRecord,
@@ -59,7 +60,7 @@ test('collatorRankMap：名次稳定、可复现', () => {
 // ---------- 组内排序：作者 → 诗名，佚名最后 ----------
 
 function poem(id, { dynasty = '汉', order = 100, author, title }) {
-  return { id, author, title, dynastyKey: 'x', dynastyLabel: dynasty, dynastyOrder: order, authorSortKey: 0, titleSortKey: 0 };
+  return { id, author, title, dynastyKey: 'x', dynastyLabel: dynasty, dynastyOrder: order };
 }
 
 test('sortPoems：佚名/未知作者显式排在组内最后', () => {
@@ -75,9 +76,26 @@ test('sortPoems：佚名/未知作者显式排在组内最后', () => {
     poems.map((p) => p.author),
     ['蔡邕', '曹植', '无名氏', '佚名'],
   );
-  const namedMax = Math.max(...poems.filter((p) => !isUnknownAuthor(p.author)).map((p) => p.authorSortKey));
-  const unknownMin = Math.min(...poems.filter((p) => isUnknownAuthor(p.author)).map((p) => p.authorSortKey));
-  assert.ok(unknownMin > namedMax, '未知作者的排序键必须严格大于所有具名作者');
+  // 名次是编译期内部量（computeSortKeys），不再挂在诗对象上
+  const { authorKeys } = computeSortKeys(poems);
+  const keyOf = (p) => authorKeys[poems.indexOf(p)];
+  const namedMax = Math.max(...poems.filter((p) => !isUnknownAuthor(p.author)).map(keyOf));
+  const unknownMin = Math.min(...poems.filter((p) => isUnknownAuthor(p.author)).map(keyOf));
+  assert.ok(unknownMin > namedMax, '未知作者的内部名次必须严格大于所有具名作者');
+});
+
+test('sortPoems 不修改传入的诗对象（名次不泄到产物里）', () => {
+  const poems = [poem('a-01', { author: '佚名', title: '甲' }), poem('b-01', { author: '蔡邕', title: '乙' })];
+  const before = poems.map((p) => Object.keys(p).join(','));
+  sortPoems(poems);
+  assert.deepEqual(
+    poems.map((p) => Object.keys(p).join(',')),
+    before,
+  );
+  for (const p of poems) {
+    assert.equal('authorSortKey' in p, false);
+    assert.equal('titleSortKey' in p, false);
+  }
 });
 
 test('sortPoems：同作者内按诗名拼音序，再按时代分组', () => {

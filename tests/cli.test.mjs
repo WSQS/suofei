@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import Ajv2020 from 'ajv/dist/2020.js';
+import { POEM_KEYS } from '../tools/lib/interface.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const CLI = path.join(ROOT, 'tools', 'build-content.mjs');
@@ -108,9 +109,26 @@ test('ok-sorting：组序、组内作者/诗名拼音序、佚名最后、分段
     ],
   );
 
-  const named = c.poems.filter((p) => p.author !== '佚名');
-  const unknown = c.poems.filter((p) => p.author === '佚名');
-  assert.ok(Math.min(...unknown.map((p) => p.authorSortKey)) > Math.max(...named.map((p) => p.authorSortKey)));
+  // 「佚名排最后」：每个组内，佚名都排在所有具名作者之后（次序语义，不靠排序字段）
+  for (const label of c.dynasties.map((d) => d.label)) {
+    const authors = c.poems.filter((p) => p.dynastyLabel === label).map((p) => p.author);
+    const firstUnknown = authors.findIndex((a) => a === '佚名');
+    assert.ok(firstUnknown > 0, `${label} 组内应有具名作者在佚名之前`);
+    assert.equal(
+      authors.slice(firstUnknown).every((a) => a === '佚名'),
+      true,
+      `${label} 组内佚名必须全部排在最后；实际：${authors.join(',')}`,
+    );
+  }
+
+  // 2026-10-14 用户拍板：拼音名次只在编译期内部用，**不发布**
+  const raw = fs.readFileSync(out, 'utf8');
+  assert.equal(raw.includes('SortKey'), false, '产物里不得出现 SortKey 字段');
+  for (const p of c.poems) {
+    assert.equal('authorSortKey' in p, false);
+    assert.equal('titleSortKey' in p, false);
+    assert.deepEqual(Object.keys(p), [...POEM_KEYS]);
+  }
 
   // 分段：段内多行、空行边界，连续空行折叠
   const s02 = c.poems.find((p) => p.id === 'gushi-shijiu-shou-02');
@@ -229,6 +247,19 @@ test('--order 取值非法 → 用法错误（退出码 2），不猜、不静�
   const r = runCli(['--check', '--content', contentDir('ok-order-source'), '--order', 'guess']);
   assert.equal(r.status, 2);
   assert.match(r.stderr, /--order 只支持 source \/ pinyin/);
+});
+
+test('所有 ok fixture 的产物都不含任何排序字段（2026-10-14 拍板）', () => {
+  for (const [i, name] of ['ok-basic', 'ok-sorting', 'ok-notes-variants', 'ok-order-source', 'ok-shi19-order'].entries()) {
+    const { status, stderr, out } = buildFixture(name, ['--content-version', `2026.10.1${i}.1`]);
+    assert.equal(status, 0, `${name}: ${stderr}`);
+    const raw = fs.readFileSync(out, 'utf8');
+    assert.equal(raw.includes('SortKey'), false, `${name} 产物里出现了 SortKey 字段`);
+    const doc = JSON.parse(raw);
+    for (const p of doc.poems) {
+      assert.deepEqual(Object.keys(p), [...POEM_KEYS], `${name}/${p.id} 键序应等于 POEM_KEYS`);
+    }
+  }
 });
 
 // ---------- 版本行为 ----------

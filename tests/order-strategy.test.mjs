@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { buildContentFromRecords } from '../tools/lib/content-build.mjs';
+import { buildContentFromRecords, computeSortKeys } from '../tools/lib/content-build.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const POEMS_DIR = path.join(ROOT, 'tests', 'fixtures', 'ok-shi19-order', 'content', 'poems');
@@ -75,9 +75,23 @@ test('--order pinyin：19 首里换位 18 首，「行行重行行」掉到第 1
   assert.deepEqual([...pinyin].sort(), [...WENXUAN_ORDER].sort());
 });
 
-test('两种策略下 authorSortKey/titleSortKey 都是拼音名次（差异只在原次序优先级）', () => {
+test('两种策略共用同一套编译期内部拼音名次（差异只在原次序优先级）', () => {
   const s = build('source').poems;
   const p = build('pinyin').poems;
-  const key = (poem) => `${poem.title}:${poem.authorSortKey}:${poem.titleSortKey}`;
-  assert.deepEqual([...s].map(key).sort(), [...p].map(key).sort());
+  const keyed = (poems) => {
+    const { authorKeys, titleKeys } = computeSortKeys(poems);
+    return poems.map((poem, i) => `${poem.title}:${authorKeys[i]}:${titleKeys[i]}`).sort();
+  };
+  assert.deepEqual(keyed(s), keyed(p));
+  // 内部名次不发布（见 INTERNAL_SORT_KEYS）
+  for (const poem of [...s, ...p]) {
+    assert.equal('authorSortKey' in poem, false);
+    assert.equal('titleSortKey' in poem, false);
+  }
+});
+
+test('客户端约定的输入事实：shi19 产物每首都有整数 orderInSource', () => {
+  const poems = build('source').poems;
+  assert.equal(poems.every((p) => Number.isInteger(p.orderInSource)), true);
+  assert.deepEqual(poems.map((p) => p.orderInSource), [...Array(19).keys()].map((i) => i + 1));
 });
