@@ -82,7 +82,9 @@ export function makeNoOrderIndexDoc(base) {
  */
 export function makeFixtureContent(base) {
   const doc = structuredClone(base);
-  doc.contentVersion = '2026.10.15.1';
+  // contentVersion 只作展示（Web 不再用它做更新决策），但要**与基座不同**，
+  // 否则「新内容生效」的断言会变得空洞；也不要刚好写成基座那个值。
+  doc.contentVersion = base.contentVersion === '2026.10.15.1' ? '2026.10.15.2' : '2026.10.15.1';
   doc.generatedAt = '2026-10-15T00:00:00Z';
   doc.fixture = true;
   doc.fixtureNotice = '测试部署内容：从真实产物派生（删掉末首、加入一首带空行分段与测试笔记的诗），'
