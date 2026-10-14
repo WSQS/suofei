@@ -47,6 +47,15 @@ internal object Json {
         return if (v is Number) v.toLong() else null
     }
 
+    /**
+     * 可选整数：缺键 / null → null；**类型不对直接报错**（例如把整数写成字符串）。
+     * 不能用 optNonBlankString 读排序名次：那会把整数读成字符串，字符串比较会让第 10 名排到第 2 名前面。
+     */
+    fun optInt(o: JSONObject, key: String): Int? {
+        if (!o.has(key) || o.isNull(key)) return null
+        return requiredInt(o, key)
+    }
+
     fun optObject(o: JSONObject, key: String): JSONObject? = o.optJSONObject(key)
 
     fun optArray(o: JSONObject, key: String): JSONArray? = o.optJSONArray(key)

@@ -8,64 +8,122 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** 真实的 APK 内置夹具（src/main/assets/content/content.json）必须能被解析 —— 内置内容坏掉＝首次断网读不了。 */
+/** 真实的 APK 内置内容（src/main/assets/content/content.json）必须能被解析 —— 内置内容坏掉＝首次断网读不了。 */
 class ContentParserTest {
 
-    private val fixtureFile = File("src/main/assets/content/content.json")
+    private val assetFile = File("src/main/assets/content/content.json")
 
     @Test
-    fun fixtureAsset_parsesAndGroupsByDynastyOrder() {
-        assertTrue("夹具文件应存在：${fixtureFile.absolutePath}", fixtureFile.isFile)
-        val content = ContentParser.parse(fixtureFile.readText(Charsets.UTF_8))
+    fun embeddedContent_parsesAndKeepsCompiledOrder() {
+        assertTrue("内置内容文件应存在：${assetFile.absolutePath}", assetFile.isFile)
+        val content = ContentParser.parse(assetFile.readText(Charsets.UTF_8))
 
         assertEquals(1, content.formatVersion)
         assertEquals("2026.10.14.1", content.contentVersion)
 
-        // 只列实际有内容的组，按 order 升序：汉(100) → 唐(400) → 未详(9999)
-        assertEquals(listOf("汉", "唐", "未详"), content.groups.map { it.dynasty.label })
+        // 只列实际有内容的组：本版内容只有「汉」
+        assertEquals(listOf("汉"), content.groups.map { it.dynasty.label })
+        assertEquals(19, content.poems.size)
 
-        // 组内排序：佚名在最后（契约显式规则）
-        val han = content.groups.first { it.dynasty.key == "han" }
-        assertEquals(listOf("佚名", "佚名"), han.poems.map { it.author })
-        // 佚名并列时按 titleSortKey：jia < yi
-        assertEquals(listOf("占位诗题甲", "占位诗题乙"), han.poems.map { it.title })
+        // 契约 IF-16：编译产物已按底本原次序（《文选》卷二十九）排好，客户端不得重排。
+        // 首＝行行重行行、末＝明月何皎皎；若客户端自己按拼音重排，这两条会失败。
+        assertEquals("行行重行行", content.poems.first().title)
+        assertEquals("明月何皎皎", content.poems.last().title)
     }
 
     @Test
-    fun fixtureAsset_keepsStanzaBreaksAndLineBreaks() {
-        val content = ContentParser.parse(fixtureFile.readText(Charsets.UTF_8))
-        val poem = content.poems.first { it.id == "fixture-han-01" }
+    fun embeddedContent_keepsEveryPrintedLine() {
+        val content = ContentParser.parse(assetFile.readText(Charsets.UTF_8))
+        val poem = content.poems.first { it.id == "gushi-shijiu-shou-01" }
+        // 《行行重行行》底本共 8 个印刷行，每行两句，底本无空行分段
+        assertEquals(1, poem.stanzas.size)
+        assertEquals(8, poem.stanzas[0].size)
+        assertEquals("行行重行行，与君生别离。", poem.stanzas[0][0])
+        assertEquals("弃捐勿复道，努力加餐饭。", poem.stanzas[0][7])
+    }
+
+    @Test
+    fun stanzaBreaks_areKeptWhenPresent() {
+        // 真实 19 首都没有空行分段，所以「空行 = 段边界」只能用合成数据测。
+        val content = ContentParser.parse(
+            """
+            {"formatVersion":1,"contentVersion":"1.0.0","dynasties":[{"key":"han","label":"汉","order":100}],
+             "poems":[{"id":"a","title":"t","author":"佚名","dynastyKey":"han","source":"s",
+                       "stanzas":[["一。","二。"],["三。"]],"variants":[]}]}
+            """.trimIndent(),
+        )
+        val poem = content.poems.single()
         assertEquals(2, poem.stanzas.size)
         assertEquals(2, poem.stanzas[0].size)
-        assertEquals(2, poem.stanzas[1].size)
+        assertEquals(1, poem.stanzas[1].size)
     }
 
     @Test
-    fun fixtureAsset_noNotesIsNull_andTestFixtureNoteIsMarked() {
-        val content = ContentParser.parse(fixtureFile.readText(Charsets.UTF_8))
-        assertNull(content.poems.first { it.id == "fixture-han-01" }.notes)
-        val note = content.poems.first { it.id == "fixture-tang-01" }.notes
-        assertTrue("夹具笔记必须写明自己是测试夹具", note!!.contains("测试夹具笔记"))
+    fun notesAreNullForEveryPoem_untilTheUserWritesOne() {
+        val content = ContentParser.parse(assetFile.readText(Charsets.UTF_8))
+        // 「没有笔记」是真实状态：不得生成占位笔记（AGENTS：agent 不代写第一人称内容）
+        assertTrue("本版内容不应出现任何笔记文本", content.poems.all { it.notes == null })
     }
 
     @Test
     fun search_matchesTitleAndAuthorAcrossGroups() {
-        val content = ContentParser.parse(fixtureFile.readText(Charsets.UTF_8))
-        assertEquals(1, content.search("占位诗题丙").size)
-        // 作者搜索跨组
-        assertEquals(1, content.search("占位作者甲").size)
-        // 「佚名」命中汉组两首
-        assertEquals(2, content.search("佚名").size)
+        val content = ContentParser.parse(assetFile.readText(Charsets.UTF_8))
+        assertEquals(19, content.search("佚名").size)
+        assertEquals(1, content.search("行行重行行").size)
+        assertEquals(listOf("明月皎夜光", "明月何皎皎"), content.search("明月").map { it.title })
         assertTrue(content.search("不存在的诗").isEmpty())
         assertTrue(content.search("   ").isEmpty())
     }
 
     @Test
     fun variants_areParsedButNeverEnterStanzas() {
-        val content = ContentParser.parse(fixtureFile.readText(Charsets.UTF_8))
-        val poem = content.poems.first { it.id == "fixture-han-02" }
+        val content = ContentParser.parse(assetFile.readText(Charsets.UTF_8))
+        val poem = content.poems.first { it.id == "gushi-shijiu-shou-09" }
         assertEquals(1, poem.variants.size)
-        assertTrue(poem.stanzas.flatten().none { it.contains("异文") })
+        assertTrue(poem.variants.first().text.contains("贵"))
+        // 正文用底本（李善注本）「贡」；异文绝不混入正文
+        assertTrue(poem.stanzas.flatten().any { it.contains("此物何足贡") })
+        assertTrue(poem.stanzas.flatten().none { it.contains("何足贵") })
+    }
+
+    @Test
+    fun clientDoesNotResort_compiledOrderWinsOverSortKeys() {
+        val content = ContentParser.parse(assetFile.readText(Charsets.UTF_8))
+        val first = content.poems.first()
+        // 契约：编译期是唯一排序权威。行行重行行 的 titleSortKey 是全场最大（18）；
+        // 若客户端自己按排序键重排，它会被扔到第 19 位——这条测试就是为了拦住这种重排。
+        assertEquals("行行重行行", first.title)
+        assertEquals(18, first.titleSortKey)
+        assertEquals("明月何皎皎", content.poems.last().title)
+        // 目录里也必须是同一份次序
+        assertEquals("行行重行行", content.groups.single().poems.first().title)
+    }
+
+    @Test(expected = ContentParseException::class)
+    fun stringTypedSortKey_isRejected() {
+        // 排序名次是**整数**。写成字符串必须报错，不得静默按字符串比较：
+        // 字符串比较会把第 10 名（"10"）排到第 2 名（"2"）前面。
+        ContentParser.parse(
+            """
+            {"formatVersion":1,"contentVersion":"1.0.0","dynasties":[{"key":"han","label":"汉","order":100}],
+             "poems":[{"id":"a","title":"t","author":"佚名","dynastyKey":"han","source":"s",
+                       "stanzas":[["line"]],"authorSortKey":"0","titleSortKey":"2"}]}
+            """.trimIndent(),
+        )
+    }
+
+    @Test
+    fun fallbackOrdering_appliesOnlyWhenProductGivesNoSortKeys() {
+        // 老产物 / 手写 JSON 没有任何排序键时，才退回本地规则：具名作者在前、佚名在后。
+        val content = ContentParser.parse(
+            """
+            {"formatVersion":1,"contentVersion":"1.0.0","dynasties":[{"key":"han","label":"汉","order":100}],
+             "poems":[
+               {"id":"a","title":"乙诗","author":"佚名","dynastyKey":"han","source":"s","stanzas":[["a"]]},
+               {"id":"b","title":"甲诗","author":"曹植","dynastyKey":"han","source":"s","stanzas":[["b"]]}]}
+            """.trimIndent(),
+        )
+        assertEquals(listOf("曹植", "佚名"), content.groups.single().poems.map { it.author })
     }
 
     @Test(expected = ContentParseException::class)

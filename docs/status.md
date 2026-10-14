@@ -3,63 +3,76 @@
 > 只此一份台账。当前版本、阶段、并行工作线/写入范围、下一步、未决问题都在这里。
 
 - 更新时间：2026-10-14（立项当天）
-- 阶段：**原型 + 骨架并行**（尚无生产代码，尚无发布）
+- 阶段：**内容端到端已打通（真实 19 首 → 编译 → 进 APK / 进 Web）**；等用户评审视觉、排序、底本用字；**尚无任何发布动作**。
 
 ## 已确认
 
-- **应用展示名：索斐**（2026-10-14 用户定；工程目录名 `PoetryCollection` 保持不变，两者互不冲突）。
-- **Android 包名 `applicationId`：`dev.sopho.suofei`**（2026-10-14 用户定）。仅影响 Android 工程标识，与工程目录名无关。
-- 评审门槛：v3 —— **A/B 两类都需用户确定**，且**接口性质的事项归「先问后做」**，判据与分档见 [review-gates.md](review-gates.md)。
-- **接口清单见 [interface-decisions.md](interface-decisions.md)**：已定 3 条（展示名、包名、目录边界），待确认 1 批（契约层 IF-1…IF-4），待补 1 批（平台层 IF-6…IF-10，等 C/D/E 报回）。
-- 范围与边界见 [CONTEXT.md](../CONTEXT.md)；工作约定见 [AGENTS.md](../AGENTS.md)；**哪些事需要用户评审见 [review-gates.md](review-gates.md)**。
-- 技术选型（负责人判断）：**Kotlin + Jetpack Compose（Android 原生）+ 独立轻量静态 DOM Web**。理由见工作线 D 的报告；
-  已核实的备选是共享 Web + Capacitor 壳（一套 UI），若在意「只维护一套 UI」可换，见 `../../misc/sophomore/reference/exploration/personal-poetry-app-platform-options.md`。
+- **应用展示名：索斐**（用户定）；**Android 包名 `applicationId`：`dev.sopho.suofei`**（用户定）。工程目录名 `PoetryCollection` 保持不变。
+- 评审门槛 v3（**已由用户确认**）：A/B 两类都需用户确定，**接口性质的事项归「先问后做」**，判据与分档见 [review-gates.md](review-gates.md)。
+- 技术选型（负责人判断，B 类）：**Kotlin + Jetpack Compose（Android 原生）+ 独立轻量静态 DOM Web**；备选是共享 Web + Capacitor 壳。
+- 范围与边界见 [CONTEXT.md](../CONTEXT.md)；工作约定见 [AGENTS.md](../AGENTS.md)。
+- **接口台账见 [interface-decisions.md](interface-decisions.md)**：已定 4 条（展示名、包名、目录边界、版本比较规则同句）；其余分七批登记，**平台/编译层那批等用户一次性过**。
 
 ## 并行工作线（写入范围互不重叠）
 
-| 线 | 内容 | 写入范围 | 会话（分支/工作树） | 状态 |
-|---|---|---|---|---|
-| A | 《古诗十九首》原文核对与来源 | `content/`、`docs/sources/` | `1fcd6f3b`（`wt/a-e7e627bc`） | 进行中 |
-| B | 阅读原型（视觉与交互，可评审） | `prototype/` | `820562cf`（`wt/b-bc5853db`） | **已交付并入主线**（`e1146e3` → merge `326cafa`），已归档 |
-| C | 内容契约实现 + Markdown→JSON 编译与校验 | `tools/`、`schema/`、`tests/` + 契约文档 | `ccfeee5d`（`wt/c-23417088`） | **已交付并入主线**（`00d84c2` → merge `27f52ea`），已归档 |
-| D | Android 骨架（Compose）+ Android 离线更新 | `android/` | `3ce1b5e0`（`wt/d-android-d8070ef4`） | 进行中 |
-| E | Web 骨架 + 静态离线缓存与内容切换 | `web/` | `2715e86a`（`wt/e-web-367f9289`） | 进行中（视觉留给原型评审后） |
+| 线 | 内容 | 写入范围 | 状态 |
+|---|---|---|---|
+| A | 《古诗十九首》原文核对与来源 | `content/`、`docs/sources/` | **已并入主线**（`7bebcef`），已归档 |
+| B | 阅读原型（视觉与交互，可评审） | `prototype/` | **已并入主线**（`e1146e3`），已归档 |
+| C | 内容契约实现 + 编译与校验 | `tools/`、`schema/`、`tests/` + 契约文档 | **已并入主线**（`00d84c2`），已归档 |
+| D | Android 骨架 + 离线更新 | `android/` | **已并入主线**（`ce588b6`），已归档 |
+| E | Web 骨架 + 离线缓存与内容切换 | `web/` | **已并入主线**（`fc0e0a6`）；**返修中**：真实内容替换 + 停止客户端重排 + 重跑 e2e |
 
-并行方式：每条线一个隔离 git worktree（`C:\Users\wsqsy\Documents\android\.sopho-wt\<线>`），互不写同一目录；负责人读回、验收、再并入主线。任务完成后归档已落定的 worker（归档不删分支/工作树）。建议合并后回收工作树，命令与状态见 `git worktree list`。
-
-契约（`docs/design/content-contract.md`）由负责人维护，工作线不得各自改名；需要扩展先协调。
+并行方式：每条线一个隔离 git worktree（`C:\Users\wsqsy\Documents\android\.sopho-wt\<线>`）；负责人读回、验收、再并入主线。
+已并入的四条线可按需回收工作树（`git worktree list` 可查；回收走 `reclaim_worktree`，归档不自动删分支/工作树）。
 
 ## 下一步
 
-1. **视觉与交互评审**：原型已入主线，等用户选方向（A 宣纸 / B 清爽 / C「清爽骨架＋衬线正文」）。评审前两端实现保持视觉占位。
-2. A 的底本核对结果 → 若存在需要用户拍板的底本/异文取舍，交用户评审。
-3. C 编译 / E Web 报告 → 「接口决定（暂定）」集中列给用户；C 已填完第四批（见 [interface-decisions.md](interface-decisions.md)）。
-4. IF-4 排序仍待拍板；拍板后需同步内容线（`orderInSource`）与两端排序实现。
-5. 原型评审通过后：视觉统一落到两端，再谈 tag 发布流程与产物就绪检查。
+1. **等用户拍板三件事**：视觉方向（`q-cb3ac300`）、组内排序（`q-2b1b14d2`）、底本用字 5 处（A 线直接开的 `q-82b33b06`）。
+2. **平台/编译层接口一次性过**（C 的第四批 + D 的第五批 + E 的第六批 + 我改的第七批）：等上面三条答完后我带清单过去，避免同时压四件事。
+3. E 返修回来后：重跑它自己的 e2e（真实内容 + 修正后的断言），我再读回验收。
+4. 视觉评审通过后：视觉统一落到两端；再谈 tag 发布流程、产物就绪检查、仓库与签名（A4）。
+5. 发布前必须补的验证：**真机/模拟器验收**（目前一次都没做，需单独授权）、https + 子路径下的 Pages 实测、真断网/弱网。
 
-## 已交付
+## 已交付（均经负责人复跑验收，不只信报告）
 
-- **原型 B**（`prototype/`，commit `e1146e3`）：三个视觉方向（宣纸/清爽/静默终端）、22 张实拍截图、`#/` 与 `#/p/<id>` 路由、file:// 与 http 两种数据来源分支。
-  打开：双击 `prototype/index.html`，或 `cd prototype && node tools/serve.mjs`（http://127.0.0.1:8137/）。
-  诚实边界（见 `prototype/README.md`）：示例数据为 fixture；未在 Android/WebView 验证；未验真机字体（宣纸方向的宋体在 Android 上大概率没有）；未做无障碍检查；真实笔记 Markdown 只渲染段落/引用/列表/粗体。
-- **内容编译 C**（`tools/`、`schema/`、`tests/`，commit `00d84c2`）：`node tools/build-content.mjs [--check]`、`node tools/validate-content.mjs dist/content.json`、`npm test`（75 tests）。负责人**自己复跑过**：75/75 pass；6 条失败用例全部 exit=1；未知键 `translator` 被拒（去掉后 exit=0）；fixture 编译 + schema 校验通过。
-  诚实边界：**未对真实 19 首跑过**（A 线内容尚未落地到主树，现在跑得到 `CONTENT_DIR_MISSING`）；未做两端消费验证；未碰构建/设备/发布。
+- **内容 A**（`content/poems/*.md` 19 个 + `docs/sources/gushi-shijiu-shou.md` 390 行）：底本＝《文选》卷二十九李善注本；127 印刷行；13 条异文落在 10 首，每条至少一个实际取得的古籍见证；「不同底本的次序不一样」单列（《玉台新咏》收其中 12 首且篇序完全不同）。标点与异体字处理政策写在来源文档里（不是偷偷改字）。
+- **编译 C**（`tools/`、`schema/`、`tests/`）：`npm test` → 我复跑 **75/75 pass**；6 条失败用例全部 exit=1；未知键被拒；`--order source|pinyin` 两种策略；`contentVersion` 逐段数值比较（契约 §4.1 已取代 v0 那条错的字典序）。
+  - **真实 19 首已跑过**：`--check` exit=0；构建产物 23899 字节、19 首、1 个分组、序号 1..19、次序＝《文选》原次序、13 条异文、行数 127（与 A 的计数一致）。
+- **原型 B**（`prototype/`）：三个视觉方向 + 22 张实拍截图 + `#/p/<id>` 路由。现存于主线的版本已被我修掉「客户端重排」缺陷；用 `node prototype/tools/serve.mjs` 或从仓库根起服务可**直接读真产物**（页头显示 `数据：dist/content.json`）。
+- **Android D**（`android/`）：`./gradlew assembleDebug` 我这边复跑通过；**单测 49 例全绿**（原 45 + 我加的 4 条回归）；`aapt2 dump badging` 实测包名 `dev.sopho.suofei`、应用名「索斐」、minSdk 26 / targetSdk 36。
+  - **内置内容已换成真产物**：APK 内 `assets/content/content.json` 23899 字节，与 `dist/content.json` **字节一致**，19 首、首＝行行重行行、末＝明月何皎皎。占位夹具与 `FIXTURE-README.md` 已删。
+  - 诚实边界：**从未在真机/模拟器上运行过**（本轮禁止 adb/模拟器操作）；更新源是占位地址（`https://example.invalid/...`），只在本地 HTTP 上验证过成功与各失败路径。
+- **Web E**（`web/`）：静态、零依赖、无构建步骤；e2e `110/110`（E 自报，我待其返修后复跑确认）；两套缓存分离（资源 Cache `pc-resources-<APP_VERSION>` / 内容 IndexedDB）；离线用「CDP offline + 真杀掉本地服务」双重模拟。
+  诚实边界：未部署真实 Pages、未在移动浏览器验证、`manifest.json` 故意无图标。
+
+## 整合时抓到的系统性问题（已修 2 处，1 处返修中）
+
+1. **客户端重排会静默推翻用户的排序选择**：原型、Android、Web 三个消费端里**两个在客户端重排**，把编译期排好的次序丢掉（Android 搜索结果返回 `[明月何皎皎, 明月皎夜光]`，而产物里是反的）；Web 的 e2e 甚至把这个错行为**写成了期望**（`DOM 顺序 ≠ JSON 顺序`）。已统一为「编译期是唯一排序权威，客户端不得重排；产物一个排序键都没给才退回本地排序」。
+2. **Android 把排序名次当字符串读**（`optNonBlankString` 读整数），字符串比较会让第 10 名排到第 2 名前面。已改成 `Int?`、类型不符直接报错，并加回归测试。
+3. Web 端同类重排已派回 E 线返修（连同它的 e2e 断言一起改）。
 
 ## 本地踩到的坑（值得记住）
 
-- **Windows 上 `chrome.exe --version` 不打印版本且进程不退出** —— 用它探测版本会把整个会话卡死（E 线为此卡了 5 分钟）。要查版本用 `--headless=new --dump-dom` 或直接看安装目录；kill 时按 **pid + 完整命令行 + 启动时刻** 核实，绝不按 `chrome` 模式杀（本机可能有你自己的浏览器）。
-- 用管道接 `cmd | head` 时 `$?` 是 `head` 的退出码；要断言退出码就别接管道（或看 `PIPESTATUS`）。
+- **Windows 上 `chrome.exe --version` 不打印版本且进程不退出** —— 用它探测版本会把整个会话卡死（E 线为此卡了 5 分钟）。要查版本用 `--headless=new --dump-dom`；kill 时按 **pid + 完整命令行 + 启动时刻** 核实，绝不按 `chrome` 模式杀（本机可能有你自己的浏览器）。
+- 管道接 `cmd | head` 时 `$?` 是 `head` 的退出码；要断言退出码别接管道（或看 `PIPESTATUS`）。
+- `dist/` 里留着**上一次构建的产物**会让单调性闸门拒绝新版本（`VERSION_NOT_MONOTONIC`），而错误信息只比版本号、不提「这是旧产物」——换内容构建前先想清楚版本号。
+- 本机**全局** `~/.gradle/gradle.properties` 配了 `localhost:7890` 代理，而该代理到不了 `dl.google.com` / `repo.maven.apache.org`（直连 200、走代理 000）。Gradle 单测若要下新依赖会撞墙；D 留了 `-PextraMavenMirror=…` 开关。CI 会撞同一堵墙。
 
 ## 未决 / 待用户确认
 
-- 评审门槛 v3：**已由用户确认**（接口性与返工贵的先问，其余先做后报可否决）。
-- 契约层接口 IF-1…IF-4：已按要求写出逐条说明 [brief-1-contract-interfaces.md](reviews/brief-1-contract-interfaces.md)；**待用户就 IF-4 排序拍板**（其余若无异议即标为已定）。
-- 原型视觉与交互（评审后冻结，再落到两端实现）。
-- 仓库名与 Pages 地址：默认 `suofei`；建仓属 A4.1，需单独授权时一并确认。
-- 底本文字取舍（如《文选》与《玉台新咏》异文）——仅在两个文本都有出处且影响观感时升级为用户决定。
+| 事项 | 状态 |
+|---|---|
+| 原型视觉方向（宣纸/清爽/混合/静默终端） | 已问 `q-cb3ac300`，待答 |
+| 组内排序：保留《文选》原次序 vs 拼音 | 已问 `q-2b1b14d2`，待答（A、C 两线独立实测一致：拼音序会换位 18/19） |
+| 底本用字 5 处（何足贡/詹兔/生者/鸣鹤/中带） | A 线直接开了 `q-82b33b06`，待答 |
+| 平台/编译层接口一次性确认 | 待上面三条答完后带清单过去 |
+| 仓库名与 Pages 地址（默认 `suofei`）、固定签名方案 | 建仓/发布前单独授权（A4.1/A4.4） |
+| Web 可分享 URL 形态（`#/p/<id>`，搜索不进 URL） | 属接口，进批次待确认 |
 
 ## 诚实边界
 
 - 原型是**可丢弃的设计探索**，不等于最终实现；两端表现追求约定一致，不要求像素级一致。
-- 尚未做过真机/模拟器验收，尚未有任何公开发布动作（授权另行确认）。
-- 本机环境事实（JDK/SDK/Gradle 位置等）以工作线报告中的**实测**为准，不以记忆为准。
+- **尚未做过真机/模拟器验收**，尚未有任何公开发布动作（授权另行确认）。
+- 各线报告里的「已验证/未验证」都保留原文，不因为合并进主线就升级为「已验证」。
+- 本机环境事实（JDK/SDK/Gradle/代理等）以**实测**为准，不以记忆为准。

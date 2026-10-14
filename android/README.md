@@ -49,15 +49,20 @@ cd android
 验证结果：`clean assembleDebug` 通过（38 个任务，BUILD SUCCESSFUL）；`testDebugUnitTest` 45 例全绿。
 `aapt2 dump badging` 实测：`package: name='dev.sopho.suofei' versionCode='1' versionName='0.1.0'`、`minSdkVersion:'26'`、`targetSdkVersion:'36'`、`application-label:'索斐'`、`uses-permission: android.permission.INTERNET`。
 
-## 3. 内置内容替换（A/C 线产物落地时）
+## 3. 内置内容：已是真实产物（2026-10-14 由负责人替换完成）
 
-1. 用工作线 C 编译出的 `dist/content.json` **覆盖** `android/app/src/main/assets/content/content.json`；
-2. 删掉 `android/app/src/main/assets/content/FIXTURE-README.md`，并更新本 README 与设计文档里「内置内容为占位夹具」的表述；
-3. 跑 `./gradlew testDebugUnitTest`（`ContentParserTest` 会真解析这份内置文件，字段/分组/排序不合契约会直接失败）；
-4. 跑 `./gradlew assembleDebug`，用第 4 节命令确认新 JSON 真的进了 APK，且与源文件 sha256 一致。
+替换已按下面步骤实际执行过（不是待办）：
+
+1. ✅ 用编译线 C 产出的 `dist/content.json` 覆盖 `android/app/src/main/assets/content/content.json`；
+2. ✅ 删掉占位的 `FIXTURE-README.md`，并更新本 README 与设计文档里「内置内容为占位夹具」的表述；
+3. ✅ `ContentParserTest` 里原来点名 `fixture-*` 的断言已改成真实内容断言（首＝行行重行行、末＝明月何皎皎、8 个印刷行、首尾行原文、19 首均无笔记、异文不入正文）；
+4. ✅ 重跑 `testDebugUnitTest` 与 `assembleDebug`，并用第 4 节命令确认 APK 内 JSON 与源文件 sha256 一致。
+
+以后每次发新版内容，照上述 1–4 再做一次即可。要点：
 
 - 路径常量只有一处：`ContentRepository.ASSET_PATH = "content/content.json"`。
-- 夹具内容里含 `_fixtureWarning` 字段并明确标注「占位夹具，非校对文本」；夹具里唯一的笔记文本也自带「测试夹具笔记」字样，**不是用户笔记**。
+- **内置内容必须与 `dist/content.json` 字节一致**（第 4 节的门就是查这个）；不一致就意味着 APK 内置的版本与你以为发布的内容不是同一份。
+- **真实 19 首里没有任何笔记**（`notes` 全为 `null`），这是真实空状态，不是缺失；UI 显示「（无笔记）」，不得生成占位笔记。
 
 ## 4. 自证：确认 assets 里的 content.json 真的在 APK 内
 
@@ -67,11 +72,10 @@ APK=app/build/outputs/apk/debug/app-debug.apk
 
 # 方式一：apkanalyzer（本机 SDK cmdline-tools/latest 有）
 "C:/Users/wsqsy/AppData/Local/Android/Sdk/cmdline-tools/latest/bin/apkanalyzer.bat" files list "$APK" | grep assets/
-# 实测输出：
+# 实测输出（2026-10-14，真产物 19 首）：
 # /assets/
 # /assets/content/
 # /assets/content/content.json
-# /assets/content/FIXTURE-README.md
 
 # 方式二（更硬）：从 APK 读出内容并和源文件比 sha256
 uv run python - <<'EOF'
@@ -85,14 +89,14 @@ print("一致   :", a == b)
 EOF
 ```
 
-实测结果：APK 内 `assets/content/content.json` 4011 字节，sha256 `e9e2589694f4ef416afd30a4c7d86285ccd49d705b970703f4c3abc88d3fe3db`，与源文件**字节一致**。
+实测结果（2026-10-14）：APK 内 `assets/content/content.json` 23899 字节，sha256 `f58f945adcfb94aa50cdc0570f10a53a4956ebd22dab5b99b7684812bb724503`，与源文件、且与 `dist/content.json` **三方字节一致**。
 
 ## 5. 目录结构
 
 ```
 android/
 ├── app/src/main/
-│   ├── assets/content/content.json          # APK 内置内容（当前为占位夹具）
+│   ├── assets/content/content.json          # APK 内置内容（＝ dist/content.json，真实 19 首）
 │   ├── java/dev/sopho/suofei/
 │   │   ├── MainActivity.kt                  # 装配：store + repository + AppState，打开时自动检查更新
 │   │   ├── data/ContentModel…（Domain.kt）  # 内容领域模型 + 分组/排序/搜索规则

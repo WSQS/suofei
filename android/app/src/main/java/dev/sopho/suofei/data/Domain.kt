@@ -24,12 +24,18 @@ data class Poem(
     val stanzas: List<List<String>>,
     /** null 表示「没有笔记」这个真实状态；客户端不得用占位内容顶替。 */
     val notes: String?,
-    /** 编译期算好的拼音排序键；夹具阶段允许缺失，缺失时退回 author/title 本身。 */
-    val authorSortKey: String?,
-    val titleSortKey: String?,
+    /** 编译期算好的拼音排序**名次**（整数，不是拼音字符串）；缺失时退回 author/title 本身。 */
+    val authorSortKey: Int?,
+    val titleSortKey: Int?,
     /** 在 JSON 数组里的原始下标，用于排序键相同时保持确定性。 */
     val originIndex: Int,
-)
+) {
+    /**
+     * 产物是否带了次序信息。带了就**照数组次序原样渲染**：编译期是唯一排序权威，客户端不得重排
+     * —— 否则用户在编译期选定的次序（如《文选》原次序）会被两端各自重排静默推翻。
+     */
+    val hasOrderingInfo: Boolean get() = authorSortKey != null || titleSortKey != null
+}
 
 data class DynastyGroup(val dynasty: Dynasty, val poems: List<Poem>)
 
@@ -45,7 +51,11 @@ data class Content(
         poems.groupBy { it.dynastyKey }
             .mapNotNull { (key, poems) ->
                 val dynasty = dynasties.firstOrNull { it.key == key } ?: return@mapNotNull null
-                DynastyGroup(dynasty, poems.sortedWith(POEM_ORDER))
+                // 契约：产物已按组内规则排好，客户端不得重排。
+                // 只有产物一个排序键都没给（老产物 / 手写 JSON）时，才退回本地排序兜底。
+                val ordered =
+                    if (poems.any { it.hasOrderingInfo }) poems else poems.sortedWith(POEM_ORDER)
+                DynastyGroup(dynasty, ordered)
             }
             .sortedBy { it.dynasty.order }
     }
@@ -69,8 +79,10 @@ data class Content(
             if (author.isBlank() || author in ANONYMOUS_AUTHORS) 1 else 0
 
         internal val POEM_ORDER: Comparator<Poem> = compareBy<Poem> { authorRank(it.author) }
-            .thenBy { it.authorSortKey ?: it.author }
-            .thenBy { it.titleSortKey ?: it.title }
+            .thenBy(nullsLast()) { it.authorSortKey }
+            .thenBy(nullsLast()) { it.titleSortKey }
+            .thenBy { it.author }
+            .thenBy { it.title }
             .thenBy { it.originIndex }
     }
 }

@@ -88,7 +88,12 @@
       return pinyin.compare(a.label, b.label);
     });
     groups.forEach(function (g) {
-      g.poems.sort(comparePoems);
+      // 契约：编译产物已按组内规则排好序，客户端不得重排（见 docs/interface-decisions.md IF-15/IF-16）。
+      // 只有产物一个次序信息都没给时（早先手写的旧 fixture），才退回本地排序兜底。
+      var hasOrderInfo = g.poems.some(function (p) {
+        return p.orderInSource != null || p.authorSortKey != null || p.titleSortKey != null;
+      });
+      if (!hasOrderInfo) g.poems.sort(comparePoems);
     });
     return groups;
   }
