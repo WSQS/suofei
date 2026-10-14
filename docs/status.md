@@ -106,7 +106,17 @@
 
 **已就绪（本地演练全绿）**：内容 19 首 / 24 条异文；两端实现与离线更新；发布流水线（`check-ready` **exit 0、红项清零**：22 绿/1 跳/0 红，含两项真跑门：E 的 e2e **151/151**、Android 单测 **55/55**）。
 
-**发布前必须做、现在都没做（逐项都需用户单独授权）**——操作顺序与上线后必须实测的六项见 [first-release-runbook.md](design/first-release-runbook.md)：
+**对外部分已推进（2026-10-14，用户授权负责人推进）**：
+
+| 事项 | 现状 |
+|---|---|
+| 公开仓库 | **已建并推送**：https://github.com/WSQS/suofei （PUBLIC，默认分支 master，196 文件；推前改写了两处暴露仓库外私有路径/会话 id 的引用，并加了 README） |
+| Pages | **已启用**（build_type=workflow、强制 https）：https://wsqs.github.io/suofei/ —— **尚未部署任何内容** |
+| 正式签名 | **已定并已执行**：密钥与口令在仓库之外（`~/.suofei/`），四项 secrets 已写入仓库；**本机链路已实测**（`assembleRelease` 成功、`apksigner` 证书 `CN=Suofei` 而非 debug；缺变量时 fail-closed）。**离线备份待用户确认** |
+| CI 工作流 | 已写并推送（`.github/workflows/release.yml`：tag → 编译 → 签名构建 → 就绪检查 → Pages → Release；手动触发**默认干跑**）。**尚未在 CI 上跑过一次** |
+
+**仍未做（需用户单独授权）**：
+——操作顺序与上线后必须实测的六项见 [first-release-runbook.md](design/first-release-runbook.md)：
 
 | # | 事项 | 为何未做 |
 |---|---|---|
