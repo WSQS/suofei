@@ -1,0 +1,5 @@
+# 保证 wrapper 脚本在任何平台上都是可用的行尾/权限组合
+#（否则在 Linux/macOS/CI 上 `./gradlew` 可能直接因 CRLF 或缺少执行位而失败）
+gradlew text eol=lf
+gradlew.bat text eol=crlf
+*.sh text eol=lf

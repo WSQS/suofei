@@ -1,0 +1,108 @@
+{
+  "_fixtureWarning": "占位夹具，非校对文本。本文件由工作线 D 手写，仅用于打通 Android 骨架与离线更新流程；所有题名、作者、正文均为合成占位内容，不得当作《古诗十九首》或任何底本的校录结果，也不得进入公开发布产物。真实内容由工作线 A（content/）核对、工作线 C（tools/ 编译）产出后替换，替换方式见 android/README.md「内置内容替换」。",
+  "formatVersion": 1,
+  "contentVersion": "2026.10.14.1",
+  "generatedAt": "2026-10-14T12:00:00Z",
+  "dynasties": [
+    { "key": "han", "label": "汉", "order": 100 },
+    { "key": "tang", "label": "唐", "order": 400 },
+    { "key": "unknown", "label": "未详", "order": 9999 }
+  ],
+  "poems": [
+    {
+      "id": "fixture-han-01",
+      "title": "占位诗题甲",
+      "author": "佚名",
+      "dynastyKey": "han",
+      "dynastyLabel": "汉",
+      "dynastyOrder": 100,
+      "era": "东汉末（占位说明）",
+      "genre": "五言古诗（占位）",
+      "source": "占位夹具，无底本；非校对文本",
+      "variants": [],
+      "stanzas": [
+        ["此为占位正文行一，非校对文本。", "此为占位正文行二，非校对文本。"],
+        ["此处原本对应纸本空行后的新段，用于验证分段保留。", "占位正文行四，非校对文本。"]
+      ],
+      "notes": null,
+      "authorSortKey": "yiming",
+      "titleSortKey": "zhanweishitijia"
+    },
+    {
+      "id": "fixture-han-02",
+      "title": "占位诗题乙",
+      "author": "佚名",
+      "dynastyKey": "han",
+      "dynastyLabel": "汉",
+      "dynastyOrder": 100,
+      "era": null,
+      "genre": null,
+      "source": "占位夹具，无底本；非校对文本",
+      "variants": [
+        { "text": "占位异文行（不进入正文）", "note": "占位异文说明；异文按契约不进正文" }
+      ],
+      "stanzas": [
+        ["占位正文行一，非校对文本。"]
+      ],
+      "notes": null,
+      "authorSortKey": "yiming",
+      "titleSortKey": "zhanweishitiyi"
+    },
+    {
+      "id": "fixture-tang-01",
+      "title": "占位诗题丙",
+      "author": "占位作者甲",
+      "dynastyKey": "tang",
+      "dynastyLabel": "唐",
+      "dynastyOrder": 400,
+      "era": null,
+      "genre": "五言绝句（占位）",
+      "source": "占位夹具，无底本；非校对文本",
+      "variants": [],
+      "stanzas": [
+        ["占位正文行一，非校对文本。", "占位正文行二，非校对文本。"],
+        ["占位正文行三，非校对文本。"],
+        ["占位正文行四，非校对文本。"]
+      ],
+      "notes": "【测试夹具笔记，非用户真实笔记】这里放一段明确标注为测试的笔记，用来验证「有笔记时按需展开」的路径；它由工作线 D 编写，不代表用户内容。",
+      "authorSortKey": "zhanweizuozhejia",
+      "titleSortKey": "zhanweishitibing"
+    },
+    {
+      "id": "fixture-tang-02",
+      "title": "占位诗题丁",
+      "author": "占位作者乙",
+      "dynastyKey": "tang",
+      "dynastyLabel": "唐",
+      "dynastyOrder": 400,
+      "era": null,
+      "genre": null,
+      "source": "占位夹具，无底本；非校对文本",
+      "variants": [],
+      "stanzas": [
+        ["占位正文行一，非校对文本。", "占位正文行二，非校对文本。"]
+      ],
+      "notes": null,
+      "authorSortKey": "zhanweizuozheyi",
+      "titleSortKey": "zhanweishitiding"
+    },
+    {
+      "id": "fixture-unknown-01",
+      "title": "占位诗题戊",
+      "author": "未详",
+      "dynastyKey": "unknown",
+      "dynastyLabel": "未详",
+      "dynastyOrder": 9999,
+      "era": null,
+      "genre": null,
+      "source": "占位夹具，无底本；非校对文本",
+      "variants": [],
+      "stanzas": [
+        ["占位正文行一，非校对文本。"]
+      ],
+      "notes": null,
+      "authorSortKey": "weixiang",
+      "titleSortKey": "zhanweishitiwu"
+    }
+  ]
+}

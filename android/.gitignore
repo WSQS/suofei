@@ -1,0 +1,13 @@
+# Android 构建产物与本地环境（不提交）
+local.properties
+.gradle/
+build/
+app/build/
+*.apk
+*.aab
+*.keystore
+*.jks
+keystore.properties
+.idea/
+captures/
+.cxx/

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 不预设黑底/霓虹，仅一个最小 Material 主题壳；视觉以原型评审为准。 -->
+    <style name="Theme.PoetryCollection" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
