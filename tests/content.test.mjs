@@ -9,6 +9,7 @@ import {
   isUnknownAuthor,
   sortPoems,
   validatePoemRecord,
+  UNKNOWN_AUTHOR_MARKERS,
 } from '../tools/lib/content-build.mjs';
 import { DYNASTIES } from '../tools/lib/dynasties.mjs';
 import {
@@ -34,10 +35,12 @@ test('buildStanzas：去行尾空白，保留行首缩进（续行信息不丢�
 
 // ---------- 佚名判定 ----------
 
-test('isUnknownAuthor：契约标记与空值', () => {
-  for (const a of ['佚名', '无名氏', '未知', '未详', '不详', '', '   ']) {
-    assert.equal(isUnknownAuthor(a), true, `${a} 应视为未知作者`);
+test('isUnknownAuthor：清单（含「阙名」）与空值', () => {
+  // 不再在测试里拄一份清单：直接用唯一来源里的每一项。
+  for (const a of [...UNKNOWN_AUTHOR_MARKERS, '', '   ']) {
+    assert.equal(isUnknownAuthor(a), true, `${JSON.stringify(a)} 应视为未知作者`);
   }
+  assert.ok(UNKNOWN_AUTHOR_MARKERS.includes('阙名'), '用户拍板：阙名在匿名作者清单里');
   for (const a of ['曹植', '蔡邕', '杜牧']) {
     assert.equal(isUnknownAuthor(a), false, `${a} 不应视为未知作者`);
   }
