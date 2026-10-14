@@ -6,9 +6,10 @@
 //   const v1 = await makeDeployment({ destDir: '.../deploy-v1', appVersion: '0.1.0', contentText });
 //   const v2 = await makeDeployment({ destDir: '.../deploy-v2', appVersion: '0.2.0', contentText: newContent });
 // 之后用同一个 origin（同端口）先后指向两个目录，就等于「同一站点发了新版」。
+//
+// 这里**不写** content.json.sha256：Web 侧已决定不产出边车（用户 2026-10-14）。
 
-import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { createHash } from 'node:crypto';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -26,18 +27,15 @@ export const DEPLOY_FILES = [
   'app/render.js',
 ];
 
-const sha256 = (text) => createHash('sha256').update(text, 'utf8').digest('hex');
-
 /**
  * 写一个部署目录。
  * @param {{
  *   destDir: string,
  *   appVersion: string,
  *   contentText: string,
- *   withChecksumSidecar?: boolean,
  * }} opts
  */
-export async function makeDeployment({ destDir, appVersion, contentText, withChecksumSidecar = false }) {
+export async function makeDeployment({ destDir, appVersion, contentText }) {
   const dest = resolve(destDir);
   await rm(dest, { recursive: true, force: true });
   for (const rel of DEPLOY_FILES) {
@@ -51,9 +49,6 @@ export async function makeDeployment({ destDir, appVersion, contentText, withChe
     await writeFile(target, text, 'utf8');
   }
   await writeFile(join(dest, 'content.json'), contentText, 'utf8');
-  if (withChecksumSidecar) {
-    await writeFile(join(dest, 'content.json.sha256'), `${sha256(contentText)}  content.json\n`, 'utf8');
-  }
   return {
     destDir: dest,
     appVersion,

@@ -588,8 +588,10 @@ async function main() {
   await waitFor(`Boolean(document.querySelector('[data-test="update-available"]'))`, { label: '出现「有新版本」提示' });
   includes('提示写明不会自动刷新',
     await evaluate(`document.querySelector('[data-test="update-available-text"]').textContent`), '不会自动刷新');
+  await waitFor(`window.__app.summary().sw.waitingVersion === ${JSON.stringify(v2App)}`,
+    { label: '问到 waiting SW 的站点版本' });
   s = await summary();
-  check('新版本在等待（waiting SW 的站点版本已问到）', s.sw.waitingVersion === v2App, `waitingVersion=${s.sw.waitingVersion}`);
+  eq('新版本在等待（waiting SW 的站点版本已问到）', s.sw.waitingVersion, v2App);
   eq('两个缓存同时存在：旧的在服务、新的已就绪',
     (await cacheKeys()).filter((n) => n.startsWith('pc-resources-')).sort(), [expectedCache, v2.cacheName].sort());
   const newCacheContent = JSON.parse(await cacheText(v2.cacheName, `/${CONTENT_URL}`));
@@ -668,9 +670,11 @@ async function main() {
   await reload();                                   // 真导航才会触发 SW 更新检查
   await waitForPoemView(poemId);
   await waitFor(`Boolean(document.querySelector('[data-test="update-available"]'))`, { label: 'v3 提示出现（在诗页）' });
+  await waitFor(`window.__app.summary().sw.waitingVersion === ${JSON.stringify(v3App)}`,
+    { label: '问到 v3 的站点版本' });
   s = await summary();
   eq('诗页里仍然生效的是旧版本', s.contentVersion, variants.fixtureContent.doc.contentVersion);
-  check('v3 也在等待', s.sw.waitingVersion === v3App, `waitingVersion=${s.sw.waitingVersion}`);
+  eq('v3 也在等待', s.sw.waitingVersion, v3App);
   eq('旧壳也没变（还是 v2 的站点版本）', s.appVersion, v2App);
   const tokenBeforeBack = await docToken();
   await evaluate(`document.querySelector('[data-test="back-to-index"]').click(); true`);

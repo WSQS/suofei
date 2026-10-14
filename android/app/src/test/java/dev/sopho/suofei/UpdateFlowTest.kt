@@ -12,6 +12,7 @@ import java.security.MessageDigest
 import kotlin.concurrent.thread
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -248,7 +249,36 @@ class UpdateFlowTest {
     }
 
     @Test
-    fun secondUpdate_switchesAgainAndKeepsOnlyTwoSnapshots() {
+    fun pointerWriteFailure_surfacesAsIoFailure_notAsException_oldVersionKept() {
+        val store = store()
+        val v1 = payload("2026.10.14.1")
+        responses["/latest.json"] = 200 to manifest("2026.10.14.1", sha256(v1)).toByteArray()
+        responses["/content.json"] = 200 to v1.toByteArray()
+        assertTrue(ContentUpdater.checkAndUpdate("$base/latest.json", null, 1, store) is UpdateOutcome.Activated)
+
+        // 让生效指针写不下去（模拟磁盘满 / IO 错误）：临时指针文件的位置被非空目录占住
+        val blocker = File(tmp.root, "content/current.tmp")
+        assertTrue(blocker.mkdirs())
+        File(blocker, "occupied").writeText("x")
+
+        val v2 = payload("2026.10.14.2")
+        responses["/latest.json"] = 200 to manifest("2026.10.14.2", sha256(v2)).toByteArray()
+        responses["/content.json"] = 200 to v2.toByteArray()
+
+        val outcome = ContentUpdater.checkAndUpdate("$base/latest.json", "2026.10.14.1", 1, store)
+
+        // 调用方拿到的是一个与其它失败**同类**的 Failed(IO)，而不是异常——
+        // 因此「内容更新」页会照常显示「更新未生效，旧内容保留：<原因>」，不会变成静默什么都没发生。
+        assertTrue("实际结果：$outcome", outcome is UpdateOutcome.Failed)
+        val failed = outcome as UpdateOutcome.Failed
+        assertEquals(FailureKind.IO, failed.kind)
+        assertTrue("原因要能直接给人看：${failed.reason}", failed.reason.contains("指针写入失败"))
+        assertEquals("旧内容仍在生效", "2026.10.14.1", currentVersionOf(store))
+        assertFalse("不留孤儿快照目录", File(tmp.root, "content/versions/2026.10.14.2").exists())
+    }
+
+    @Test
+    fun secondUpdate_switchesAgainAndLeavesOnlyCurrentSnapshot() {
         val store = store()
         for (v in listOf("2026.10.14.1", "2026.10.14.2", "2026.10.14.3")) {
             val body = payload(v)
@@ -256,8 +286,12 @@ class UpdateFlowTest {
             responses["/content.json"] = 200 to body.toByteArray()
             val outcome = ContentUpdater.checkAndUpdate("$base/latest.json", currentVersionOf(store), 1, store)
             assertTrue("$v -> $outcome", outcome is UpdateOutcome.Activated)
+            // 每次激活后，磁盘上就只剩刚刚生效的那一个快照
+            assertEquals(listOf(v), store.installedVersions())
         }
         assertEquals("2026.10.14.3", currentVersionOf(store))
-        assertEquals(listOf("2026.10.14.3", "2026.10.14.2"), store.installedVersions())
+        assertEquals(listOf("2026.10.14.3"), store.installedVersions())
+        assertFalse(File(tmp.root, "content/versions/2026.10.14.1").exists())
+        assertFalse(File(tmp.root, "content/versions/2026.10.14.2").exists())
     }
 }

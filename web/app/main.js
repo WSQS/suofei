@@ -349,17 +349,31 @@ function askWorker(worker) {
   });
 }
 
-function markUpdateAvailable(reg) {
+function markUpdateAvailable(reg, worker = null) {
   if (state.update.available) return;
   state.update.available = true;
   state.sw.registration = reg;
   render();
-  askWorker(reg.waiting).then((report) => {
-    if (report?.appVersion) {
-      state.sw.waitingVersion = report.appVersion;
-      renderChrome();
+
+  // 问 waiting 的 worker 要它的站点版本，好在提示里写明。
+  // 两个坑：① 刚装好的那一瞬，注册对象上可能还没体现为 waiting（所以把 worker 本身也带进来）；
+  // ② 绝不能退回去问 active —— 那时 active 还是**旧**的，会把旧版本当成新版本写进提示。
+  const target = () => {
+    if (reg.waiting) return reg.waiting;
+    if (worker && worker.state === 'installed') return worker;
+    return null;
+  };
+  (async () => {
+    for (let i = 0; i < 6 && !state.sw.waitingVersion; i += 1) {
+      const report = await askWorker(target());
+      if (report?.appVersion) {
+        state.sw.waitingVersion = report.appVersion;
+        renderChrome();
+        return;
+      }
+      await sleep(300);
     }
-  });
+  })();
 }
 
 /** 切换到新版本：让 waiting 的 SW 接管，然后在 controller 真的换了之后刷新。
@@ -440,7 +454,7 @@ async function setupServiceWorker() {
       if (!fresh) return;
       fresh.addEventListener('statechange', () => {
         // installed + 已有旧 SW 在控制 = 新版本在等（不要抢在首次安装时误报）
-        if (fresh.state === 'installed' && navigator.serviceWorker.controller) markUpdateAvailable(reg);
+        if (fresh.state === 'installed' && navigator.serviceWorker.controller) markUpdateAvailable(reg, fresh);
       });
     });
 
