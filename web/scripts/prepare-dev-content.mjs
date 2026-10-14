@@ -1,24 +1,33 @@
 #!/usr/bin/env node
 // 把一份内容 JSON 放到 web/content.json（+ content.json.sha256 边车），供本地阅读/演练/测试。
 //
-// 优先级：C 线的真实产物 > 占位夹具。
-//   node web/scripts/prepare-dev-content.mjs                    # 有 ../../dist/content.json 就用它，否则用占位夹具
-//   node web/scripts/prepare-dev-content.mjs --from D:/x.json   # 指定文件
-//   node web/scripts/prepare-dev-content.mjs --variant update   # 测试用变体（见下表）
+// 基座优先级（会打印实际用了哪一个）：
+//   1. --from <file>
+//   2. dist/content.json（C 线编译器的真实产物）
+//   3. fixtures/content.placeholder.json（占位夹具，页面上会显示黄条）
 //
-// 变体（都在 fixtures/variants/ 下，由 tests/make-fixtures.mjs 生成）：
-//   placeholder 占位夹具（默认）
-//   update      正常新版 v2026.10.14.2：删掉 1 首诗、删掉 1 个时代分组、改 1 行、加 1 首诗
-//   older       更旧版本 v2026.10.14.0（内容与 update 相同，用来验证「不比本地新就不切换」）
-//   corrupt     v2026.10.14.3，内容合法但 sha256 边车故意不匹配（验证校验闸）
-//   broken      v2026.10.14.3，不是合法 JSON（验证解析失败闸）
-//   future      formatVersion 2 / v2026.10.15.1（验证格式版本不兼容 → 保留旧版）
+// 用法：
+//   node web/scripts/prepare-dev-content.mjs                       # 真实产物优先，没有就用占位夹具
+//   node web/scripts/prepare-dev-content.mjs --from D:/x.json
+//   node web/scripts/prepare-dev-content.mjs --variant update      # 从基座派生测试变体
+//
+// 变体（前两个是仓库里的夹具文件，其余从**基座**现场派生；见 scripts/lib/variants.mjs）：
+//   placeholder  占位夹具（与基座无关，固定用 fixtures/content.placeholder.json）
+//   no-sortkeys  v0 形状的老夹具：一个排序键都没给，用来验证本机拼音兜底
+//   update       删首尾各 1 首、改 1 行、加 1 首测试诗并新增 1 个时代分组
+//   update2      在 update 基础上去掉那首测试诗 → 那个时代分组随之消失
+//   lower        内容同 update，版本更旧 → 必须拒绝（不降级）
+//   corrupt      内容合法、版本更高，但边车哈希故意不匹配
+//   broken       截断的非法 JSON
+//   future       formatVersion 更高 → 不解析、保留旧内容
 
 import { createHash } from 'node:crypto';
-import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { buildVariants } from './lib/variants.mjs';
 
 const webRoot = fileURLToPath(new URL('..', import.meta.url));
 const repoRoot = resolve(webRoot, '..');
@@ -31,61 +40,71 @@ const flag = (name) => {
   return i === -1 ? undefined : argv[i + 1];
 };
 
-const VARIANTS = {
-  placeholder: { file: 'fixtures/content.placeholder.json', checksum: 'correct' },
-  update: { file: 'fixtures/variants/content.v-update.json', checksum: 'correct' },
-  older: { file: 'fixtures/variants/content.v-older.json', checksum: 'correct' },
-  corrupt: { file: 'fixtures/variants/content.v-corrupt.json', checksum: 'wrong' },
-  broken: { file: 'fixtures/variants/content.v-broken.json', checksum: 'correct' },
-  future: { file: 'fixtures/variants/content.v-future.json', checksum: 'correct' },
+const FIXTURE_VARIANTS = {
+  placeholder: 'fixtures/content.placeholder.json',
+  'no-sortkeys': 'fixtures/content.no-sortkeys.json',
 };
 
 const sha256 = (text) => createHash('sha256').update(text, 'utf8').digest('hex');
+
+function describe(text) {
+  try {
+    const doc = JSON.parse(text);
+    return `formatVersion=${doc.formatVersion} contentVersion=${doc.contentVersion} poems=${doc.poems?.length} `
+      + `dynasties=${(doc.dynasties ?? []).map((d) => d.key).join(',')} `
+      + `${doc.placeholder === true ? '【占位夹具】' : ''}${doc.fixture === true ? '【测试夹具】' : '真实产物'}`;
+  } catch {
+    return '（内容不是合法 JSON —— 变体故意造成的）';
+  }
+}
 
 async function main() {
   const variantName = flag('variant');
   const from = flag('from');
   const realContent = resolve(repoRoot, 'dist', 'content.json');
-  let source;
-  let checksumMode = 'correct';
-  let origin;
 
-  if (variantName) {
-    const v = VARIANTS[variantName];
-    if (!v) throw new Error(`未知变体 ${variantName}；可选：${Object.keys(VARIANTS).join(', ')}`);
-    source = resolve(webRoot, v.file);
-    checksumMode = v.checksum;
-    origin = `变体 ${variantName}`;
+  let baseText = null;
+  let baseOrigin = '';
+  if (variantName && FIXTURE_VARIANTS[variantName]) {
+    baseOrigin = `夹具文件 fixtures/${FIXTURE_VARIANTS[variantName].split('/').pop()}`;
+    baseText = await readFile(resolve(webRoot, FIXTURE_VARIANTS[variantName]), 'utf8');
   } else if (from) {
-    source = resolve(from);
-    origin = `指定文件 ${source}`;
+    baseOrigin = `指定文件 ${resolve(from)}`;
+    baseText = await readFile(resolve(from), 'utf8');
   } else if (existsSync(realContent)) {
-    source = realContent;
-    origin = 'C 线真实产物 dist/content.json';
+    baseOrigin = 'C 线真实产物 dist/content.json';
+    baseText = await readFile(realContent, 'utf8');
   } else {
-    source = resolve(webRoot, VARIANTS.placeholder.file);
-    origin = '占位夹具（dist/content.json 尚不存在）';
+    baseOrigin = '占位夹具（dist/content.json 不存在，且未给 --from）';
+    baseText = await readFile(resolve(webRoot, FIXTURE_VARIANTS.placeholder), 'utf8');
+    console.warn('警告：正在用占位夹具，不是真实内容。');
   }
 
-  const text = await readFile(source, 'utf8');
+  let text = baseText;
+  let checksumMode = 'correct';
+  let origin = baseOrigin;
+  if (variantName && !FIXTURE_VARIANTS[variantName]) {
+    const variants = buildVariants(JSON.parse(baseText));
+    const v = variants[variantName];
+    if (!v) {
+      throw new Error(`未知变体「${variantName}」；可用：${[...Object.keys(FIXTURE_VARIANTS), ...Object.keys(variants)].join(' / ')}`);
+    }
+    text = v.text;
+    checksumMode = v.checksum === 'wrong' ? 'wrong' : 'correct';
+    origin = `${baseOrigin} → 派生变体 ${v.name}（${v.note}）`;
+  }
+
   await writeFile(target, text, 'utf8');
   if (checksumMode === 'correct') {
     await writeFile(checksumTarget, `${sha256(text)}  content.json\n`, 'utf8');
-  } else if (checksumMode === 'wrong') {
-    // 故意写一个不匹配的哈希：只有真做校验和比对才会失败。
+  } else {
+    // 故意写一个不匹配的哈希：只有真做了校验和比对的客户端才会失败。
     await writeFile(checksumTarget, `${'0'.repeat(64)}  content.json\n`, 'utf8');
   }
 
-  let note = '';
-  try {
-    const doc = JSON.parse(text);
-    note = `formatVersion=${doc.formatVersion} contentVersion=${doc.contentVersion} poems=${doc.poems?.length} 占位夹具=${doc.placeholder === true}`;
-  } catch {
-    note = '（内容不是合法 JSON —— 这是变体故意造成的）';
-  }
   console.log(`来源：${origin}`);
   console.log(`写入：web/content.json（${text.length} 字节）+ web/content.json.sha256（校验和模式：${checksumMode}）`);
-  console.log(`内容：${note}`);
+  console.log(`内容：${describe(text)}`);
 }
 
 main().catch((err) => { console.error(err.message); process.exitCode = 1; });
