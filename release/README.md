@@ -39,8 +39,12 @@ node release/build-release.mjs --tag 'v0.2.0+content-2026.10.16.5' --android-var
   非零退出，**不生成密钥、不退回 debug 签名**；
 - 就绪检查的 `apk-signing` 门：release 变体会用 `apksigner verify --print-certs` 断言证书**不是** debug 证书
   （是 ⇒ 红）并把证书 DN 打进回执；debug 变体如实标**黄**（「不能用于正式发布」，结论行也会写「演练口径就绪」）。
-- 实测口径（2026-10-14）：用负责人本机生成的那枚正式密钥跑 `--android-variant release`，`apk-signing` 绿并报出
-  `CN=Suofei, OU=suofei, O=WSQS, C=CN`；**CI 路径（secrets 注入）尚未验证**。签名约定见 `docs/design/ci-and-signing.md`。
+- 实测口径（2026-10-14）：本机用那枚正式密钥跑 `--android-variant release`，`apk-signing` 绿并报出
+  `CN=Suofei, OU=suofei, O=WSQS, C=CN`；**CI 上「签名 + 验签 + 证书正确」这一环也已实测通过**
+  （secrets 注入成功、`apksigner` 验过、DN 正确）。仍未验证：整条 workflow 跑绿、Pages 真部署、真机安装/覆盖升级。
+- `apksigner` 输出格式**跨平台不同**（本机 `Signer #1 certificate DN:`，CI 上 `V2 Signer: certificate DN:`）——
+  解析只认 `certificate DN:` 这个共同子串；**验签通过但读不出 DN ⇒ 黄**（不是红）。可自测：`node release/selftest-apksigner.mjs`。
+- 签名约定见 `docs/design/ci-and-signing.md`。
 
 常用开关（`--help` 有全量）：`--out <dir>`、`--previous-version <v>`（严格大于它，否则拒绝）、
 `--skip-apk`（只出内容/Web；就绪检查会因缺 APK 报红）、`--android-feed none`（不产出小纸条清单，仅演练用）、
