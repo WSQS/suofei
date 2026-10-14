@@ -131,6 +131,40 @@ const TOTAL_STEPS = 8;
 
 // ---------- 杂项 ----------
 
+/**
+ * 清理本次的产物目录（在开跑时做）。
+ *
+ * 为什么这么做（负责人 2026-10-16 报过一个真事故）：改了产物集（例如去掉边车）之后，
+ * **上一版构建留下的文件会一直在那里**，就绪检查每次都报「多出不该发布的条目」——
+ * 而真因只是历史残留。所以开跑时就把占位清干净：
+ *
+ *   - `web/` 与 `apk/` 是**派生产物**，每次都会被整份重建 ⇒ 直接删掉（绝不让上一版的载荷
+ *     留在那里，也避免“上次构建失败后再跑 check-ready 看到一堆莫名其妙的红”）；
+ *   - `dist/` 是**规范产物**，**不整个删**：编译器自己是「先全量建到内存、成功后才 rename」，
+ *     失败不写产物也不动已有产物；保持这个语义，编译失败时上一版的 `dist` 与
+ *     `release-manifest.json` 都还在（它们同时是下一版做单调性与 APP_VERSION 递增比对的基线）。
+ *     但要把 `dist/` 里**本产物集之外**的东西剪掉（如去边车之前留下的 `content.json.sha256`）。
+ *
+ * @returns {string[]} 删掉了什么（供打印，不静默）
+ */
+function cleanOutputDir(outDir) {
+  const removed = [];
+  for (const dir of [A.webDir(outDir), A.apkDir(outDir)]) {
+    if (!exists(dir)) continue;
+    const before = dirBytes(dir);
+    rmrf(dir);
+    removed.push(`${display(dir)}/（上一版派生物，${before.files} 个文件）`);
+  }
+  const distDir = path.dirname(A.distPath(outDir));
+  for (const name of exists(distDir) ? fs.readdirSync(distDir) : []) {
+    if (A.DIST_EXPECTED_FILES.includes(name)) continue;
+    const p = path.join(distDir, name);
+    rmrf(p);
+    removed.push(`${display(p)}（不在本次产物集里）`);
+  }
+  return removed;
+}
+
 function readAppIdentity() {
   const kts = fs.readFileSync(path.join(REPO_ROOT, 'android/app/build.gradle.kts'), 'utf8');
   const pick = (re, fallback = null) => {
@@ -207,7 +241,14 @@ function main() {
   console.log('本次**不做**：推远端仓库、启用 Pages/Release、读取或生成签名私钥、装设备。');
 
   // ── 1. 前置事实 ────────────────────────────────────────────────
-  step(1, TOTAL_STEPS, '前置事实（源提交 / 工作树 / 应用版本 / 已提交的内置内容版本）');
+  step(1, TOTAL_STEPS, '前置事实（清理上次残留 → 源提交 / 工作树 / 应用版本）');
+  const cleaned = cleanOutputDir(outDir);
+  if (cleaned.length) {
+    info('清理上次残留', `${cleaned.length} 项`);
+    for (const c of cleaned) note(`删除 ${c}`);
+  } else {
+    info('清理上次残留', '无（产物目录本来就没有上一版的残留）');
+  }
   const headFull = git(['rev-parse', 'HEAD']);
   const headShort = git(['rev-parse', '--short', 'HEAD']);
   const branch = git(['rev-parse', '--abbrev-ref', 'HEAD']);

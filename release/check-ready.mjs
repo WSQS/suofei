@@ -96,9 +96,17 @@ const PREREQUISITES = {
 
 // ─────────────────────────── 检查项 ───────────────────────────
 
-check('out-dir', '产物目录存在', (c) => {
+check('out-dir', '产物目录存在且完整', (c) => {
   if (!exists(c.outDir)) fail(`产物目录不存在：${display(c.outDir)}（先跑 release/build-release.mjs）`);
-  return `顶层：${(listTop(c.outDir) ?? []).join(', ')}`;
+  const top = listTop(c.outDir) ?? [];
+  const missing = ['dist', 'web'].filter((n) => !exists(path.join(c.outDir, n)));
+  if (missing.length) {
+    fail(
+      `产物目录不完整，缺：${missing.join(', ')}\n` +
+        '   （上次构建可能失败或正在跑；本目录是发布流水线自己管理的，不要与别的构建共用同一个 --out）',
+    );
+  }
+  return `顶层：${top.join(', ')}`;
 });
 check('manifest', '本次发布的清单可读且字段齐', (c) => {
   const f = A.manifestPath(c.outDir);

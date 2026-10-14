@@ -57,6 +57,10 @@ node release/build-release.mjs --version-source date            # UTC 当天日�
    手跑单测时请自己加 `--rerun-tasks`：不加的话 Gradle 会因为 `src/main/assets/**` 不是声明输入而
    `UP-TO-DATE`/`FROM-CACHE` —— 实测「内容改成 18 首也照样退出码 0」，那是假绿。
 
+另外：`build-release.mjs` **开跑时会先清掉本次产物目录里的残留** —— `web/`、`apk/` 整份删（派生物，每次重建），
+`dist/` 只剪掉「本产物集之外」的文件（不整删：编译失败要保留上一版的规范产物与 manifest，它们同时是下一版的基线）。
+所以**一次失败的构建会让 `out/` 缺 `web/`**：这时就绪检查会报「产物目录不完整」——那是“上次构建失败”的信号，不是产物坏了。
+
 ## 当前已知的红（不是流水线缺陷）
 
 `live-android-unit-tests` 红在 `ContentParserTest > variants_areParsedButNeverEnterStanzas`：
