@@ -45,7 +45,7 @@ import {
   writeFileEnsured,
 } from './lib/util.mjs';
 import { RELEASE_TAG_HINT, resolvePreviousVersion, resolveVersionRequest } from './lib/version-source.mjs';
-import { builtApkPath, gradlewCommand, prepareAndroidWorkDir } from './lib/android-work.mjs';
+import { gradlewCommand, prepareAndroidWorkDir } from './lib/android-work.mjs';
 import { listZipEntries, readZipEntry } from './lib/zip.mjs';
 
 const USAGE = `用法：node release/build-release.mjs [选项]
@@ -58,6 +58,11 @@ const USAGE = `用法：node release/build-release.mjs [选项]
   --previous-version <v>  单调性基线（默认取「已提交的内置内容版本」与上次 release-manifest 里的较大者）
   --out <dir>             产物目录，默认 ${A.OUT_DEFAULT}（release/.gitignore 忽略 /out/）
   --android-src <dir>     要构建的 Android 工程，默认 android/（只读，会被复制）
+  --android-variant <v>   构建哪个变体：debug（默认，演练用）| release（正式发布用）
+                          release ⇒ 跑 assembleRelease，**要求四项签名环境变量齐全**
+                                   （SUOFEI_KEYSTORE / _KEYSTORE_PASSWORD / _KEY_ALIAS / _KEY_PASSWORD）；
+                                   缺任何一项就非 0 退出并说清缺哪个，**不造密钥、不退回 debug 签名**。
+                                   四项由 CI 从仓库 secrets 注入，约定见 docs/design/ci-and-signing.md。
   --source-date-epoch <secs>  固定编译产物的 generatedAt（Unix 秒），让「同一次发布的产物字节」可复现；
                           不传则用真实时间（于是同一份内容重复编译字节不同，哈希只在一次发布内可比）
   --skip-apk              跳过 APK 构建（内容/Web 两样照常产出；就绪检查会因此报红）
@@ -82,6 +87,7 @@ function parseArgs(argv) {
     previousVersion: null,
     out: A.OUT_DEFAULT,
     androidSrc: 'android',
+    androidVariant: 'debug',
     skipApk: false,
     sourceDateEpoch: null,
     androidFeed: 'manifest',
@@ -102,6 +108,13 @@ function parseArgs(argv) {
       case '--previous-version': opts.previousVersion = need(a, i); i++; break;
       case '--out': opts.out = need(a, i); i++; break;
       case '--android-src': opts.androidSrc = need(a, i); i++; break;
+      case '--android-variant':
+        opts.androidVariant = need(a, i);
+        i++;
+        if (!['debug', 'release'].includes(opts.androidVariant)) {
+          throw new ReleaseError(`--android-variant 只接受 debug|release，收到：${opts.androidVariant}`, { code: 'USAGE' });
+        }
+        break;
       case '--source-date-epoch':
         opts.sourceDateEpoch = need(a, i);
         i++;
@@ -239,6 +252,34 @@ function main() {
 
   console.log('索斐发布流水线 F（本地演练）—— 产物目录：' + display(outDir));
   console.log('本次**不做**：推远端仓库、启用 Pages/Release、读取或生成签名私钥、装设备。');
+
+  // ── 0. release 变体的**签名前置检查**：必须在做任何事之前失败（fail early，不留半成品）──
+  // 签名由**仓库 secrets 注入的四项环境变量**提供（约定见 docs/design/ci-and-signing.md）。
+  // 缺任何一项就停：**不生成密钥、不退回 debug 签名**（那样产出的 APK 会被误当成正式包）。
+  // 只记录「是否已设」，**绝不打印取值**。
+  const SIGNING_ENV_KEYS = [
+    'SUOFEI_KEYSTORE',
+    'SUOFEI_KEYSTORE_PASSWORD',
+    'SUOFEI_KEY_ALIAS',
+    'SUOFEI_KEY_PASSWORD',
+  ];
+  let signingEnvPresent = null;
+  if (opts.androidVariant === 'release') {
+    const missing = SIGNING_ENV_KEYS.filter((k) => !process.env[k] || String(process.env[k]).trim() === '');
+    signingEnvPresent = Object.fromEntries(SIGNING_ENV_KEYS.map((k) => [k, !missing.includes(k)]));
+    if (missing.length) {
+      throw new ReleaseError(
+        [
+          `--android-variant release 需要四项签名环境变量，缺：${missing.join(', ')}`,
+          '  已按约定停止（且在动任何东西之前）：**不生成密钥、不退回 debug 签名** —— debug 签名的包会被误当成正式包，发出去收不回。',
+          '  这四项从哪儿来：CI 由仓库 secrets 注入（约定见 docs/design/ci-and-signing.md）；',
+          '  本地想验证签名链路 ⇒ 按同一文档的「一次性测试密钥演练」（需用户/负责人授权生成密钥）；',
+          '  只做开发与验收 ⇒ 用默认的 --android-variant debug（assembleDebug，debug 签名）。',
+        ].join('\n'),
+        { code: 'SIGNING_ENV_MISSING' },
+      );
+    }
+  }
 
   // ── 1. 前置事实 ────────────────────────────────────────────────
   step(1, TOTAL_STEPS, '前置事实（清理上次残留 → 源提交 / 工作树 / 应用版本）');
@@ -428,13 +469,26 @@ function main() {
     note('同一个文件既是 APK 的 assets、也是 ContentParserTest 的输入 —— 一处替换、两处一致（详见 release/lib/android-work.mjs）');
 
     const gradlew = gradlewCommand();
-    const gradleArgs = ['assembleDebug'];
+    const variant = opts.androidVariant;
+    if (variant === 'release') info('签名环境变量', `${SIGNING_ENV_KEYS.join(' / ')} 四项齐全（**只看是否齐全，不打印取值**）`);
+
+    const gradleTask = variant === 'release' ? 'assembleRelease' : 'assembleDebug';
+    const gradleArgs = [gradleTask];
     if (opts.offline) gradleArgs.push('--offline');
     const build = run(gradlew, gradleArgs, { cwd: work.projectDir });
-    steps.push({ name: '构建 APK', command: `${gradlew} ${gradleArgs.join(' ')}`, seconds: build.seconds });
+    steps.push({ name: `构建 APK（${variant}）`, command: `${gradlew} ${gradleArgs.join(' ')}`, seconds: build.seconds });
 
-    const builtApk = builtApkPath(work.projectDir);
-    if (!exists(builtApk)) throw new ReleaseError(`Gradle 成功但没有 APK：${display(builtApk)}`, { code: 'NO_ARTIFACT' });
+    const built = findBuiltApk(work.projectDir, variant);
+    if (!built) {
+      throw new ReleaseError(
+        `Gradle 成功但没有 ${variant} 变体的 APK（找过 app/build/outputs/apk/${variant}/app-${variant}.apk 与 -unsigned.apk）`,
+        { code: 'NO_ARTIFACT' },
+      );
+    }
+    const builtApk = built.path;
+    if (built.unsigned) {
+      warn(`产物是 ${built.rel} —— **未签名**（AGP 没找到签名配置）。就绪检查的 apk-signing 门会报红；这份产物不得用于正式发布。`);
+    }
     const apkBuiltIn = readApkBuiltInContent(fs.readFileSync(builtApk), builtApk);
     if (apkBuiltIn.sha256 !== distSha) {
       throw new ReleaseError(
@@ -447,23 +501,30 @@ function main() {
         { code: 'APK_CONTENT_MISMATCH' },
       );
     }
-    info('APK 内置内容校验', `${apkBuiltIn.entry}  ${apkBuiltIn.bytes} 字节  sha256=${apkBuiltIn.sha256} == dist ✓`);    const apkName = A.apkFileName(versionReq.contentVersion);
+    info('APK 内置内容校验', `${apkBuiltIn.entry}  ${apkBuiltIn.bytes} 字节  sha256=${apkBuiltIn.sha256} == dist ✓`);    const apkName = A.apkFileName(versionReq.contentVersion, variant);
     const apkPath = path.join(A.apkDir(outDir), apkName);
     rmrf(A.apkDir(outDir)); // 上一版的 APK 不是本次产物，不留在同一个目录里混着
     copyOneFile(builtApk, apkPath);
     apk = {
       path: `${A.APK_DIR_REL}/${apkName}`,
+      variant,
+      unsigned: built.unsigned,
+      sourceApk: built.rel,
       bytes: fs.statSync(apkPath).size,
       sha256: sha256File(apkPath),
       builtInContentEntry: apkBuiltIn.entry,
       builtInContentSha256: apkBuiltIn.sha256,
       builtInContentBytes: apkBuiltIn.bytes,
-      buildType: 'debug',
-      signing: 'debug（正式发布必须换成固定签名才能覆盖升级；本轮未读/未生成任何私钥）',
+      buildType: variant,
+      signing:
+        variant === 'release'
+          ? '由四项 SUOFEI_* 环境变量提供的正式签名（具体证书 DN 由就绪检查的 apk-signing 门用 apksigner 读出）'
+          : 'debug 签名（演练用；**不能用于正式发布**）',
       gradleCommand: `${gradlew} ${gradleArgs.join(' ')}`,
     };
     info('APK', `${apk.path}  ${apk.bytes} 字节  sha256=${apk.sha256}`);
-    warn('这个 APK 是 **debug 签名**，只用于本地演练；它不能作为正式发布产物。');
+    if (variant === 'release') note('正式签名链路的真伪由就绪检查用 apksigner 断言（本步不验签，避免两套机制）');
+    else warn('这个 APK 是 **debug 签名**，只用于本地演练；它不能作为正式发布产物。');
   }
 
   // ── 7. 发布清单 ───────────────────────────────────────────────
@@ -503,7 +564,20 @@ function main() {
     sourceBranch: branch,
     dirtyAtReleaseTime: dirty,
     bundledContentVersionBefore: bundledBefore,
-    app: { ...app, webAppVersion, webSwAppVersion, tagAppVersion: versionReq.appVersion ?? null, previousWebAppVersion, buildType: 'debug', signed: false },
+    app: {
+      ...app,
+      androidVariant: opts.androidVariant,
+      // release 时是四项的「是否已设」布尔；debug 时不需要（null）。**从不记录取值**。
+      signingEnvKeysPresent: signingEnvPresent,
+      signing:
+        opts.androidVariant === 'release'
+          ? 'release 变体：由四项 SUOFEI_* 环境变量提供的正式签名；真伪由就绪检查的 apk-signing 门用 apksigner 断言'
+          : 'debug 变体：debug 签名，**不能用于正式发布**',
+      webAppVersion,
+      webSwAppVersion,
+      tagAppVersion: versionReq.appVersion ?? null,
+      previousWebAppVersion,
+    },
     steps,
     artifacts: [
       { role: 'content-json', path: A.DIST_REL, bytes: distBuf.length, sha256: distSha },
@@ -532,7 +606,9 @@ function main() {
     verifiedBy: 'release/check-ready.mjs',
     honestlyNotDone: [
       '未推送任何远端、未创建 tag/Release、未启用 Pages',
-      '未使用固定签名（APK 是 debug 签名）',
+      opts.androidVariant === 'release'
+        ? '正式签名的**真伪没在本步验**：签名由四项环境变量提供，证书由就绪检查的 apk-signing 门用 apksigner 断言'
+        : '本次是 debug 变体（debug 签名）：它不能作为正式发布产物',
       '未在真实 Pages / 真实 CDN 上部署验证',
       '未在真机或模拟器上安装运行',
     ],
@@ -559,6 +635,17 @@ function main() {
   console.log('');
   if (!apk) warn('本次没有 APK ⇒ 就绪检查必然报红 ⇒ 不得推进最新版。');
   console.log(`下一步：node release/check-ready.mjs --out ${display(outDir)}`);
+}
+
+function findBuiltApk(projectDir, variant) {
+  // AGP 配了签名配置时产出 app-<variant>.apk；没配时 release 会产出 app-<variant>-unsigned.apk。
+  // 两种都认（后者如实标为**未签名** —— 那正是「以为发了正式包」的高危情况，交给就绪检查报红）。
+  const dir = path.join(projectDir, `app/build/outputs/apk/${variant}`);
+  for (const name of [`app-${variant}.apk`, `app-${variant}-unsigned.apk`]) {
+    const p = path.join(dir, name);
+    if (exists(p)) return { path: p, rel: `${variant}/${name}`, unsigned: name.includes('-unsigned') };
+  }
+  return null;
 }
 
 function readApkBuiltInContent(apkBuf, apkPath) {

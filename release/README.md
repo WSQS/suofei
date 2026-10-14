@@ -14,7 +14,7 @@
 node release/build-release.mjs --tag 'v0.2.0+content-2026.10.16.5'
 
 # 2) 就绪检查：0 = 全绿（可以推进最新版）；1 = 有红项（禁止推进）
-node release/check-ready.mjs                    # 23 项，含两个「真跑」门，约 70 秒
+node release/check-ready.mjs                    # 含两个「真跑」门，约 70 秒（条数见汇总行）
 node release/check-ready.mjs --skip-live        # 不跑真跑门（它们会标黄，**不是绿**）
 node release/check-ready.mjs --live-only        # 只跑真跑门（迭代时用）
 ```
@@ -26,6 +26,19 @@ node release/check-ready.mjs --live-only        # 只跑真跑门（迭代时用
 node release/build-release.mjs --content-version 2026.10.16.5   # 只给内容版本（演练）
 node release/build-release.mjs --version-source date            # UTC 当天日期 + 当日递增（演练）
 ```
+
+**变体与签名**（正式发布必须用 release 变体 + 正式签名）：
+
+```bash
+node release/build-release.mjs --tag 'v0.2.0+content-2026.10.16.5' --android-variant release
+```
+
+- `--android-variant` 默认 `debug`（`assembleDebug`，debug 签名，**绝不能用于正式发布**）；
+- `release` ⇒ `assembleRelease`，**要求四项环境变量齐全**：`SUOFEI_KEYSTORE` / `SUOFEI_KEYSTORE_PASSWORD` /
+  `SUOFEI_KEY_ALIAS` / `SUOFEI_KEY_PASSWORD`（CI 由仓库 secrets 注入）。缺任何一项就**在动任何东西之前**
+  非零退出，**不生成密钥、不退回 debug 签名**；
+- 就绪检查的 `apk-signing` 门：release 变体会用 `apksigner verify --print-certs` 断言证书**不是** debug 证书
+  （是 ⇒ 红）并把证书 DN 打进回执；debug 变体如实标**黄**（「不能用于正式发布」，结论行也会写「演练口径就绪」）。
 
 常用开关（`--help` 有全量）：`--out <dir>`、`--previous-version <v>`（严格大于它，否则拒绝）、
 `--skip-apk`（只出内容/Web；就绪检查会因缺 APK 报红）、`--android-feed none`（不产出小纸条清单，仅演练用）、

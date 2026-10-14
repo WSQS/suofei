@@ -92,6 +92,7 @@ const PREREQUISITES = {
   'apk-present': ['manifest'],
   'apk-builtin-same-source': ['apkBuf', 'dist'],
   'apk-identity': ['apkFile', 'manifest'],
+  'apk-signing': ['apkFile', 'manifest'],
 };
 
 // ─────────────────────────── 检查项 ───────────────────────────
@@ -414,6 +415,54 @@ check('apk-builtin-same-source', 'APK 内置内容与发布内容**逐字节相�
   return `${entry}（${hit.method}）${hit.data.length} 字节 sha256=${sha} 内容版本=${innerVersion}`;
 });
 
+check('apk-signing', 'APK 的签名：release 变体不得是 debug 证书；debug 变体如实标为「不能用于正式发布」', (c) => {
+  // 这条防的正是「以为发的是正式签名包、实际是 debug 包」。
+  const variant = c.manifest.app?.androidVariant ?? 'debug';
+  const apk = c.apk;
+  if (variant !== 'release') {
+    // 不是错误，但绝不是「可发布」：标黄，让结论行不得声称可正式发布。
+    return {
+      status: 'WARN',
+      detail:
+        `本次变体＝\`${variant}\`：**debug 签名**，不能用于正式发布（演练口径）。\n` +
+        '   正式发布的签名断言只在 `--android-variant release` 时执行（那时用 apksigner 读出证书 DN 并拒 debug 证书）。',
+    };
+  }
+  if (/-debug\.apk$/i.test(apk.path)) fail(`release 变体的产物文件名却带 -debug：${apk.path}（变体接错了）`);
+  const apksigner = findApksigner();
+  if (!apksigner) {
+    return {
+      status: 'WARN',
+      detail:
+        '环境不可用：找不到 apksigner（ANDROID_HOME/build-tools/*）—— **本门没跑**，无法确认这份 release 包的签名。\n' +
+        '   正式发布前必须在有 build-tools 的机器上重跑本门（或由 CI 跑）。',
+    };
+  }
+  const r = runCapture(apksigner, ['verify', '--print-certs', c.apkFile]);
+  const out = `${r?.stdout ?? ''}${r?.stderr ?? ''}`;
+  if (!r || r.status !== 0) {
+    fail(
+      `apksigner verify 未通过（退出码 ${r?.status ?? 'n/a'}）—— 这份 release 产物**不能当作已签名包**：\n` +
+        out
+          .trim()
+          .split('\n')
+          .slice(0, 6)
+          .map((l) => `   ${l}`)
+          .join('\n'),
+    );
+  }
+  const dns = [...out.matchAll(/Signer #\d+ certificate DN: (.+)/g)].map((m) => m[1].trim());
+  const debugDn = dns.filter((d) => /CN=Android Debug/i.test(d));
+  if (debugDn.length) {
+    fail(
+      `这份 release 产物是 **debug 证书**签的（DN: ${debugDn.join(' / ')}）——\n` +
+        '   正是「以为发的是正式签名包、实际是 debug 包」：不得发布（要用四项 SUOFEI_* 环境变量提供的密钥重签）。',
+    );
+  }
+  if (dns.length === 0) fail(`apksigner 通过了，但读不出证书 DN（输出格式变了？）：${out.trim().split('\n').slice(0, 4).join(' | ')}`);
+  return `apksigner verify 通过｜变体 release｜证书 DN：${dns.join(' / ')}`;
+});
+
 check('apk-identity', 'APK 的身份（包名 / versionCode）与清单一致', (c) => {
   if (!c.apkFile) skip('没有 APK（上面已报红）');
   const aapt2 = findAapt2();
@@ -455,6 +504,31 @@ function compareAppVersion(a, b) {
     if (x !== y) return x < y ? -1 : 1;
   }
   return 0;
+}
+
+/** 找 apksigner（build-tools 里，Windows 上是 .bat）；找不到返回 null。 */
+function findApksigner() {
+  const home = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT;
+  if (!home) return null;
+  const bt = path.join(home, 'build-tools');
+  if (!exists(bt)) return null;
+  const cmp = (a, b) => {
+    const pa = a.split('.').map(Number);
+    const pb = b.split('.').map(Number);
+    for (let i = 0; i < 3; i++) if ((pa[i] ?? 0) !== (pb[i] ?? 0)) return (pb[i] ?? 0) - (pa[i] ?? 0);
+    return 0;
+  };
+  const versions = fs
+    .readdirSync(bt)
+    .filter((v) => /^\d+(\.\d+){1,3}$/.test(v))
+    .sort(cmp);
+  for (const v of versions) {
+    for (const name of process.platform === 'win32' ? ['apksigner.bat', 'apksigner'] : ['apksigner']) {
+      const p = path.join(bt, v, name);
+      if (exists(p)) return p;
+    }
+  }
+  return null;
 }
 
 function findAapt2() {
@@ -555,10 +629,13 @@ function main() {
   const fails = results.filter((r) => r.status === 'FAIL');
   const warns = results.filter((r) => r.status === 'WARN');
   const skips = results.filter((r) => r.status === 'SKIP');
+  // 变体：决定结论该怎么读（debug 变体永远不能当成「可正式发布」）。
+  const variant = ctx.manifest?.app?.androidVariant ?? null;
 
   console.log('');
   console.log('─'.repeat(72));
-  console.log(`绿 ${count('PASS')} / 黄 ${count('WARN')} / 跳过 ${count('SKIP')} / 红 ${count('FAIL')}`);
+  // 条目总数由工具自报（不写进文档：文档里的死数会过时，而「工具报的」永远是真的）。
+  console.log(`绿 ${count('PASS')} / 黄 ${count('WARN')} / 跳过 ${count('SKIP')} / 红 ${count('FAIL')}（共 ${results.length} 项）`);
 
   if (skips.length) {
     console.log('');
@@ -588,7 +665,11 @@ function main() {
   const webRun = results.find((r) => r.id === 'live-web-e2e');
   const androidRun = results.find((r) => r.id === 'live-android-unit-tests');
   const liveGreen = webRun?.status === 'PASS' && androidRun?.status === 'PASS';
-  console.log('结论：**三样产物就绪**（本地演练口径）。可以推进「最新版」。');
+  console.log(
+    variant === 'debug'
+      ? '结论：**演练口径就绪**（debug 变体：三样产物齐、各门过，但 **debug 签名 → 不得用于正式发布**）。'
+      : '结论：**三样产物就绪**（release 变体）。可以推进「最新版」。',
+  );
   if (liveGreen) {
     // ⚠️ 数字**一律取自本次运行结果**（不写死）：断言条数/用例数会随别线增加，写死会出现
     // 「门是绿的、文案在说谎」这种最难查的假象（真踩过：这里曾写死「49 例」，实际跑到 55 例）。
@@ -611,8 +692,19 @@ function main() {
         .join('，')} —— 静态断言全过，但**页面/客户端是否真能跑没被完整证明**（看上面黄色/跳过的原因）。`,
     );
   }
+  // 变体是 debug 时，绝不能让人把「全绿」读成「可以正式发布」。
+  if (variant === 'debug') {
+    console.log('⚠ 本次构建是 **debug 变体（debug 签名）**：这只是**演练口径**，不得用于正式发布；');
+    console.log('   正式发布要 `--android-variant release`（四项 SUOFEI_* 由 CI 从仓库 secrets 注入，约定见 docs/design/ci-and-signing.md）。');
+  } else if (variant === 'release') {
+    console.log('本次构建是 **release 变体**：签名由四项 SUOFEI_* 环境变量提供；证书 DN 见上面的 apk-signing 门。');
+  }
   console.log('诚实边界（这些都没验证过）：未推远端、未在真实 Pages/Release 上跑、');
-  console.log('  未用固定签名（APK 是 debug 签名）、未在真机或模拟器上安装运行。');
+  console.log(
+    variant === 'release'
+      ? '  未在真机或模拟器上安装运行（正式签名的证书已在 apk-signing 门验过，但安装/覆盖升级未验）。'
+      : '  本次是 debug 签名（不能用于正式发布）、未在真机或模拟器上安装运行。',
+  );
   console.log('  GitHub Pages / Release 各自的缓存与生效延迟由服务商决定，本流水线**不声称原子性**。');
   if (opts.json) console.log(JSON.stringify({ ready: true, outDir: display(outDir), results }, null, 2));
   process.exit(0);
