@@ -168,7 +168,9 @@ export function run(cmd, args, { cwd = REPO_ROOT, env, allowFailure = false, qui
 
 /** 跑一个命令并抓取 stdout（用于读取 git/工具输出）。找不到该命令返回 null。 */
 export function runCapture(cmd, args, { cwd = REPO_ROOT } = {}) {
-  const result = spawnSync(cmd, args, { cwd, encoding: 'utf8' });
+  // 走 spawnTarget：Windows 上 `.bat`（apksigner.bat / gradlew.bat）必须经 cmd.exe，否则 spawnSync EINVAL。
+  const target = spawnTarget(cmd, args);
+  const result = spawnSync(target.file, target.argv, { cwd, encoding: 'utf8' });
   if (result.error) return null;
   return { status: result.status, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
 }

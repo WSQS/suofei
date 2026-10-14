@@ -14,6 +14,7 @@
 | **不再产出任何 `sha256` 边车**（`dist/` 与 Web 侧都去掉：不产出、不检查、不登记） | 2026-10-16 已定：Web 的校验靠「同一次部署 + HTTPS + SW 预缓存整体性」，没人消费的边车只会让人以为还有一道校验环节。**Android 小纸条清单里的 `sha256` 字段保留**（那是真在用的） |
 | **不再解析 E 的 `sw.js` 内部结构** | E 重写 `sw.js`（`SHELL` → 内容与壳同一份预缓存清单）时，我那条按常量名解析的检查在主线报了假红。SW 的**行为**（预缓存是否完整、离线可读、新旧成对切换、旧 cache 被删）交给 E 的 e2e；我这一层只断言**部署契约**与**契约常量** |
 | 加两个**真跑门**：E 的 Web e2e（用 `out/web` 的构建产物）+ Android JVM 单测（内置内容＝本次产物） | 静态断言不证明页面能跑、也不证明产物能被客户端解析 |
+| 加 `--android-variant debug\|release`（默认 debug）与 `apk-signing` 门 | 之前产出的 APK 是 `assembleDebug` 的，即 **debug 签名** —— 而正式发布要 release 变体 + 正式签名。这条门防的正是「以为发的是正式签名包、实际是 debug 包」（发出去收不回）|
 | 编译失败**不再清空产物目录** | 早期在第 3 步 `rmrf(outDir)`，一次编译失败就把上一版的 manifest 也删了 —— 既违背「失败保留旧版」，又弄丢了下一版做单调性/APP_VERSION 递增比对的基线 |
 | 真跑门的**接缝**：仓库级文件（如 `schema/unknown-authors.json`）用**环境变量**指回仓库唯一来源，并在开跑前**预检**被测脚本会读的仓库级路径 | 镜像根是仓库的**部分**副本；E 的 e2e 会读 `<repoRoot>/schema/unknown-authors.json` ⇒ 在镜像里找不到就报红（同一天主线跑同一份 `out/web` 是 151/151 全绿 —— 那条红纯粹是接缝，不是产物问题）。预检把「E 以后再加一个仓库级读取」变成**开跑前的响亮报错**，而不是它脚本深处一条莫名的红 |
 | 开跑时**清理本次输出目录**：`web/`、`apk/` 整份删掉；`dist/` 只剪掉「本产物集之外」的文件 | 改了产物集（例如去边车）之后，**上一版留下的文件会一直躺在那里**，就绪检查每次都报「多出不该发布的条目」，而真因只是历史残留（负责人实测撞过）。为什么不整删 `dist/`：编译器是「成功后才 rename、失败不写产物」，整删就破坏了「编译失败保留旧版」，也弄丢下一版的基线（内容版本与 APP_VERSION 都从上一版 manifest 取） |
@@ -40,7 +41,8 @@ node release/build-release.mjs --content-version 2026.10.16.5          # 本地�
 | 3 | **编译内容，只此一次**：`node tools/build-content.mjs --out <out>/dist/content.json --order source --content-version <v> --minify --previous-version <v-1>` | `dist/content.json`（单行压缩）；编译器自己做校验与单调性闸。**失败不清空产物目录**，上一版原样保留 |
 | 4 | 准备 Web 部署目录：按白名单复制 `web/` 的静态文件，把第 3 步那份 `content.json` **字节复制**过去 | `<out>/web/`（＝站点根），含 `content.json`（**必需**，内容单独取、不内联）；**不产边车** |
 | 5 | 产出**远端小纸条清单**：`content/latest.json` + 快照 `content/<版本>/content.json` | 同一份字节；`--android-feed none` 只用于本地演练 |
-| 6 | 构建 APK：复制 `android/` 到 `<out>/.work/android`，把同一份 `content.json` 写进副本的 `app/src/main/assets/content/content.json`，`assembleDebug` | 从 APK 里把内置内容读回来比对（逐字节），不一致**当场失败** |
+| 0 | **变体与签名的前置检查**（在做任何事之前）：`--android-variant release` 时要求四项 `SUOFEI_*` 环境变量齐全，缺任何一项**立刻非零退出**（实测 `out/` 都不会被创建） | 不生成密钥、**不退回 debug 签名**；这一检查刻意放在最前面，避免做了一半才失败 |
+| 6 | 构建 APK：复制 `android/` 到 `<out>/.work/android`，把同一份 `content.json` 写进副本的 `app/src/main/assets/content/content.json`，按变体跑 `assembleDebug` / `assembleRelease` | 从 APK 里把内置内容读回来比对（逐字节），不一致**当场失败**；release 时只记录「四项是否齐全」（**从不打印取值**），签名真伪交给 `apk-signing` 门 |
 | 7 | 写 `release-manifest.json`（版本、来源、tag、基线、哈希、源提交、脏标记、应用身份、各步命令与耗时、产物清单、没做的事） | 就绪检查读它，但**不靠它当证据**（哈希全部重算） |
 | 8 | 摘要 + 下一步：`node release/check-ready.mjs` | —— |
 
@@ -71,7 +73,7 @@ v<应用资源版本>+content-<内容版本>       例如  v0.2.0+content-2026.1
 | `web/`（整目录＝站点根） | `index.html`、`styles.css`、`manifest.json`、`sw.js`、`app/` | 部署到 Pages | 浏览器 |
 | `web/content.json` | ＝`dist/content.json`（字节复制）；**必需** | Web 端**单独取**的内容（契约 §4：不得内联） | Web 端（SW 与壳同批缓存） |
 | `web/content/latest.json` + `web/content/<版本>/content.json` | 远端小纸条清单（IF-22，含 `sha256` 字段）+ 快照 | Android 每次先取的小文件 | Android 端（D） |
-| `apk/suofei-<内容版本>-debug.apk` | 内置同版内容的 APK（**debug 签名**） | 手动安装 / 将来挂 Release | 用户 |
+| `apk/suofei-<内容版本>[-debug].apk` | 内置同版内容的 APK。文件名带 `-debug` 与否取决于 `--android-variant`：debug（默认）⇒ **debug 签名，不能用于正式发布**；release ⇒ 由四项 `SUOFEI_*` 环境变量签名（证书 DN 见 `apk-signing` 门） | 手动安装 / 挂 Release | 用户 |
 | `release-manifest.json` | 本次发布的机器可读记录 | 审计、就绪检查输入之一、**下一版的基线**（内容版本 + APP_VERSION） | 人 / 流水线（**不进站点**） |
 | `.work/` | 构建中间态：`android/`（只读副本）、`e2e/`（真跑门镜像根）、`logs/` | 只在构建/检查期用 | 无（可整个删） |
 
@@ -102,7 +104,7 @@ dist/content.json ──字节复制──► web/content.json ──►（Web �
 
 **未验证**：只在 `assembleDebug` 上跑过；`assembleRelease` + 固定签名未跑（未授权）。
 
-## 7. 产物就绪检查：23 项
+## 7. 产物就绪检查（条目总数由工具在汇总行自报：`（共 N 项）`）
 
 `node release/check-ready.mjs` → 退出码 `0`＝全绿（可以推进），`1`＝有红项（**禁止推进**），`2`＝用法错误。`--skip-live`（不跑真跑门，**标黄不是绿**）、`--live-only`（只跑真跑门）、`--json`。
 
@@ -131,8 +133,9 @@ dist/content.json ──字节复制──► web/content.json ──►（Web �
 | 19 | `apk-present` | APK 存在且文件哈希与清单一致 | 三样产物少一样 |
 | 20 | `apk-builtin-same-source` | **从 APK 里读回 `assets/content/content.json`** 与 `dist` 逐字节比对 | **最关键的一条**：用户以为发的是这一版内容，APK 里却是别的 |
 | 21 | `apk-identity` | `aapt2 dump badging`：包名 == `dev.sopho.suofei`、`versionCode` == 清单 | 打错包名（发布后不可改） |
-| 22 | `live-web-e2e` | **真跑**：用 `out/web` 当站点跑 **E 自己的** `web/tests/e2e-cdp.mjs` | 页面/离线/更新流程真有断言失败 |
-| 23 | `live-android-unit-tests` | **真跑**：Android JVM 单测，内置内容＝本次产物 | 产物让 Android 解析器读不进去，或仓库测试真有失败 |
+| 22 | `apk-signing` | 变体是 `release` ⇒ `apksigner verify --print-certs`：**证书不得是 debug 证书**（`CN=Android Debug` ⇒ 红），把证书 DN 打进回执；未签名/验不过 ⇒ 红；缺 apksigner ⇒ 黄。变体是 `debug` ⇒ **黄** + 明写「debug 签名，不能用于正式发布」 | 「以为发的是正式签名包、实际是 debug 包」（或压根没签名） |
+| 23 | `live-web-e2e` | **真跑**：用 `out/web` 当站点跑 **E 自己的** `web/tests/e2e-cdp.mjs` | 页面/离线/更新流程真有断言失败 |
+| 24 | `live-android-unit-tests` | **真跑**：Android JVM 单测，内置内容＝本次产物 | 产物让 Android 解析器读不进去，或仓库测试真有失败 |
 
 ### 7.1 两个「真跑」门（`release/lib/live.mjs`）
 
@@ -178,6 +181,24 @@ dist/content.json ──字节复制──► web/content.json ──►（Web �
 - **不把 `tools/check-bundled-content.mjs` 包进我的检查**（负责人要求，我同意）。它管的是「**仓库里已提交的内置产物** vs 当前内容源」——那是**仓库一致性**，属于发布前的 CI 前置门；我这一层的对应保证是「**本次发布的每一处副本都与 `dist` 逐字节相同**」（`web-same-source` + `apk-builtin-same-source` + Android 单测注入的就是本次产物）。两者是不同的问题，包一层只会让「红在哪」变模糊。建议：CI 里**先**跑它的门，再跑发布流水线。
 - **匿名作者清单**：我的检查**不引用**那份清单（不解析契约散文）；读契约 §2.1 散文那份清单的是 E 的 e2e。用户已拍板清单的机器可读来源改为 `schema/unknown-authors.json` ⇒ 需要改的是 E 的 e2e，不是我的层。
 
+### 7.3 变体与签名（CI 注入 / 本地演练 / debug 永不发布）
+
+| 事项 | 约定 | 谁做 |
+|---|---|---|
+| 正式签名密钥 | 四项由 **CI 从仓库 secrets 注入**：`SUOFEI_KEYSTORE`（keystore 的 base64）/ `SUOFEI_KEYSTORE_PASSWORD` / `SUOFEI_KEY_ALIAS` / `SUOFEI_KEY_PASSWORD`。`android/app/build.gradle.kts` 顶端注释是当前唯一事实来源（负责人另有签名文档，未落地前以它为准） | CI / 用户 |
+| 本地开发与验收 | 用默认的 `--android-variant debug`（`assembleDebug`，debug 签名） | 任何人 |
+| 本地验证**签名链路本身** | 用**一次性测试密钥**跑 `--android-variant release`，用完删掉测试密钥；**不涉及正式密钥** | 负责人/用户（**生成密钥属未授权动作，本工作线不做**） |
+| 正式发布 | 必须 `--android-variant release` + 四项齐全；**debug 变体永不用于正式发布** | CI |
+| 缺环境变量 | `build-release.mjs` 在**动任何东西之前**非零退出并列出缺哪几项；**不生成密钥、不退回 debug 签名** | 流水线（fail-closed） |
+| 签名真伪 | 就绪检查的 `apk-signing` 门（§7 第 22 项）：release 变体断言「能验签且证书不是 debug 证书」并把 DN 打进回执；debug 变体如实标黄 | 流水线 |
+| 本工作线**不做** | 不读取/不生成任何密钥、不写 secrets、不执行密钥生成脚本（那是用户/负责人的动作） | — |
+
+**能力边界（必须说清）**：本机**没有**正式密钥，所以 **release 变体的「签名成功路径」未经验证**。
+已验证的只有：① 缺环境变量 ⇒ fail-closed（动任何东西之前就停）；② debug 变体全门通过且如实标黄；
+③ 两个反例 —— 把 debug 证书的包当 release 产物 ⇒ 红并打出 `CN=Android Debug, O=Android, C=US`；
+未签名的 release 产物 ⇒ 红（`DOES NOT VERIFY / Missing META-INF/MANIFEST.MF`）。
+真正的签名成功路径只能在 **CI（有 secrets）** 或**用户本地持密钥**时验证。
+
 ## 8. 失败 / 中断了怎么办
 
 **共同不变量：不推进最新版，旧版本一个字节都不动、仍然可下载可读。**
@@ -186,6 +207,7 @@ dist/content.json ──字节复制──► web/content.json ──►（Web �
 |---|---|
 | 版本来源解析失败（tag 缺号/形状不符） | 非零退出，打印期望格式；**不产物、不动旧产物** |
 | 内容编译失败（契约校验/单调性） | 非零退出；编译器**失败不写产物**，且流水线**不删 `dist/`** ⇒ 上一版的**规范产物与 `release-manifest.json`（下一版的基线）逐字节保留**（实测）。派生物 `web/`、`apk/` 在开跑时已被清掉，所以此时 `out/` 是不完整的 —— 就绪检查会据此报「产物目录不完整（缺 web）」而不是一堆莫名其妙的红 |
+| `--android-variant release` 缺签名环境变量 | **在动任何东西之前**非零退出（`SIGNING_ENV_MISSING`），列出缺哪几项；**不生成密钥、不退回 debug 签名**（实测：`release/out` 都不会被创建） |
 | 复制后字节不一致 / APK 注入没生效 / 副本代码被改 | 非零退出（`COPY_MISMATCH` / `APK_CONTENT_MISMATCH` / `ANDROID_COPY_DIRTY`） |
 | Gradle 构建失败 | 非零退出 ⇒ 无 APK ⇒ 就绪检查必红 |
 | 就绪检查有红项 | 非零退出，列出红项，明说「不推进最新版；旧版仍可下载」 |
@@ -379,6 +401,7 @@ E 的 e2e 在合并 E 线后续提交后已到 **147 条**，本轮实测 **147/
 - 真实 19 首/21 条异文编译为**压缩产物** 20964 字节；单调性闸通过；**编译失败保留旧产物**（哈希逐字节不变）。
 - Web 部署目录准备（字节一致、白名单精确、**无任何边车**）；`app-version-agree` 两处一致 + 与 tag 一致。
 - APK 构建 + **从 APK 读回 assets 与 `dist` 逐字节相同**；APK 身份 `dev.sopho.suofei` / versionCode 1 / 应用名「索斐」。
+- **变体与签名**：`--android-variant release` 缺环境变量 ⇒ 动任何东西之前就非零退出（实测 `out/` 未被创建）；`--android-variant debug`（默认）全门通过，`apk-signing` 如实标黄「debug 签名，不能用于正式发布」，结论行也改成「演练口径就绪」。反例两条都实测红：伪装成 release 变体的 debug 证书包 ⇒ 红并打出 `CN=Android Debug, O=Android, C=US`；未签名的 release 产物（本树里 `assembleRelease` 的产出）⇒ 红 `DOES NOT VERIFY / Missing META-INF/MANIFEST.MF`。
 - **真跑门（本轮全绿）**：E 的 Web e2e **151/151**（真无头 Chromium，站点＝`out/web`，机械核对被测站点就是本次产物；仓库级来源用 `UNKNOWN_AUTHORS_FILE` 指回 `schema/unknown-authors.json`）；Android JVM 单测 **55 例 / 0 失败**（真执行，内置内容＝本次产物）。整轮 `check-ready` = 绿 22 / 黄 0 / 跳 1 / 红 0，退出码 0。
 - 红/黄路径：tag 缺号、tag 与代码不一致、内容版本倒退、产物未构建、`--skip-apk`、APK 不同源、产物少一首（两门同时红）、`--skip-live`（黄）、副本被改（拒跑）、APP_VERSION 未递增。
 - 跑完五个源目录 `git status` 干净。
@@ -397,12 +420,13 @@ E 的 e2e 在合并 E 线后续提交后已到 **147 条**，本轮实测 **147/
 
 ```bash
 node release/build-release.mjs --tag 'v0.2.0+content-2026.10.16.5'  # 正式发布形态（tag 双号）
+node release/build-release.mjs --tag 'v0.2.0+content-2026.10.16.5' --android-variant release   # 正式发布变体（要四项 SUOFEI_*）
 node release/build-release.mjs --content-version 2026.10.16.5       # 本地演练（正式发布以 tag 为准）
 node release/build-release.mjs --version-source date                # 演练：日期+当日递增
 node release/build-release.mjs --out release/out --skip-apk         # 只出内容/Web（就绪检查会因缺 APK 报红）
 node release/build-release.mjs --android-feed none                  # 不产出小纸条清单（仅演练）
 node release/build-release.mjs --source-date-epoch 1760000000       # 让产物字节可复现
-node release/check-ready.mjs                                        # 23 项就绪检查（0=可以推进，1=禁止推进）
+node release/check-ready.mjs                                        # 就绪检查（条数见其汇总行；0=可以推进，1=禁止推进）
 node release/check-ready.mjs --skip-live                            # 不跑两个真跑门（标黄，不是绿）
 node release/check-ready.mjs --live-only                            # 只跑真跑门
 node release/check-ready.mjs --out <dir> --json                     # 指定产物目录 / 机器可读结果
@@ -413,7 +437,7 @@ node release/check-ready.mjs --out <dir> --json                     # 指定产�
 | 文件 | 作用 |
 |---|---|
 | `release/build-release.mjs` | 8 步编排；只写 `<out>`；打印真实命令与关键数值；失败非零退出 |
-| `release/check-ready.mjs` | 23 项就绪检查；绿/黄/跳过/红 + 结论；`--skip-live`/`--live-only`/`--json` |
+| `release/check-ready.mjs` | 就绪检查（含 2 个真跑门；条数由汇总行自报）；绿/黄/跳过/红 + 结论；`--skip-live`/`--live-only`/`--json` |
 | `release/lib/artifacts.mjs` | **产物布局、部署白名单、必需项的唯一处**（build 与 check 共用，防漂移） |
 | `release/lib/version-source.mjs` | **tag 双号解析**、内容版本来源候选项、单调性基线解析 |
 | `release/lib/android-work.mjs` | Android 只读副本、内容注入、**代码一致性闸** |
