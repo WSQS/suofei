@@ -38,6 +38,8 @@ node web/scripts/serve.mjs --port 8137  # 换端口
 一次跑完所有验证（无头 Chromium + CDP，零第三方依赖）：
 
 ```bash
+git merge master        # 先对齐基点：这套 e2e 会读主线上的 schema/unknown-authors.json
+                        # 与 dist/content.json，基点旧了会出现「文件不存在」这类假红
 node web/tests/e2e-cdp.mjs
 # 产物：web/tests/artifacts/（截图 + dom-dumps.txt + deploy/ 各版本部署目录，均已 gitignore）
 # 本机 Chromium 不在默认位置时：CHROME_BIN=/path/to/chrome node web/tests/e2e-cdp.mjs
@@ -93,7 +95,8 @@ web/
 （用户 2026-10-14 拍板把 `阙名` 并入）；空白作者由 `isUnknownAuthor` 的空白判定处理，不写进集合。
 静态站点运行期读不到那个文件，所以 `app/render.js` 里放一份副本，**e2e 读文件并断言两份逐字一致**
 （不一致时把两边数组都打出来）；Android 与编译器对齐同一份文件。
-（`UNKNOWN_AUTHORS_FILE` 环境变量可把这条断言指向另一份清单文件，用于文件还没合并时自证核对逻辑。）
+（`UNKNOWN_AUTHORS_FILE` 环境变量可把这条断言指向另一份清单文件，用于联调/自测，例如先核对一份
+候选清单；它只影响测试，不改变运行时行为。）
 
 钉住这个缺陷的回归断言（`tests/e2e-cdp.mjs`，两处独立）：① 真实产物第 1 首必须是 `行行重行行`，
 且它的 `orderInSource === 1`（全场最小、数组首位；本机拼音重排会把它推到第 19 位）；
@@ -171,7 +174,7 @@ web/
 
 ## 5. 已验证 / 未验证
 
-### 已验证（`node web/tests/e2e-cdp.mjs`，基座 = 真实产物 19 首，本机无头 Chromium 129，140/140 通过）
+### 已验证（`node web/tests/e2e-cdp.mjs`，基座 = 真实产物 19 首，本机无头 Chromium 129，151/151 通过）
 
 - **真发了 7 个版本**（v0.1.0 → v0.7.0，各自独立部署目录、同一 origin 依次替换）：新 SW 安装并
   等待、页面出现「有新版本」提示（含新版本号）、**两个 cache 同时存在**（旧的在服务、新的已就绪
@@ -283,10 +286,11 @@ web/
    （`VERSION_NOT_MONOTONIC`）。发布白名单已与 `web/tests/lib/deploy.mjs: DEPLOY_FILES` 求并
    （F 线自动跟我的发布集，不另写一份清单）。
 2. **匿名作者清单的唯一来源是 `schema/unknown-authors.json`**（含 `阙名`，用户 2026-10-14 拍板）：
-   我按负责人转达的决定把 `阙名` 并入 `app/render.js` 的副本，e2e 已改成**读那个文件逐字核对**
+   我按负责人转达的决定把 `阙名` 并入 `app/render.js` 的副本，e2e 改成**读那个文件逐字核对**
    （不再正则解析契约散文——以前一改措辞就报「找不到清单」，对排查没帮助）。
-   **该文件目前不在我树的 master 里**，所以这条在我这里暂时是红的（失败信息直接报「文件不在本树」
-   并打出 app 侧清单；文件到位后自动开始核对）；编译器与 Android 也对齐同一份文件。
+   **已解决**：该文件已在 master（`4c97c27` 起，C 线 `46a9e87` 又加过一次），我这侧实测
+   「清单文件存在 + 与 `UNKNOWN_AUTHORS` 逐字一致」两条均绿（全套 151/151）；编译器与 Android
+   对齐同一份文件。若清单以后变了，这条会直接把两边数组打出来。
 3. **`content.json.sha256` 边车：已解决**（2026-10-16）——`web/` 侧不产出也不依赖；发布线也已
    去掉产出与检查（`release/build-release.mjs` 里留了说明，`release/README.md` 与
    `docs/design/release-pipeline.md` 的发布白名单明确它「绝不发布」）。
