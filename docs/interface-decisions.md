@@ -85,8 +85,8 @@
 |---|---|---|---|
 | IF-11 | 应用展示名 | **索斐** | **已定**（2026-10-14） |
 | IF-12 | Android 包名 `applicationId` | **`dev.sopho.suofei`** | **已定**（2026-10-14） |
-| IF-13 | GitHub 仓库名与 Pages 地址 | 默认 `suofei` → `https://wsqs.github.io/suofei/` | 待建仓时确认（A4.1，需单独授权） |
-| IF-14 | 固定签名方案（keystore 位置、是否用 secrets） | 无 | 待正式发布前（A4.4） |
+| IF-13 | GitHub 仓库名与 Pages 地址 | **已定并已执行（2026-10-14）**：仓库 `https://github.com/WSQS/suofei`（**公开**）；Pages `https://wsqs.github.io/suofei/`（build_type=workflow、强制 https，**尚未部署内容**）。以后改仓库名/地址会断链 | **已定** |
+| IF-14 | 固定签名方案 | **已定（2026-10-14）：正式密钥放 GitHub Actions secrets**。密钥与口令在仓库之外（`~/.suofei/`），四项 secrets 已写入（只有名字公开）；**本机签名链路已实测**（`assembleRelease` 成功、`apksigner` 证书 `CN=Suofei` 而非 debug；无变量时 fail-closed）。**密钥丢失＝已装用户永远无法覆盖升级 ⇒ 必须离线备份**（用户侧待确认） | **已定** |
 
 ## 第九批：视觉与主题（用户已定）
 
