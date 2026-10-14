@@ -1,0 +1,20 @@
+---
+id: gushi-shijiu-shou-19
+title: "明月何皎皎"
+author: "佚名"
+dynasty: "汉"
+dynastyOrder: 100
+era: "东汉末"
+genre: "五言古诗"
+orderInSource: 19
+source: "《文选》卷二十九·杂诗上「古诗一十九首」（李善注本）。电子文本：汉典古籍 gj.zdic.net/jibu/1224/34173.html，2026-10-14 访问；以四库全书本《六臣注文选》卷二十九对校。异文校记见 docs/sources/gushi-shijiu-shou.md。"
+variants:
+  - text: "照我罗床帷"
+    note: "四库全书本《六臣注文选》作「床帷」；底本作「床帏」。帏、帷形义相近，疑形近之异。"
+---
+
+明月何皎皎，照我罗床帏。
+忧愁不能寐，揽衣起徘徊。
+客行虽云乐，不如早旋归。
+出户独彷徨，愁思当告谁？
+引领还入房，泪下沾裳衣。

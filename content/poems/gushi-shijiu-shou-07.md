@@ -1,0 +1,20 @@
+---
+id: gushi-shijiu-shou-07
+title: "明月皎夜光"
+author: "佚名"
+dynasty: "汉"
+dynastyOrder: 100
+era: "东汉末"
+genre: "五言古诗"
+orderInSource: 7
+source: "《文选》卷二十九·杂诗上「古诗一十九首」（李善注本）。电子文本：汉典古籍 gj.zdic.net/jibu/1224/34173.html，2026-10-14 访问；以四库全书本《六臣注文选》卷二十九对校。异文校记见 docs/sources/gushi-shijiu-shou.md。"
+---
+
+明月皎夜光，促织鸣东壁。
+玉衡指孟冬，众星何历历。
+白露沾野草，时节忽复易。
+秋蝉鸣树间，玄鸟逝安适？
+昔我同门友，高举振六翮。
+不念携手好，弃我如遗迹。
+南箕北有斗，牵牛不负轭。
+良无盘石固，虚名复何益？
