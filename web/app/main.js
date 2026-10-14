@@ -15,7 +15,7 @@ import {
 import { APP_VERSION, ROUTES, SUPPORTED_FORMAT_VERSION } from './config.js';
 import { ContentStore } from './store.js';
 import {
-  hasProductSortKeys, productSortKeysStatus, renderIndex, renderPoemPage, renderSearchResults,
+  hasProductOrder, productOrderStatus, renderIndex, renderPoemPage, renderSearchResults,
 } from './render.js';
 
 const store = new ContentStore();
@@ -201,10 +201,10 @@ function renderStatus() {
   row('内容离线存储', meta ? 'IndexedDB（poetry-web）' : '尚无', 'status-content-store');
   if (doc) {
     // 把「组内次序由谁决定」写出来：产物次序是权威，本机拼音只是兜底，且不静默。
-    const ks = productSortKeysStatus(doc);
-    row('组内次序', ks.productOrderAuthoritative
-      ? '照产物数组次序（编译期是唯一排序权威）'
-      : `本机拼音兜底（产物未给整数排序键${ks.wrongType ? '，现有键类型不对' : ''}）`,
+    const os = productOrderStatus(doc);
+    row('组内次序', os.productOrderAuthoritative
+      ? `照产物数组次序（编译期是唯一排序权威；${os.usable} 首带 orderInSource）`
+      : `本机拼音兜底（产物未给 orderInSource${os.wrongType ? '，现有值类型不对' : ''}）`,
     'status-order-mode');
   }
   if (state.sw.supported && state.sw.secure) {

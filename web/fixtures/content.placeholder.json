@@ -3,12 +3,28 @@
   "contentVersion": "2026.10.14.1",
   "generatedAt": "2026-10-14T12:00:00Z",
   "placeholder": true,
-  "placeholderNotice": "占位夹具，非校对文本：仅用于没有 dist/content.json 时的本地开发与验证，不是发布内容。真实产物请用 node web/scripts/prepare-dev-content.mjs（自动优先读取 dist/content.json）。",
+  "placeholderNotice": "占位夹具，非校对文本：仅用于没有 dist/content.json 时的本地开发与验证，不是发布内容。形状与产物一致（带 orderInSource，不带编译期的拼音名次键）。真实产物请用 node web/scripts/prepare-dev-content.mjs（自动优先读取 dist/content.json）。",
   "dynasties": [
-    { "key": "qianqin", "label": "先秦", "order": 0 },
-    { "key": "han", "label": "汉", "order": 100 },
-    { "key": "weijin", "label": "魏晋", "order": 200 },
-    { "key": "tang", "label": "唐", "order": 400 }
+    {
+      "key": "qianqin",
+      "label": "先秦",
+      "order": 0
+    },
+    {
+      "key": "han",
+      "label": "汉",
+      "order": 100
+    },
+    {
+      "key": "weijin",
+      "label": "魏晋",
+      "order": 200
+    },
+    {
+      "key": "tang",
+      "label": "唐",
+      "order": 400
+    }
   ],
   "poems": [
     {
@@ -24,12 +40,16 @@
       "orderInSource": 1,
       "variants": [],
       "stanzas": [
-        ["行行重行行，与君生别离。", "相去万余里，各在天一涯。"],
-        ["道路阻且长，会面安可知？", "胡马依北风，越鸟巢南枝。"]
+        [
+          "行行重行行，与君生别离。",
+          "相去万余里，各在天一涯。"
+        ],
+        [
+          "道路阻且长，会面安可知？",
+          "胡马依北风，越鸟巢南枝。"
+        ]
       ],
-      "notes": null,
-      "authorSortKey": 3,
-      "titleSortKey": 7
+      "notes": null
     },
     {
       "id": "gushi-shijiu-shou-02",
@@ -44,11 +64,12 @@
       "orderInSource": 2,
       "variants": [],
       "stanzas": [
-        ["青青河畔草，郁郁园中柳。", "盈盈楼上女，皎皎当窗牖。"]
+        [
+          "青青河畔草，郁郁园中柳。",
+          "盈盈楼上女，皎皎当窗牖。"
+        ]
       ],
-      "notes": "",
-      "authorSortKey": 3,
-      "titleSortKey": 4
+      "notes": ""
     },
     {
       "id": "gushi-shijiu-shou-06",
@@ -63,11 +84,12 @@
       "orderInSource": 6,
       "variants": [],
       "stanzas": [
-        ["涉江采芙蓉，兰泽多芳草。", "采之欲遗谁？所思在远道。"]
+        [
+          "涉江采芙蓉，兰泽多芳草。",
+          "采之欲遗谁？所思在远道。"
+        ]
       ],
-      "notes": null,
-      "authorSortKey": 3,
-      "titleSortKey": 5
+      "notes": null
     },
     {
       "id": "shijing-guanju",
@@ -82,11 +104,12 @@
       "orderInSource": 4,
       "variants": [],
       "stanzas": [
-        ["关关雎鸠，在河之洲。", "窈窕淑女，君子好逑。"]
+        [
+          "关关雎鸠，在河之洲。",
+          "窈窕淑女，君子好逑。"
+        ]
       ],
-      "notes": null,
-      "authorSortKey": 3,
-      "titleSortKey": 2
+      "notes": null
     },
     {
       "id": "weijin-caocao-guancanghai",
@@ -101,11 +124,12 @@
       "orderInSource": 5,
       "variants": [],
       "stanzas": [
-        ["东临碣石，以观沧海。", "水何澹澹，山岛竦峙。"]
+        [
+          "东临碣石，以观沧海。",
+          "水何澹澹，山岛竦峙。"
+        ]
       ],
-      "notes": null,
-      "authorSortKey": 0,
-      "titleSortKey": 1
+      "notes": null
     },
     {
       "id": "tang-libai-jingyesi",
@@ -120,11 +144,12 @@
       "orderInSource": 7,
       "variants": [],
       "stanzas": [
-        ["床前明月光，疑是地上霜。", "举头望明月，低头思故乡。"]
+        [
+          "床前明月光，疑是地上霜。",
+          "举头望明月，低头思故乡。"
+        ]
       ],
-      "notes": null,
-      "authorSortKey": 1,
-      "titleSortKey": 3
+      "notes": null
     },
     {
       "id": "tang-libai-wanglushanpubu",
@@ -139,11 +164,12 @@
       "orderInSource": 8,
       "variants": [],
       "stanzas": [
-        ["日照香炉生紫烟，遥看瀑布挂前川。", "飞流直下三千尺，疑是银河落九天。"]
+        [
+          "日照香炉生紫烟，遥看瀑布挂前川。",
+          "飞流直下三千尺，疑是银河落九天。"
+        ]
       ],
-      "notes": null,
-      "authorSortKey": 1,
-      "titleSortKey": 6
+      "notes": null
     },
     {
       "id": "tang-zhangji-fengqiaoyebo",
@@ -158,12 +184,14 @@
       "orderInSource": 9,
       "variants": [],
       "stanzas": [
-        ["月落乌啼霜满天，江枫渔火对愁眠。"],
-        ["姑苏城外寒山寺，夜半钟声到客船。"]
+        [
+          "月落乌啼霜满天，江枫渔火对愁眠。"
+        ],
+        [
+          "姑苏城外寒山寺，夜半钟声到客船。"
+        ]
       ],
-      "notes": "【测试笔记·不是用户笔记】\n\n这是用于验证「笔记按需展开」的测试文本。\n\n- 第一点：验证列表与段落。\n- 第二点：验证换行保留。\n\n这里验证最小 Markdown 子集：**粗体**与普通文字混排。\n\n这里验证转义：<b>不应被当作标签</b>，应原样显示。",
-      "authorSortKey": 2,
-      "titleSortKey": 0
+      "notes": "【测试笔记·不是用户笔记】\n\n这是用于验证「笔记按需展开」的测试文本。\n\n- 第一点：验证列表与段落。\n- 第二点：验证换行保留。\n\n这里验证最小 Markdown 子集：**粗体**与普通文字混排。\n\n这里验证转义：<b>不应被当作标签</b>，应原样显示。"
     }
   ]
 }

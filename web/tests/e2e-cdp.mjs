@@ -18,7 +18,7 @@
  *   6. 内容更新：完整下载 + 校验通过才切换（先 staged 不打断阅读，回目录生效）；删/改/增都生效
  *   7. 四种失败：校验和损坏、非法 JSON、formatVersion 不兼容、远端更旧 → 全部保留旧版
  *   8. 离线持久化 / 模拟清除站点数据后如实提示 / 恢复后自愈
- *   10. 老产物兜底：一个排序键都没给时，退回本机拼音排序
+ *   10. 最小产物形状（只有 orderInSource）仍照数组次序；11. 老产物（无 orderInSource）退回本机拼音排序
  *   9. 整轮没有未捕获 JS 异常
  *
  * 产物（截图 + DOM 转储）写到 web/tests/artifacts/（已 gitignore）。
@@ -36,7 +36,7 @@ import {
   SUPPORTED_FORMAT_VERSION, compareContentVersion, decideUpdate, validateContent,
 } from '../app/content.js';
 import { APP_VERSION, CONTENT_DB, RESOURCE_CACHE_PREFIX, resourceCacheName } from '../app/config.js';
-import { comparePoems, groupPoems, hasProductSortKeys, productSortKeysStatus, searchPoems } from '../app/render.js';
+import { comparePoems, groupPoems, hasProductOrder, isUnknownAuthor, productOrderStatus, searchPoems, UNKNOWN_AUTHORS } from '../app/render.js';
 import { buildVariants } from '../scripts/lib/variants.mjs';
 
 const webRoot = fileURLToPath(new URL('..', import.meta.url));
@@ -53,7 +53,7 @@ const NODE = process.execPath;
 
 /** 用户 2026-10-14 拍板：组内次序用 `--order source`，保留《文选》卷二十九原次序（A 线的
  *  orderInSource = 1..19）。这里写成硬编码的确定性期望：任何客户端重排（拼音排序等）都会
- *  把它打乱（行行重行行的 titleSortKey 是全场最大 18，重排会把它推到末尾），从而暴露回归。 */
+ *  把它打乱（行行重行行的 orderInSource 是 1、在数组首位，重排会把它推到末尾），从而暴露回归。 */
 const SOURCE_ORDER_TITLES = [
   '行行重行行', '青青河畔草', '青青陵上柏', '今日良宴会', '西北有高楼',
   '涉江采芙蓉', '明月皎夜光', '冉冉孤生竹', '庭中有奇树', '迢迢牵牛星',
@@ -107,7 +107,7 @@ function expectedDomOrder(doc) {
   return out;
 }
 
-/** 本机拼音兜底会排成什么样（用 app 的兜底比较器，只在「产物没给排序键」时才该被用到）。 */
+/** 本机拼音兜底会排成什么样（用 app 的兜底比较器，只在「产物一首都没带 orderInSource」时才该被用到）。 */
 function fallbackOrder(doc) {
   const byD = new Map();
   for (const p of doc.poems) {
@@ -334,12 +334,12 @@ function unitTests(baseDoc, variants) {
   check('结构校验：stanzas 全空 → 失败', emptyStanza.ok === false, emptyStanza.errors.join(' / '));
 
   // ---- 次序策略（编译期是唯一排序权威）----
-  section('0b 次序策略：产物给排序键时一律不重排（回归）');
-  eq('真实产物被判定为「产物次序权威」', hasProductSortKeys(baseDoc), true);
+  section('0b 次序策略：产物带了 orderInSource 时一律不重排（回归）');
+  eq('真实产物被判定为「产物次序权威」', hasProductOrder(baseDoc), true);
   eq('真实产物 19 首的诗名次序 == 用户拍板的《文选》原次序',
     baseDoc.poems.map((p) => p.title), SOURCE_ORDER_TITLES);
-  eq('真实产物的排序键都是整数名次', productSortKeysStatus(baseDoc), {
-    present: baseDoc.poems.length * 2, usable: baseDoc.poems.length * 2, productOrderAuthoritative: true, wrongType: false,
+  eq('判定依据是 orderInSource（19 首全是整数）', productOrderStatus(baseDoc), {
+    present: baseDoc.poems.length, usable: baseDoc.poems.length, productOrderAuthoritative: true, wrongType: false,
   });
   eq('目录次序 == 产物数组次序', groupPoems(baseDoc).flatMap((g) => g.poems.map((p) => p.id)), expectedDomOrder(baseDoc));
   check('本机拼音排序会与产物次序不同（这条断言才有牙齿）',
@@ -350,21 +350,69 @@ function unitTests(baseDoc, variants) {
     searchPoems(baseDoc, '佚名').map((p) => p.id),
     baseDoc.poems.filter((p) => p.title.includes('佚名') || p.author.includes('佚名')).map((p) => p.id));
 
-  section('0c 老产物（一个排序键都没给）才退回本机拼音兜底');
-  const noKeysDoc = variants.noSortKeys.doc;
-  eq('无排序键 → 判定为需要兜底', hasProductSortKeys(noKeysDoc), false);
+  section('0c 客户端不再读两个拼音名次键（即使产物里还带着）');
+  const keysButNoIndex = structuredClone(baseDoc);
+  keysButNoIndex.poems.forEach((p) => {
+    p.authorSortKey = 0;
+    p.titleSortKey = 0;
+    delete p.orderInSource;
+  });
+  eq('只带拼音键、没有 orderInSource → 不认，退回兜底',
+    productOrderStatus(keysButNoIndex),
+    { present: 0, usable: 0, productOrderAuthoritative: false, wrongType: false });
+  eq('退回兜底后的次序 == 本机拼音序',
+    groupPoems(keysButNoIndex).flatMap((g) => g.poems.map((p) => p.id)), fallbackOrder(keysButNoIndex));
+  eq('最小产物形状（只有 orderInSource）→ 仍认产物次序',
+    hasProductOrder(variants.minimal.doc), true);
+  eq('最小形状的目录次序 == 其数组次序',
+    groupPoems(variants.minimal.doc).flatMap((g) => g.poems.map((p) => p.id)), expectedDomOrder(variants.minimal.doc));
+  check('最小形状产物确实不带两个拼音键',
+    variants.minimal.doc.poems.every((p) => p.authorSortKey === undefined && p.titleSortKey === undefined));
+
+  section('0d 老产物（一首都没带 orderInSource）才退回本机拼音兜底');
+  const noKeysDoc = variants.noOrderIndex.doc;
+  eq('无 orderInSource → 判定为需要兜底', hasProductOrder(noKeysDoc), false);
+  check('老产物夹具确实既没有 orderInSource 也没有两个拼音键',
+    noKeysDoc.poems.every((p) => p.orderInSource === undefined && p.authorSortKey === undefined && p.titleSortKey === undefined));
   eq('兜底次序 == 本机拼音序', groupPoems(noKeysDoc).flatMap((g) => g.poems.map((p) => p.id)), fallbackOrder(noKeysDoc));
   check('兜底次序 ≠ 数组次序（说明兜底真的在起作用）',
     dump(groupPoems(noKeysDoc).flatMap((g) => g.poems.map((p) => p.id))) !== dump(expectedDomOrder(noKeysDoc)));
 
-  section('0d 排序键类型不对（v0 字符串键）视为「没给」，且不静默');
-  const stringKeys = structuredClone(baseDoc);
-  stringKeys.poems.forEach((p) => { p.authorSortKey = String(p.authorSortKey); p.titleSortKey = String(p.titleSortKey); });
-  eq('字符串排序键 → 不认，退回兜底',
-    productSortKeysStatus(stringKeys), { present: stringKeys.poems.length * 2, usable: 0, productOrderAuthoritative: false, wrongType: true });
-  eq('退回兜底后的次序 == 本机拼音序', groupPoems(stringKeys).flatMap((g) => g.poems.map((p) => p.id)), fallbackOrder(stringKeys));
+  section('0e orderInSource 类型不对（非整数）视为「没给」，且不静默');
+  const stringIndex = structuredClone(baseDoc);
+  stringIndex.poems.forEach((p) => { p.orderInSource = String(p.orderInSource); });
+  eq('字符串 orderInSource → 不认，退回兜底',
+    productOrderStatus(stringIndex), { present: stringIndex.poems.length, usable: 0, productOrderAuthoritative: false, wrongType: true });
+  eq('退回兜底后的次序 == 本机拼音序', groupPoems(stringIndex).flatMap((g) => g.poems.map((p) => p.id)), fallbackOrder(stringIndex));
 
-  section('0f 仓库里两份夹具自身合法（防止夹具自己慢慢烂掉）');
+  section('0f 佚名/未知作者清单逐字对齐契约 §2.1（三端曾不一致）');
+  const contractText = readFileSync(resolve(repoRoot, 'docs', 'design', 'content-contract.md'), 'utf8');
+  const contractList = /`佚名`\/`无名氏`\/`未知`\/`未详`\/`不详`\/空/.exec(contractText);
+  check('契约 §2.1 里能找到那份清单（否则这条测试自身先失效）', Boolean(contractList), contractList ? contractList[0] : '没找到该清单');
+  eq('UNKNOWN_AUTHORS 与契约清单逐字一致', [...UNKNOWN_AUTHORS], ['佚名', '无名氏', '未知', '未详', '不详']);
+  check('清单里不含空串（空白由 isUnknownAuthor 处理）',
+    !UNKNOWN_AUTHORS.has('') && [...UNKNOWN_AUTHORS].every((a) => a.trim() !== ''));
+  check('「阙名」不在清单里（是否并入待用户拍板，不自行加入）', !UNKNOWN_AUTHORS.has('阙名'));
+
+  const anonDoc = {
+    dynasties: [{ key: 'song', label: '宋', order: 500 }],
+    poems: ['苏轼', '杨万里', '阙名', '佚名', '未详', '未知', '无名氏', ''].map((author, i) => ({
+      id: `t-${i}`, title: `戏题${i}`, author, dynastyKey: 'song', dynastyLabel: '宋',
+      dynastyOrder: 500, orderInSource: null, stanzas: [['一']], notes: null,
+    })),
+  };
+  const orderedAuthors = groupPoems(anonDoc)[0].poems.map((p) => p.author);
+  check('具名作者（含暂未并入的「阙名」）排在前面',
+    [...orderedAuthors.slice(0, 3)].sort().join() === ['杨万里', '苏轼', '阙名'].sort().join(),
+    dump(orderedAuthors));
+  check('五个「未知作者」（含空白）排在最后',
+    orderedAuthors.slice(3).length === 5 && orderedAuthors.slice(3).every((a) => isUnknownAuthor(a)),
+    dump(orderedAuthors));
+  check('「未知」真的被当成未知（要是漏了它就会掉到具名那一段）',
+    isUnknownAuthor('未知') && orderedAuthors.indexOf('未知') >= 3, dump(orderedAuthors));
+  check('空白作者算未知作者', isUnknownAuthor('') && isUnknownAuthor('   ') && orderedAuthors.indexOf('') >= 3);
+
+  section('0g 仓库里两份夹具自身合法（防止夹具自己慢慢烂掉）');
   for (const name of ['content.placeholder.json', 'content.no-sortkeys.json']) {
     const doc = JSON.parse(readFileSync(resolve(webRoot, 'fixtures', name), 'utf8'));
     const v = validateContent(doc);
@@ -372,7 +420,7 @@ function unitTests(baseDoc, variants) {
     check(`fixtures/${name} 带上「夹具」标记（不会被当成发布内容）`, doc.placeholder === true, `placeholder=${doc.placeholder}`);
   }
 
-  section('0e 分组的次序照产物 dynasties 数组（不在客户端重排）');
+  section('0h 分组的次序照产物 dynasties 数组（不在客户端重排）');
   const flipped = structuredClone(baseDoc);
   flipped.dynasties = [...flipped.dynasties].reverse();
   if (flipped.dynasties.length > 1) {
@@ -424,29 +472,14 @@ async function main() {
   for (const [k, v] of Object.entries(buildVariants(baseDoc))) {
     variants[k] = { ...v, doc: (() => { try { return JSON.parse(v.text); } catch { return null; } })() };
   }
-  for (const k of ['update', 'update2', 'lower', 'corrupt', 'broken', 'future']) {
+  for (const k of ['update', 'update2', 'lower', 'corrupt', 'broken', 'future', 'minimal', 'noOrderIndex']) {
     console.log(`  变体 ${k}: ${variants[k].note}`);
   }
-  // 老产物兜底变体：删掉所有排序键并逐组反转数组次序（确定性）
-  const noSortKeysDoc = structuredClone(baseDoc);
-  noSortKeysDoc.contentVersion = `2999.1.1.1`;
-  noSortKeysDoc.fixture = true;
-  noSortKeysDoc.fixtureNotice = '测试夹具：模拟老产物（一个排序键都没给），验证客户端本机拼音兜底排序。不是发布内容。';
-  for (const p of noSortKeysDoc.poems) { delete p.authorSortKey; delete p.titleSortKey; }
-  {
-    const byD = new Map();
-    for (const p of noSortKeysDoc.poems) {
-      if (!byD.has(p.dynastyKey)) byD.set(p.dynastyKey, []);
-      byD.get(p.dynastyKey).push(p);
-    }
-    const reversed = [];
-    for (const d of noSortKeysDoc.dynasties) reversed.push(...[...(byD.get(d.key) ?? [])].reverse());
-    noSortKeysDoc.poems = reversed;
-  }
-  variants.noSortKeys = {
-    name: 'noSortKeys', doc: noSortKeysDoc, text: `${JSON.stringify(noSortKeysDoc, null, 2)}\n`,
-    checksum: 'correct', note: `老产物形状（无排序键、数组次序逐组反转），版本 ${noSortKeysDoc.contentVersion}`,
-  };
+  const minimalDoc = variants.minimal.doc;
+  const noOrderIndexDoc = variants.noOrderIndex.doc;
+  console.log(`  基座产物是否还带两个拼音名次键：${baseDoc.poems.some((p) => 'authorSortKey' in p || 'titleSortKey' in p)
+    ? '还带着（C 线的移除还没到 master；客户端已不读它们，本轮用 minimal 变体验证改完后的形状）'
+    : '已移除（与 C 线改动一致）'}`);
 
   unitTests(baseDoc, variants);
 
@@ -520,12 +553,13 @@ async function main() {
     dump(SOURCE_ORDER_TITLES) !== dump(pinyinTitles),
     `拼音序前3=${dump(pinyinTitles.slice(0, 3))} 拍板序前3=${dump(SOURCE_ORDER_TITLES.slice(0, 3))}`);
 
-  // 钉死回归：真实产物第 1 首必须是 行行重行行（它的 titleSortKey 是全场最大）
+  // 钉死回归：真实产物第 1 首必须是 行行重行行（orderInSource 最小 = 1，而拼音序会把它排到最后）
   const firstPoem = baseDoc.poems[0];
-  const maxTitleKey = Math.max(...baseDoc.poems.map((p) => p.titleSortKey));
+  const minOrderInSource = Math.min(...baseDoc.poems.map((p) => p.orderInSource));
   eq('真实产物第 1 首是 行行重行行', firstPoem.title, '行行重行行');
   eq('真实产物第 1 首的 id', firstPoem.id, 'gushi-shijiu-shou-01');
-  eq('它的 titleSortKey 是全场最大（任何客户端重排都会把它推到末尾）', firstPoem.titleSortKey, maxTitleKey);
+  eq('它的 orderInSource 是全场最小（1 = 底本原次序首篇）', firstPoem.orderInSource, minOrderInSource);
+  eq('orderInSource 最小就是 1', minOrderInSource, 1);
   eq('目录第 1 行 == 产物第 1 首（客户端重排会在这里报红）', domOrder[0], firstPoem.id);
   eq('本机拼音重排会把它推到第 19 位（所以上一条断言有牙齿）',
     fallbackOrder(baseDoc).indexOf(firstPoem.id), total - 1);
@@ -816,14 +850,27 @@ async function main() {
   eq('重新取得后次序仍是产物次序', await domPoemIds(), expectOrder);
   eq('内容副本重新落盘', await idbRows(), [['active', baseDoc.contentVersion]]);
 
-  // ---------------------------------------------------------------- 10. 老产物兜底
-  section('10 老产物（一个排序键都没给）→ 退回本机拼音排序兜底');
-  await writeContent(variants.noSortKeys.text, variants.noSortKeys.checksum);
-  const r3 = await evaluate(`(async () => JSON.parse(JSON.stringify(await window.__app.checkForUpdate({ manual: true }))))()`);
-  eq('老产物被接受', (await summary()).contentVersion, noSortKeysDoc.contentVersion);
-  check('结论是「已更新并切换」', r3.result === '已更新并切换', r3.result);
-  const noKeyExpected = fallbackOrder(noSortKeysDoc);
-  const noKeyArrayOrder = expectedDomOrder(noSortKeysDoc);
+  // ------------------------------------------------ 10. 最小产物形状 / 老产物兜底
+  section('10 最小产物形状（只有 orderInSource、没有拼音名次键）= C 线改完后的产物');
+  await writeContent(variants.minimal.text, variants.minimal.checksum);
+  const rMin = await evaluate(`(async () => JSON.parse(JSON.stringify(await window.__app.checkForUpdate({ manual: true }))))()`);
+  s = await summary();
+  eq('最小形状产物被接受', s.contentVersion, minimalDoc.contentVersion);
+  check('结论是「已更新并切换」', rMin.result === '已更新并切换', rMin.result);
+  eq('最小形状下目录次序 == 产物数组次序', await domPoemIds(), expectedDomOrder(minimalDoc));
+  eq('最小形状下第 1 行仍是 行行重行行', (await domPoemIds())[0], minimalDoc.poems[0].id);
+  includes('状态面板说明照产物次序',
+    await evaluate(`document.querySelector('[data-test="status-order-mode"]').textContent`), '照产物数组次序');
+  await screenshot('13-minimal-product.png');
+
+  section('11 老产物（一首都没带 orderInSource）→ 退回本机拼音排序兜底');
+  await writeContent(variants.noOrderIndex.text, variants.noOrderIndex.checksum);
+  const rOld = await evaluate(`(async () => JSON.parse(JSON.stringify(await window.__app.checkForUpdate({ manual: true }))))()`);
+  s = await summary();
+  eq('老产物被接受', s.contentVersion, noOrderIndexDoc.contentVersion);
+  check('结论是「已更新并切换」', rOld.result === '已更新并切换', rOld.result);
+  const noKeyExpected = fallbackOrder(noOrderIndexDoc);
+  const noKeyArrayOrder = expectedDomOrder(noOrderIndexDoc);
   eq('目录次序 == 本机拼音兜底次序', await domPoemIds(), noKeyExpected);
   check('兜底次序 ≠ 产物数组次序（说明确实走了兜底，而不是照抄数组）',
     dump(noKeyExpected) !== dump(noKeyArrayOrder),
@@ -832,7 +879,7 @@ async function main() {
     await evaluate(`document.querySelector('[data-test="status-order-mode"]').textContent`), '本机拼音兜底');
   await hashTo('#/');
   await waitForIndex();
-  await screenshot('13-no-sortkeys-fallback.png');
+  await screenshot('14-no-orderindex-fallback.png');
   await prepareViaCli();
   console.log('（已把真实产物重新落盘到 web/content.json，便于继续本地开发）');
 

@@ -13,13 +13,15 @@
 //
 // 变体（前两个是仓库里的夹具文件，其余从**基座**现场派生；见 scripts/lib/variants.mjs）：
 //   placeholder  占位夹具（与基座无关，固定用 fixtures/content.placeholder.json）
-//   no-sortkeys  v0 形状的老夹具：一个排序键都没给，用来验证本机拼音兜底
+//   no-sortkeys  老产物形状的老夹具：既没有 orderInSource 也没有拼音名次键（文件名是历史叫法）
 //   update       删首尾各 1 首、改 1 行、加 1 首测试诗并新增 1 个时代分组
 //   update2      在 update 基础上去掉那首测试诗 → 那个时代分组随之消失
 //   lower        内容同 update，版本更旧 → 必须拒绝（不降级）
 //   corrupt      内容合法、版本更高，但边车哈希故意不匹配
 //   broken       截断的非法 JSON
 //   future       formatVersion 更高 → 不解析、保留旧内容
+//   minimal      最小产物形状（只有 orderInSource，没有拼音名次键）→ 仍照数组次序
+//   noOrderIndex 老产物形状（无 orderInSource、无拼音键，数组次序被反转）→ 本机拼音兜底
 
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
@@ -50,9 +52,10 @@ const sha256 = (text) => createHash('sha256').update(text, 'utf8').digest('hex')
 function describe(text) {
   try {
     const doc = JSON.parse(text);
+    const kind = doc.placeholder === true ? '【占位夹具】'
+      : (doc.fixture === true ? '【测试夹具】' : '真实产物');
     return `formatVersion=${doc.formatVersion} contentVersion=${doc.contentVersion} poems=${doc.poems?.length} `
-      + `dynasties=${(doc.dynasties ?? []).map((d) => d.key).join(',')} `
-      + `${doc.placeholder === true ? '【占位夹具】' : ''}${doc.fixture === true ? '【测试夹具】' : '真实产物'}`;
+      + `dynasties=${(doc.dynasties ?? []).map((d) => d.key).join(',')} ${kind}`;
   } catch {
     return '（内容不是合法 JSON —— 变体故意造成的）';
   }
