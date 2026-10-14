@@ -8,6 +8,8 @@
 ## 已确认
 
 - **应用展示名：索斐**（2026-10-14 用户定；工程目录名 `PoetryCollection` 保持不变，两者互不冲突）。
+- **Android 包名 `applicationId`：`dev.sopho.suofei`**（2026-10-14 用户定）。仅影响 Android 工程标识，与工程目录名无关。
+- 评审门槛：v2 —— **A/B 两类都需用户确定**，差别只在「先问后做」与「先做后报可否决」，见 [review-gates.md](review-gates.md)。
 - 范围与边界见 [CONTEXT.md](../CONTEXT.md)；工作约定见 [AGENTS.md](../AGENTS.md)；**哪些事需要用户评审见 [review-gates.md](review-gates.md)**。
 - 技术选型（负责人判断）：**Kotlin + Jetpack Compose（Android 原生）+ 独立轻量静态 DOM Web**。理由见工作线 D 的报告；
   已核实的备选是共享 Web + Capacitor 壳（一套 UI），若在意「只维护一套 UI」可换，见 `../../misc/sophomore/reference/exploration/personal-poetry-app-platform-options.md`。
@@ -35,9 +37,9 @@
 
 ## 未决 / 待用户确认
 
-- 展示名的**派生项**：Android `applicationId`（包名，发布后不可改）、GitHub 仓库名与 Pages 地址（已问 `q-` 待答；仓库尚未创建）。
-- 评审门槛清单：`docs/review-gates.md` v1，待用户确认（`q-cabdb13d`，可随时增删）。
+- 评审门槛清单 v2 的**分档点**（哪些算「先问后做」）：已给判据，待用户点头或修改。
 - 原型视觉与交互（评审后冻结，再落到两端实现）。
+- 仓库名与 Pages 地址：默认 `suofei`；建仓属 A4.1，需单独授权时一并确认。
 - 底本文字取舍（如《文选》与《玉台新咏》异文）——仅在两个文本都有出处且影响观感时升级为用户决定。
 
 ## 诚实边界
