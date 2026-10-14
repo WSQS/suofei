@@ -9,7 +9,7 @@ import java.security.MessageDigest
 
 /** 一次安装的结果；失败时调用方必须保留旧版内容，不做任何「部分生效」。 */
 sealed interface InstallResult {
-    data class Activated(val version: String, val previousVersion: String?) : InstallResult
+    data class Activated(val version: String) : InstallResult
     data class Refused(val reason: String, val kind: RefusalKind) : InstallResult
 }
 
@@ -17,7 +17,7 @@ enum class RefusalKind { PAYLOAD_INVALID, FORMAT_TOO_NEW, VERSION_MISMATCH, IO }
 
 /**
  * 下载内容的落盘与**原子切换**。刻意不依赖任何 Android API（只用 java.io/java.nio），
- * 因此可以在 JVM 单元测试里用临时目录真实跑一遍切换/保旧版/删除旧版。
+ * 因此可以在 JVM 单元测试里用临时目录真实跑一遍切换/保旧版/清理旧版。
  *
  * 目录布局（rootDir = context.filesDir/content）：
  *
@@ -26,21 +26,22 @@ enum class RefusalKind { PAYLOAD_INVALID, FORMAT_TOO_NEW, VERSION_MISMATCH, IO }
  *   versions/<contentVersion>/content.json   一个完整、校验通过、此后只读的内容快照
  *   versions/<contentVersion>/meta.json      安装元信息（sha256、来源、时间）
  *   current                         文本文件：当前生效的 contentVersion（指针）
- *   previous                        文本文件：上一个生效版本（唯一的回滚候选）
  * ```
+ *
+ * **只保留「当前版本」一个快照**：没有 `previous` 指针、没有事后回退路径
+ * （用户 2026-10-14 决定删掉，理由与两道防线见 docs/design/android-offline-update.md 第 6 节）。
  *
  * 原子性依据（不是「写完再覆盖原文件」）：
  * 1. 读者只打开 `versions/<v>/content.json` —— 该文件在版本名出现在 `current` 之前就已经完整落盘，且此后不再改写；
  * 2. 切换只做一件事：把 `current.tmp` 重命名覆盖 `current`（同目录、同文件系统 ⇒ 单次 rename 原子）；
  * 3. 因此任一时刻，读者要么读到旧版本号、要么读到新版本号，读不到半个文件；
- *    正在读旧版本的读者手里的文件不会被进程内任何人改写（旧目录只在整个读取结束后才可能被清理）。
+ *    旧快照在切换完成后即被清理，但这对正在阅读的会话没有影响——它手里是**解析后的数据**，不是磁盘文件句柄。
  */
 class ContentStore(private val rootDir: File) {
 
     private val stagingDir = File(rootDir, "staging")
     private val versionsDir = File(rootDir, "versions")
     private val currentPointer = File(rootDir, "current")
-    private val previousPointer = File(rootDir, "previous")
 
     // 单进程应用；进程内串行化安装，避免两个更新流程同时改指针。
     private val lock = Any()
@@ -55,8 +56,6 @@ class ContentStore(private val rootDir: File) {
     }
 
     fun activeVersion(): String? = readPointer(currentPointer)
-
-    fun previousVersion(): String? = readPointer(previousPointer)
 
     fun installedVersions(): List<String> =
         (versionsDir.listFiles() ?: emptyArray())
@@ -162,34 +161,21 @@ class ContentStore(private val rootDir: File) {
             return InstallResult.Refused("写入版本目录失败：${e.message}", RefusalKind.IO)
         }
 
-        val previous = activeVersion()
         // 指针就位才算「生效」。指针本身写得再糟，也只是一个文本文件：原子换它即可。
         atomicReplaceText(currentPointer, version)
-        if (previous != null && previous != version) {
-            atomicReplaceText(previousPointer, previous)
-        }
 
         pruneOldVersions()
-        return InstallResult.Activated(version = version, previousVersion = previous)
-    }
-
-    /** 回滚到上一个版本（备用路径：正常更新流程用不到，保留是为了「保旧版」有第二道手）。 */
-    fun rollbackToPrevious(): Boolean = synchronized(lock) {
-        val previous = previousVersion() ?: return false
-        val dir = File(versionsDir, previous)
-        if (!File(dir, CONTENT_FILE).isFile) return false
-        val current = activeVersion()
-        atomicReplaceText(currentPointer, previous)
-        if (current != null) atomicReplaceText(previousPointer, current)
-        return true
+        return InstallResult.Activated(version = version)
     }
 
     /**
-     * 只保留「当前生效版本」和「上一个版本」（唯一回滚候选），其余快照连同目录删除。
+     * 只保留「当前生效版本」的目录，其余快照目录连同目录删除，并清掉 `staging/` 残留。
      * 这就是「新版可删改、不是只累积」在磁盘上的兑现方式：
-     * 每次安装都是一个**完整快照**（不是增量叠加），被删掉的作品在新快照里自然不存在。
+     * 每次安装都是一个**完整快照**（不是增量叠加），被删掉的作品在新快照里自然不存在；
+     * 旧快照也不再留在磁盘上（用户 2026-10-14 决定不保留「上一个版本」）。
      */
-    fun pruneOldVersions(keep: Set<String> = setOfNotNull(activeVersion(), previousVersion())) {
+    fun pruneOldVersions() {
+        val keep = setOfNotNull(activeVersion())
         val dirs = versionsDir.listFiles() ?: return
         for (dir in dirs) {
             if (!dir.isDirectory) continue

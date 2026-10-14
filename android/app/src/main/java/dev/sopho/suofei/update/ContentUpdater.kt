@@ -21,7 +21,6 @@ sealed interface UpdateOutcome {
     /** 下载 + 校验通过 + 指针已原子切换。 */
     data class Activated(
         val version: String,
-        val previousVersion: String?,
         val bytes: Long,
         val sha256: String,
     ) : UpdateOutcome
@@ -146,7 +145,6 @@ object ContentUpdater {
         )) {
             is InstallResult.Activated -> UpdateOutcome.Activated(
                 version = result.version,
-                previousVersion = result.previousVersion,
                 bytes = bytes,
                 sha256 = digest,
             )
