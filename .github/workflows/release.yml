@@ -131,16 +131,22 @@ jobs:
           path: release/out/web
 
       # ── Release：只在真发布时建（干跑跳过）───────────────────────────
-      - name: 建 GitHub Release 并附 APK
+      - name: 建 GitHub Release 并附 APK（幂等：重跑不会因「Release 已存在」失败）
         if: ${{ github.event_name == 'push' || inputs.dry_run == false }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           APK=$(ls release/out/apk/*.apk)
-          gh release create "$RELEASE_TAG" "$APK" \
-            --title "$RELEASE_TAG" \
-            --notes "索斐 $RELEASE_TAG（内容由 release/out/dist/content.json 编译，APK 内置同版内容；签名证书见 check-ready 回执）"
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Release $RELEASE_TAG 已存在——只把这次的 APK 传上去（--clobber 覆盖同名资产）"
+            gh release upload "$RELEASE_TAG" "$APK" --clobber
+          else
+            gh release create "$RELEASE_TAG" "$APK" \
+              --title "$RELEASE_TAG" \
+              --notes "索斐 $RELEASE_TAG（内容由 release/out/dist/content.json 编译，APK 内置同版内容；签名证书见 check-ready 回执）"
+          fi
+          gh release view "$RELEASE_TAG" --json tagName,assets --jq '{tag:.tagName, assets:[.assets[].name]}'
 
   deploy-pages:
     needs: build
