@@ -1,0 +1,20 @@
+// 发布流水线 F：把「本次发布的内容」注入 APK 的 Gradle init script 模板。
+//
+// 为什么不直接改 android/app/src/main/assets/content/content.json：
+//   那会把「发布」变成「往仓库里写文件」，工作树在发布过程中变脏，且注入是**破坏性**的
+//   （原来那份内置内容被覆盖，回看不出差异）。本流水线的做法是：
+//     1. 把 android/ 复制一份到 <out>/.work/android（只读地读它，绝不写 android/）；
+//     2. 把本次发布的内容放到 <out>/.work/inject-assets/content/content.json；
+//     3. 用本 init script **替换** assets 源目录，只指向那一个目录；
+//     4. 在副本里构建。
+//   于是：android/ 一个字节都没被动过，而 APK 内置内容 = 本次发布的 content.json。
+//   想在真实流程里改成「直接改仓库里的 assets 并提交」也是一种合法落法（android/README §3），
+//   但那是**仓库可见的发布动作**，应由人决定 —— 见 docs/design/release-pipeline.md §6。
+//
+// 占位符由 build-release.mjs 替换成绝对路径（Groovy 单引号字符串）；
+// 为避免歧义，本文件里只应出现一次占位符（替换用 replaceAll，且替换后会断言不再残留）。
+allprojects { p ->
+    p.plugins.withId('com.android.application') {
+        p.android.sourceSets.getByName('main').assets.srcDirs = [new File('__ASSETS_DIR__')]
+    }
+}
