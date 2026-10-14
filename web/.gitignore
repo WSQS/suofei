@@ -1,8 +1,9 @@
 # 本地生成物：内容副本由脚本写入，不进版本库
 /content.json
+# Web 侧已不产出 .sha256 边车（2026-10-14 决定）；仍忽略它，防止旧的残留文件被误提交
 /content.json.sha256
 
-# 测试产物（截图/DOM 转储）
+# 测试产物（截图 / DOM 转储 / 各版本部署目录）
 /tests/artifacts/
 
 node_modules/

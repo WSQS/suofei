@@ -21,10 +21,10 @@
 //   schemaBroken  合法 JSON 但结构不合法 → 失败状态：结构校验失败
 //   futureFormat  formatVersion 更高 → 失败状态：格式版本不兼容
 //
-// 注意：Web 端已不再依赖 content.json.sha256 边车（内容与壳由 Service Worker 成对缓存、
-// 随站点一起更新）。脚本仍会写它，只是给别的消费者留的，Web 不读。
+// 注意：Web 端**不产出** content.json.sha256 边车（用户 2026-10-14 拍板）——内容与壳已由
+// Service Worker 成对缓存、随站点一起更新，完整性由「同一次部署 + HTTPS + SW 预缓存」承担；
+// 没人消费的边车只会让人以为还有一道校验环节。
 
-import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -35,7 +35,6 @@ import { buildVariants } from './lib/variants.mjs';
 const webRoot = fileURLToPath(new URL('..', import.meta.url));
 const repoRoot = resolve(webRoot, '..');
 const target = resolve(webRoot, 'content.json');
-const checksumTarget = `${target}.sha256`;
 
 const argv = process.argv.slice(2);
 const flag = (name) => {
@@ -47,8 +46,6 @@ const FIXTURE_VARIANTS = {
   placeholder: 'fixtures/content.placeholder.json',
   'no-sortkeys': 'fixtures/content.no-sortkeys.json',
 };
-
-const sha256 = (text) => createHash('sha256').update(text, 'utf8').digest('hex');
 
 function describe(text) {
   try {
@@ -102,10 +99,9 @@ async function main() {
   }
 
   await writeFile(target, text, 'utf8');
-  await writeFile(checksumTarget, `${sha256(text)}  content.json\n`, 'utf8');
 
   console.log(`来源：${origin}`);
-  console.log(`写入：web/content.json（${Buffer.byteLength(text, 'utf8')} 字节）+ content.json.sha256（Web 已不读取）`);
+  console.log(`写入：web/content.json（${Buffer.byteLength(text, 'utf8')} 字节；不产出 sha256 边车）`);
   console.log(`内容：${describe(text)}`);
 }
 

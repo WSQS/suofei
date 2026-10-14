@@ -61,7 +61,7 @@ web/
   fixtures/             **测试夹具（不是发布内容）**
   tests/e2e-cdp.mjs                 端到端验证（无头 Chromium + CDP）
   tests/lib/deploy.mjs              组装「部署目录」，用来真发两版
-  content.json(.sha256) 本地生成物，已 gitignore（部署时才需要放置）
+  content.json          本地生成物，已 gitignore（部署时才需要放置；Web 不产出 .sha256 边车）
 ```
 
 `fixtures/` 里两份都是**测试夹具，不是发布内容**，页面上都会显示黄色提示：
@@ -204,7 +204,7 @@ web/
 ## 6. 部署到静态托管（Pages）注意点
 
 1. 要发布的文件：`index.html`、`styles.css`、`manifest.json`、`sw.js`、`app/`（四个模块）、
-   以及 `content.json`（+ 可选的 `content.json.sha256`，Web 已不读它）。`web/fixtures/`、
+   以及 `content.json`（Web 侧**不产出也不读** `content.json.sha256` 边车，见 §7）。`web/fixtures/`、
    `web/tests/`、`web/scripts/` 不发布（`tests/lib/deploy.mjs` 里有一份清单，e2e 也断言了
    部署目录里没有测试文件）。
 2. `index.html` 用**哈希路由**，不需要服务器重写规则；刷新深链不会 404。
@@ -232,7 +232,7 @@ web/
 | **站点版本号** | 已缓存旧资源的浏览器、发布流程 | `APP_VERSION`（`0.1.0` 起），发新版必须递增；是**唯一**的版本键 | `config.js` + `sw.js`（两处，e2e 交叉断言） |
 | **更新检查协议** | 发布流程、已上线站点 | **没有**额外的内容清单接口：浏览器按标准 SW 生命周期取 `sw.js`（`updateViaCache:'none'`）；内容随站点一起换 | `sw.js`（install/activate/updatefound） |
 | **内容版本 `contentVersion`** | 内容线 C、Android 端（那边仍用它做热更决策） | Web **只展示、不参与决策**（状态面板里注明「仅展示」） | `app/main.js` 的状态面板 |
-| **`content.json.sha256` 边车** | 内容线是否产出 | Web **不再依赖**（可继续产出给别的消费者）；校验靠「同一次部署 + HTTPS + SW 预缓存的整体性」 | 无需改动；`config.js` 里已无此项 |
+| **`content.json.sha256` 边车** | 发布线（去掉产出）、Android 端（那边仍需要远端清单里的 `sha256`） | **Web 侧不产出、也不依赖**（用户 2026-10-14 拍板）。完整性由「同一次部署 + HTTPS + SW 预缓存整体性」承担；没人消费的边车只会让人以为还有一道校验环节 | `web/` 侧已无此项（`config.js` 无 `CHECKSUM_URL`、`prepare-dev-content.mjs` 不再写它）；发布线去掉产出 |
 | **`formatVersion` 支持范围** | 内容线（什么时候递增）、Android 端（同样要判） | 只接受 `=== 1`；不匹配按**部署不一致**处理（内容与壳一起发布才对） | `config.js: SUPPORTED_FORMAT_VERSION` + `app/content.js: checkCompatibility()` |
 | **组内 / 分组次序权威** | Android 端、原型端、B 线设计的阅读次序 | **判定依据 = `orderInSource`**：组内有任何一首带整数 `orderInSource` 就一律照数组次序（目录与搜索都是，分组次序照 `dynasties` 数组）；一首都没带才退回本机拼音兜底 | `app/render.js: hasProductOrder / productOrderStatus / groupPoems / searchPoems` |
 | **可分享 URL 形态** | 用户已分享出去的链接、Android 端「打开链接」、书签 | 哈希路由：目录 `#/`，诗 `#/p/<poemId>`（用契约里的稳定 id）。**搜索不进 URL**（`?q=` 暂不做） | `config.js: ROUTES` + `app/main.js: parseHash()` |
@@ -251,8 +251,11 @@ web/
    客户端已经不读它们，届时不需要改我的代码；请把契约与 `schema/content.schema.json` 一并对齐。
 3. **「阙名」是否并入佚名清单由用户拍板**：我按契约 §2.1 逐字对齐（**不含**「阙名」，测试里
    明写了「不自行加入」）；答复后三端一起改，改的地方就一处 + 那条断言。
-4. **`content.json.sha256` 是否还要产出**：Web 不依赖了，若没有别的消费者建议不再产出，
-   免得让人以为还有校验环节。
+4. **`content.json.sha256` 边车已决定不再产出（2026-10-14）**：`web/` 侧已删掉产出与依赖
+   （`prepare-dev-content.mjs` 不再写它）。发布线当前还在产出它，我核到的位置是
+   `release/build-release.mjs`（编译步骤 + `content-checksum` 产物）、`release/check-ready.mjs`（有
+   一条边车格式闸）、`release/lib/artifacts.mjs`（`DIST_SIDECAR_REL`/`WEB_CHECKSUM_NAME`）与
+   `docs/design/release-pipeline.md` 第 3 步；这些不在我的写入范围，只作为清单列在这里。
 5. **多标签页/长期挂机的更新行为**：当前是「有提示、不自动刷新」；若用户希望更主动
    （例如目录页空闲后自动切换），需要重新评估打断风险，我再改。
 6. 视觉待原型评审结果，届时只改 `styles.css` + `render.js` 的少量结构。
