@@ -185,7 +185,7 @@
     source: 'fixture',
     notice: '',
     groups: [],
-    theme: 'paper',
+    theme: 'tech',   // 视觉方向已由用户拍板：静默终端（深墨底）
     query: '',
   };
 
@@ -218,7 +218,7 @@
     if (!THEMES.some(function (t) {
       return t.id === id;
     })) {
-      id = 'paper';
+      id = 'tech';
     }
     state.theme = id;
     document.documentElement.setAttribute('data-theme', id);
@@ -619,7 +619,7 @@
     } catch (e) {
       /* 忽略 */
     }
-    return 'paper';
+    return 'tech';   // 默认主题：用户已拍板「静默终端」
   }
 
   function adoptFixture(reason) {
