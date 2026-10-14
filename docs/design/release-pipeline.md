@@ -15,6 +15,7 @@
 | **不再解析 E 的 `sw.js` 内部结构** | E 重写 `sw.js`（`SHELL` → 内容与壳同一份预缓存清单）时，我那条按常量名解析的检查在主线报了假红。SW 的**行为**（预缓存是否完整、离线可读、新旧成对切换、旧 cache 被删）交给 E 的 e2e；我这一层只断言**部署契约**与**契约常量** |
 | 加两个**真跑门**：E 的 Web e2e（用 `out/web` 的构建产物）+ Android JVM 单测（内置内容＝本次产物） | 静态断言不证明页面能跑、也不证明产物能被客户端解析 |
 | 编译失败**不再清空产物目录** | 早期在第 3 步 `rmrf(outDir)`，一次编译失败就把上一版的 manifest 也删了 —— 既违背「失败保留旧版」，又弄丢了下一版做单调性/APP_VERSION 递增比对的基线 |
+| 开跑时**清理本次输出目录**：`web/`、`apk/` 整份删掉；`dist/` 只剪掉「本产物集之外」的文件 | 改了产物集（例如去边车）之后，**上一版留下的文件会一直躺在那里**，就绪检查每次都报「多出不该发布的条目」，而真因只是历史残留（负责人实测撞过）。为什么不整删 `dist/`：编译器是「成功后才 rename、失败不写产物」，整删就破坏了「编译失败保留旧版」，也弄丢下一版的基线（内容版本与 APP_VERSION 都从上一版 manifest 取） |
 
 ## 1. 范围与不做什么
 
@@ -108,7 +109,7 @@ dist/content.json ──字节复制──► web/content.json ──►（Web �
 
 | # | id | 查什么 | 红了意味着什么 |
 |---|---|---|---|
-| 1 | `out-dir` | 产物目录存在 | 还没构建 |
+| 1 | `out-dir` | 产物目录存在且**完整**（缺 `dist`/`web` 直接报红并提示「上次构建可能失败」） | 还没构建，或上次构建失败/正在跑（产物目录只由本流水线管理，不要与别的构建共用 `--out`） |
 | 2 | `manifest` | `release-manifest.json` 可解析、必需字段齐 | 构建没跑完/清单坏了 |
 | 3 | `source-tree-clean` | 构建时的源树脏标记 | **黄**：本地演练可以，真发布必须先从干净提交构建 |
 | 4 | `dist-json` | 规范产物可解析，打印首/末诗名、诗数、分组数 | 产物坏了 |
@@ -123,7 +124,7 @@ dist/content.json ──字节复制──► web/content.json ──►（Web �
 | 13 | `web-same-source` | 部署内容是 `dist` 的**字节复制** | APK 与 Web 发的不是同一份内容（核心事故） |
 | 14 | `web-required-files` | **部署契约**：白名单∪`content.json`∪E 的 `DEPLOY_FILES` 都在部署目录里 | 站点缺文件（少 `content.json` ⇒ Web 没内容可读） |
 | 15 | `app-version-agree` | **契约常量** `APP_VERSION`：`app/config.js` 与 `sw.js` 两处都写了、且相等；给了 tag 时还要与 tag 一致 | 站点缓存的版本键两处不一致 ⇒ 站点更新机制坏；或发布锚点与代码不一致 |
-| 16 | `app-version-bumped` | `APP_VERSION` 比上一版大 | 同版本重发会让浏览器沿用旧 cache（无上一版记录时如实**跳过**） |
+| 16 | `app-version-bumped` | `APP_VERSION` 比上一版大 | 同版本重发会让浏览器沿用旧 cache（无上一版记录时如实**跳过**：**真发布必须保留上一版的 `release-manifest.json`，否则这一项只能跳过**） |
 | 17 | `web-no-unexpected` | 部署目录顶层精确比对（含 E 的发布清单顶层名） | 夹具/测试/脚本/边车泄漏到公开站点 |
 | 18 | `android-manifest` | 清单字段齐、`sha256` 64 位小写十六进制、版本一致、`size` 与实际字节一致；**按 Android 端语义解析 `url`** 并核对它指回同一份字节 | Android 端会 404 / `SIZE_MISMATCH` / 拒绝更新 |
 | 19 | `apk-present` | APK 存在且文件哈希与清单一致 | 三样产物少一样 |
@@ -158,6 +159,11 @@ dist/content.json ──字节复制──► web/content.json ──►（Web �
 
 这套分工的由来见 §9.3.1（我曾在主线报过一次假红）。
 
+两条明确的「不重复」：
+
+- **不把 `tools/check-bundled-content.mjs` 包进我的检查**（负责人要求，我同意）。它管的是「**仓库里已提交的内置产物** vs 当前内容源」——那是**仓库一致性**，属于发布前的 CI 前置门；我这一层的对应保证是「**本次发布的每一处副本都与 `dist` 逐字节相同**」（`web-same-source` + `apk-builtin-same-source` + Android 单测注入的就是本次产物）。两者是不同的问题，包一层只会让「红在哪」变模糊。建议：CI 里**先**跑它的门，再跑发布流水线。
+- **匿名作者清单**：我的检查**不引用**那份清单（不解析契约散文）；读契约 §2.1 散文那份清单的是 E 的 e2e。用户已拍板清单的机器可读来源改为 `schema/unknown-authors.json` ⇒ 需要改的是 E 的 e2e，不是我的层。
+
 ## 8. 失败 / 中断了怎么办
 
 **共同不变量：不推进最新版，旧版本一个字节都不动、仍然可下载可读。**
@@ -165,7 +171,7 @@ dist/content.json ──字节复制──► web/content.json ──►（Web �
 | 情形 | 流水线行为 |
 |---|---|
 | 版本来源解析失败（tag 缺号/形状不符） | 非零退出，打印期望格式；**不产物、不动旧产物** |
-| 内容编译失败（契约校验/单调性） | 非零退出；编译器**失败不写产物**，且流水线**不再清空产物目录** ⇒ 上一版 dist/web/apk/manifest 全在（实测：用陈旧版本号重发失败后，`dist/content.json` 的哈希与失败前逐字节相同） |
+| 内容编译失败（契约校验/单调性） | 非零退出；编译器**失败不写产物**，且流水线**不删 `dist/`** ⇒ 上一版的**规范产物与 `release-manifest.json`（下一版的基线）逐字节保留**（实测）。派生物 `web/`、`apk/` 在开跑时已被清掉，所以此时 `out/` 是不完整的 —— 就绪检查会据此报「产物目录不完整（缺 web）」而不是一堆莫名其妙的红 |
 | 复制后字节不一致 / APK 注入没生效 / 副本代码被改 | 非零退出（`COPY_MISMATCH` / `APK_CONTENT_MISMATCH` / `ANDROID_COPY_DIRTY`） |
 | Gradle 构建失败 | 非零退出 ⇒ 无 APK ⇒ 就绪检查必红 |
 | 就绪检查有红项 | 非零退出，列出红项，明说「不推进最新版；旧版仍可下载」 |
@@ -189,7 +195,13 @@ Web 的内容更新交给 SW 生命周期（内容与壳同一次部署、同一
 ### 9.3 演练/返修中抓到的真问题
 
 1. **我解析了 E 的内部结构 ⇒ 在主线上报过一次假红**（已修）。E 重写 `sw.js`（`SHELL` → 同一份预缓存清单、内容与壳成对）后，我那条「按常量名找预缓存数组」的检查在主线上报了 `[红] 从 sw.js 里没解析出 SHELL 预缓存清单` —— 报得没错（没静默放过），但根因是我在断言**别人文件的内部形状**。现在：静态层只断言**部署契约**与**契约常量 `APP_VERSION`**，SW 行为交给 E 的 e2e（§7.2）。
-2. **D 线一条测试断言写死了异文条数**（**仍未修，是当前唯一的红**）：`ContentParserTest.variants_areParsedButNeverEnterStanzas` 断言第 9 首《庭中有奇树》恰好 1 条异文；G 线补核后全部异文 13 → 21 条，该首变为 2 条 ⇒ 实测 `54 tests completed, 1 failed`（`expected:<1> but was:<2>`）。该测试的意图（异文被解析、但绝不混入正文）仍然有效，只是条数写死了；建议改成内容断言。我没改它：`android/` 不在我的写入范围，且 §6 的代码一致性闸正是为这种情况设的。
+2. **「内置产物是旧的」＋「测试断言写死了异文条数」（当前唯一的红，根因更大，负责人已定修）**：
+   仓库里**已提交的内置产物**停在 **13 条异文（`2026.10.16.4`）**，而 `dist`/内容源已是 **21 条**；`ContentParserTest.variants_areParsedButNeverEnterStanzas` 又断言第 9 首《庭中有奇树》**恰好 1 条**异文。
+   ⇒ 单测读的是**旧内置**、看着全绿；而我的门把**本次发布的内容**注入副本后立刻炸：`54 tests completed, 1 failed`，`expected:<1> but was:<2>`。
+   **我的门正是靠「注入本次发布的内容」把这件事暴露出来的**（`apk-builtin-same-source` 同样只在同源时才绿）。
+   负责人已定修三处：① 重编并把三处内置/本地内容同步到 21 条；② 把那条断言从「恰好 1 条」改成**内容断言**（至少一条、含「贵」、正文含「贡」且不含「贵」）；③ 新增 `tools/check-bundled-content.mjs`（内置产物 vs 内容源逐字段比对）。
+   **诚实状态（本轮实测）**：这三处与 `schema/unknown-authors.json` 在 `git merge master` 之后**都还不在 master 里** —— master 的内置产物仍是 `2026.10.16.4`/13 条，那条断言仍是 `assertEquals(1, …)`，两个新文件不存在（它们只存在于主树的工作目录、尚未提交）。所以**这条红现在仍在**；等它们提交/合入后应当自然清零（我这条门不需要改）。
+   我没改 `android/`：不在我的写入范围，且 §6 的代码一致性闸正是为这种情况设的。
 3. **Gradle 缓存的静默通过**：见 §7.1。任何人手跑单测验证内容改动时都应加 `--rerun-tasks`。
 4. **并行的另一个会话会让门测到别人的站点**：见 §7.1 的端口处理。
 5. **编译失败会清空产物目录**（我自己的缺陷）：已修，见 §0/§8。
@@ -212,7 +224,7 @@ Web 的内容更新交给 SW 生命周期（内容与壳同一次部署、同一
 
 > 下面的哈希是**那一次演练**的产物字节；不固定 `SOURCE_DATE_EPOCH` 时 `generatedAt` 会变，
 > 所以同一份内容重编也会得到不同的哈希（这正是 `--source-date-epoch` 存在的理由）。
-> 合并主线（含 D 线改动）后重跑的同一套门：dist `c354e58e…`、APK `1d0d2353…`、
+> 合并主线（含 D 线改动）后重跑的同一套门：dist `2c18dfd8…`、APK `953ee517…`、
 > e2e 140/140、Android 单测 **54 例 / 1 失败**（仍是下面那条 D 线断言）。
 
 
@@ -223,14 +235,14 @@ $ node release/build-release.mjs --tag 'v0.1.0+content-2026.10.16.5'      # exit
       单调性基线（上一版）: 2026.10.16.4  ← 来源：已提交的内置内容
 [3/8] $ node tools/build-content.mjs --out release/out/dist/content.json --order source \
             --content-version 2026.10.16.5 --minify --previous-version 2026.10.16.4
-      产物: dist/content.json  20964 字节  sha256=c354e58ee0d718d06927ed1f38abc30a81435992fdd52719cdca970c03ea8fd7
+      产物: dist/content.json  20964 字节  sha256=2c18dfd88866e6e37eaf45a67c761f35bc71850af4cb7a4ce1c7536a62dd29f6
       内容: formatVersion=1 contentVersion=2026.10.16.5 poems=19 dynasties=1
 [4/8] 部署内容: content.json 20964 字节（与 dist 字节一致）
       Web 侧**不产出** sha256 边车（已定）；Android 小纸条清单里的 sha256 保留
 [5/8] 清单: content/latest.json  url=2026.10.16.5/content.json
 [6/8] 只读副本: release/out/.work/android（android/ 本身一个字节都没被写）
-      APK 内置内容校验: assets/content/content.json 20964 字节 sha256=c354e58e… == dist ✓
-      APK: apk/suofei-2026.10.16.5-debug.apk  9568032 字节  sha256=1d0d2353ca7d18a41bc074e2203c3753587d0a16c0af4ee8d2d33a9d9e037969
+      APK 内置内容校验: assets/content/content.json 20964 字节 sha256=2c18dfd8… == dist ✓
+      APK: apk/suofei-2026.10.16.5-debug.apk  9568032 字节  sha256=953ee517deed0fcf74ae5087f70c0e6d4d56d4fd1fd295d1a07ed28076290e79
 [7/8] 清单: release-manifest.json（4012 字节）
 [8/8] Web 部署目录 web/ 11 个文件（含单独取的内容 content.json）
 
@@ -239,8 +251,8 @@ $ node release/check-ready.mjs                                            # 67s�
         apk-builtin-same-source / …）
 [跳] app-version-bumped  本次 APP_VERSION=0.1.0，但没有上一版的记录（首次发布 / 换了产物目录）
                          ⇒ 无法自动判断是否递增（真发布应保留上次的 release-manifest.json）
-[绿] live-web-e2e        通过 140 / 140（37s，真 Chromium，端口 8137/9237）
-       基座 = out/dist/content.json（sha256 c354e58ee0d718d0…），站点载荷 = out/web（APP_VERSION=0.1.0）
+[绿] live-web-e2e        通过 147 / 147（36s，真 Chromium，端口 8137/9237）
+       基座 = out/dist/content.json（sha256 2c18dfd88866e6e3…），站点载荷 = out/web（APP_VERSION=0.1.0）
        机械核对：E 发的 v1 目录里 content.json 与 dist 逐字节相同；index.html/sw.js/app/* 与 out/web 一致
 [红] live-android-unit-tests  Android 单测真跑了并失败（退出码 1）：
        失败用例：ContentParserTest > variants_areParsedButNeverEnterStanzas
@@ -306,6 +318,29 @@ $ node release/check-ready.mjs --skip-live
 门**不因此被删**：它把这失败原样列出来（含实际/期望值）并提示「怀疑偶发就重跑 `--live-only` 再定」——
 **红了照样算红，不算通过**。
 
+### 11.3.2 开跑清理残留 / 编译失败保留旧版（本轮新增的两条实测）
+
+```bash
+# 复现负责人撞到的那次：上一版构建留下的陈旧边车 + dist 里的旧文件
+$ touch release/out/web/content.json.sha256 release/out/dist/content.json.sha256
+$ node release/build-release.mjs --tag 'v0.1.0+content-2026.10.16.5'
+[1/8] 清理上次残留: 3 项
+      · 删除 release/out/web/（上一版派生物，12 个文件）
+      · 删除 release/out/apk/（上一版派生物，1 个文件）
+      · 删除 release/out/dist/content.json.sha256（不在本次产物集里）
+# 之后 web-no-unexpected 绿：7 个顶层条目（app content content.json index.html manifest.json styles.css sw.js）
+
+# 「编译失败保留旧版」仍然成立（只清派生物，不动规范产物与基线）
+$ node release/build-release.mjs --tag 'v0.1.0+content-2026.10.16.1'     # 内容版本倒退
+  - <cli>: [VERSION_NOT_MONOTONIC] …新版本 2026.10.16.1 不大于上一版 2026.10.16.5
+  未产出任何内容文件（失败保留旧版本）。                                  exit=1
+# 核对：dist/content.json 与 release-manifest.json 的哈希与失败前逐字节相同；
+#       派生物 web/、apk/ 已被清掉 ⇒ out/ 变成「不完整」，就绪检查会说：
+[红] out-dir  产物目录不完整，缺：web（上次构建可能失败或正在跑…）
+```
+
+E 的 e2e 在合并 E 线后续提交后已到 **147 条**，本轮实测 **147/147**；§11.3.1 那张表是更早那次（140 条时代）的同一现象。
+
 ### 11.4 其它已实测的路径
 
 ```bash
@@ -324,7 +359,7 @@ $ node release/check-ready.mjs --skip-live
 - 真实 19 首/21 条异文编译为**压缩产物** 20964 字节；单调性闸通过；**编译失败保留旧产物**（哈希逐字节不变）。
 - Web 部署目录准备（字节一致、白名单精确、**无任何边车**）；`app-version-agree` 两处一致 + 与 tag 一致。
 - APK 构建 + **从 APK 读回 assets 与 `dist` 逐字节相同**；APK 身份 `dev.sopho.suofei` / versionCode 1 / 应用名「索斐」。
-- **真跑门**：E 的 Web e2e **140/140**（真无头 Chromium，站点＝`out/web`，机械核对被测站点就是本次产物）；Android JVM 单测 **54 例真执行**（1 例红＝D 线过时断言）。
+- **真跑门**：E 的 Web e2e **147/147**（真无头 Chromium，站点＝`out/web`，机械核对被测站点就是本次产物）；Android JVM 单测 **54 例真执行**（1 例红＝D 线过时断言）。
 - 红/黄路径：tag 缺号、tag 与代码不一致、内容版本倒退、产物未构建、`--skip-apk`、APK 不同源、产物少一首（两门同时红）、`--skip-live`（黄）、副本被改（拒跑）、APP_VERSION 未递增。
 - 跑完五个源目录 `git status` 干净。
 

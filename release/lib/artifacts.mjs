@@ -26,6 +26,9 @@ export const ANDROID_MANIFEST_REL_IN_WEB = 'content/latest.json';
 export const ANDROID_SNAPSHOT_DIR_REL_IN_WEB = 'content';
 /** Web 端内容文件名（IF-26：站点根下 `content.json`）。 */
 export const WEB_CONTENT_NAME = 'content.json';
+
+/** 规范产物目录（`dist/`）里应当**只有**这些文件（改了产物集必须同步这里）。 */
+export const DIST_EXPECTED_FILES = [WEB_CONTENT_NAME];
 /** 显式传给编译器的排序策略（IF-16 已定：source，流水线必须显式传，不依赖默认值）。 */
 export const ORDER_STRATEGY = 'source';
 /** 本流水线与客户端共同支持的内容结构版本（IF-30）。 */
