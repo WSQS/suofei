@@ -21,9 +21,11 @@ import {
   OPTIONAL_FRONT_MATTER_KEYS,
   POEM_KEYS,
   REQUIRED_FRONT_MATTER_KEYS,
+  UNKNOWN_AUTHOR_MARKERS,
+  UNKNOWN_AUTHORS_RELATIVE_PATH,
   VARIANT_KEYS,
 } from '../tools/lib/interface.mjs';
-import { buildContentFromRecords } from '../tools/lib/content-build.mjs';
+import { buildContentFromRecords, isUnknownAuthor } from '../tools/lib/content-build.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const schema = JSON.parse(fs.readFileSync(path.join(ROOT, DEFAULT_SCHEMA_PATH), 'utf8'));
@@ -115,4 +117,57 @@ test('产物路径与源扩展名的默认值只定义在 interface.mjs', () => 
   assert.equal(DEFAULT_OUT, path.join('dist', 'content.json'));
   assert.equal(DEFAULT_CONTENT_DIR, 'content');
   assert.equal(DEFAULT_SCHEMA_PATH, path.join('schema', 'content.schema.json'));
+});
+
+// ---------- 匿名作者清单：唯一机器可读来源 ----------
+//
+// 背景：这份清单以前只写在契约散文里，三端各拄一份并拄歪过（编译器/Android/Web 三种写法），
+// Web 的 e2e 还用正则解析契约散文取它。2026-10-14 用户拍板：把清单钉成文件，并以它为准。
+
+const unknownAuthorsFile = path.join(ROOT, UNKNOWN_AUTHORS_RELATIVE_PATH);
+
+function readUnknownAuthorsFile() {
+  return JSON.parse(fs.readFileSync(unknownAuthorsFile, 'utf8'));
+}
+
+test('匿名作者清单：编译器常量与 schema/unknown-authors.json 逐字一致（含顺序）', () => {
+  const fromFile = readUnknownAuthorsFile();
+  const missingInCompiler = fromFile.filter((n) => !UNKNOWN_AUTHOR_MARKERS.includes(n));
+  const extraInCompiler = [...UNKNOWN_AUTHOR_MARKERS].filter((n) => !fromFile.includes(n));
+  assert.deepEqual(
+    { missingInCompiler, extraInCompiler },
+    { missingInCompiler: [], extraInCompiler: [] },
+    `与 ${UNKNOWN_AUTHORS_RELATIVE_PATH} 不一致：` +
+      `文件里有而编译器没有 ${JSON.stringify(missingInCompiler)}；` +
+      `编译器有而文件里没有 ${JSON.stringify(extraInCompiler)}`,
+  );
+  assert.deepEqual([...UNKNOWN_AUTHOR_MARKERS], fromFile, '顺序也必须一致（便于人工逐行核对）');
+});
+
+test('匿名作者清单：内容为用户拍板的 6 项（含「阙名」）', () => {
+  // 这条把「决策」钉死：谁改了文件都必须是有意为之（测试会点出少了/多了谁）。
+  assert.deepEqual([...UNKNOWN_AUTHOR_MARKERS], ['佚名', '无名氏', '阙名', '未知', '未详', '不详']);
+});
+
+test('匿名作者清单文件形状：非空字符串数组、无重复、无空项', () => {
+  const fromFile = readUnknownAuthorsFile();
+  assert.ok(Array.isArray(fromFile), `${UNKNOWN_AUTHORS_RELATIVE_PATH} 必须是 JSON 数组`);
+  assert.ok(fromFile.length > 0, `${UNKNOWN_AUTHORS_RELATIVE_PATH} 不得为空数组`);
+  const notStrings = fromFile.filter((v) => typeof v !== 'string' || v.trim() === '');
+  assert.deepEqual(notStrings, [], `只能放非空字符串，问题项：${JSON.stringify(notStrings)}`);
+  const dupes = fromFile.filter((v, i) => fromFile.indexOf(v) !== i);
+  assert.deepEqual(dupes, [], `有重复项：${JSON.stringify(dupes)}`);
+});
+
+test('isUnknownAuthor：清单里的每个名字都认，具名作者不认', () => {
+  for (const marker of UNKNOWN_AUTHOR_MARKERS) {
+    assert.equal(isUnknownAuthor(marker), true, `${marker} 应视为匿名作者`);
+  }
+  assert.equal(isUnknownAuthor('阙名'), true);
+  assert.equal(isUnknownAuthor('  阙名  '), true);
+  for (const named of ['曹植', '蔡邕', '李白', '杜牧']) {
+    assert.equal(isUnknownAuthor(named), false, `${named} 不应视为匿名作者`);
+  }
+  assert.equal(isUnknownAuthor(''), true);
+  assert.equal(isUnknownAuthor(null), true);
 });

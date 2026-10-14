@@ -5,7 +5,9 @@
 // 注意：JSON Schema（schema/content.schema.json）无法 import JS，是这份定义的**镜像**；
 // tests/interface.test.mjs 会比对两者，任何一边漂移都会测试失败。
 
+import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // ---------- dist/content.json 结构 ----------
 
@@ -94,8 +96,54 @@ export const DEFAULT_ORDER_STRATEGY = 'source';
 /** 拼音排序的 locale（契约第 2 节定死）。 */
 export const PINYIN_COLLATOR_LOCALE = 'zh-Hans-CN-u-co-pinyin';
 
+// ---------- 匿名作者清单：唯一机器可读来源是一个文件 ----------
+
+/**
+ * 匿名/未知作者标记清单的**唯一机器可读来源**（契约 §2.1.1）。
+ * 编译器、Android、Web 三方都必须与这个文件一致；契约散文里的列表仅供参考。
+ *
+ * 为什么让编译器**直接读文件**、而不是再写一份常量 + 测试：三端各拄一份正是历史上「拄歪」
+ * 的根因（本仓就出现过三种不同写法）。读同一个文件后，编译器侧的漂移在**结构上不可能发生**，
+ * 不依赖“有人记得跑测试”。文件缺失/形状非法时**直接抛错**，不回退到内置列表——静默回退
+ * 就是当初的问题本身。
+ */
+export const UNKNOWN_AUTHORS_RELATIVE_PATH = 'schema/unknown-authors.json';
+/** 该文件在本模块里的 URL（供测试/工具直接引用，避免再写一份路径字串）。 */
+export const UNKNOWN_AUTHORS_FILE_URL = new URL(`../../${UNKNOWN_AUTHORS_RELATIVE_PATH}`, import.meta.url);
+
+/** @returns {readonly string[]} */
+function loadUnknownAuthorMarkers() {
+  const file = fileURLToPath(UNKNOWN_AUTHORS_FILE_URL);
+  let raw;
+  try {
+    raw = fs.readFileSync(file, 'utf8');
+  } catch (e) {
+    throw new Error(
+      `${UNKNOWN_AUTHORS_RELATIVE_PATH} 读不到（${e?.code ?? e?.message}）：它是匿名作者清单的唯一来源，必须随仓库提供`,
+    );
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (e) {
+    throw new Error(`${UNKNOWN_AUTHORS_RELATIVE_PATH} 不是合法 JSON：${e.message}`);
+  }
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    throw new Error(`${UNKNOWN_AUTHORS_RELATIVE_PATH} 必须是非空 JSON 数组，如 ["佚名", "无名氏", "阙名"]`);
+  }
+  const notStrings = parsed.filter((v) => typeof v !== 'string' || v.trim() === '');
+  if (notStrings.length > 0) {
+    throw new Error(`${UNKNOWN_AUTHORS_RELATIVE_PATH} 只能放非空字符串，问题项：${JSON.stringify(notStrings)}`);
+  }
+  const dupes = [...new Set(parsed.filter((v, i) => parsed.indexOf(v) !== i))];
+  if (dupes.length > 0) {
+    throw new Error(`${UNKNOWN_AUTHORS_RELATIVE_PATH} 有重复项：${JSON.stringify(dupes)}`);
+  }
+  return Object.freeze([...parsed]);
+}
+
 /** 视为「佚名/未知作者」的标记：这些在组内一律排最后（显式规则，不靠排序碰巧）。 */
-export const UNKNOWN_AUTHOR_MARKERS = Object.freeze(['佚名', '无名氏', '未知', '未详', '不详']);
+export const UNKNOWN_AUTHOR_MARKERS = loadUnknownAuthorMarkers();
 
 // ---------- 路径与 CLI ----------
 
