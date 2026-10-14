@@ -49,6 +49,11 @@ jobs:
         with:
           node-version: '22'
 
+      - name: 安装项目本地依赖（ajv）
+        # 必需：产物就绪检查里的 schema-validation 会跑 tools/validate-content.mjs，
+        # 它依赖 devDependency ajv（不进仓库）。缺了这步该门会如实报红（我们实测到过）。
+        run: npm ci --no-audit --no-fund
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
