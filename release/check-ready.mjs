@@ -161,7 +161,10 @@ check('schema-validation', '结构校验走契约线 C 的 tools/validate-conten
   const target = A.distPath(c.outDir);
   const schema = path.join(REPO_ROOT, 'schema/content.schema.json');
   if (!exists(path.join(REPO_ROOT, 'node_modules/ajv'))) {
-    fail('跑不了 C 线的 schema 校验：项目本地缺 ajv（在仓库根执行 npm install 后重跑）。这是「没查」，不是「查过」');
+    fail(
+      '跑不了 C 线的 schema 校验：项目本地缺 ajv —— 这是「没查」，不是「查过」。\n' +
+        '   本地：在仓库根执行 `npm install`（或 `npm ci`）；**CI：在就绪检查之前加一步 `npm ci`**（ajv 是 devDependency，不进仓库）。',
+    );
   }
   const r = runCapture(process.execPath, ['tools/validate-content.mjs', '--schema', schema, target], { cwd: REPO_ROOT });
   if (!r) fail('无法执行 node tools/validate-content.mjs');

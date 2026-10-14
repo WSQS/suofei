@@ -185,19 +185,38 @@ dist/content.json ──字节复制──► web/content.json ──►（Web �
 
 | 事项 | 约定 | 谁做 |
 |---|---|---|
-| 正式签名密钥 | 四项由 **CI 从仓库 secrets 注入**：`SUOFEI_KEYSTORE`（keystore 的 base64）/ `SUOFEI_KEYSTORE_PASSWORD` / `SUOFEI_KEY_ALIAS` / `SUOFEI_KEY_PASSWORD`。`android/app/build.gradle.kts` 顶端注释是当前唯一事实来源（负责人另有签名文档，未落地前以它为准） | CI / 用户 |
+| 正式签名密钥 | 四项：`SUOFEI_KEYSTORE` / `SUOFEI_KEYSTORE_PASSWORD` / `SUOFEI_KEY_ALIAS` / `SUOFEI_KEY_PASSWORD`（`SUOFEI_KEYSTORE` 在本地是 `.jks` 的路径，在仓库 secrets 里是它的 base64）。**约定见 [`docs/design/ci-and-signing.md`](ci-and-signing.md)**；CI 侧见 `.github/workflows/release.yml`；生成密钥并写 secrets 的脚本是 `release/init-signing-key.sh`（密钥落在**仓库之外**，如 `~/.suofei/`，全程不打印取值） | 用户/负责人（生成与写入）；CI（注入） |
 | 本地开发与验收 | 用默认的 `--android-variant debug`（`assembleDebug`，debug 签名） | 任何人 |
-| 本地验证**签名链路本身** | 用**一次性测试密钥**跑 `--android-variant release`，用完删掉测试密钥；**不涉及正式密钥** | 负责人/用户（**生成密钥属未授权动作，本工作线不做**） |
+| 本地验证**签名链路本身** | 用一枚测试密钥（或负责人授权下的正式密钥）跑 `--android-variant release` + `check-ready`，看 `apk-signing` 报出的证书 DN | 负责人/用户 |
 | 正式发布 | 必须 `--android-variant release` + 四项齐全；**debug 变体永不用于正式发布** | CI |
 | 缺环境变量 | `build-release.mjs` 在**动任何东西之前**非零退出并列出缺哪几项；**不生成密钥、不退回 debug 签名** | 流水线（fail-closed） |
 | 签名真伪 | 就绪检查的 `apk-signing` 门（§7 第 22 项）：release 变体断言「能验签且证书不是 debug 证书」并把 DN 打进回执；debug 变体如实标黄 | 流水线 |
-| 本工作线**不做** | 不读取/不生成任何密钥、不写 secrets、不执行密钥生成脚本（那是用户/负责人的动作） | — |
+| 本工作线**不做** | 不生成密钥、不写 secrets、不执行 `release/init-signing-key.sh`；**不在文档或输出里写任何密钥取值**（只写证书 DN 与「四项是否已设」的布尔） | — |
 
-**能力边界（必须说清）**：本机**没有**正式密钥，所以 **release 变体的「签名成功路径」未经验证**。
-已验证的只有：① 缺环境变量 ⇒ fail-closed（动任何东西之前就停）；② debug 变体全门通过且如实标黄；
-③ 两个反例 —— 把 debug 证书的包当 release 产物 ⇒ 红并打出 `CN=Android Debug, O=Android, C=US`；
-未签名的 release 产物 ⇒ 红（`DOES NOT VERIFY / Missing META-INF/MANIFEST.MF`）。
-真正的签名成功路径只能在 **CI（有 secrets）** 或**用户本地持密钥**时验证。
+**验证状态（2026-10-14 更新）**：
+
+- **release 变体的「签名成功路径」已实测通过**：负责人本机用生成的正式密钥跑 `assembleRelease` 得到
+  `app-release.apk`（**7,029,170 字节**），`apksigner` 读出 **`CN=Suofei, OU=suofei, O=WSQS, C=CN`**。
+  我在本地用**同一枚密钥**复核了整条链路（`--android-variant release` → `check-ready`）：
+  `apk-signing` **绿**，回执里的 DN 正是 `CN=Suofei, OU=suofei, O=WSQS, C=CN`，整轮 `绿 23 / 黄 0 / 跳 1 / 红 0`。
+- **CI 路径仍未验证**：`secrets` 注入 + `.github/workflows/release.yml` 的端到端没有跑过（真正推 tag 才会跑）。
+- 其余已验证：缺环境变量 ⇒ fail-closed（**动任何东西之前**就停，`out/` 都不会被创建）；debug 变体全门通过且如实标黄；
+  两个反例 —— 把 debug 证书的包当 release 产物 ⇒ 红并打出 `CN=Android Debug, O=Android, C=US`；
+  未签名的 release 产物 ⇒ 红（`DOES NOT VERIFY / Missing META-INF/MANIFEST.MF`）。
+
+### 7.4 CI 的前置条件（本流水线对 workflow 的接口要求）
+
+`.github/workflows/release.yml` 现在按这个接口调我（**接口对得上**：`--tag` + `--android-variant release`、
+`check-ready --out release/out`、Pages 用 `release/out/web`、Release 附 `release/out/apk/*.apk`、`CHROME_BIN` 已设）。
+但**静态读它能看出两个会让「第一次 tag」失败的前置条件**（2026-10-14 观察，**未在 CI 上实跑**）：
+
+| # | 前置条件 | 现状 | 修法（二选一） |
+|---|---|---|---|
+| 1 | 就绪检查的 `schema-validation` 要跑 `tools/validate-content.mjs`，它需要项目本地 `ajv` | workflow 里**没有** `npm ci`/`npm install` 步骤 ⇒ 这一门会**红**（我的门是 fail-closed，不会静默降级） | 在「就绪检查」之前加一步 `npm ci`（ajv 是 devDependency，不进仓库） |
+| 2 | 本流水线默认给 Gradle 传 `--offline`（正式构建不该悄悄依赖网络） | workflow **没传** `--online`，而 GitHub runner 是**冷 Gradle 缓存** ⇒ 缺依赖会失败 | 给 `build-release.mjs` 传 `--online`，或先跑一步预热 Gradle 缓存 |
+
+另外两条已经满足：`CHROME_BIN`（真跑门用）、`apksigner`/`aapt2`（来自 setup-android 装的 build-tools）。
+CI 侧真正跑通之前，**不要把「CI 发布路径」当成已验证**（见 §12）。
 
 ## 8. 失败 / 中断了怎么办
 
@@ -401,7 +420,7 @@ E 的 e2e 在合并 E 线后续提交后已到 **147 条**，本轮实测 **147/
 - 真实 19 首/21 条异文编译为**压缩产物** 20964 字节；单调性闸通过；**编译失败保留旧产物**（哈希逐字节不变）。
 - Web 部署目录准备（字节一致、白名单精确、**无任何边车**）；`app-version-agree` 两处一致 + 与 tag 一致。
 - APK 构建 + **从 APK 读回 assets 与 `dist` 逐字节相同**；APK 身份 `dev.sopho.suofei` / versionCode 1 / 应用名「索斐」。
-- **变体与签名**：`--android-variant release` 缺环境变量 ⇒ 动任何东西之前就非零退出（实测 `out/` 未被创建）；`--android-variant debug`（默认）全门通过，`apk-signing` 如实标黄「debug 签名，不能用于正式发布」，结论行也改成「演练口径就绪」。反例两条都实测红：伪装成 release 变体的 debug 证书包 ⇒ 红并打出 `CN=Android Debug, O=Android, C=US`；未签名的 release 产物（本树里 `assembleRelease` 的产出）⇒ 红 `DOES NOT VERIFY / Missing META-INF/MANIFEST.MF`。
+- **变体与签名**：**release 成功路径已实测**（2026-10-14，负责人本机的正式密钥与我用同一枚密钥的复核）：`assembleRelease` 成功、APK 7,029,170 字节、`apk-signing` 绿并报出 `CN=Suofei, OU=suofei, O=WSQS, C=CN`、整轮 `绿 23 / 黄 0 / 跳 1 / 红 0`；**CI 路径（secrets + workflow）未验证**。`--android-variant release` 缺环境变量 ⇒ 动任何东西之前就非零退出（实测 `out/` 未被创建）；`--android-variant debug`（默认）全门通过，`apk-signing` 如实标黄「debug 签名，不能用于正式发布」，结论行也改成「演练口径就绪」。反例两条都实测红：伪装成 release 变体的 debug 证书包 ⇒ 红并打出 `CN=Android Debug, O=Android, C=US`；未签名的 release 产物（本树里 `assembleRelease` 的产出）⇒ 红 `DOES NOT VERIFY / Missing META-INF/MANIFEST.MF`。
 - **真跑门（本轮全绿）**：E 的 Web e2e **151/151**（真无头 Chromium，站点＝`out/web`，机械核对被测站点就是本次产物；仓库级来源用 `UNKNOWN_AUTHORS_FILE` 指回 `schema/unknown-authors.json`）；Android JVM 单测 **55 例 / 0 失败**（真执行，内置内容＝本次产物）。整轮 `check-ready` = 绿 22 / 黄 0 / 跳 1 / 红 0，退出码 0。
 - 红/黄路径：tag 缺号、tag 与代码不一致、内容版本倒退、产物未构建、`--skip-apk`、APK 不同源、产物少一首（两门同时红）、`--skip-live`（黄）、副本被改（拒跑）、APP_VERSION 未递增。
 - 跑完五个源目录 `git status` 干净。
