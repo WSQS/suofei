@@ -1,6 +1,7 @@
 package dev.sopho.suofei
 
 import dev.sopho.suofei.data.ContentOrigin
+import dev.sopho.suofei.data.ContentParser
 import dev.sopho.suofei.data.ContentRepository
 import dev.sopho.suofei.data.ContentStore
 import java.io.File
@@ -21,6 +22,9 @@ class ContentRepositoryTest {
     val tmp = TemporaryFolder()
 
     private val bundledJson = File("src/main/assets/content/content.json").readText(Charsets.UTF_8)
+
+    /** 内置内容的版本号从**同一份文件**读出来：写死的话每次换内容都要改测试，而且看不出这行到底在断言什么。 */
+    private val bundledVersion = ContentParser.parse(bundledJson).contentVersion
 
     private fun payload(version: String, formatVersion: Int = 1): String =
         """
@@ -48,7 +52,7 @@ class ContentRepositoryTest {
         val loaded = repository.load()
         assertEquals(ContentOrigin.BUNDLED_ASSET, loaded.origin)
         assertEquals("assets/content/content.json", loaded.location)
-        assertEquals("2026.10.14.1", loaded.content.contentVersion)
+        assertEquals(bundledVersion, loaded.content.contentVersion)
         assertFalse(repository.installedContentBroken())
         assertEquals(null, store.activeVersion())
     }
@@ -73,7 +77,7 @@ class ContentRepositoryTest {
 
         val loaded = repository.load()
         assertEquals("损坏时必须退回内置内容", ContentOrigin.BUNDLED_ASSET, loaded.origin)
-        assertEquals("2026.10.14.1", loaded.content.contentVersion)
+        assertEquals(bundledVersion, loaded.content.contentVersion)
         assertTrue("并且要能如实报告「已安装版本坏了」", repository.installedContentBroken())
     }
 

@@ -19,7 +19,11 @@ class ContentParserTest {
         val content = ContentParser.parse(assetFile.readText(Charsets.UTF_8))
 
         assertEquals(1, content.formatVersion)
-        assertEquals("2026.10.14.1", content.contentVersion)
+        // 内容版本不写死具体值（每次重编内容都会变），只断言格式合法；写死会让每次换内容都要改测试。
+        assertTrue(
+            "contentVersion 应是 YYYY.MM.DD.N 形式的发布版本：${content.contentVersion}",
+            content.contentVersion.matches(Regex("""\d{4}\.\d{2}\.\d{2}\.\d+""")),
+        )
 
         // 只列实际有内容的组：本版内容只有「汉」
         assertEquals(listOf("汉"), content.groups.map { it.dynasty.label })
