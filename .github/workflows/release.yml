@@ -76,6 +76,18 @@ jobs:
           ls "$SDK/platforms" "$SDK/build-tools"
 
       # 正式签名的四项从 secrets 注入；keystore 先解码到 runner 的临时目录
+      - name: 定位无头 Chromium（真跑门需要）
+        # Linux runner 的浏览器路径名与 Windows 不同；不写死，找不到就为空并在下一步报出来。
+        run: |
+          set -euo pipefail
+          BROWSER=$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)
+          if [ -z "$BROWSER" ]; then
+            echo "::warning::没找到 google-chrome/chromium，真跑门（Web e2e）会失败——请在本步补装或修正路径"
+          else
+            echo "CHROME_BIN=$BROWSER" >> "$GITHUB_ENV"
+            "$BROWSER" --version || true
+          fi
+
       - name: 解码签名密钥到临时文件
         env:
           KS_B64: ${{ secrets.SUOFEI_KEYSTORE }}
@@ -99,9 +111,6 @@ jobs:
           node release/build-release.mjs --tag "$RELEASE_TAG" --android-variant release --online
 
       - name: 产物就绪检查（含 apksigner 签名证书不是 debug 那条门）
-        env:
-          # 无头 Chromium：ubuntu runner 预装 google-chrome
-          CHROME_BIN: /usr/bin/google-chrome
         run: |
           set -euo pipefail
           node release/check-ready.mjs --out release/out

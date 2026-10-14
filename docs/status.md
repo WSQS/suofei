@@ -130,6 +130,20 @@
 
 **发布前必须定的口径（已登记，不阻碍现在）**：发布之后若再改字段集，`formatVersion` 递增判据用哪种（「旧客户端会读错才升」推荐 vs 「字段集一变就升」）。
 
+### CI：首次实跑记录（2026-10-14，手动干跑）
+
+仓库已公开、Pages 已启用（`build_type=workflow`，强制 https），但**尚未部署过任何站点内容**。`.github/workflows/release.yml` 已推上并在 CI **实跑 3 次**，逐次修掉三个真实前置问题：
+
+| # | 问题（CI 实测） | 修法 |
+|---|---|---|
+| 1 | `android-actions/setup-android@v3` 去装**已废弃的 `tools` 包** → `sdkmanager` 退出 1 | 改用 runner **预装 SDK** + 显式接受许可、按需装 platform 36/build-tools |
+| 2 | 缺 `npm ci` → `schema-validation` 门如实报红（`ajv` 是 devDependency，不进仓库） | 加 `npm ci`（后已转绿） |
+| 3 | 发布构建默认给 Gradle 传 `--offline`，CI 冷缓存必挂 | CI 传 `--online` |
+
+**当前干跑结果：20 绿 / 3 跳 / 1 红（共 24 项）**。唯一红项是 `apk-signing` 门的**跨平台 DN 解析**（Windows 输出 `Signer #1 certificate DN:`、Linux 输出 `V2 Signer: certificate DN:`）——而**签名本身在 CI 上已经成功**（`apksigner verify` 通过、证书 `CN=Suofei, OU=suofei, O=WSQS, C=CN`，由仓库 secrets 注入）。已派 F 修解析（验签通过但读不出 DN 不应等同「签名不合格」）。
+
+**仍未验证**：整条 workflow 跑绿（真跑门在 CI 上未跑过）、Pages 真部署、真机安装与覆盖升级。
+
 ## 工作树回收记录（2026-10-14）
 
 八棵工作树均已并入主线、工作区干净，已归档对应的 worker 会话。回收结果：
