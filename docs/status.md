@@ -23,13 +23,13 @@
 
 | 线 | 内容 | 写入范围 | 状态 |
 |---|---|---|---|
-| A | 《古诗十九首》原文核对与来源 | `content/`、`docs/sources/` | **已并入主线**（`7bebcef`），已归档 |
+| A | 《古诗十九首》原文核对与来源 | `content/`、`docs/sources/` | 已并入主线（`7bebcef`）；**返修中**（已解档）：按 G 的新证据**就地更新它那条未答问题** `q-82b33b06` + 在来源文档里加交叉引用 |
 | B | 阅读原型（视觉与交互，可评审） | `prototype/` | **已并入主线**（`e1146e3`），已归档 |
 | C | 内容契约实现 + 编译与校验 | `tools/`、`schema/`、`tests/` + 契约文档 | 已并入主线（`52c8716` → merge `03ca7a4`）；**由我复跑：79/79，产物已无任何排序字段** |
 | D | Android 骨架 + 离线更新 | `android/` | **已并入主线**（`ce588b6`），已归档 |
 | E | Web 骨架 + 离线缓存与内容切换 | `web/` | 已并入主线（`f071188` → merge `b71c90b`）；**由我复跑 e2e：167/167（用真的无键产物，不是变体模拟）** |
 | F | 发布流水线与产物就绪检查（本地演练） | `release/`、`docs/design/release-pipeline.md` | 已并入主线（`db90d7d` → merge `b021c2b`）；我复跑：build 成功 + check-ready **22 绿/1 黄/0 红**；**返修中**：加两项真跑门 + 产物 `--minify` |
-| G | **内容补核**（A 的 D1–D10：矛盾条目 + 五臣本/类书著录通校） | `content/poems/*.md`（仅 variants 增补）、`docs/sources/` | `d59b2dbd`（`wt/g-7ab41e43`）进行中 |
+| G | **内容补核**（A 的 D1–D10） | `content/poems/*.md`（仅 variants）、`docs/sources/` | 已并入主线（`8a92bc3` → merge `677757a`）；**由我复验：variants 13→21、正文仍 127 行、79/79、schema 通过** |
 
 并行方式：每条线一个隔离 git worktree（`C:\Users\wsqsy\Documents\android\.sopho-wt\<线>`）；负责人读回、验收、再并入主线。
 已并入的四条线可按需回收工作树（`git worktree list` 可查；回收走 `reclaim_worktree`，归档不自动删分支/工作树）。
@@ -50,14 +50,18 @@
 - **端到端已打通**：同一份内容（压缩后 18206 字节、`orderInSource` 1..19、《文选》原次序）已三方**字节一致**地进入 `dist/content.json` · Web `content.json` · **APK 内 `assets/content/content.json`**（sha256 均为 `0039565a…`）；发布线的就绪检查把这条当最关键的门（逐字节比对，故障注入实测会红）。
 
 - **内容 A**（`content/poems/*.md` 19 个 + `docs/sources/gushi-shijiu-shou.md` 390 行）：底本＝《文选》卷二十九李善注本；127 印刷行；13 条异文落在 10 首，每条至少一个实际取得的古籍见证；「不同底本的次序不一样」单列（《玉台新咏》收其中 12 首且篇序完全不同）。标点与异体字处理政策写在来源文档里（不是偷偷改字）。
-- **编译 C**（`tools/`、`schema/`、`tests/`）：`npm test` → 我复跑 **75/75 pass**；6 条失败用例全部 exit=1；未知键被拒；`--order source|pinyin` 两种策略；`contentVersion` 逐段数值比较（契约 §4.1 已取代 v0 那条错的字典序）。
-  - **真实 19 首已跑过**：`--check` exit=0；构建产物 23899 字节、19 首、1 个分组、序号 1..19、次序＝《文选》原次序、13 条异文、行数 127（与 A 的计数一致）。
+- **编译 C**（`tools/`、`schema/`、`tests/`）：`npm test` 我复跑 **79/79**；产物 13 个键、**全文 0 个排序字段**；schema 校验通过；6 类失败用例 exit=1 且不写产物；`--order source` 下 19 首＝《文选》原次序。
+  - **真实 19 首已跑过**：`--check` exit=0；构建产物 18206 字节（压缩）、19 首、1 个分组、`orderInSource` 1..19、次序＝《文选》原次序、**21 条异文**、行数 127（与 A 的计数一致）。
 - **原型 B**（`prototype/`）：三个视觉方向 + 22 张实拍截图 + `#/p/<id>` 路由。现存于主线的版本已被我修掉「客户端重排」缺陷；用 `node prototype/tools/serve.mjs` 或从仓库根起服务可**直接读真产物**（页头显示 `数据：dist/content.json`）。
 - **Android D**（`android/`）：`./gradlew assembleDebug` 我这边复跑通过；**单测 49 例全绿**（原 45 + 我加的 4 条回归）；`aapt2 dump badging` 实测包名 `dev.sopho.suofei`、应用名「索斐」、minSdk 26 / targetSdk 36。
-  - **内置内容已换成真产物**：APK 内 `assets/content/content.json` 23899 字节，与 `dist/content.json` **字节一致**，19 首、首＝行行重行行、末＝明月何皎皎。占位夹具与 `FIXTURE-README.md` 已删。
+  - **内置内容已换成真产物**：APK 内 `assets/content/content.json` 与 `dist/content.json` **字节一致**（压缩后 18206 字节），19 首、首＝行行重行行、末＝明月何皎皎。占位夹具与 `FIXTURE-README.md` 已删。
   - 诚实边界：**从未在真机/模拟器上运行过**（本轮禁止 adb/模拟器操作）；更新源是占位地址（`https://example.invalid/...`），只在本地 HTTP 上验证过成功与各失败路径。
-- **Web E**（`web/`）：静态、零依赖、无构建步骤；e2e `110/110`（E 自报，我待其返修后复跑确认）；两套缓存分离（资源 Cache `pc-resources-<APP_VERSION>` / 内容 IndexedDB）；离线用「CDP offline + 真杀掉本地服务」双重模拟。
+- **Web E**（`web/`）：静态、零依赖、无构建步骤；e2e **我复跑 167/167**（用真的无键产物）；两套缓存分离（资源 Cache `pc-resources-<APP_VERSION>` / 内容 IndexedDB）；离线用「CDP offline + 真杀掉本地服务」双重模拟。
   诚实边界：未部署真实 Pages、未在移动浏览器验证、`manifest.json` 故意无图标。
+- **内容补核 G**（`docs/sources/` 第 13 节 + `variants` 只增）：把 A 留的 D1–D10 逐条定论——**确证 3**（`胡马嘶` 出自《玉台》宋刻；`庭前`、`日已` 出自五臣本校语）、**判为讹字 2**（餐/飧、焉能/焉得）、**不可达 1**（松柏/古柏）、**部分完成 2**（22 条六臣本校语 + 《艺文类聚》《乐府诗集》《诗纪》等书证）、**维持原结论 1**（不分段；但连《玉台》宋刻都有分篇差异）。
+  诚实边界：全是**影印本 OCR**，未目验纸本；《玉台》宋本影像未取得（`嘶` 只有清人校本转述）。
+- **发布线 F**（`release/`）：`build-release.mjs` + `check-ready.mjs` 实际可跑（23 项检查，含部署白名单、SW 预缓存路径、APK 身份、APK 与产物逐字节同源）；故障注入实测能拦住「APK 内置内容与发布内容不一致」。
+  诚实边界：**未推任何远端、无 tag/Release/Pages、APK 是 debug 签名、从未在真机装过**；就绪检查当前只做静态断言（返修中：加「用构建产物跑 Web e2e + Android 单测」两项真跑门）。
 
 ## 整合时抓到的系统性问题（已修 2 处，1 处返修中）
 
@@ -76,7 +80,7 @@
 
 | 事项 | 状态 |
 |---|---|
-| 底本用字 5 处（何足贡/詹兔/生者/鸣鹤/中带） | A 线直接开了 `q-82b33b06`，待答 |
+| 底本用字与异文（A 的 5 处 + G 新确证 3 条） | **事实已变，正在就地更新问题**（A 线返修中）：`q-82b33b06` 将改为按新证据给选项（底本不动只存档 / 逐条改从另一家 / 正文保持底本＋界面给异文入口） |
 | `阙名` 要不要并入「匿名作者」清单（三端唯一来源＝契约 §2.1） | **待答**（实测三端曾各不相同；并入则三端同改并影响产物） |
 | 平台/编译层接口逐条确认（8 个决策点） | 已答「一点一点过」；**1 已完成**（产物只发 orderInSource）；**2 已问**（更新检查协议，F 线已做成 `--android-feed` 开关）；决策点 5 会把 F 开的 `q-e3189216`（contentVersion 来源）与 C 提的「删字段是否升 `formatVersion`」一并带上 |
 | 仓库名与 Pages 地址（默认 `suofei`）、固定签名方案 | 建仓/发布前单独授权（A4.1/A4.4） |
