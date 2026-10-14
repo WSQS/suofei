@@ -19,6 +19,7 @@
 import { spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -37,8 +38,40 @@ const webRoot = fileURLToPath(new URL('..', import.meta.url));
 const repoRoot = resolve(webRoot, '..');
 const artifactsDir = resolve(webRoot, 'tests', 'artifacts');
 const deployRoot = resolve(artifactsDir, 'deploy');
-const PORT = Number(process.env.TEST_PORT || 8137);
-const DEBUG_PORT = Number(process.env.TEST_DEBUG_PORT || 9237);
+
+/** 取一个当前空闲的端口。
+ *  为什么不能写死：**并发跑同一套 e2e 时会串台** —— 写死 8137 时，A 轮的 Chrome 会连到 B 轮
+ *  的静态服务，断言会以极难看懂的方式报红（本人实测：看到的是另一个 tree 的部署版本号）。 */
+async function freePort(exclude = []) {
+  for (;;) {
+    const port = await new Promise((res, rej) => {
+      const probe = createServer();
+      probe.on('error', rej);
+      probe.listen(0, '127.0.0.1', () => {
+        const p = probe.address().port;
+        probe.close(() => res(p));
+      });
+    });
+    if (!exclude.includes(port)) return port;
+  }
+}
+
+const PORT = process.env.TEST_PORT ? Number(process.env.TEST_PORT) : await freePort();
+const DEBUG_PORT = process.env.TEST_DEBUG_PORT
+  ? Number(process.env.TEST_DEBUG_PORT)
+  : await freePort([PORT]);
+
+/** 起服务/起浏览器前先确认端口是空的：**不静默复用**别人的端口。
+ *  否则「本轮的 Chrome 连到另一轮的服务器」会伪装成看不懂的断言失败，而不是一条清楚的错误。 */
+async function assertPortFree(port, what) {
+  try {
+    await fetch(`http://127.0.0.1:${port}/`, { signal: AbortSignal.timeout(2000) });
+  } catch {
+    return; // 连不上 = 空闲
+  }
+  throw new Error(`端口 ${port}（${what}）已被占用：可能是另一个会话在并发跑同一套 e2e。`
+    + '本轮直接停下，不静默复用；可以等它结束，或用 TEST_PORT / TEST_DEBUG_PORT 指定别的端口。');
+}
 const CHROME_BIN = process.env.CHROME_BIN
   || 'C:/Users/wsqsy/AppData/Local/Chromium/Application/chrome.exe';
 const BASE = `http://127.0.0.1:${PORT}/`;
@@ -216,6 +249,14 @@ async function reload() {
 }
 
 const hashTo = async (hash) => { await evaluate(`location.hash = ${JSON.stringify(hash)}; true`); };
+
+/** 以某个 URL **真·新开一次**（先跳到 about:blank 再过去）：
+ *  用于验证「深链接直接打开」，避开「只改 hash 只是同文档切视图」这个区别。 */
+async function openFresh(url) {
+  await cdp.send('Page.navigate', { url: 'about:blank' });
+  await sleep(200);
+  await goto(url);
+}
 const summary = () => evaluate('JSON.parse(JSON.stringify(window.__app.summary()))');
 
 async function setQuery(text) {
@@ -226,10 +267,28 @@ async function setQuery(text) {
   })()`);
 }
 
+const screenshotFailures = [];
+const screenshotAttempts = [];
+
+/** 截图只是**证据产物**，不是行为验证：超时/失败不应该把行为断言判红。
+ *  所以这里给 20s 超时 + 一次重试，仍失败就如实记一笔 WARN（在汇总里单列）。 */
 async function screenshot(name) {
-  const { data } = await cdp.send('Page.captureScreenshot', { format: 'png' });
-  await writeFile(resolve(artifactsDir, name), Buffer.from(data, 'base64'));
-  return name;
+  screenshotAttempts.push(name);
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      const { data } = await cdp.send('Page.captureScreenshot', { format: 'png' }, 20000);
+      await writeFile(resolve(artifactsDir, name), Buffer.from(data, 'base64'));
+      return name;
+    } catch (err) {
+      if (attempt === 2) {
+        screenshotFailures.push(`${name}：${err.message}`);
+        console.log(`WARN  截图失败（不影响行为断言）：${name} —— ${err.message}`);
+        return null;
+      }
+      await sleep(500);
+    }
+  }
+  return null;
 }
 
 const domPoemIds = () => evaluate(`[...document.querySelectorAll('[data-test="poem-row"]')].map(r => r.dataset.poemId)`);
@@ -237,6 +296,29 @@ const groupKeys = () => evaluate(`[...document.querySelectorAll('[data-test="dyn
 const searchTitles = () => evaluate(`[...document.querySelectorAll('[data-test="poem-row"] .poem-row-title')].map(e => e.textContent)`);
 const errorText = () => evaluate(`document.querySelector('[data-test="error-text"]').textContent`);
 const cacheKeys = () => evaluate('caches.keys()');
+/** 站点缓存（pc-resources-*）集合。 */
+const siteCaches = () => evaluate(`(async () => (await caches.keys())
+  .filter(n => n.startsWith('pc-resources-')).sort())()`);
+
+/** 等站点缓存集合**变成**期望值（而不是取一次快照就跟期望值比 —— 那是时序敏感的写法）。
+ *  注意：比较必须放在 async IIFE **里面** —— 否则整表达式会变成一个 Promise 与字符串比、永远为假。 */
+const waitForSiteCaches = (expected, label = `站点缓存 == ${expected.join(',')}`) => waitFor(
+  `(async () => JSON.stringify((await caches.keys()).filter(n => n.startsWith('pc-resources-')).sort())`
+  + ` === ${JSON.stringify(JSON.stringify([...expected].sort()))})()`,
+  { label },
+);
+
+/** 等某个缓存里出现某个条目（例如 content.json）。 */
+const waitForCacheEntry = (cacheName, path, label = `${cacheName} 含 ${path}`) => waitFor(
+  `(async () => { const r = await (await caches.open(${JSON.stringify(cacheName)})).match(${JSON.stringify(path)}); return Boolean(r); })()`,
+  { label },
+);
+
+/** 等某个缓存里有**至少一个**条目（安装刚完成时用）。 */
+const waitForNonEmptyCache = (cacheName, label = `${cacheName} 已写入`) => waitFor(
+  `(async () => (await (await caches.open(${JSON.stringify(cacheName)})).keys()).length > 0)()`,
+  { label },
+);
 const cacheEntries = (name) => evaluate(`(async () => (await (await caches.open(${JSON.stringify(name)})).keys()).map(r => new URL(r.url).pathname))()`);
 const cacheText = (name, path) => evaluate(`(async () => {
   const res = await (await caches.open(${JSON.stringify(name)})).match(${JSON.stringify(path)});
@@ -251,6 +333,7 @@ let userDataDir = null;
 let currentRoot = null;
 
 async function startServer(rootDir) {
+  await assertPortFree(PORT, '本站静态服务');
   server = spawn(NODE, [resolve(webRoot, 'scripts', 'serve.mjs'), '--port', String(PORT), '--root', rootDir], { stdio: ['ignore', 'pipe', 'pipe'] });
   currentRoot = rootDir;
   await fetchOk(BASE);
@@ -428,7 +511,9 @@ async function main() {
   await startServer(v1.destDir);
   console.log(`\n静态服务已启动：${BASE}（root=${v1.destDir}，站点版本 v${v1.appVersion}）`);
 
+  console.log(`端口：静态服务 ${PORT}、CDP ${DEBUG_PORT}（可用 TEST_PORT / TEST_DEBUG_PORT 指定）`);
   userDataDir = await mkdtemp(join(tmpdir(), 'poetry-e2e-'));
+  await assertPortFree(DEBUG_PORT, 'CDP 调试端口');
   chrome = spawn(CHROME_BIN, [
     '--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
     '--disable-background-networking', '--disable-component-update', '--disable-sync',
@@ -461,24 +546,33 @@ async function main() {
   section('1 首访：外壳先到并显示「正在取内容」，内容单独取（用 CDP 加 1.2s 延迟放大）');
   await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 1200, downloadThroughput: -1, uploadThroughput: -1 });
   await cdp.send('Page.navigate', { url: BASE });
-  // 阶段 A：HTML 一到就有静态占位（JS 还没跑也不白屏）
+  // 阶段 A：HTML 一到就有可读状态（JS 还没跑也不白屏）。
+  // 注意：这一步**不断言文案精确等于静态占位** —— JS 可能已经跑起来把文案换成「正在取内容」，
+  // 两种都是对的；静态占位本身在 §0g 里从 index.html 源码直接断言过了。
   await waitFor(`Boolean(document.querySelector('[data-test="site-title"]'))`
     + ` && Boolean(document.querySelector('[data-test="view-loading"]'))`,
-  { label: '外壳 + 静态装载占位可见', timeout: 20000 });
+  { label: '外壳 + 装载提示可见', timeout: 20000 });
   const staticInfo = await evaluate(`({
     title: document.querySelector('[data-test="site-title"]').textContent,
     loading: document.querySelector('[data-test="view-loading"]').textContent,
     hasRows: document.querySelectorAll('[data-test="poem-row"]').length,
+    loadingShown: window.__app ? window.__app.summary().loading : null,
   })`);
   includes('延迟下先看到外壳标题（不是白屏）', staticInfo.title, '索斐');
-  includes('页面上先有静态的装载提示', staticInfo.loading, '正在装载站点');
+  check('页面上有可读的装载提示（静态占位或 JS 的「正在取内容」都算）',
+    /正在/.test(staticInfo.loading), `loading=${dump(staticInfo.loading)}`);
   eq('此刻还没有任何诗行（内容确实还没到）', staticInfo.hasRows, 0);
   // 阶段 B：JS 跑起来了、正在等内容 → 如实显示「正在取内容」
   await waitFor(`window.__app && window.__app.summary().loading === true && !window.__app.summary().hasDoc`,
     { label: 'JS 已运行且仍在等内容' });
-  const jsLoading = await evaluate(`document.querySelector('[data-test="view-loading"]').textContent`);
-  includes('并且如实显示正在取内容（内容确实单独取）', jsLoading, '正在取内容');
-  eq('此刻内容仍未到达', (await summary()).hasDoc, false);
+  // 同一个 evaluate 里把「文案 + 是否还在等内容」一起读出来，避免两个往返之间内容刚好到达。
+  const jsLoading = await evaluate(`({
+    text: document.querySelector('[data-test="view-loading"]').textContent,
+    loading: window.__app.summary().loading,
+    hasDoc: window.__app.summary().hasDoc,
+  })`);
+  includes('并且如实显示正在取内容（内容确实单独取）', jsLoading.text, '正在取内容');
+  eq('此刻内容仍未到达', [jsLoading.loading, jsLoading.hasDoc], [true, false]);
   await screenshot('01-loading-shell-first.png');
 
   await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
@@ -506,15 +600,47 @@ async function main() {
   await pushDump('首访目录（真实内容）');
   await screenshot('02-index-real-content.png');
 
+  // ------------------------------------------------ 1b 可分享 URL 形态（用户 2026-10-14 拍板：保持现状）
+  section('1b 可分享 URL 形态：诗页深链接可直接打开、刷新仍在同一首；搜索不进地址栏');
+  const deepPoem = baseDoc.poems[5];              // 挑一首非首首的，证明是按 id 定位、不是「碰巧第一首」
+  await openFresh(`${BASE}#/p/${deepPoem.id}`);   // 真·新开一个文档落在这一首
+  await waitForPoemView(deepPoem.id);
+  eq('深链接直接打开就是这一首（按稳定 id 定位）',
+    await evaluate(`document.querySelector('[data-test="view-poem"]').dataset.poemId`), deepPoem.id);
+  eq('地址栏用的是契约 id', await evaluate('location.hash'), `#/p/${deepPoem.id}`);
+  check('地址栏里没有把标题当路径（所以改标题不会让老链接失效）',
+    !(await evaluate('location.hash')).includes(encodeURIComponent(deepPoem.title)));
+  await reload();                                  // 刷新后仍定位到同一首
+  await waitForPoemView(deepPoem.id);
+  eq('刷新后仍在同一首',
+    await evaluate(`document.querySelector('[data-test="view-poem"]').dataset.poemId`), deepPoem.id);
+  eq('刷新后地址栏不变', await evaluate('location.hash'), `#/p/${deepPoem.id}`);
+
+  await hashTo('#/');
+  await waitForIndex();
+  await setQuery('佚名');                          // 搜索不进地址栏（用户拍板）
+  check('目录里搜索会显示结果', await evaluate(`Boolean(document.querySelector('[data-test="view-search"]'))`));
+  eq('搜索时地址栏不变、没有搜索参数',
+    [await evaluate('location.hash'), (await evaluate('location.href')).includes('?q=')], ['#/', false]);
+  await setQuery('');
+  await hashTo('#/');
+  await waitForIndex();
+
   // ---------------------------------------------------------------- 2. 站点缓存 = 壳 + 内容成对
   section('2 站点缓存：壳与内容在同一个 cache 里成对；独立内容通道已不存在');
   const expectedCache = resourceCacheName(APP_VERSION);
+  // 首访时「内容先到、SW 还在装」是可能的（两者并行），所以这里**等缓存真的就位**，
+  // 而不是取一次快照就跟期望值比。
+  await waitForSiteCaches([expectedCache]);
+  await waitForCacheEntry(expectedCache, `/${CONTENT_URL}`);
   const entries = await cacheEntries(expectedCache);
-  eq('站点缓存名 = 前缀 + 站点版本', (await cacheKeys()).filter((n) => n.startsWith('pc-resources-')), [expectedCache]);
+  eq('站点缓存名 = 前缀 + 站点版本', await siteCaches(), [expectedCache]);
   check('缓存里有外壳', entries.some((p) => p.endsWith('/index.html'))
     && entries.some((p) => p.endsWith('/app/main.js')) && entries.some((p) => p.endsWith('/styles.css')), dump(entries));
   check('缓存里有 content.json（内容与壳同一份清单、同一个 cache）',
     entries.some((p) => p.endsWith(`/${CONTENT_URL}`)), dump(entries));
+  await waitFor(`document.querySelector('[data-test="status-site-cache"]').textContent.includes('含 content.json')`,
+    { label: '状态面板显示缓存里含 content.json' });
   includes('状态面板也显示缓存里含 content.json',
     await evaluate(`document.querySelector('[data-test="status-site-cache"]').textContent`), '含 content.json');
   eq('缓存里的 content.json 就是当前渲染的这一版', JSON.parse(await cacheText(expectedCache, `/${CONTENT_URL}`)).contentVersion, baseDoc.contentVersion);
@@ -582,7 +708,10 @@ async function main() {
   s = await summary();
   eq('服务器已换成 v2，但页面仍是旧壳（cache-first：不能旧壳配新内容）', s.appVersion, APP_VERSION);
   eq('页面内容也仍是旧内容（末首仍是 明月何皎皎）', (await evaluate(`[...document.querySelectorAll('[data-test="poem-row"] .poem-row-title')].map(e => e.textContent)`)).at(-1), '明月何皎皎');
-  eq('旧站点缓存仍在', (await cacheKeys()).filter((n) => n.startsWith('pc-resources-')), [expectedCache]);
+  // 只断言「旧 cache 还在服务」，**不**断言此刻只有它 —— 新 SW 可能已经装好、新 cache 已就绪，
+  // 那是完全正常的（旧的在服务、新的在等）。取一次快照跟期望值比，就是上一版假红的来源。
+  const cachesAfterRedeploy = await siteCaches();
+  check('旧站点缓存仍在服务', cachesAfterRedeploy.includes(expectedCache), dump(cachesAfterRedeploy));
 
   // 4b 新版本被发现并等待（提示 + 不自动刷新）
   await waitFor(`Boolean(document.querySelector('[data-test="update-available"]'))`, { label: '出现「有新版本」提示' });
@@ -592,8 +721,9 @@ async function main() {
     { label: '问到 waiting SW 的站点版本' });
   s = await summary();
   eq('新版本在等待（waiting SW 的站点版本已问到）', s.sw.waitingVersion, v2App);
-  eq('两个缓存同时存在：旧的在服务、新的已就绪',
-    (await cacheKeys()).filter((n) => n.startsWith('pc-resources-')).sort(), [expectedCache, v2.cacheName].sort());
+  await waitForSiteCaches([expectedCache, v2.cacheName], '新旧两个站点缓存同时存在');
+  eq('两个缓存同时存在：旧的在服务、新的已就绪', await siteCaches(), [expectedCache, v2.cacheName].sort());
+  await waitForCacheEntry(v2.cacheName, `/${CONTENT_URL}`);
   const newCacheContent = JSON.parse(await cacheText(v2.cacheName, `/${CONTENT_URL}`));
   eq('新缓存里的内容是新版本（新缓存内部也是成对的）', newCacheContent.contentVersion, variants.fixtureContent.doc.contentVersion);
   eq('新缓存里有新壳', (await cacheEntries(v2.cacheName)).some((p) => p.endsWith('/app/main.js')), true);
@@ -632,7 +762,8 @@ async function main() {
   eq('新内容生效：末首变成测试夹具诗', (await evaluate(`[...document.querySelectorAll('[data-test="poem-row"] .poem-row-title')].map(e => e.textContent)`)).at(-1), '测试夹具诗（非诗文）');
   eq('旧内容已不在：明月何皎皎搜不到', await (async () => { await setQuery('明月何皎皎'); return searchTitles(); })(), []);
   await setQuery('');
-  eq('旧 cache 已被新 SW 删掉', (await cacheKeys()).filter((n) => n.startsWith('pc-resources-')), [v2.cacheName]);
+  await waitForSiteCaches([v2.cacheName], '旧 cache 已删除、只剩新 cache');
+  eq('旧 cache 已被新 SW 删掉', await siteCaches(), [v2.cacheName]);
   check('部署内容带夹具标记 → 界面明确标出（不是发布内容）',
     await evaluate(`document.querySelector('[data-test="fixture-notice"]').innerText.includes('测试夹具')`));
   await screenshot('06-after-update.png');
@@ -684,7 +815,8 @@ async function main() {
   eq('回到目录后自动切到 v3', s.appVersion, v3App);
   eq('内容也回到真实产物那一版', s.contentVersion, baseDoc.contentVersion);
   eq('目录次序 == 真实产物数组次序', await domPoemIds(), expectedDomOrder(baseDoc));
-  eq('只留下 v3 的站点缓存', (await cacheKeys()).filter((n) => n.startsWith('pc-resources-')), [v3.cacheName]);
+  await waitForSiteCaches([v3.cacheName], '旧 cache 已删除、只剩 v3 的 cache');
+  eq('只留下 v3 的站点缓存', await siteCaches(), [v3.cacheName]);
   await screenshot('07-auto-after-back.png');
 
   // ---------------------------------------------------------------- 6. 失败状态
@@ -738,8 +870,9 @@ async function main() {
   section('6b 坏内容下点「重试取内容」仍是同样的失败状态（不会假装修好）');
   const beforeRetry = await errorText();
   await evaluate(`document.querySelector('[data-test="retry-load"]').click(); true`);
-  await sleep(600);
-  await waitForErrorView();
+  // 等重试真的跑完（loading 回到 false、失败状态重新出现），而不是睡固定时间再取快照。
+  await waitFor(`!window.__app.summary().loading && Boolean(document.querySelector('[data-test="error-text"]'))`,
+    { label: '重试完成、仍是失败状态' });
   eq('重试后仍是同一失败原因', await errorText(), beforeRetry);
   await screenshot('09-error-after-retry.png');
 
@@ -781,17 +914,17 @@ async function main() {
     if (reg) await reg.unregister();
     for (const k of await caches.keys()) await caches.delete(k);
   })()`);
-  check('站点缓存确实清空了', (await cacheKeys()).length === 0);
-  const tokenBeforeDead = await docToken();
+  check('站点缓存确实清空了（上面那个 await 的删除循环的直接结果）', (await cacheKeys()).length === 0);
   await cdp.send('Page.navigate', { url: BASE });
-  await sleep(1500);
+  // 等服务不可达的错误页真的接上（外壳与 __app 都不存在），而不是睡固定时间再取快照。
+  await waitFor(`!window.__app && !document.querySelector('[data-test="site-title"]')`,
+    { label: '错误页接上（没有外壳、没有应用）', timeout: 15000 }).catch(() => {});
   const deadState = await evaluate(`({
     hasShell: Boolean(document.querySelector('[data-test="site-title"]')),
     hasApp: Boolean(window.__app),
   })`).catch(() => ({ hasShell: null, hasApp: null, unreachable: true }));
   check('没有外壳可缓存 + 服务不可达 ⇒ 应用没机会显示任何东西（浏览器只能给错误页）',
     deadState.hasShell === false || deadState.unreachable === true, dump(deadState));
-  void tokenBeforeDead;
   await screenshot('11-no-shell-offline.png');
   await startServer(v7.destDir);
   await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
@@ -802,7 +935,10 @@ async function main() {
   s = await summary();
   eq('重新访问后内容版本', s.contentVersion, baseDoc.contentVersion);
   eq('重新访问后有完整 19 首', s.poems, total);
-  eq('重新访问后站点缓存重新建立', (await cacheKeys()).filter((n) => n.startsWith('pc-resources-')), [v7.cacheName]);
+  await waitForNonEmptyCache(v7.cacheName, '重新访问后新 cache 开始写入');
+  await waitForSiteCaches([v7.cacheName], '重新访问后站点缓存重建');
+  await waitForCacheEntry(v7.cacheName, '/content.json');
+  eq('重新访问后站点缓存重新建立', await siteCaches(), [v7.cacheName]);
   eq('缓存里重新含 content.json', (await cacheEntries(v7.cacheName)).some((p) => p.endsWith('/content.json')), true);
 
   // ---------------------------------------------------------------- 8. 收尾断言
@@ -812,6 +948,9 @@ async function main() {
   eq('sw.js CACHE_PREFIX ←→ app/config.js', /const CACHE_PREFIX = '([^']+)'/.exec(swSource)?.[1], 'pc-resources-');
   eq('deploy 目录里没有测试/脚本文件', DEPLOY_FILES.filter((f) => f.startsWith('tests/') || f.startsWith('scripts/') || f.startsWith('fixtures/')), []);
   check('整轮没有未捕获异常 / JS 级 error 日志', pageErrors.length === 0, pageErrors.join(' | ') || '（无）');
+  const shotsOk = screenshotAttempts.length - screenshotFailures.length;
+  console.log(`\n截图：${shotsOk}/${screenshotAttempts.length} 成功`
+    + (screenshotFailures.length ? `；失败：${screenshotFailures.join(' / ')}` : ''));
 
   await writeFile(resolve(artifactsDir, 'dom-dumps.txt'), domDump.join('\n\n'), 'utf8');
   console.log('\n产物：web/tests/artifacts/（截图 + dom-dumps.txt + deploy/ 各版本部署目录，均已 gitignore）');

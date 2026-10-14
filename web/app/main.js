@@ -400,7 +400,9 @@ async function applyUpdate(how) {
   };
   navigator.serviceWorker.addEventListener('controllerchange', finish, { once: true });
   reg.waiting?.postMessage({ type: 'SKIP_WAITING' });
-  for (let i = 0; i < 80 && !done; i += 1) {
+  // 等 controller 真的换掉再刷新。超时给得宽一点（重载时机器可能很忙）；
+  // 最坏情况也只是先刷回去、提示再出现一次，不会把新旧版本混在一起。
+  for (let i = 0; i < 120 && !done; i += 1) {
     await sleep(100);
     if (navigator.serviceWorker.controller && navigator.serviceWorker.controller !== controllerBefore) break;
   }
