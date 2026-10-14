@@ -19,6 +19,7 @@
 import { spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -37,8 +38,40 @@ const webRoot = fileURLToPath(new URL('..', import.meta.url));
 const repoRoot = resolve(webRoot, '..');
 const artifactsDir = resolve(webRoot, 'tests', 'artifacts');
 const deployRoot = resolve(artifactsDir, 'deploy');
-const PORT = Number(process.env.TEST_PORT || 8137);
-const DEBUG_PORT = Number(process.env.TEST_DEBUG_PORT || 9237);
+
+/** 取一个当前空闲的端口。
+ *  为什么不能写死：**并发跑同一套 e2e 时会串台** —— 写死 8137 时，A 轮的 Chrome 会连到 B 轮
+ *  的静态服务，断言会以极难看懂的方式报红（本人实测：看到的是另一个 tree 的部署版本号）。 */
+async function freePort(exclude = []) {
+  for (;;) {
+    const port = await new Promise((res, rej) => {
+      const probe = createServer();
+      probe.on('error', rej);
+      probe.listen(0, '127.0.0.1', () => {
+        const p = probe.address().port;
+        probe.close(() => res(p));
+      });
+    });
+    if (!exclude.includes(port)) return port;
+  }
+}
+
+const PORT = process.env.TEST_PORT ? Number(process.env.TEST_PORT) : await freePort();
+const DEBUG_PORT = process.env.TEST_DEBUG_PORT
+  ? Number(process.env.TEST_DEBUG_PORT)
+  : await freePort([PORT]);
+
+/** 起服务/起浏览器前先确认端口是空的：**不静默复用**别人的端口。
+ *  否则「本轮的 Chrome 连到另一轮的服务器」会伪装成看不懂的断言失败，而不是一条清楚的错误。 */
+async function assertPortFree(port, what) {
+  try {
+    await fetch(`http://127.0.0.1:${port}/`, { signal: AbortSignal.timeout(2000) });
+  } catch {
+    return; // 连不上 = 空闲
+  }
+  throw new Error(`端口 ${port}（${what}）已被占用：可能是另一个会话在并发跑同一套 e2e。`
+    + '本轮直接停下，不静默复用；可以等它结束，或用 TEST_PORT / TEST_DEBUG_PORT 指定别的端口。');
+}
 const CHROME_BIN = process.env.CHROME_BIN
   || 'C:/Users/wsqsy/AppData/Local/Chromium/Application/chrome.exe';
 const BASE = `http://127.0.0.1:${PORT}/`;
@@ -300,6 +333,7 @@ let userDataDir = null;
 let currentRoot = null;
 
 async function startServer(rootDir) {
+  await assertPortFree(PORT, '本站静态服务');
   server = spawn(NODE, [resolve(webRoot, 'scripts', 'serve.mjs'), '--port', String(PORT), '--root', rootDir], { stdio: ['ignore', 'pipe', 'pipe'] });
   currentRoot = rootDir;
   await fetchOk(BASE);
@@ -477,7 +511,9 @@ async function main() {
   await startServer(v1.destDir);
   console.log(`\n静态服务已启动：${BASE}（root=${v1.destDir}，站点版本 v${v1.appVersion}）`);
 
+  console.log(`端口：静态服务 ${PORT}、CDP ${DEBUG_PORT}（可用 TEST_PORT / TEST_DEBUG_PORT 指定）`);
   userDataDir = await mkdtemp(join(tmpdir(), 'poetry-e2e-'));
+  await assertPortFree(DEBUG_PORT, 'CDP 调试端口');
   chrome = spawn(CHROME_BIN, [
     '--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
     '--disable-background-networking', '--disable-component-update', '--disable-sync',
