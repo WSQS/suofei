@@ -1,0 +1,8 @@
+# 本地生成物：内容副本由脚本写入，不进版本库
+/content.json
+/content.json.sha256
+
+# 测试产物（截图/DOM 转储）
+/tests/artifacts/
+
+node_modules/

@@ -1,0 +1,191 @@
+/* 朴素占位样式：本轮不做视觉设计。
+   视觉与交互由原型线（worktree wt/b-bc5853db）评审后统一落到两端，
+   这里只保证结构清楚、正文分行/空行可读、笔记能展开。
+   唯一有「保真」含义的规则是 .line{white-space:pre-wrap}（避免 HTML 折叠行内空白）。 */
+
+:root {
+  --fg: #1a1a1a;
+  --fg-soft: #555;
+  --fg-faint: #777;
+  --line: #ddd;
+  --bg-soft: #f6f6f6;
+  --accent: #1f4d8f;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 0 0 3rem;
+  color: var(--fg);
+  background: #fff;
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---------- 顶栏 ---------- */
+
+.site-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.site-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--fg);
+  text-decoration: none;
+  letter-spacing: 0.05em;
+}
+
+.search { display: flex; gap: 0.5rem; margin-left: auto; }
+
+.search input {
+  padding: 0.35rem 0.6rem;
+  font: inherit;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  min-width: 12rem;
+}
+
+.app-version { font-size: 0.75rem; color: var(--fg-faint); }
+
+.btn {
+  font: inherit;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+}
+.btn--primary { border-color: var(--accent); color: var(--accent); }
+
+/* ---------- 通知区 ---------- */
+
+.notices { padding: 0 1rem; }
+.notices:empty { display: none; }
+
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin: 0.75rem 0;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--line);
+  border-left-width: 4px;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+.notice--info { border-left-color: var(--accent); background: #f2f6fc; }
+.notice--warn { border-left-color: #b8860b; background: #fdf7e3; }
+.notice--error { border-left-color: #b03030; background: #fcedec; }
+
+/* ---------- 视图 ---------- */
+
+.view-host { padding: 1rem; max-width: 46rem; margin: 0 auto; }
+.view-hint { color: var(--fg-faint); font-size: 0.85rem; margin: 1rem 0; }
+
+.dynasty-group { margin: 0 0 2rem; }
+.dynasty-group-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.3rem;
+}
+.dynasty-count { font-size: 0.8rem; font-weight: 400; color: var(--fg-faint); }
+
+.poem-list { display: flex; flex-direction: column; }
+
+.poem-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.4rem 0.2rem;
+  color: var(--fg);
+  text-decoration: none;
+  border-bottom: 1px solid #f0f0f0;
+}
+.poem-row:hover { background: var(--bg-soft); }
+.poem-row-title { font-size: 1.05rem; }
+.poem-row-author { font-size: 0.85rem; color: var(--fg-soft); }
+.poem-row-dynasty { font-size: 0.75rem; color: var(--fg-faint); min-width: 3rem; }
+.poem-row-notes { margin-left: auto; font-size: 0.75rem; color: var(--accent); }
+
+.empty-state { color: var(--fg-soft); }
+
+/* ---------- 诗页 ---------- */
+
+.back-link { font-size: 0.85rem; color: var(--accent); }
+
+.poem-title { font-size: 1.6rem; margin: 0.5rem 0 0.25rem; font-weight: 600; }
+.poem-meta { margin: 0 0 1.5rem; color: var(--fg-soft); font-size: 0.85rem; }
+
+.poem-body { margin: 0 0 2rem; }
+
+.stanza { margin: 0; }
+.stanza--not-first { margin-top: 1.4em; }  /* 分段的视觉空行：位置来自 JSON 的 stanzas 分段 */
+
+.line {
+  margin: 0;
+  /* 保真：行内空白（全角标点前后的空格等）不被 HTML 折叠 */
+  white-space: pre-wrap;
+}
+
+.notes {
+  border-top: 1px solid var(--line);
+  padding-top: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.notes-details > summary { cursor: pointer; color: var(--accent); }
+.notes-body { margin-top: 0.5rem; }
+.notes-body p { margin: 0.5em 0; white-space: pre-wrap; }
+.notes-body ul { margin: 0.5em 0 0.5em 1.2em; padding: 0; }
+.notes-body li { margin: 0.2em 0; }
+.notes-empty { color: var(--fg-faint); font-size: 0.9rem; }
+
+.source-block {
+  display: grid;
+  grid-template-columns: 5rem 1fr;
+  gap: 0.2rem 0.75rem;
+  font-size: 0.8rem;
+  color: var(--fg-soft);
+  border-top: 1px dashed var(--line);
+  padding-top: 0.6rem;
+}
+.source-block dt { color: var(--fg-faint); }
+.source-block dd { margin: 0; }
+
+/* ---------- 状态面板 ---------- */
+
+.status {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 1rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.8rem;
+  color: var(--fg-soft);
+}
+
+.status-list { display: grid; grid-template-columns: 9rem 1fr; gap: 0.25rem 0.75rem; margin: 0 0 0.75rem; }
+.status-list dt { color: var(--fg-faint); }
+.status-list dd { margin: 0; word-break: break-word; }
+.status-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+.status-honest { margin: 0; color: var(--fg-faint); }

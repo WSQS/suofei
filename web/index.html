@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-Hans-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>索斐</title>
+  <link rel="manifest" href="manifest.json">
+  <!-- 内联 favicon：不需要额外网络请求，离线也不会 404 -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23ffffff'/%3E%3Ctext x='16' y='24' font-size='22' text-anchor='middle' fill='%231a1a1a'%3E%E7%B4%A2%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="#/" data-test="site-title">索斐</a>
+    <form id="search-form" class="search" role="search">
+      <label class="visually-hidden" for="search-input">搜索诗名或作者</label>
+      <input id="search-input" type="search" name="q" placeholder="搜索诗名或作者"
+             autocomplete="off" data-test="search-input">
+      <button type="submit" class="btn" data-test="search-submit">搜索</button>
+    </form>
+    <span id="app-version" class="app-version" data-test="app-version"></span>
+  </header>
+
+  <div id="notices" class="notices" data-test="notices"></div>
+
+  <main id="view" class="view-host" data-test="view"></main>
+
+  <footer id="status" class="status" data-test="status"></footer>
+
+  <script type="module" src="app/main.js"></script>
+</body>
+</html>

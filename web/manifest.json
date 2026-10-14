@@ -1,0 +1,11 @@
+{
+  "name": "索斐",
+  "short_name": "索斐",
+  "lang": "zh-Hans-CN",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "description": "索斐：个人诗歌阅读（离线可读）。本文件只声明名称与作用域，图标与安装体验本轮不做（见 README 的已验证/未验证）。"
+}

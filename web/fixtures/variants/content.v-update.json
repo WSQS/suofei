@@ -1,0 +1,176 @@
+{
+  "formatVersion": 1,
+  "contentVersion": "2026.10.14.2",
+  "generatedAt": "2026-10-14T18:00:00Z",
+  "placeholder": true,
+  "placeholderNotice": "占位夹具，非校对文本（update 变体，仅用于更新流程验证）",
+  "dynasties": [
+    {
+      "key": "han",
+      "label": "汉",
+      "order": 100
+    },
+    {
+      "key": "weijin",
+      "label": "魏晋",
+      "order": 200
+    },
+    {
+      "key": "tang",
+      "label": "唐",
+      "order": 400
+    }
+  ],
+  "poems": [
+    {
+      "id": "gushi-shijiu-shou-01",
+      "title": "行行重行行",
+      "author": "佚名",
+      "dynastyKey": "han",
+      "dynastyLabel": "汉",
+      "dynastyOrder": 100,
+      "era": "东汉末",
+      "genre": "五言古诗",
+      "source": "占位夹具（非核对底本）",
+      "variants": [],
+      "stanzas": [
+        [
+          "行行重行行，与君生别离。",
+          "相去万余里，各在天一涯。"
+        ],
+        [
+          "道路阻且长，会面安可知？",
+          "胡马依北风，越鸟巢南枝。"
+        ]
+      ],
+      "notes": null,
+      "authorSortKey": "yiming",
+      "titleSortKey": "xingxingchongxingxing"
+    },
+    {
+      "id": "gushi-shijiu-shou-02",
+      "title": "青青河畔草",
+      "author": "佚名",
+      "dynastyKey": "han",
+      "dynastyLabel": "汉",
+      "dynastyOrder": 100,
+      "era": "东汉末",
+      "genre": "五言古诗",
+      "source": "占位夹具（非核对底本）",
+      "variants": [],
+      "stanzas": [
+        [
+          "青青河畔草，郁郁园中柳。",
+          "盈盈楼上女，皎皎当窗牖。"
+        ]
+      ],
+      "notes": null,
+      "authorSortKey": "yiming",
+      "titleSortKey": "qingqinghepancao"
+    },
+    {
+      "id": "gushi-shijiu-shou-06",
+      "title": "涉江采芙蓉",
+      "author": "佚名",
+      "dynastyKey": "han",
+      "dynastyLabel": "汉",
+      "dynastyOrder": 100,
+      "era": "东汉末",
+      "genre": "五言古诗",
+      "source": "占位夹具（非核对底本）",
+      "variants": [],
+      "stanzas": [
+        [
+          "涉江采芙蓉，兰泽多芳草。（占位夹具·新版改了这一行）",
+          "采之欲遗谁？所思在远道。"
+        ]
+      ],
+      "notes": "",
+      "_fixtureNote": "本诗故意不带 authorSortKey/titleSortKey，用于验证客户端回退到 Intl.Collator 拼音排序"
+    },
+    {
+      "id": "weijin-caocao-guancanghai",
+      "title": "观沧海",
+      "author": "曹操",
+      "dynastyKey": "weijin",
+      "dynastyLabel": "魏晋",
+      "dynastyOrder": 200,
+      "era": "东汉末·建安",
+      "genre": "四言乐府",
+      "source": "占位夹具（非核对底本）",
+      "variants": [],
+      "stanzas": [
+        [
+          "东临碣石，以观沧海。",
+          "水何澹澹，山岛竦峙。"
+        ]
+      ],
+      "notes": null,
+      "authorSortKey": "caocao",
+      "titleSortKey": "guancanghai"
+    },
+    {
+      "id": "tang-libai-jingyesi",
+      "title": "静夜思",
+      "author": "李白",
+      "dynastyKey": "tang",
+      "dynastyLabel": "唐",
+      "dynastyOrder": 400,
+      "era": "盛唐",
+      "genre": "五言绝句",
+      "source": "占位夹具（非核对底本）",
+      "variants": [],
+      "stanzas": [
+        [
+          "床前明月光，疑是地上霜。",
+          "举头望明月，低头思故乡。"
+        ]
+      ],
+      "notes": null,
+      "authorSortKey": "libai",
+      "titleSortKey": "jingyesi"
+    },
+    {
+      "id": "tang-libai-wanglushanpubu",
+      "title": "望庐山瀑布",
+      "author": "李白",
+      "dynastyKey": "tang",
+      "dynastyLabel": "唐",
+      "dynastyOrder": 400,
+      "era": "盛唐",
+      "genre": "七言绝句",
+      "source": "占位夹具（非核对底本）",
+      "variants": [],
+      "stanzas": [
+        [
+          "日照香炉生紫烟，遥看瀑布挂前川。",
+          "飞流直下三千尺，疑是银河落九天。"
+        ]
+      ],
+      "notes": null,
+      "authorSortKey": "libai",
+      "titleSortKey": "wanglushanpubu"
+    },
+    {
+      "id": "weijin-taoyuanming-yinjiu",
+      "title": "饮酒·其五",
+      "author": "陶渊明",
+      "dynastyKey": "weijin",
+      "dynastyLabel": "魏晋",
+      "dynastyOrder": 200,
+      "era": "东晋",
+      "genre": "五言古诗",
+      "source": "占位夹具（非核对底本）",
+      "variants": [],
+      "stanzas": [
+        [
+          "结庐在人境，而无车马喧。",
+          "问君何能尔？心远地自偏。"
+        ]
+      ],
+      "notes": null,
+      "authorSortKey": "taoyuanming",
+      "titleSortKey": "yinjiuqiwu"
+    }
+  ]
+}
