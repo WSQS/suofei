@@ -19,7 +19,7 @@
 | B | 阅读原型（视觉与交互，可评审） | `prototype/` | `820562cf`（`wt/b-bc5853db`） | 进行中 |
 | C | 内容契约实现 + Markdown→JSON 编译与校验 | `tools/`、`schema/`、`tests/` + 契约文档 | `ccfeee5d`（`wt/c-23417088`） | 进行中 |
 | D | Android 骨架（Compose）+ Android 离线更新 | `android/` | `3ce1b5e0`（`wt/d-android-d8070ef4`） | 进行中 |
-| E | Web 骨架 + 静态离线缓存与内容切换 | `web/` | 未派 | 未开始（等 C 产物先落地） |
+| E | Web 骨架 + 静态离线缓存与内容切换 | `web/` | `2715e86a`（`wt/e-web-367f9289`） | 进行中（视觉留给原型评审后） |
 
 并行方式：每条线一个隔离 git worktree（`C:\Users\wsqsy\Documents\android\.sopho-wt\<线>`），互不写同一目录；负责人读回、验收、再并入主线。任务完成后归档已落定的 worker（归档不删分支/工作树）。建议合并后回收工作树，命令与状态见 `git worktree list`。
 
@@ -28,8 +28,9 @@
 ## 下一步
 
 1. 原型（B）出可运行预览 → 交用户评审视觉与交互。
-2. C 落地后，E 按同一契约做 Web 离线缓存与内容切换。
+2. A/C 产物落地后：用真实 19 首跑一遍编译，替换 Android/Web 的占位夹具。
 3. A 的底本核对结果 → 若存在需要用户拍板的底本/异文取舍，交用户评审。
+4. 原型评审通过后：视觉统一落到 Android 与 Web 两端，再谈 tag 发布流程与产物就绪检查。
 
 ## 未决 / 待用户确认
 
