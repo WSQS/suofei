@@ -78,17 +78,6 @@ export function sha256Text(text) {
   return createHash('sha256').update(text, 'utf8').digest('hex');
 }
 
-/** `sha256sum` 风格边车文本（web/README §6 定的格式）。 */
-export function sidecarText(hash, fileName) {
-  return `${hash}  ${fileName}\n`;
-}
-
-/** 解析边车文本 → {hash, fileName}；格式不对返回 null（不猜）。 */
-export function parseSidecar(text) {
-  const m = /^([0-9a-f]{64}) {2}(\S+)\s*$/.exec(text);
-  return m ? { hash: m[1], fileName: m[2] } : null;
-}
-
 // ---------- 文件 ----------
 
 export function readJson(file) {

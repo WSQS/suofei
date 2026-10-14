@@ -48,6 +48,21 @@ const DEFAULT_EXTRA_MAVEN_MIRROR = 'https://maven.aliyun.com/repository/public';
 
 const logsDir = (outDir) => path.join(outDir, '.work', 'logs');
 
+/**
+ * E 线「一次部署真正要发布的文件」清单（`web/tests/lib/deploy.mjs: DEPLOY_FILES`）。
+ *
+ * 直接读**它的**清单，而不是我再手写一份：它改了发布集我自动跟上，不会因为两份清单漂移而假绿。
+ * 读不到（文件被移走/改名）返回 null，由调用方退回本地白名单并如实说明。
+ */
+export function findE2EDeployFiles() {
+  const p = path.join(REPO_ROOT, 'web/tests/lib/deploy.mjs');
+  if (!exists(p)) return null;
+  const m = /export const DEPLOY_FILES = \[([\s\S]*?)\]/.exec(fs.readFileSync(p, 'utf8'));
+  if (!m) return null;
+  const files = [...m[1].matchAll(/'([^']*)'|"([^"]*)"/g)].map((x) => x[1] ?? x[2]);
+  return files.length ? files : null;
+}
+
 /** 解析 Chromium：优先 CHROME_BIN，其次本机实测默认路径；都没有就返回 null（→ 标黄）。 */
 export function resolveChromeBin() {
   const fromEnv = process.env.CHROME_BIN;
@@ -223,31 +238,64 @@ export function runWebE2E({ outDir: outDirIn }) {
   const [, pass, total] = summary;
   if (r.status !== 0 || pass !== total) {
     const failed = [...r.output.matchAll(/^\s*✗ (.+)$/gm)].map((m) => m[1]).slice(0, 5);
+    const details = [...r.output.matchAll(/^\s*✗ ([\s\S]*?)(?=\n\s*(?:PASS|FAIL|✗|===|$))/gm)]
+      .map((m) => m[1].replace(/\s+/g, ' ').trim().slice(0, 200))
+      .slice(0, 3);
     return {
       status: 'FAIL',
       detail:
-        `e2e 真跑了并失败：通过 ${pass} / ${total}（退出码 ${r.status}，${r.seconds.toFixed(0)}s）\n` +
-        (failed.length ? `失败项：\n${failed.map((f) => `  - ${f}`).join('\n')}` : '') +
+        `e2e 真跑了并失败：通过 ${pass} / ${total}（退出码 ${r.status}，${r.seconds.toFixed(0)}s，${portNote}）\n` +
+        (failed.length ? `失败项（原样，含实际/期望值）：\n${failed.map((f, i) => `  - ${f}${details[i] ? `\n      ${details[i]}` : ''}`).join('\n')}` : '') +
+        `\n这算红，不算通过。负责人已确认 E 的 e2e 在本机负载高时有**偶发时序敏感失败**；` +
+        `若你怀疑就是那类偶发，请对照上面的失败点重跑 \`node release/check-ready.mjs --live-only\` 再定。` +
         `\n完整输出：${display(logFile)}`,
     };
   }
-  // 事后断言：跑的是真实产物（不是夹具）、跑完把真实产物重新落盘、站点内容仍是本次产物
+  // 事后核对（机械地查**产物**，不 grep E 的日志文本：它改了断言我这边不能假红）：
+  //   E 的 harness 会把每个版本真发到 web/tests/artifacts/deploy/<name>/（v1 = 本次发布）。
+  //   所以「被测站点就是我的构建产物」可以被直接量出来：站点 v1 的 content.json 必须与我的 dist 同一字节，
+  //   站点文件（index.html/sw.js/app/*）必须与 out/web 一致（APP_VERSION 一行允许被 harness 改成同一个值）。
   const problems = [];
-  if (!r.output.includes('基座内容：dist/content.json（真实产物）')) problems.push('脚本没有把 out/dist 当基座（可能去编译或退了夹具）');
-  if (!/PASS\s+本次跑的是真实产物/.test(r.output)) problems.push('脚本自己那条「本次跑的是真实产物」断言没通过');
-  if (r.output.includes('占位夹具，不是真实内容')) problems.push('脚本退了占位夹具');
-  if (r.output.includes('现场编译一份')) problems.push('脚本现场编译了一份内容（基座不是我们构建的产物）');
-  const afterSha = sha256File(path.join(root, 'web', 'content.json'));
-  if (afterSha !== distSha) problems.push(`跑完后站点 content.json 不是本次产物：${afterSha} ≠ ${distSha}`);
+  const deployDir = path.join(root, 'web/tests/artifacts/deploy/v1');
+  const stripAppVersion = (text) => text.replace(/APP_VERSION\s*=\s*'[^']*'/g, "APP_VERSION = '<v>'");
+  const deployFiles = findE2EDeployFiles() ?? ['index.html', 'styles.css', 'manifest.json', 'sw.js', 'app/config.js', 'app/content.js', 'app/main.js', 'app/render.js'];
+  let servedVersion = null;
+  if (!exists(deployDir)) {
+    problems.push(`找不到 E 的部署产物目录 ${display(deployDir)} —— 站点目录结构可能变了，无法核对「被测站点＝out/web」`);
+  } else {
+    const servedContent = path.join(deployDir, A.WEB_CONTENT_NAME);
+    if (!exists(servedContent)) problems.push(`被测站点目录里没有 content.json`);
+    else if (sha256File(servedContent) !== distSha) {
+      problems.push(`被测站点的 content.json 不是本次产物：${sha256File(servedContent)} ≠ ${distSha}`);
+    }
+    for (const rel of deployFiles) {
+      const a = path.join(deployDir, rel);
+      const b = path.join(A.webDir(outDir), rel);
+      if (!exists(a)) {
+        problems.push(`被测站点目录里缺 ${rel}`);
+        continue;
+      }
+      if (!exists(b)) continue; // out/web 里没有、它自己加的（如 v2 用的夹具）→ 不归本项管
+      const same = fs.readFileSync(a, 'utf8') === fs.readFileSync(b, 'utf8');
+      const sameModuloVersion = stripAppVersion(fs.readFileSync(a, 'utf8')) === stripAppVersion(fs.readFileSync(b, 'utf8'));
+      if (!same && !sameModuloVersion) problems.push(`被测站点里的 ${rel} 与 out/web 不同（也不是只差 APP_VERSION）`);
+      if (/(?:app\/config|sw)\.js$/.test(rel)) servedVersion ??= /APP_VERSION\s*=\s*'([^']+)'/.exec(fs.readFileSync(a, 'utf8'))?.[1] ?? null;
+    }
+  }
+  // 被测站点的版本必须就是**我构建出来的那一版**（不是别人顺手改的值）
+  const builtVersion = /APP_VERSION\s*=\s*'([^']+)'/.exec(fs.readFileSync(path.join(A.webDir(outDir), 'app/config.js'), 'utf8'))?.[1] ?? null;
+  if (servedVersion && builtVersion && servedVersion !== builtVersion) {
+    problems.push(`被测站点的 APP_VERSION=${servedVersion} ≠ out/web 里的 ${builtVersion} —— 测的不是我这一版`);
+  }
   if (problems.length) {
-    return { status: 'FAIL', detail: `e2e 通过了，但基座/事后核对不成立：\n${problems.map((p) => `  - ${p}`).join('\n')}` };
+    return { status: 'FAIL', detail: `e2e 通过了（${pass}/${total}），但「被测站点是本次产物」这件事不成立：\n${problems.map((p) => `  - ${p}`).join('\n')}` };
   }
   return {
     status: 'PASS',
     detail:
       `通过 ${pass} / ${total}（${r.seconds.toFixed(0)}s，真 Chromium，${portNote}）\n` +
-      `  基座 = out/dist/content.json（sha256 ${distSha.slice(0, 16)}…），站点载荷 = out/web，仓库 web/content.json 未参与\n` +
-      `  脚本自带断言「本次跑的是真实产物」通过；跑完后站点 content.json 仍是本次产物\n` +
+      `  基座 = out/dist/content.json（sha256 ${distSha.slice(0, 16)}…），站点载荷 = out/web（APP_VERSION=${builtVersion}），仓库 web/content.json 未参与\n` +
+      `  机械核对：E 发的 v1 目录里 content.json 与 dist 逐字节相同；index.html/sw.js/app/* 与 out/web 一致\n` +
       `  完整输出：${display(logFile)}`,
   };
 }
