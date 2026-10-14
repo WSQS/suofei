@@ -15,7 +15,7 @@ cd android
 #   JAVA_HOME=C:\Users\wsqsy\.jdks\ms-17.0.17
 ./gradlew assembleDebug          # 产物：android/app/build/outputs/apk/debug/app-debug.apk
 
-./gradlew testDebugUnitTest      # 54 个 JVM 单测（无需设备/模拟器）
+./gradlew testDebugUnitTest      # 55 个 JVM 单测（无需设备/模拟器）
 ```
 
 - 本机 `gradle` 不在 PATH，用 wrapper（`gradlew` + `gradle/wrapper/`，发行版已缓存在 `~/.gradle/wrapper/dists`，不需要联网下载）。
@@ -46,7 +46,7 @@ cd android
 | JDK | **17**（`ms-17.0.17`） | `JAVA_HOME` 实测；AGP 8.13 要求 JDK 17 |
 | JSON | Android 平台自带 `org.json` | 运行时不引第三方 JSON 库；JVM 单测用 `org.json:json:20240303` 提供实现 |
 
-验证结果：`clean assembleDebug` 与 `testDebugUnitTest` 复测通过（`--rerun-tasks` 下 43 个任务全部实际执行、非缓存，BUILD SUCCESSFUL）；**54 例全绿**（2026-10-14 复测，含存储层「只留当前」与「落盘/写指针失败不留孤儿目录」两轮改动的回归）。
+验证结果：`clean assembleDebug` 与 `testDebugUnitTest` 复测通过（`--rerun-tasks` 下 43 个任务全部实际执行、非缓存，BUILD SUCCESSFUL）；**55 例全绿**（2026-10-14 复测，含存储层「只留当前」与「落盘/写指针失败不留孤儿目录」两轮改动的回归）。
 `aapt2 dump badging` 实测：`package: name='dev.sopho.suofei' versionCode='1' versionName='0.1.0'`、`minSdkVersion:'26'`、`targetSdkVersion:'36'`、`application-label:'索斐'`、`uses-permission: android.permission.INTERNET`。
 
 ## 3. 内置内容：已是真实产物（2026-10-14 由负责人替换完成）
@@ -109,7 +109,7 @@ android/
 │   │   ├── update/ContentUpdater.kt         # 检查 → 下载 → 校验 → 移交 Store 切换
 │   │   └── ui/{AppState,Screens}.kt         # 界面状态与三个页面
 │   └── res/values/{strings,themes}.xml      # app_name = 索斐
-└── app/src/test/java/dev/sopho/suofei/      # 54 个 JVM 单测（含本机 HTTP 端到端更新流程）
+└── app/src/test/java/dev/sopho/suofei/      # 55 个 JVM 单测（含本机 HTTP 端到端更新流程）
 ```
 
 ### 5.1 设备上的运行时存储层（用户 2026-10-14 决定：只留当前）
@@ -137,6 +137,6 @@ filesDir/content/                       # 应用私有目录，卸载即清空
 
 ## 7. 已验证 / 未验证
 
-**已验证**：`clean assembleDebug` 通过；APK 内 assets 存在且字节一致；**54 个 JVM 单测通过**（含更新流程的成功/失败/不兼容/损坏路径、「升级后只剩当前一个快照、旧版本目录确被删除」，以及「写指针失败 ⇒ 存储层明确 `Refused(IO)`、调用方拿到同类 `Failed(IO)`、不留孤儿目录、生效版本不变」——后两条做过反向验证：还原修复后它们会红）；APK 包名、展示名、SDK 版本、权限、签名证书实测。
+**已验证**：`clean assembleDebug` 通过；APK 内 assets 存在且字节一致；**55 个 JVM 单测通过**（含更新流程的成功/失败/不兼容/损坏路径、「升级后只剩当前一个快照、旧版本目录确被删除」，以及「写指针失败 ⇒ 存储层明确 `Refused(IO)`、调用方拿到同类 `Failed(IO)`、不留孤儿目录、生效版本不变」——后两条做过反向验证：还原修复后它们会红）；APK 包名、展示名、SDK 版本、权限、签名证书实测。另有一道契约一致性门 `UnknownAuthorsSourceTest`：断言匿名作者清单与唯一来源 `schema/unknown-authors.json` 逐项一致（读不到文件即失败并列出尝试过的路径，不跳过；测试自身不持副本）。
 
 **未验证**：未在真机或模拟器上运行（本轮不操作 adb 与任何设备）；Compose 实际渲染与交互未在设备上观察；未对真实发布源（HTTPS/真实 CDN）跑过更新；未做断网/弱网/应用升级的真机验证；未在设备上验证「删掉上一个快照」对用户路径无影响（它无界面入口，预期无影响）。
