@@ -4,27 +4,31 @@
  *   node web/tests/e2e-cdp.mjs
  *   CHROME_BIN=/path/to/chrome node web/tests/e2e-cdp.mjs
  *
+ * 基座内容：优先 `dist/content.json`（真实产物）；没有就现场调 `tools/build-content.mjs` 编一份；
+ * 两者都没有才退回 `fixtures/content.placeholder.json` 并在报告里大声说明「跑的不是真实内容」。
+ * 更新/失败变体一律**从基座现场派生**（scripts/lib/variants.mjs），所以更新流程验的是真实内容上的删/改/增。
+ *
  * 覆盖：
- *   0. 纯逻辑自测（版本比较 / 切换决策 / 结构校验，直接 import app/content.js）
- *   1. 首访在线：内容装载、时代分组、组内排序（含排序键缺失时的 Collator 回退）
- *   2. 跨组搜索：诗名 / 作者子串命中
- *   3. 诗页：分行（逐行文本与 JSON 完全一致）、分节/空行、笔记按需展开、
- *      无笔记的真实空状态、笔记里的 HTML 原样显示（不解析）
- *   4. Service Worker 注册 + 资源缓存；并断言 content.json **没有**进资源缓存；
- *      交叉核对 config.js 与 sw.js 的接口常量
- *   5. 真离线（CDP Network.emulateNetworkConditions offline=true）下重载仍可读
- *   6. 内容更新：完整下载 + 校验通过才切换；阅读中不突然替换（staged）；
- *      回到目录自动原子切换；删除/修改/新增都生效
- *   7. 四种失败：校验和损坏、非法 JSON、formatVersion 不兼容、远端不比本地新 → 全部保留旧版
- *   8. 切换后的新版在离线重载后仍可用
+ *   0. 纯逻辑自测（版本比较 / 切换决策 / 结构校验 / **次序策略**）
+ *   1. 真实内容首访：19 首、1 个分组、**目录次序 == 产物数组次序**、钉死回归（第 1 首必须是 行行重行行）
+ *   2. 跨组搜索：命中保持产物数组相对次序
+ *   3. 诗页：逐行文本与 JSON 完全一致、分节/空行、异文块、无笔记的真实空状态
+ *   4. Service Worker 注册 + 资源缓存；断言 content.json **没有**进资源缓存；config.js ↔ sw.js 常量一致
+ *   5. 真离线（CDP 断网 + **关掉本地服务进程**）下重载仍可读
+ *   6. 内容更新：完整下载 + 校验通过才切换（先 staged 不打断阅读，回目录生效）；删/改/增都生效
+ *   7. 四种失败：校验和损坏、非法 JSON、formatVersion 不兼容、远端更旧 → 全部保留旧版
+ *   8. 离线持久化 / 模拟清除站点数据后如实提示 / 恢复后自愈
+ *   10. 老产物兜底：一个排序键都没给时，退回本机拼音排序
  *   9. 整轮没有未捕获 JS 异常
  *
  * 产物（截图 + DOM 转储）写到 web/tests/artifacts/（已 gitignore）。
  */
 
 import { spawn } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
+import { createHash } from 'node:crypto';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -32,15 +36,30 @@ import {
   SUPPORTED_FORMAT_VERSION, compareContentVersion, decideUpdate, validateContent,
 } from '../app/content.js';
 import { APP_VERSION, CONTENT_DB, RESOURCE_CACHE_PREFIX, resourceCacheName } from '../app/config.js';
+import { comparePoems, groupPoems, hasProductSortKeys, productSortKeysStatus, searchPoems } from '../app/render.js';
+import { buildVariants } from '../scripts/lib/variants.mjs';
 
 const webRoot = fileURLToPath(new URL('..', import.meta.url));
+const repoRoot = resolve(webRoot, '..');
 const artifactsDir = resolve(webRoot, 'tests', 'artifacts');
+const contentTarget = resolve(webRoot, 'content.json');
+const checksumTarget = resolve(webRoot, 'content.json.sha256');
 const PORT = Number(process.env.TEST_PORT || 8137);
 const DEBUG_PORT = Number(process.env.TEST_DEBUG_PORT || 9237);
 const CHROME_BIN = process.env.CHROME_BIN
   || 'C:/Users/wsqsy/AppData/Local/Chromium/Application/chrome.exe';
 const BASE = `http://127.0.0.1:${PORT}/`;
 const NODE = process.execPath;
+
+/** 用户 2026-10-14 拍板：组内次序用 `--order source`，保留《文选》卷二十九原次序（A 线的
+ *  orderInSource = 1..19）。这里写成硬编码的确定性期望：任何客户端重排（拼音排序等）都会
+ *  把它打乱（行行重行行的 titleSortKey 是全场最大 18，重排会把它推到末尾），从而暴露回归。 */
+const SOURCE_ORDER_TITLES = [
+  '行行重行行', '青青河畔草', '青青陵上柏', '今日良宴会', '西北有高楼',
+  '涉江采芙蓉', '明月皎夜光', '冉冉孤生竹', '庭中有奇树', '迢迢牵牛星',
+  '回车驾言迈', '东城高且长', '驱车上东门', '去者日以疏', '生年不满百',
+  '凛凛岁云暮', '孟冬寒气至', '客从远方来', '明月何皎皎',
+];
 
 // ------------------------------------------------------------------ 断言工具
 
@@ -59,7 +78,7 @@ function check(name, ok, detail = '') {
 
 const dump = (v) => JSON.stringify(v);
 const eq = (name, actual, expected) => check(name, dump(actual) === dump(expected),
-  `actual=${dump(actual)}  expected=${dump(expected)}`);
+  `actual=${dump(actual)}\n        expected=${dump(expected)}`);
 const includes = (name, haystack, needle) => check(name, String(haystack).includes(needle),
   `“${haystack}” 应包含 “${needle}”`);
 
@@ -75,6 +94,29 @@ async function fetchOk(url, timeoutMs = 15000) {
     if (Date.now() > deadline) throw new Error(`等待 ${url} 超时`);
     await sleep(150);
   }
+}
+
+// ------------------------------------------------------------------ 次序 oracle（独立于 app 代码实现）
+
+/** 期望的目录次序：组的次序照产物 dynasties 数组，组内照产物 poems 数组次序。 */
+function expectedDomOrder(doc) {
+  const out = [];
+  for (const d of doc.dynasties) {
+    for (const p of doc.poems) if (p.dynastyKey === d.key) out.push(p.id);
+  }
+  return out;
+}
+
+/** 本机拼音兜底会排成什么样（用 app 的兜底比较器，只在「产物没给排序键」时才该被用到）。 */
+function fallbackOrder(doc) {
+  const byD = new Map();
+  for (const p of doc.poems) {
+    if (!byD.has(p.dynastyKey)) byD.set(p.dynastyKey, []);
+    byD.get(p.dynastyKey).push(p);
+  }
+  const out = [];
+  for (const d of doc.dynasties) out.push(...(byD.get(d.key) ?? []).slice().sort(comparePoems).map((p) => p.id));
+  return out;
 }
 
 // ------------------------------------------------------------------ CDP 薄客户端
@@ -155,7 +197,7 @@ async function waitFor(expression, { label = expression, timeout = 20000, interv
 }
 
 const APP_READY = 'Boolean(window.__app && window.__app.ready)';
-const waitForIndex = () => waitFor('Boolean(document.querySelector(\'[data-test="view-index"]\'))', { label: '目录视图' });
+const waitForIndex = () => waitFor(`Boolean(document.querySelector('[data-test="view-index"]'))`, { label: '目录视图' });
 const waitForPoemView = (id) => waitFor(
   `Boolean(document.querySelector('[data-test="view-poem"][data-poem-id=${JSON.stringify(id)}]'))`,
   { label: `诗页 ${id}` },
@@ -179,9 +221,7 @@ async function reload() {
 }
 
 /** 只改 hash（同文档导航），随后等对应视图出现。 */
-async function hashTo(hash) {
-  await evaluate(`location.hash = ${JSON.stringify(hash)}; true`);
-}
+const hashTo = async (hash) => { await evaluate(`location.hash = ${JSON.stringify(hash)}; true`); };
 
 const summary = () => evaluate('JSON.parse(JSON.stringify(window.__app.summary()))');
 
@@ -199,15 +239,24 @@ async function screenshot(name) {
   return name;
 }
 
-async function prepareContent(variant) {
-  const child = spawn(NODE, [resolve(webRoot, 'scripts', 'prepare-dev-content.mjs'), '--variant', variant], { stdio: 'pipe' });
-  let out = '';
-  child.stdout.on('data', (d) => { out += d; });
-  child.stderr.on('data', (d) => { out += d; });
-  const code = await new Promise((r) => child.on('exit', r));
-  if (code !== 0) throw new Error(`prepare-dev-content --variant ${variant} 失败：${out}`);
-  return out.trim().split('\n');
-}
+// 页面侧读取
+const domPoemIds = () => evaluate(`[...document.querySelectorAll('[data-test="poem-row"]')].map(r => r.dataset.poemId)`);
+const groupKeys = () => evaluate(`[...document.querySelectorAll('[data-test="dynasty-group"]')].map(g => g.dataset.dynastyKey)`);
+const searchTitles = () => evaluate(`[...document.querySelectorAll('[data-test="poem-row"] .poem-row-title')].map(e => e.textContent)`);
+const fetchDiskDoc = () => evaluate(`(async () => JSON.parse(await (await fetch('content.json?t=' + Date.now(), { cache: 'no-store' })).text()))()`);
+const idbRows = () => evaluate(`(async () => {
+  const db = await new Promise((res, rej) => {
+    const r = indexedDB.open(${JSON.stringify(CONTENT_DB.name)});
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+  const rows = await new Promise((res, rej) => {
+    const r = db.transaction(${JSON.stringify(CONTENT_DB.store)}, 'readonly')
+      .objectStore(${JSON.stringify(CONTENT_DB.store)}).getAll();
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+  db.close();  // 不关连接会阻塞 deleteDatabase（测「清站点数据」时被阻塞过）
+  return rows.map(r => [r.k, r.doc.contentVersion]);
+})()`);
 
 const rowsInGroup = (key) => evaluate(`(() => {
   const g = document.querySelector('[data-test="dynasty-group"][data-dynasty-key=${JSON.stringify(key)}]');
@@ -220,36 +269,61 @@ const rowsInGroup = (key) => evaluate(`(() => {
   }));
 })()`);
 
-const groupKeys = () => evaluate(`[...document.querySelectorAll('[data-test="dynasty-group"]')].map(g => g.dataset.dynastyKey)`);
-const searchTitles = () => evaluate(`[...document.querySelectorAll('[data-test="poem-row"] .poem-row-title')].map(e => e.textContent)`);
-const idbRows = () => evaluate(`(async () => {
-  const db = await new Promise((res, rej) => {
-    const r = indexedDB.open(${JSON.stringify(CONTENT_DB.name)});
-    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
-  });
-  const rows = await new Promise((res, rej) => {
-    const r = db.transaction(${JSON.stringify(CONTENT_DB.store)}, 'readonly')
-      .objectStore(${JSON.stringify(CONTENT_DB.store)}).getAll();
-    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
-  });
-  db.close();  // 不关连接会阻塞后面的 deleteDatabase（测「清站点数据」时被阻塞过）
-  return rows.map(r => [r.k, r.doc.contentVersion, r.meta.integrity]);
-})()`);
+// ------------------------------------------------------------------ 内容基座 / 变体落盘
 
-// ------------------------------------------------------------------ 0. 纯逻辑自测
+const sha256 = (text) => createHash('sha256').update(text, 'utf8').digest('hex');
 
-function unitTests() {
-  section('0 纯逻辑自测（node 直接 import app/content.js）');
+async function writeContent(text, checksumMode = 'correct') {
+  await writeFile(contentTarget, text, 'utf8');
+  await writeFile(checksumTarget, checksumMode === 'wrong'
+    ? `${'0'.repeat(64)}  content.json\n`
+    : `${sha256(text)}  content.json\n`, 'utf8');
+}
+
+async function resolveBaseContent() {
+  const distPath = resolve(repoRoot, 'dist', 'content.json');
+  if (existsSync(distPath)) {
+    return { text: await readFile(distPath, 'utf8'), origin: 'dist/content.json（真实产物）' };
+  }
+  const builder = resolve(repoRoot, 'tools', 'build-content.mjs');
+  if (existsSync(builder)) {
+    console.log('dist/content.json 不存在 → 现场编译一份（tools/build-content.mjs）');
+    const child = spawn(NODE, [builder, '--out', distPath, '--content-version', '2026.10.14.1', '--order', 'source'], { stdio: 'inherit' });
+    const code = await new Promise((r) => child.on('exit', r));
+    if (code !== 0) throw new Error('tools/build-content.mjs 编译失败');
+    return { text: await readFile(distPath, 'utf8'), origin: 'dist/content.json（本次现场编译）' };
+  }
+  const fixture = resolve(webRoot, 'fixtures', 'content.placeholder.json');
+  console.log('！！ 既没有 dist/content.json 也没有 tools/build-content.mjs：本次跑的是**占位夹具**，不是真实内容。');
+  return { text: await readFile(fixture, 'utf8'), origin: 'fixtures/content.placeholder.json（占位夹具，不是真实内容）' };
+}
+
+/** 用文档化的 dev 脚本落盘（顺便验证这个脚本本身）。 */
+async function prepareViaCli(extraArgs = []) {
+  const child = spawn(NODE, [resolve(webRoot, 'scripts', 'prepare-dev-content.mjs'), ...extraArgs], { stdio: 'pipe' });
+  let out = '';
+  child.stdout.on('data', (d) => { out += d; });
+  child.stderr.on('data', (d) => { out += d; });
+  const code = await new Promise((r) => child.on('exit', r));
+  if (code !== 0) throw new Error(`prepare-dev-content ${extraArgs.join(' ')} 失败：${out}`);
+  return out.trim().split('\n');
+}
+
+// ------------------------------------------------------------------ 0. 纯逻辑 + 次序策略自测
+
+function unitTests(baseDoc, variants) {
+  section('0 纯逻辑自测（node 直接 import app/content.js 与 app/render.js）');
   check('版本比较：2026.10.14.2 > 2026.10.14.1', compareContentVersion('2026.10.14.2', '2026.10.14.1') > 0);
   check('版本比较逐段数值：2026.10.14.10 > 2026.10.14.9（纯字典序会判反）',
     compareContentVersion('2026.10.14.10', '2026.10.14.9') > 0);
+  check('版本比较：发布版 > dev 版', compareContentVersion('2026.10.14.1', '0.0.0-dev+abcdef123456') > 0);
+  check('版本比较：dev 版之间按十六进制串比', compareContentVersion('0.0.0-dev+ff', '0.0.0-dev+0a') > 0);
   check('版本比较相等', compareContentVersion('2026.10.14.1', '2026.10.14.1') === 0);
-  check('版本比较更旧', compareContentVersion('2026.10.14.0', '2026.10.14.2') < 0);
 
   eq('本地无内容 → first', decideUpdate(null, { formatVersion: 1, contentVersion: 'x' }).action, 'first');
   eq('更高内容版本 → accept', decideUpdate({ contentVersion: '2026.10.14.1' }, { formatVersion: 1, contentVersion: '2026.10.14.2' }).action, 'accept');
   eq('同版本 → up-to-date', decideUpdate({ contentVersion: '2026.10.14.2' }, { formatVersion: 1, contentVersion: '2026.10.14.2' }).action, 'up-to-date');
-  eq('远端更旧 → up-to-date（不降级）', decideUpdate({ contentVersion: '2026.10.14.2' }, { formatVersion: 1, contentVersion: '2026.10.14.0' }).action, 'up-to-date');
+  eq('远端更旧 → up-to-date（不降级）', decideUpdate({ contentVersion: '2026.10.14.2' }, { formatVersion: 1, contentVersion: '2020.1.1.1' }).action, 'up-to-date');
   eq('formatVersion 更高 → refuse-format（不解析）',
     decideUpdate({ contentVersion: '2026.10.14.2' }, { formatVersion: SUPPORTED_FORMAT_VERSION + 1, contentVersion: '2026.10.15.1' }).action,
     'refuse-format');
@@ -258,6 +332,55 @@ function unitTests() {
   check('结构校验：dynastyKey 未声明 → 失败', badKey.ok === false, badKey.errors.join(' / '));
   const emptyStanza = validateContent({ formatVersion: 1, contentVersion: 'x', dynasties: [], poems: [{ id: 'a', title: 't', author: '佚名', dynastyKey: 'han', dynastyLabel: '汉', dynastyOrder: 100, stanzas: [[]] }] });
   check('结构校验：stanzas 全空 → 失败', emptyStanza.ok === false, emptyStanza.errors.join(' / '));
+
+  // ---- 次序策略（编译期是唯一排序权威）----
+  section('0b 次序策略：产物给排序键时一律不重排（回归）');
+  eq('真实产物被判定为「产物次序权威」', hasProductSortKeys(baseDoc), true);
+  eq('真实产物 19 首的诗名次序 == 用户拍板的《文选》原次序',
+    baseDoc.poems.map((p) => p.title), SOURCE_ORDER_TITLES);
+  eq('真实产物的排序键都是整数名次', productSortKeysStatus(baseDoc), {
+    present: baseDoc.poems.length * 2, usable: baseDoc.poems.length * 2, productOrderAuthoritative: true, wrongType: false,
+  });
+  eq('目录次序 == 产物数组次序', groupPoems(baseDoc).flatMap((g) => g.poems.map((p) => p.id)), expectedDomOrder(baseDoc));
+  check('本机拼音排序会与产物次序不同（这条断言才有牙齿）',
+    dump(fallbackOrder(baseDoc)) !== dump(expectedDomOrder(baseDoc)));
+  eq('本机拼音排序会把第 1 首推到队列末尾',
+    fallbackOrder(baseDoc)[baseDoc.poems.length - 1], baseDoc.poems[0].id);
+  eq('搜索命中保持产物数组相对次序',
+    searchPoems(baseDoc, '佚名').map((p) => p.id),
+    baseDoc.poems.filter((p) => p.title.includes('佚名') || p.author.includes('佚名')).map((p) => p.id));
+
+  section('0c 老产物（一个排序键都没给）才退回本机拼音兜底');
+  const noKeysDoc = variants.noSortKeys.doc;
+  eq('无排序键 → 判定为需要兜底', hasProductSortKeys(noKeysDoc), false);
+  eq('兜底次序 == 本机拼音序', groupPoems(noKeysDoc).flatMap((g) => g.poems.map((p) => p.id)), fallbackOrder(noKeysDoc));
+  check('兜底次序 ≠ 数组次序（说明兜底真的在起作用）',
+    dump(groupPoems(noKeysDoc).flatMap((g) => g.poems.map((p) => p.id))) !== dump(expectedDomOrder(noKeysDoc)));
+
+  section('0d 排序键类型不对（v0 字符串键）视为「没给」，且不静默');
+  const stringKeys = structuredClone(baseDoc);
+  stringKeys.poems.forEach((p) => { p.authorSortKey = String(p.authorSortKey); p.titleSortKey = String(p.titleSortKey); });
+  eq('字符串排序键 → 不认，退回兜底',
+    productSortKeysStatus(stringKeys), { present: stringKeys.poems.length * 2, usable: 0, productOrderAuthoritative: false, wrongType: true });
+  eq('退回兜底后的次序 == 本机拼音序', groupPoems(stringKeys).flatMap((g) => g.poems.map((p) => p.id)), fallbackOrder(stringKeys));
+
+  section('0f 仓库里两份夹具自身合法（防止夹具自己慢慢烂掉）');
+  for (const name of ['content.placeholder.json', 'content.no-sortkeys.json']) {
+    const doc = JSON.parse(readFileSync(resolve(webRoot, 'fixtures', name), 'utf8'));
+    const v = validateContent(doc);
+    check(`fixtures/${name} 通过结构校验`, v.ok, v.errors.join(' / ') || 'ok');
+    check(`fixtures/${name} 带上「夹具」标记（不会被当成发布内容）`, doc.placeholder === true, `placeholder=${doc.placeholder}`);
+  }
+
+  section('0e 分组的次序照产物 dynasties 数组（不在客户端重排）');
+  const flipped = structuredClone(baseDoc);
+  flipped.dynasties = [...flipped.dynasties].reverse();
+  if (flipped.dynasties.length > 1) {
+    eq('组次序跟着 dynasties 数组走', groupPoems(flipped).map((g) => g.key), flipped.dynasties.map((d) => d.key));
+  } else {
+    check('基座只有一个分组，跳过「组次序跟 dynasties 数组」反序断言（另用夹具覆盖）',
+      groupPoems(flipped).map((g) => g.key).length === 1);
+  }
 }
 
 // ------------------------------------------------------------------ 浏览器主流程
@@ -290,10 +413,45 @@ async function isServerDown() {
 
 async function main() {
   await mkdir(artifactsDir, { recursive: true });
-  unitTests();
 
-  const prep = await prepareContent('placeholder');
-  console.log(`\n内容准备：${prep.join(' | ')}`);
+  const base = await resolveBaseContent();
+  const baseDoc = JSON.parse(base.text);
+  const total = baseDoc.poems.length;
+  console.log(`\n基座内容：${base.origin}`);
+  console.log(`  formatVersion=${baseDoc.formatVersion} contentVersion=${baseDoc.contentVersion} poems=${total} dynasties=${baseDoc.dynasties.map((d) => d.key).join(',')}`);
+
+  const variants = {};
+  for (const [k, v] of Object.entries(buildVariants(baseDoc))) {
+    variants[k] = { ...v, doc: (() => { try { return JSON.parse(v.text); } catch { return null; } })() };
+  }
+  for (const k of ['update', 'update2', 'lower', 'corrupt', 'broken', 'future']) {
+    console.log(`  变体 ${k}: ${variants[k].note}`);
+  }
+  // 老产物兜底变体：删掉所有排序键并逐组反转数组次序（确定性）
+  const noSortKeysDoc = structuredClone(baseDoc);
+  noSortKeysDoc.contentVersion = `2999.1.1.1`;
+  noSortKeysDoc.fixture = true;
+  noSortKeysDoc.fixtureNotice = '测试夹具：模拟老产物（一个排序键都没给），验证客户端本机拼音兜底排序。不是发布内容。';
+  for (const p of noSortKeysDoc.poems) { delete p.authorSortKey; delete p.titleSortKey; }
+  {
+    const byD = new Map();
+    for (const p of noSortKeysDoc.poems) {
+      if (!byD.has(p.dynastyKey)) byD.set(p.dynastyKey, []);
+      byD.get(p.dynastyKey).push(p);
+    }
+    const reversed = [];
+    for (const d of noSortKeysDoc.dynasties) reversed.push(...[...(byD.get(d.key) ?? [])].reverse());
+    noSortKeysDoc.poems = reversed;
+  }
+  variants.noSortKeys = {
+    name: 'noSortKeys', doc: noSortKeysDoc, text: `${JSON.stringify(noSortKeysDoc, null, 2)}\n`,
+    checksum: 'correct', note: `老产物形状（无排序键、数组次序逐组反转），版本 ${noSortKeysDoc.contentVersion}`,
+  };
+
+  unitTests(baseDoc, variants);
+
+  await prepareViaCli();
+  console.log(`\n落盘：${(await readFile(contentTarget, 'utf8').then((t) => t.length))} 字节 → web/content.json`);
 
   await startServer();
   console.log(`静态服务已启动：${BASE}（node web/scripts/serve.mjs --port ${PORT}）`);
@@ -327,108 +485,101 @@ async function main() {
     return text;
   };
 
-  // ---------------------------------------------------------------- 1. 首访
-  section('1 首访（在线）：内容装载 / 时代分组 / 组内排序');
+  // ---------------------------------------------------------------- 1. 真实内容首访
+  section('1 真实内容首访（在线）：19 首 / 分组 / 次序 = 产物数组次序');
   await goto(BASE);
   await waitForIndex();
   let s = await summary();
   eq('站点标题（用户拍板的展示名）', await evaluate('document.title'), '索斐');
-  eq('页面标题文字', await evaluate('document.querySelector("[data-test=\\"site-title\\"]").textContent'), '索斐');
-  eq('首访从网络取得的内容版本', s.contentVersion, '2026.10.14.1');
-  eq('首访记录为「已取得内容」', s.lastCheck.result, '已取得内容');
-  includes('完整性标注了校验和边车', s.integrity, 'sha256-sidecar');
-  eq('诗数量', s.poems, 8);
-  check('占位夹具提示可见（不把夹具当真实内容）',
-    await evaluate('Boolean(document.querySelector("[data-test=\\"placeholder-notice\\"]"))'));
-
-  eq('时代分组顺序与 label', await evaluate(`[...document.querySelectorAll('[data-test="dynasty-group"]')]
+  eq('内容版本', s.contentVersion, baseDoc.contentVersion);
+  eq('诗数量', s.poems, total);
+  check('本次跑的是真实产物（不是占位夹具，也不是测试夹具）',
+    baseDoc.placeholder !== true && baseDoc.fixture !== true && total === 19,
+    `${base.origin}（${total} 首；placeholder=${baseDoc.placeholder === true} fixture=${baseDoc.fixture === true}）`);
+  check('真实产物没有夹具黄条', !(await evaluate(`Boolean(document.querySelector('[data-test="fixture-notice"]'))`)));
+  eq('分组 keys / labels', await evaluate(`[...document.querySelectorAll('[data-test="dynasty-group"]')]
     .map(g => [g.dataset.dynastyKey, g.querySelector('[data-test="dynasty-label"]').textContent])`),
-  [['qianqin', '先秦'], ['han', '汉'], ['weijin', '魏晋'], ['tang', '唐']]);
+  baseDoc.dynasties.map((d) => [d.key, d.label]));
 
-  eq('汉组：按诗名拼音排序（涉江采芙蓉缺 titleSortKey，走 Collator 回退）',
-    (await rowsInGroup('han')).map((r) => r.title), ['青青河畔草', '涉江采芙蓉', '行行重行行']);
-  eq('唐组：先按作者（李白在张继前），再按诗名',
-    (await rowsInGroup('tang')).map((r) => `${r.author}/${r.title}`),
-    ['李白/静夜思', '李白/望庐山瀑布', '张继/枫桥夜泊']);
-  eq('先秦组', (await rowsInGroup('qianqin')).map((r) => r.title), ['关雎']);
-  eq('有笔记的诗在目录里有标记', (await rowsInGroup('tang')).filter((r) => r.notes).map((r) => r.title), ['枫桥夜泊']);
+  // 次序：整串相等（这是本轮返修的核心）+ 用户拍板的确定性次序
+  const expectOrder = expectedDomOrder(baseDoc);
+  const domOrder = await domPoemIds();
+  eq('目录次序 == 产物数组次序（整串）', domOrder, expectOrder);
+  eq('汉组目录的诗名次序 == 用户拍板的《文选》卷二十九原次序（19 首，确定性）',
+    await evaluate(`[...document.querySelectorAll('[data-test="poem-row"] .poem-row-title')].map(e => e.textContent)`),
+    SOURCE_ORDER_TITLES);
+  eq('汉组首尾两端', await evaluate(`(() => {
+    const t = [...document.querySelectorAll('[data-test="poem-row"] .poem-row-title')].map(e => e.textContent);
+    return [t[0], t[t.length - 1], t.length];
+  })()`), ['行行重行行', '明月何皎皎', 19]);
+  check('这不是「碰巧相等」：本机拼音排序会排出不同次序',
+    dump(fallbackOrder(baseDoc)) !== dump(expectOrder),
+    `拼音序前 3=${dump(fallbackOrder(baseDoc).slice(0, 3))} 产物序前 3=${dump(expectOrder.slice(0, 3))}`);
+  const pinyinTitles = baseDoc.poems.filter((p) => p.dynastyKey === 'han').slice().sort(comparePoems).map((p) => p.title);
+  check('拍板的次序也不是拼音序（所以上一条确定性断言能钉住重排）',
+    dump(SOURCE_ORDER_TITLES) !== dump(pinyinTitles),
+    `拼音序前3=${dump(pinyinTitles.slice(0, 3))} 拍板序前3=${dump(SOURCE_ORDER_TITLES.slice(0, 3))}`);
 
-  const jsonOrder = await evaluate(`(async () => {
-    const doc = JSON.parse(await (await fetch('content.json?t=' + Date.now(), { cache: 'no-store' })).text());
-    return doc.poems.map(p => p.id);
-  })()`);
-  const domOrder = await evaluate(`[...document.querySelectorAll('[data-test="poem-row"]')].map(r => r.dataset.poemId)`);
-  check('DOM 顺序 ≠ JSON 文件顺序（证明真的按排序键排，而不是照抄文件顺序）',
-    dump(jsonOrder) !== dump(domOrder), `JSON=${dump(jsonOrder)}\n        DOM =${dump(domOrder)}`);
-  await pushDump('首访目录');
-  await screenshot('01-index-online.png');
+  // 钉死回归：真实产物第 1 首必须是 行行重行行（它的 titleSortKey 是全场最大）
+  const firstPoem = baseDoc.poems[0];
+  const maxTitleKey = Math.max(...baseDoc.poems.map((p) => p.titleSortKey));
+  eq('真实产物第 1 首是 行行重行行', firstPoem.title, '行行重行行');
+  eq('真实产物第 1 首的 id', firstPoem.id, 'gushi-shijiu-shou-01');
+  eq('它的 titleSortKey 是全场最大（任何客户端重排都会把它推到末尾）', firstPoem.titleSortKey, maxTitleKey);
+  eq('目录第 1 行 == 产物第 1 首（客户端重排会在这里报红）', domOrder[0], firstPoem.id);
+  eq('本机拼音重排会把它推到第 19 位（所以上一条断言有牙齿）',
+    fallbackOrder(baseDoc).indexOf(firstPoem.id), total - 1);
+  eq('产物数组次序按底本原次序（orderInSource 递增）',
+    baseDoc.poems.map((p) => p.orderInSource), baseDoc.poems.map((_, i) => i + 1));
+
+  includes('状态面板写明次序由产物决定',
+    await evaluate(`document.querySelector('[data-test="status-order-mode"]').textContent`), '照产物数组次序');
+  eq('笔记全空：产物 19 首 notes 都是 null', baseDoc.poems.filter((p) => p.notes !== null).length, 0);
+  await pushDump('首访目录（真实内容）');
+  await screenshot('01-index-real-content.png');
 
   // ---------------------------------------------------------------- 2. 搜索
-  section('2 跨组搜索（诗名 / 作者子串）');
-  await setQuery('行');
-  eq('搜索「行」命中', await searchTitles(), ['行行重行行']);
-  await setQuery('李白');
-  eq('搜索作者「李白」：命中 2 首并标出时代', await evaluate(`[...document.querySelectorAll('[data-test="poem-row"]')].map(r => [r.querySelector('.poem-row-dynasty').textContent, r.querySelector('.poem-row-title').textContent])`),
-    [['唐', '静夜思'], ['唐', '望庐山瀑布']]);
+  section('2 跨组搜索（真实内容，命中保持产物数组相对次序）');
   await setQuery('佚名');
-  const crossGroup = await evaluate(`[...document.querySelectorAll('[data-test="poem-row"]')].map(r => r.querySelector('.poem-row-dynasty').textContent)`);
-  eq('搜索作者「佚名」跨 2 个时代分组', [...new Set(crossGroup)], ['先秦', '汉']);
-  eq('「佚名」命中数', crossGroup.length, 4);
-  await pushDump('搜索结果（佚名）', '[data-test="view-search"]');
-  await screenshot('02-search.png');
+  eq('搜索作者「佚名」命中全部 19 首且次序 = 产物次序', await domPoemIds(), expectOrder);
+  await setQuery('行行');
+  eq('搜索诗名片段「行行」', await searchTitles(), ['行行重行行']);
+  const qingIds = baseDoc.poems.filter((p) => p.title.includes('青')).map((p) => p.id);
   await setQuery('青');
-  eq('搜索诗名片段「青」', await searchTitles(), ['青青河畔草']);
+  eq(`搜索「青」命中 ${qingIds.length} 首，次序 = 产物次序`,
+    await evaluate(`[...document.querySelectorAll('[data-test="poem-row"]')].map(r => r.dataset.poemId)`), qingIds);
+  await pushDump('搜索结果（青）', '[data-test="view-search"]');
+  await screenshot('02-search-real.png');
   await setQuery('没有这首诗');
-  check('无命中时给真实空状态', await evaluate('Boolean(document.querySelector("[data-test=\\"search-empty\\"]"))'));
+  check('无命中时给真实空状态', await evaluate(`Boolean(document.querySelector('[data-test="search-empty"]'))`));
   await setQuery('');
 
-  // ---------------------------------------------------------------- 3. 诗页
-  section('3 诗页：分行 / 分节（空行）/ 笔记');
-  await hashTo('#/p/gushi-shijiu-shou-01');
-  await waitForPoemView('gushi-shijiu-shou-01');
-  const poemJson = await evaluate(`(async () => {
-    const doc = JSON.parse(await (await fetch('content.json?t=' + Date.now(), { cache: 'no-store' })).text());
-    return doc.poems.find(p => p.id === 'gushi-shijiu-shou-01');
-  })()`);
-  const lines = await evaluate(`[...document.querySelectorAll('[data-test="poem-line"]')].map(e => e.textContent)`);
-  eq('逐行文本与 JSON 完全一致（分行没被 HTML 折叠/合并）', lines, poemJson.stanzas.flat());
-  eq('分节数量与 JSON 一致', await evaluate(`document.querySelectorAll('[data-test="stanza"]').length`), poemJson.stanzas.length);
-  eq('每节的行数', await evaluate(`[...document.querySelectorAll('[data-test="stanza"]')].map(s => s.querySelectorAll('[data-test="poem-line"]').length)`), poemJson.stanzas.map((x) => x.length));
-  eq('按节拼回的文本与 JSON 一致（节间是两个换行）',
-    await evaluate(`[...document.querySelectorAll('[data-test="stanza"]')].map(s => [...s.querySelectorAll('[data-test="poem-line"]')].map(l => l.textContent).join("\\n")).join("\\n\\n")`),
-    poemJson.stanzas.map((x) => x.join('\n')).join('\n\n'));
-  eq('行元素 white-space=pre-wrap（防止行内空白被折叠）', await evaluate('getComputedStyle(document.querySelector("[data-test=\\"poem-line\\"]")).whiteSpace'), 'pre-wrap');
-  check('第二节与第一节之间有间距（空行由 stanzas 分段表达）',
-    await evaluate('parseFloat(getComputedStyle(document.querySelectorAll("[data-test=\\"stanza\\"]")[1]).marginTop) > 0'));
-  check('notes: null → 如实空状态，不伪造笔记', await evaluate('Boolean(document.querySelector("[data-test=\\"notes-empty\\"]"))'));
-  const poemText = await pushDump('诗页 行行重行行');
-  console.log(`\n---- 诗页 innerText（原样输出，供人工核对分行/空行）----\n${poemText}\n-----------------------------------------------`);
-  await screenshot('03-poem.png');
+  // ---------------------------------------------------------------- 3. 诗页（真实内容）
+  section('3 诗页（真实内容）：逐行文本 / 分节 / 异文 / 无笔记空状态');
+  const p1 = baseDoc.poems[0];
+  await hashTo(`#/p/${p1.id}`);
+  await waitForPoemView(p1.id);
+  eq('逐行文本与 JSON 完全一致', await evaluate(`[...document.querySelectorAll('[data-test="poem-line"]')].map(e => e.textContent)`), p1.stanzas.flat());
+  eq('分节数量与 JSON 一致', await evaluate(`document.querySelectorAll('[data-test="stanza"]').length`), p1.stanzas.length);
+  eq('行元素 white-space=pre-wrap（防止 HTML 折叠行内空白）',
+    await evaluate(`getComputedStyle(document.querySelector('[data-test="poem-line"]')).whiteSpace`), 'pre-wrap');
+  check('真实第 1 首有多行正文（不是空壳）', p1.stanzas.flat().length >= 4, `lines=${p1.stanzas.flat().length}`);
+  check('notes: null → 如实空状态，不伪造笔记',
+    await evaluate(`Boolean(document.querySelector('[data-test="notes-empty"]'))`));
+  includes('诗页显示底本来源', await evaluate(`document.querySelector('[data-test="source-block"]').innerText`), '《文选》');
+  includes('有异文时诗页显示异文', await evaluate(`document.querySelector('[data-test="source-block"]').innerText`), p1.variants[0].text);
+  const poemText = await pushDump('诗页（真实内容·行行重行行）');
+  console.log(`\n---- 诗页 innerText（原样输出，供人工核对分行）----\n${poemText}\n-----------------------------------------------`);
+  await screenshot('03-poem-real.png');
 
-  await hashTo('#/p/gushi-shijiu-shou-06');
-  await waitForPoemView('gushi-shijiu-shou-06');
-  check('notes 为空字符串也按「无笔记」处理（与 null 一致）',
-    await evaluate('Boolean(document.querySelector("[data-test=\\"notes-empty\\"]")) && !document.querySelector("[data-test=\\"notes-details\\"]")'));
-
-  await hashTo('#/p/tang-zhangji-fengqiaoyebo');
-  await waitForPoemView('tang-zhangji-fengqiaoyebo');
-  eq('笔记默认折叠', await evaluate('document.querySelector("[data-test=\\"notes-details\\"]").open'), false);
-  check('展开前笔记正文为空（按需展开）',
-    (await evaluate('document.querySelector("[data-test=\\"notes-body\\"]").innerText')).trim() === '');
-  await evaluate('document.querySelector("[data-test=\\"notes-summary\\"]").click()');
-  await waitFor('document.querySelector("[data-test=\\"notes-details\\"]").open === true', { label: '笔记展开' });
-  const notes = await evaluate(`({
-    listItems: [...document.querySelectorAll('[data-test="notes-list"] li')].map(li => li.textContent),
-    bold: [...document.querySelectorAll('[data-test="notes-body"] strong')].map(e => e.textContent),
-    rawHtmlShown: document.querySelector('[data-test="notes-body"]').innerText.includes('<b>不应被当作标签</b>'),
-    parsedTags: document.querySelectorAll('[data-test="notes-body"] b').length,
-  })`);
-  eq('笔记列表项数', notes.listItems.length, 2);
-  eq('最小 Markdown 子集：**粗体** → strong', notes.bold, ['粗体']);
-  check('笔记里的 HTML 原样显示（不解析、不注入）', notes.rawHtmlShown && notes.parsedTags === 0,
-    `rawHtmlShown=${notes.rawHtmlShown} parsedTags=${notes.parsedTags}`);
-  await pushDump('诗页 枫桥夜泊（笔记已展开）');
-  await screenshot('04-notes-open.png');
+  const withVariants = baseDoc.poems.filter((p) => (p.variants ?? []).length);
+  check('真实内容里有带异文的诗（异文渲染不是空跑）', withVariants.length >= 1, `${withVariants.length} 首有异文`);
+  const p12 = withVariants.reduce((a, b) => ((b.variants.length > a.variants.length) ? b : a));
+  await hashTo(`#/p/${p12.id}`);
+  await waitForPoemView(p12.id);
+  const srcText = await evaluate(`document.querySelector('[data-test="source-block"]').innerText`);
+  check(`诗页显示多条异文（${p12.title}，${p12.variants.length} 条）`,
+    p12.variants.every((v) => srcText.includes(v.text)), srcText);
 
   // ---------------------------------------------------------------- 4. SW / 存储分离
   section('4 Service Worker 与存储分离（资源缓存 vs 内容存储）');
@@ -450,10 +601,8 @@ async function main() {
     dump(swInfo.cacheEntries));
   check('content.json 不在资源缓存里（内容与资源两套缓存分开）',
     !swInfo.cacheEntries.some((p) => p.includes('content.json')), dump(swInfo.cacheEntries));
-
-  const rows = await idbRows();
-  eq('内容副本存在 IndexedDB，只有 active', rows.map((r) => r[0]), ['active']);
-  eq('IndexedDB 里的版本', rows.map((r) => r[1]), ['2026.10.14.1']);
+  eq('内容副本存在 IndexedDB，只有 active',
+    (await idbRows()).map((r) => [r[0], r[1]]), [['active', baseDoc.contentVersion]]);
 
   section('4b config.js 与 sw.js 的接口常量一致（经典 worker 不能 import 模块）');
   const swSource = await readFile(resolve(webRoot, 'sw.js'), 'utf8');
@@ -471,10 +620,10 @@ async function main() {
   await waitForIndex();
   s = await summary();
   check('浏览器报告离线', s.online === false);
-  includes('状态面板如实显示离线', await evaluate('document.querySelector("[data-test=\\"status-network\\"]").textContent'), '离线');
+  includes('状态面板如实显示离线', await evaluate(`document.querySelector('[data-test="status-network"]').textContent`), '离线');
   includes('更新检查失败时如实说明并保留本地版本', s.lastCheck.result, '失败（保留本地版本）');
-  eq('离线仍能读到内容版本', s.contentVersion, '2026.10.14.1');
-  eq('离线目录仍是 4 个时代分组', (await groupKeys()).length, 4);
+  eq('离线仍能读到内容版本', s.contentVersion, baseDoc.contentVersion);
+  eq('离线目录次序仍是产物次序', await domPoemIds(), expectOrder);
   const offlineProbe = await evaluate(`(async () => {
     const shell = await fetch('index.html', { cache: 'reload' }).then(r => r.status).catch(e => 'rejected:' + e.name);
     const missing = await fetch('definitely-missing-xyz.txt', { cache: 'reload' }).then(r => r.status).catch(e => 'rejected:' + e.name);
@@ -484,107 +633,150 @@ async function main() {
   check('同一次请求里去取一个未缓存的文件确实拿不到（服务不可达 ⇒ 上面的 200 只能来自本地缓存）',
     offlineProbe.missing !== 200 && offlineProbe.missing !== 404, `missing=${offlineProbe.missing}`);
   check('离线页仍受 Service Worker 控制', offlineProbe.controller);
+  await setQuery('佚名');
+  eq('离线搜索可用（内容来自 IndexedDB）', (await domPoemIds()).length, total);
+  await setQuery('');
   await pushDump('离线目录（本地服务已关）');
   await screenshot('05-offline.png');
-  await setQuery('佚名');
-  eq('离线搜索可用（内容来自 IndexedDB，不是网络）', (await evaluate(`document.querySelectorAll('[data-test="poem-row"]').length`)), 4);
-  await setQuery('');
   await startServer();
   await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
   console.log('（已恢复联网 + 重新起服务）');
 
-  // ---------------------------------------------------------------- 6. 阅读中不突然替换
+  // ---------------------------------------------------------------- 6. 更新流程
   section('6 内容更新：完整下载 + 校验通过才切换；阅读中不替换');
-  await hashTo('#/p/gushi-shijiu-shou-01');
-  await waitForPoemView('gushi-shijiu-shou-01');
-  const beforeText = await evaluate('document.querySelector("[data-test=\\"poem-body\\"]").innerText');
-  console.log(`准备新版内容：${(await prepareContent('update')).join(' | ')}`);
+  const p2 = baseDoc.poems[1];
+  await hashTo(`#/p/${p1.id}`);
+  await waitForPoemView(p1.id);
+  const beforeText = await evaluate(`document.querySelector('[data-test="poem-body"]').innerText`);
+  await writeContent(variants.update.text, variants.update.checksum);
+  console.log(`落盘变体 update：${variants.update.note}`);
   const beforeCount = (await summary()).checkCount;
-  await evaluate('document.querySelector("[data-test=\\"check-update\\"]").click(); true');
+  await evaluate(`document.querySelector('[data-test="check-update"]').click(); true`);
   await waitFor(`window.__app.summary().checkCount > ${beforeCount}`, { label: '手动检查完成（真实按钮点击）' });
   s = await summary();
   eq('检查结果：已下载、因阅读中而暂不切换', s.lastCheck.result, '已下载，待切换（阅读中）');
-  eq('当前生效版本没变（阅读中不突然替换）', s.contentVersion, '2026.10.14.1');
-  eq('新版落到 staged', s.stagedVersion, '2026.10.14.2');
-  eq('屏幕上正在读的诗文本没被替换', await evaluate('document.querySelector("[data-test=\\"poem-body\\"]").innerText'), beforeText);
-  check('界面提示「已暂存、回到目录后生效」', await evaluate('Boolean(document.querySelector("[data-test=\\"update-staged\\"]"))'));
-  eq('IndexedDB 里 active/staged 同时存在（旧版还在，新版已就绪）',
-    (await idbRows()).map((r) => [r[0], r[1]]), [['active', '2026.10.14.1'], ['staged', '2026.10.14.2']]);
+  eq('当前生效版本没变（阅读中不突然替换）', s.contentVersion, baseDoc.contentVersion);
+  eq('新版落到 staged', s.stagedVersion, variants.update.doc.contentVersion);
+  eq('屏幕上正在读的诗文本没被替换',
+    await evaluate(`document.querySelector('[data-test="poem-body"]').innerText`), beforeText);
+  check('界面提示「已暂存、回到目录后生效」',
+    await evaluate(`Boolean(document.querySelector('[data-test="update-staged"]'))`));
+  eq('IndexedDB 里 active/staged 同时存在',
+    await idbRows(), [['active', baseDoc.contentVersion], ['staged', variants.update.doc.contentVersion]]);
   await screenshot('06-staged-while-reading.png');
 
   section('6b staged 跨刷新保持，深链进诗页仍算「阅读中」');
   await reload();
-  await waitForPoemView('gushi-shijiu-shou-01');
+  await waitForPoemView(p1.id);
   s = await summary();
-  eq('刷新后仍是旧版在生效', s.contentVersion, '2026.10.14.1');
-  eq('刷新后 staged 仍在', s.stagedVersion, '2026.10.14.2');
-  check('刷新后仍提示待切换', await evaluate('Boolean(document.querySelector("[data-test=\\"update-staged\\"]"))'));
+  eq('刷新后仍是旧版在生效', s.contentVersion, baseDoc.contentVersion);
+  eq('刷新后 staged 仍在', s.stagedVersion, variants.update.doc.contentVersion);
+  check('刷新后仍提示待切换', await evaluate(`Boolean(document.querySelector('[data-test="update-staged"]'))`));
 
-  section('6c 回到目录 → 自动原子切换；删除/修改/新增都生效');
-  await evaluate('document.querySelector("[data-test=\\"back-to-index\\"]").click()');
+  section('6c 回到目录 → 自动原子切换；删 / 改 / 增都生效，次序仍照产物数组');
+  const upd = variants.update;
+  const expectUpd = expectedDomOrder(upd.doc);
+  await evaluate(`document.querySelector('[data-test="back-to-index"]').click()`);
   await waitForIndex();
-  await waitFor('!window.__app.summary().stagedVersion', { label: '回到目录后自动切换' });
+  // 先等目录真的按新版重绘（行数变了），否则可能读到切换前那一帧
+  await waitFor(`document.querySelectorAll('[data-test="poem-row"]').length === ${expectUpd.length}`,
+    { label: '回到目录后自动切换并重绘' });
   s = await summary();
-  eq('生效版本更新到新版', s.contentVersion, '2026.10.14.2');
+  eq('生效版本更新到新版', s.contentVersion, upd.doc.contentVersion);
   eq('staged 已清空', s.stagedVersion, null);
-  check('待切换提示消失', !(await evaluate('Boolean(document.querySelector("[data-test=\\"update-staged\\"]"))')));
-  eq('切换后 IndexedDB 只剩 active（新版本）',
-    (await idbRows()).map((r) => [r[0], r[1]]), [['active', '2026.10.14.2']]);
-  eq('被删掉的整组（先秦）消失', await groupKeys(), ['han', 'weijin', 'tang']);
-  eq('魏晋组：新加的诗进来了，且按作者排（曹操 在 陶渊明 前）',
-    (await rowsInGroup('weijin')).map((r) => r.title), ['观沧海', '饮酒·其五']);
-  eq('被删掉的诗在目录里没有', await evaluate(`[...document.querySelectorAll('[data-test="poem-row"]')].some(r => r.dataset.poemId === 'tang-zhangji-fengqiaoyebo')`), false);
-  await evaluate('document.querySelector("[data-test=\\"poem-row\\"][data-poem-id=\\"gushi-shijiu-shou-06\\"]").click()');
-  await waitForPoemView('gushi-shijiu-shou-06');
-  eq('被动过的那一行文本已是新版', await evaluate('document.querySelector("[data-test=\\"poem-line\\"]").textContent'), '涉江采芙蓉，兰泽多芳草。（占位夹具·新版改了这一行）');
+  eq('切换后 IndexedDB 只剩 active（新版本）', await idbRows(), [['active', upd.doc.contentVersion]]);
+  eq('目录次序 == 新产物数组次序（整串）', await domPoemIds(), expectUpd);
+  eq('被删掉的诗在目录里没有', expectedDomOrder(upd.doc).filter((id) => upd.expect.dropped.includes(id)), []);
+  eq('切换后第 1 行 == 新产物第 1 首（删掉原第 1 首后它顶上来了）', (await domPoemIds())[0], upd.doc.poems[0].id);
+  eq('分组：新增的测试诗带来一个新分组', await groupKeys(), upd.expect.dynastyKeys);
+  check('界面明确标出「测试夹具内容」（不是发布内容）',
+    await evaluate(`document.querySelector('[data-test="fixture-notice-text"]').textContent.includes('测试夹具')`));
+  await evaluate(`document.querySelector('[data-test="poem-row"][data-poem-id=${JSON.stringify(upd.expect.modifiedPoemId)}]').click()`);
+  await waitForPoemView(upd.expect.modifiedPoemId);
+  eq('被改过的那一行文本已是新版',
+    await evaluate(`document.querySelector('[data-test="poem-line"]').textContent`), upd.expect.modifiedFirstLine);
   await hashTo('#/');
   await waitForIndex();
-  await setQuery('枫桥');
-  check('被删掉的诗搜不到了', await evaluate('Boolean(document.querySelector("[data-test=\\"search-empty\\"]"))'));
-  await setQuery('陶渊明');
-  eq('新增的诗可搜到', await searchTitles(), ['饮酒·其五']);
+  await setQuery(upd.doc.poems[0].title.slice(0, 1));
+  check('搜索结果里没有已删除的诗', !(await domPoemIds()).some((id) => upd.expect.dropped.includes(id)));
   await setQuery('');
-  await pushDump('切换后的目录（v2026.10.14.2）');
+  await pushDump('切换后的目录（测试夹具变体）');
   await screenshot('07-after-switch.png');
+
+  section('6d 夹具特性：空行分段 + 笔记按需展开（新增的测试诗）');
+  await evaluate(`document.querySelector('[data-test="poem-row"][data-poem-id="${upd.expect.addedPoemId}"]').click()`);
+  await waitForPoemView(upd.expect.addedPoemId);
+  const addedPoem = upd.doc.poems.find((p) => p.id === upd.expect.addedPoemId);
+  eq('分节数量与 JSON 一致（空行表达的分段）', await evaluate(`document.querySelectorAll('[data-test="stanza"]').length`), addedPoem.stanzas.length);
+  eq('每节的行数', await evaluate(`[...document.querySelectorAll('[data-test="stanza"]')].map(s => s.querySelectorAll('[data-test="poem-line"]').length)`), addedPoem.stanzas.map((x) => x.length));
+  check('第二节与第一节之间有间距（空行由 stanzas 分段表达）',
+    await evaluate(`parseFloat(getComputedStyle(document.querySelectorAll('[data-test="stanza"]')[1]).marginTop) > 0`));
+  eq('笔记默认折叠', await evaluate(`document.querySelector('[data-test="notes-details"]').open`), false);
+  check('展开前笔记正文为空（按需展开）',
+    (await evaluate(`document.querySelector('[data-test="notes-body"]').innerText`)).trim() === '');
+  await evaluate(`document.querySelector('[data-test="notes-summary"]').click()`);
+  await waitFor(`document.querySelector('[data-test="notes-details"]').open === true`, { label: '笔记展开' });
+  const notes = await evaluate(`({
+    listItems: [...document.querySelectorAll('[data-test="notes-list"] li')].map(li => li.textContent),
+    bold: [...document.querySelectorAll('[data-test="notes-body"] strong')].map(e => e.textContent),
+    rawHtmlShown: document.querySelector('[data-test="notes-body"]').innerText.includes('<b>不应被当作标签</b>'),
+    parsedTags: document.querySelectorAll('[data-test="notes-body"] b').length,
+  })`);
+  eq('笔记列表项数', notes.listItems.length, 2);
+  eq('最小 Markdown 子集：**粗体** → strong', notes.bold, ['粗体']);
+  check('笔记里的 HTML 原样显示（不解析、不注入）', notes.rawHtmlShown && notes.parsedTags === 0,
+    `rawHtmlShown=${notes.rawHtmlShown} parsedTags=${notes.parsedTags}`);
+  await pushDump('测试夹具诗（笔记已展开）');
+  await screenshot('08-notes-open.png');
+
+  section('6e update2：整组被删掉 → 那个分组随之消失');
+  await hashTo('#/');
+  await waitForIndex();
+  await writeContent(variants.update2.text, variants.update2.checksum);
+  const r2 = await evaluate(`(async () => JSON.parse(JSON.stringify(await window.__app.checkForUpdate({ manual: true }))))()`);
+  eq('update2 生效', (await summary()).contentVersion, variants.update2.doc.contentVersion);
+  check('检查结论是「已更新并切换」', ['已更新并切换'].includes(r2.result), r2.result);
+  eq('分组回到只有基座那些组', await groupKeys(), variants.update2.expect.dynastyKeys);
+  eq('目录次序仍需 == 新产物数组次序', await domPoemIds(), expectedDomOrder(variants.update2.doc));
+  eq('那首测试诗没了', variants.update2.expect.addedPoemId, null);
+  await screenshot('09-after-group-removal.png');
 
   // ---------------------------------------------------------------- 7. 失败保留旧版
   section('7 四种失败都保留旧版（校验和 / 非法 JSON / 格式版本 / 远端更旧）');
   const baseline = (await summary()).contentVersion;
-  eq('基线版本', baseline, '2026.10.14.2');
-
+  eq('基线版本', baseline, variants.update2.doc.contentVersion);
   const cases = [
-    { variant: 'corrupt', result: '失败（保留本地版本）', detail: '校验和', note: '内容合法但边车哈希不匹配、且版本更高' },
+    { variant: 'corrupt', result: '失败（保留本地版本）', detail: '校验和', note: '内容合法、版本更高，但边车哈希不匹配' },
     { variant: 'broken', result: '失败（保留本地版本）', detail: 'JSON', note: '截断的非法 JSON' },
-    { variant: 'future', result: '拒绝（格式版本不兼容，保留旧版）', detail: '格式版本 2', note: 'formatVersion=2 → 不解析、不切换' },
-    { variant: 'older', result: '已是最新', detail: '不比本地新', note: '远端版本更旧 → 不降级' },
+    { variant: 'future', result: '拒绝（格式版本不兼容，保留旧版）', detail: '格式版本 2', note: 'formatVersion 更高 → 不解析、不切换' },
+    { variant: 'lower', result: '已是最新', detail: '不比本地新', note: '版本更旧 → 不降级' },
   ];
   for (const c of cases) {
-    await prepareContent(c.variant);
-    const r = await evaluate('(async () => JSON.parse(JSON.stringify(await window.__app.checkForUpdate({ manual: true }))))()');
+    const v = variants[c.variant];
+    await writeContent(v.text, v.checksum ?? 'correct');
+    const r = await evaluate(`(async () => JSON.parse(JSON.stringify(await window.__app.checkForUpdate({ manual: true }))))()`);
     eq(`[${c.variant}] ${c.note} → 结论`, r.result, c.result);
     includes(`[${c.variant}] 失败原因如实`, r.detail, c.detail);
     const after = await summary();
     eq(`[${c.variant}] 生效版本没被改动`, after.contentVersion, baseline);
     eq(`[${c.variant}] 没有留下 staged`, after.stagedVersion, null);
-    eq(`[${c.variant}] 目录仍正常渲染`, (await groupKeys()).length, 3);
+    eq(`[${c.variant}] 目录次序没被改动`, await domPoemIds(), expectedDomOrder(variants.update2.doc));
   }
   await pushDump('四次失败之后（内容未变）');
-  await screenshot('08-after-refusals.png');
+  await screenshot('10-after-refusals.png');
 
-  // ------------------------------------------------ 8. 离线下持久化 + 清站点数据
-  section('8 服务不可达时：切换后的新版仍可读');
+  // ---------------------------------------------------------------- 8. 离线持久化 / 清站点数据 / 自愈
+  section('8 服务不可达时：切换后的版本仍可读');
   await cdp.send('Network.emulateNetworkConditions', { offline: true, latency: 0, downloadThroughput: 0, uploadThroughput: 0 });
   await stopServer();
   await reload();
   await waitForIndex();
   s = await summary();
-  eq('服务关掉后重载仍是最新版本', s.contentVersion, '2026.10.14.2');
-  await setQuery('陶渊明');
-  eq('离线可搜到新版新增的诗', await searchTitles(), ['饮酒·其五']);
-  await setQuery('');
+  eq('服务关掉后重载仍是当前版本', s.contentVersion, baseline);
+  eq('离线目录次序仍是产物次序', await domPoemIds(), expectedDomOrder(variants.update2.doc));
   includes('状态面板写明「清除站点数据」可能丢失离线副本（不承诺永久存储）',
-    await evaluate('document.querySelector("[data-test=\\"honest-storage-note\\"]").textContent'), '清除站点数据');
-  await screenshot('09-offline-persisted.png');
+    await evaluate(`document.querySelector('[data-test="honest-storage-note"]').textContent`), '清除站点数据');
+  await screenshot('11-offline-persisted.png');
 
   section('8b 模拟「用户清除站点数据」：内容副本没了，就如实说首次需要网络');
   await evaluate('window.__app.closeContentStore()');
@@ -597,30 +789,52 @@ async function main() {
     });
     const seen = [];
     for (let i = 0; i < 8; i += 1) {
-      const s = await attempt();
-      seen.push(s);
-      if (s === 'ok') break;
+      const st = await attempt();
+      seen.push(st);
+      if (st === 'ok') break;
       await new Promise((r) => setTimeout(r, 250));
     }
     return { state: seen[seen.length - 1], seen };
   })()`);
   check('内容副本数据库已被删除（模拟「清除站点数据」）', deleteResult.state === 'ok', `每次尝试：${dump(deleteResult.seen)}`);
   await reload();
-  await waitFor('Boolean(document.querySelector(\'[data-test="view-fatal"]\'))', { label: '首次访问不可用时的如实状态' });
+  await waitFor(`Boolean(document.querySelector('[data-test="view-fatal"]'))`, { label: '首次访问不可用时的如实状态' });
   eq('重新打开时本地内容副本确实是空的', (await idbRows()).map((r) => r[0]), []);
   const fatal = await evaluate(`document.querySelector('[data-test="fatal-text"]').textContent`);
   check('如实说明首次访问需要网络（不假装还能读）', fatal.includes('需要网络'), fatal);
-  await screenshot('10-cleared-content-offline.png');
+  await screenshot('12-cleared-content-offline.png');
 
   section('8c 服务恢复后重新取得内容（自愈）');
-  await prepareContent('update');
+  await prepareViaCli();
   await startServer();
   await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
   await reload();
   await waitForIndex();
   s = await summary();
-  eq('重新取得内容后的版本', s.contentVersion, '2026.10.14.2');
-  eq('内容副本重新落盘', (await idbRows()).map((r) => [r[0], r[1]]), [['active', '2026.10.14.2']]);
+  eq('重新取得内容版本', s.contentVersion, baseDoc.contentVersion);
+  eq('重新取得后有完整 19 首', s.poems, total);
+  eq('重新取得后次序仍是产物次序', await domPoemIds(), expectOrder);
+  eq('内容副本重新落盘', await idbRows(), [['active', baseDoc.contentVersion]]);
+
+  // ---------------------------------------------------------------- 10. 老产物兜底
+  section('10 老产物（一个排序键都没给）→ 退回本机拼音排序兜底');
+  await writeContent(variants.noSortKeys.text, variants.noSortKeys.checksum);
+  const r3 = await evaluate(`(async () => JSON.parse(JSON.stringify(await window.__app.checkForUpdate({ manual: true }))))()`);
+  eq('老产物被接受', (await summary()).contentVersion, noSortKeysDoc.contentVersion);
+  check('结论是「已更新并切换」', r3.result === '已更新并切换', r3.result);
+  const noKeyExpected = fallbackOrder(noSortKeysDoc);
+  const noKeyArrayOrder = expectedDomOrder(noSortKeysDoc);
+  eq('目录次序 == 本机拼音兜底次序', await domPoemIds(), noKeyExpected);
+  check('兜底次序 ≠ 产物数组次序（说明确实走了兜底，而不是照抄数组）',
+    dump(noKeyExpected) !== dump(noKeyArrayOrder),
+    `兜底前 3=${dump(noKeyExpected.slice(0, 3))} 数组前 3=${dump(noKeyArrayOrder.slice(0, 3))}`);
+  includes('状态面板如实说明用的是本机拼音兜底',
+    await evaluate(`document.querySelector('[data-test="status-order-mode"]').textContent`), '本机拼音兜底');
+  await hashTo('#/');
+  await waitForIndex();
+  await screenshot('13-no-sortkeys-fallback.png');
+  await prepareViaCli();
+  console.log('（已把真实产物重新落盘到 web/content.json，便于继续本地开发）');
 
   // ---------------------------------------------------------------- 9. 无异常
   section('9 运行时没有 JS 异常');

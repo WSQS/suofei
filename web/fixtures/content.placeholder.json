@@ -3,7 +3,7 @@
   "contentVersion": "2026.10.14.1",
   "generatedAt": "2026-10-14T12:00:00Z",
   "placeholder": true,
-  "placeholderNotice": "占位夹具，非校对文本：仅用于开发与离线/切换验证，不得当作已核对内容",
+  "placeholderNotice": "占位夹具，非校对文本：仅用于没有 dist/content.json 时的本地开发与验证，不是发布内容。真实产物请用 node web/scripts/prepare-dev-content.mjs（自动优先读取 dist/content.json）。",
   "dynasties": [
     { "key": "qianqin", "label": "先秦", "order": 0 },
     { "key": "han", "label": "汉", "order": 100 },
@@ -21,14 +21,15 @@
       "era": "东汉末",
       "genre": "五言古诗",
       "source": "占位夹具（非核对底本）",
+      "orderInSource": 1,
       "variants": [],
       "stanzas": [
         ["行行重行行，与君生别离。", "相去万余里，各在天一涯。"],
         ["道路阻且长，会面安可知？", "胡马依北风，越鸟巢南枝。"]
       ],
       "notes": null,
-      "authorSortKey": "yiming",
-      "titleSortKey": "xingxingchongxingxing"
+      "authorSortKey": 3,
+      "titleSortKey": 7
     },
     {
       "id": "gushi-shijiu-shou-02",
@@ -40,13 +41,14 @@
       "era": "东汉末",
       "genre": "五言古诗",
       "source": "占位夹具（非核对底本）",
+      "orderInSource": 2,
       "variants": [],
       "stanzas": [
         ["青青河畔草，郁郁园中柳。", "盈盈楼上女，皎皎当窗牖。"]
       ],
-      "notes": null,
-      "authorSortKey": "yiming",
-      "titleSortKey": "qingqinghepancao"
+      "notes": "",
+      "authorSortKey": 3,
+      "titleSortKey": 4
     },
     {
       "id": "gushi-shijiu-shou-06",
@@ -58,12 +60,14 @@
       "era": "东汉末",
       "genre": "五言古诗",
       "source": "占位夹具（非核对底本）",
+      "orderInSource": 6,
       "variants": [],
       "stanzas": [
         ["涉江采芙蓉，兰泽多芳草。", "采之欲遗谁？所思在远道。"]
       ],
-      "notes": "",
-      "_fixtureNote": "本诗故意不带 authorSortKey/titleSortKey，用于验证客户端回退到 Intl.Collator 拼音排序"
+      "notes": null,
+      "authorSortKey": 3,
+      "titleSortKey": 5
     },
     {
       "id": "shijing-guanju",
@@ -75,13 +79,14 @@
       "era": "",
       "genre": "四言诗",
       "source": "占位夹具（非核对底本）",
+      "orderInSource": 4,
       "variants": [],
       "stanzas": [
         ["关关雎鸠，在河之洲。", "窈窕淑女，君子好逑。"]
       ],
       "notes": null,
-      "authorSortKey": "yiming",
-      "titleSortKey": "guanju"
+      "authorSortKey": 3,
+      "titleSortKey": 2
     },
     {
       "id": "weijin-caocao-guancanghai",
@@ -93,13 +98,14 @@
       "era": "东汉末·建安",
       "genre": "四言乐府",
       "source": "占位夹具（非核对底本）",
+      "orderInSource": 5,
       "variants": [],
       "stanzas": [
         ["东临碣石，以观沧海。", "水何澹澹，山岛竦峙。"]
       ],
       "notes": null,
-      "authorSortKey": "caocao",
-      "titleSortKey": "guancanghai"
+      "authorSortKey": 0,
+      "titleSortKey": 1
     },
     {
       "id": "tang-libai-jingyesi",
@@ -111,13 +117,14 @@
       "era": "盛唐",
       "genre": "五言绝句",
       "source": "占位夹具（非核对底本）",
+      "orderInSource": 7,
       "variants": [],
       "stanzas": [
         ["床前明月光，疑是地上霜。", "举头望明月，低头思故乡。"]
       ],
       "notes": null,
-      "authorSortKey": "libai",
-      "titleSortKey": "jingyesi"
+      "authorSortKey": 1,
+      "titleSortKey": 3
     },
     {
       "id": "tang-libai-wanglushanpubu",
@@ -129,13 +136,14 @@
       "era": "盛唐",
       "genre": "七言绝句",
       "source": "占位夹具（非核对底本）",
+      "orderInSource": 8,
       "variants": [],
       "stanzas": [
         ["日照香炉生紫烟，遥看瀑布挂前川。", "飞流直下三千尺，疑是银河落九天。"]
       ],
       "notes": null,
-      "authorSortKey": "libai",
-      "titleSortKey": "wanglushanpubu"
+      "authorSortKey": 1,
+      "titleSortKey": 6
     },
     {
       "id": "tang-zhangji-fengqiaoyebo",
@@ -147,14 +155,15 @@
       "era": "中唐",
       "genre": "七言绝句",
       "source": "占位夹具（非核对底本）",
+      "orderInSource": 9,
       "variants": [],
       "stanzas": [
         ["月落乌啼霜满天，江枫渔火对愁眠。"],
         ["姑苏城外寒山寺，夜半钟声到客船。"]
       ],
       "notes": "【测试笔记·不是用户笔记】\n\n这是用于验证「笔记按需展开」的测试文本。\n\n- 第一点：验证列表与段落。\n- 第二点：验证换行保留。\n\n这里验证最小 Markdown 子集：**粗体**与普通文字混排。\n\n这里验证转义：<b>不应被当作标签</b>，应原样显示。",
-      "authorSortKey": "zhangji",
-      "titleSortKey": "fengqiaoyebo"
+      "authorSortKey": 2,
+      "titleSortKey": 0
     }
   ]
 }

@@ -8,12 +8,17 @@
 //    绝不拼 innerHTML，所以笔记里的 `<b>` 会原样显示、不会被当标签执行。
 //  - 每印刷行是一个独立元素（.line），空行信息来自 stanzas 的分段结构，
 //    配合 .line{white-space:pre-wrap} 避免 HTML 折叠行内空白。
+//
+// 次序约定（**不许在客户端重排**）：
+//  编译期是唯一排序权威（IF-15/IF-16）。产物带了整数排序键（authorSortKey/titleSortKey）时，
+//  目录与搜索结果都**照产物数组次序**渲染；只有产物一个排序键都没给（老产物/手写 JSON）
+//  才退回本机拼音兜底。否则两端各自再排一遍，会把用户拍板的「底本原次序」静默推翻，
+//  两端还可能排出不同顺序。
 
 import { ROUTES } from './config.js';
 
 /** 契约 §2 的显式规则：佚名/未知作者在该组内排最后。 */
 export const UNKNOWN_AUTHORS = new Set(['佚名', '无名氏', '未详', '不详', '']);
-
 const collator = new Intl.Collator(['zh-Hans-CN-u-co-pinyin', 'zh-Hans-CN', 'zh'], {
   numeric: true,
   sensitivity: 'variant',
@@ -25,7 +30,10 @@ function compareByKey(aKey, bKey, aRaw, bRaw) {
   return collator.compare(aRaw, bRaw);
 }
 
-/** 组内排序：作者（佚名最后）→ 诗名 → id（兜底稳定）。 */
+/**
+ * 本机拼音兜底比较器：**只在产物没给排序键时**使用（见 productSortKeysStatus）。
+ * 组内顺序：作者（佚名/未知作者最后）→ 诗名 → id 兜底稳定。
+ */
 export function comparePoems(a, b) {
   const au = UNKNOWN_AUTHORS.has(a.author);
   const bu = UNKNOWN_AUTHORS.has(b.author);
@@ -37,33 +45,88 @@ export function comparePoems(a, b) {
   return collator.compare(a.id, b.id);
 }
 
-/** 按时代分组（组按 dynastyOrder 升序，只保留有内容的组）。 */
+/**
+ * 产物是否给了可用的排序键（IF-15：`authorSortKey`/`titleSortKey` 是**整数名次**）。
+ *
+ * 这是「谁说了算」的开关：
+ *  - 给了（至少一个可用的整数键）→ **产物数组次序就是权威**，客户端一律不重排；
+ *  - 一个都没给（老产物 / 手写 JSON）→ 退回本机拼音排序兜底。
+ *
+ * 为什么键必须是整数才认：IF-15 已经把形状冻结为整数名次；v0 式的字符串键
+ * （或任何非整数）不是当前产物形状，此时按「没给」处理，拿本机拼音兜底，
+ * 并在状态面板里把这件事写出来，不静默。
+ */
+export function productSortKeysStatus(doc) {
+  let present = 0;
+  let usable = 0;
+  for (const p of doc?.poems ?? []) {
+    for (const k of ['authorSortKey', 'titleSortKey']) {
+      const v = p?.[k];
+      if (v === undefined || v === null) continue;
+      present += 1;
+      if (Number.isInteger(v)) usable += 1;
+    }
+  }
+  return {
+    present,
+    usable,
+    productOrderAuthoritative: usable > 0,
+    wrongType: present > usable,
+  };
+}
+
+/** 产物次序是否权威（供渲染与状态面板共用）。 */
+export function hasProductSortKeys(doc) {
+  return productSortKeysStatus(doc).productOrderAuthoritative;
+}
+
+/**
+ * 按时代分组。**组的次序照产物给的 `dynasties` 数组**（契约 §2：产物里已按 order 升序），
+ * 组内**照 `poems` 数组次序原样**，不在客户端重排（见 hasProductSortKeys）。
+ */
 export function groupPoems(doc) {
-  const groups = new Map();
+  const byKey = new Map();
   for (const poem of doc.poems) {
     const key = poem.dynastyKey;
-    if (!groups.has(key)) {
-      groups.set(key, {
+    if (!byKey.has(key)) {
+      byKey.set(key, {
         key,
         label: poem.dynastyLabel,
         order: poem.dynastyOrder,
         poems: [],
       });
     }
-    groups.get(key).poems.push(poem);
+    byKey.get(key).poems.push(poem);   // 不排序：数组次序就是产物次序
   }
-  const list = [...groups.values()].sort((a, b) => (a.order - b.order) || collator.compare(a.label, b.label));
-  for (const g of list) g.poems.sort(comparePoems);
-  return list;
+
+  const groups = [];
+  for (const d of doc.dynasties ?? []) {
+    const g = byKey.get(d.key);
+    if (g) {
+      groups.push(g);
+      byKey.delete(d.key);
+    }
+  }
+  // 产物没声明的组（手写 JSON 才会出现）：追加在后面，避免整组消失；
+  // 正常产物里不会走到这里（校验要求 dynastyKey 已在 dynasties 中声明）。
+  const leftovers = [...byKey.values()].sort((a, b) => (a.order - b.order) || collator.compare(a.label, b.label));
+  const all = [...groups, ...leftovers];
+
+  if (!hasProductSortKeys(doc)) {
+    for (const g of all) g.poems.sort(comparePoems);
+  }
+  return all;
 }
 
-/** 跨组搜索：诗名/作者子串匹配（契约 §2 的 v0 最低要求）。 */
+/**
+ * 跨组搜索：诗名/作者子串匹配（契约 §2 的 v0 最低要求）。
+ * **在产物数组次序上过滤，保持同一相对次序**（不重排）；只有产物没给排序键时才本地兜底排序。
+ */
 export function searchPoems(doc, query) {
   const q = String(query ?? '').trim().toLowerCase();
   if (!q) return [];
-  return doc.poems
-    .filter((p) => p.title.toLowerCase().includes(q) || p.author.toLowerCase().includes(q))
-    .sort((a, b) => (a.dynastyOrder - b.dynastyOrder) || comparePoems(a, b));
+  const hits = doc.poems.filter((p) => p.title.toLowerCase().includes(q) || p.author.toLowerCase().includes(q));
+  return hasProductSortKeys(doc) ? hits : hits.sort(comparePoems);
 }
 
 export function getPoem(doc, id) {

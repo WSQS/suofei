@@ -15,7 +15,7 @@ import {
 import { APP_VERSION, ROUTES, SUPPORTED_FORMAT_VERSION } from './config.js';
 import { ContentStore } from './store.js';
 import {
-  renderIndex, renderPoemPage, renderSearchResults,
+  hasProductSortKeys, productSortKeysStatus, renderIndex, renderPoemPage, renderSearchResults,
 } from './render.js';
 
 const store = new ContentStore();
@@ -139,10 +139,19 @@ function renderView() {
 
 function renderNotices() {
   els.notices.replaceChildren();
-  if (state.doc?.placeholder) {
-    els.notices.append(h('div', { class: 'notice notice--warn', dataset: { test: 'placeholder-notice' } }, [
-      h('strong', { text: '占位夹具内容：' }),
-      h('span', { text: state.doc.placeholderNotice || '非校对文本，仅用于开发与验证。' }),
+  const doc = state.doc;
+  // 占位夹具 / 测试夹具都要在界面上明说，不能让人把它当发布内容。
+  // 真实产物（tools/build-content.mjs 产出）没有这两个标记，所以不会出黄条。
+  if (doc && (doc.placeholder === true || doc.fixture === true)) {
+    const isFixtureVariant = doc.fixture === true;
+    els.notices.append(h('div', { class: 'notice notice--warn', dataset: { test: 'fixture-notice' } }, [
+      h('strong', { text: isFixtureVariant ? '测试夹具内容：' : '占位夹具内容：' }),
+      h('span', {
+        dataset: { test: 'fixture-notice-text' },
+        text: isFixtureVariant
+          ? (doc.fixtureNotice || '由测试从产物派生、含人为增删改，不是发布内容。')
+          : (doc.placeholderNotice || '非校对文本，仅用于开发与验证。'),
+      }),
     ]));
   }
   if (state.staged) {
@@ -190,6 +199,14 @@ function renderStatus() {
     row('离线副本存入时间', fmtTime(meta.fetchedAt || meta.promotedAt), 'status-stored-at');
   }
   row('内容离线存储', meta ? 'IndexedDB（poetry-web）' : '尚无', 'status-content-store');
+  if (doc) {
+    // 把「组内次序由谁决定」写出来：产物次序是权威，本机拼音只是兜底，且不静默。
+    const ks = productSortKeysStatus(doc);
+    row('组内次序', ks.productOrderAuthoritative
+      ? '照产物数组次序（编译期是唯一排序权威）'
+      : `本机拼音兜底（产物未给整数排序键${ks.wrongType ? '，现有键类型不对' : ''}）`,
+    'status-order-mode');
+  }
   if (state.sw.supported && state.sw.secure) {
     row('应用资源缓存', state.sw.registered
       ? (cache ? `${cache.cacheName}（${cache.entries.length} 个条目）` : '正在读取…')
