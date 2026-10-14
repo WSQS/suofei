@@ -1,61 +1,34 @@
-// 内容获取 / 校验 / 版本比较 / 切换决策。
+// 内容装载：**单独取** + 结构校验 + 格式版本兼容检查。
 //
-// 契约要点（docs/design/content-contract.md）：
-//  - 两端只读 dist/content.json（部署到静态托管后就是 web 根下的 content.json）。
-//  - formatVersion 是结构版本；更高 = 旧客户端必须「保留旧内容、不去解析」。
-//  - contentVersion 单调递增，用于更新比较。
-//  - 完整下载 + 校验通过才切换；失败/损坏/不兼容 → 保留旧版。
-//  - 本模块**不**碰 Cache Storage；内容的读写都走 store.js（IndexedDB）。
+// 这里**不做**更新决策（用户 2026-10-14 拍板）：
+//   Web 的内容与壳是同一次部署一起换的，所以「内容更新」= 「站点更新」，
+//   由 Service Worker 负责（见 sw.js）。本模块只负责：
+//     取一份 content.json → 校验它是不是能渲染 → 交给渲染层。
+//   不再比对远端 contentVersion、不用 IndexedDB 暂存、不依赖 sha256 边车。
+//
+// 失败要如实说清是哪一步失败（网络不可达 / HTTP 状态 / JSON 解析 / 结构校验 / 格式版本不兼容），
+// 界面据此显示原因，而不是白屏。
 
-import { CHECKSUM_URL, CONTENT_URL, SUPPORTED_FORMAT_VERSION } from './config.js';
+import { CONTENT_URL, SUPPORTED_FORMAT_VERSION } from './config.js';
 
-/** 本版本客户端能解析的结构版本（见 app/config.js）。 */
-export { SUPPORTED_FORMAT_VERSION, CONTENT_URL, CHECKSUM_URL };
+export { SUPPORTED_FORMAT_VERSION, CONTENT_URL };
 
-/** 更新检查的三种结论。 */
-export const DECISION = {
-  FIRST: 'first',                 // 本地没有内容，首次取得
-  ACCEPT: 'accept',               // 新版可切换
-  UP_TO_DATE: 'up-to-date',       // 本地已是同版或更新
-  REFUSE_FORMAT: 'refuse-format', // formatVersion 不兼容 → 保留旧内容
-};
-
-/** contentVersion 比较：按 '.' 分段、逐段数值比较，非数值段退化为字符串比较。
- *
- * 契约 §4 说「按 ISO 日期前缀＋递增序号的字典序比较」，但纯字典序会把
- * `2026.10.14.10` 判成小于 `2026.10.14.2`。这里实现的是单调的逐段数值比较
- * （对契约给出的例子 `2026.10.14.1 → 2026.10.14.2` 结果一致），
- * 需要写回契约 §4 才会成为两端共同规则 —— 见 web/README.md 的「待协调」。
- * 返回 >0 表示 a 更新。
- */
-export function compareContentVersion(a, b) {
-  if (a === b) return 0;
-  const as = String(a ?? '').split('.');
-  const bs = String(b ?? '').split('.');
-  const n = Math.max(as.length, bs.length);
-  for (let i = 0; i < n; i += 1) {
-    const x = as[i];
-    const y = bs[i];
-    if (x === undefined) return -1;
-    if (y === undefined) return 1;
-    const xn = /^\d+$/.test(x);
-    const yn = /^\d+$/.test(y);
-    if (xn && yn) {
-      const d = Number(x) - Number(y);
-      if (d !== 0) return d > 0 ? 1 : -1;
-    } else if (x !== y) {
-      return x > y ? 1 : -1;
-    }
+/** 取内容时的失败分类。界面按 kind 给出不同的提示与建议。 */
+export class ContentError extends Error {
+  constructor(kind, message, detail) {
+    super(message);
+    this.name = 'ContentError';
+    this.kind = kind;      // network | http | json | schema | incompatible
+    this.detail = detail;
   }
-  return 0;
 }
 
 const isPlainObject = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
 const isInt = (v) => typeof v === 'number' && Number.isInteger(v);
 
 /**
- * 结构校验（客户端侧）。与契约 §3 的编译期校验对应，但这里是「收到别人产出的
- * JSON 时要自己再把一道关」：任何一条不满足都判定内容不可用 → 保留旧版。
+ * 结构校验（客户端侧）。与契约 §3 的编译期校验对应：这里是「收到别人产出的 JSON
+ * 时要自己再把一道关」。任何一条不满足都判定内容不可用 → 界面如实报错。
  * @returns {{ok: boolean, errors: string[]}}
  */
 export function validateContent(doc) {
@@ -125,111 +98,87 @@ export function validateContent(doc) {
   return { ok: errors.length === 0, errors };
 }
 
-async function sha256Hex(text) {
-  if (!globalThis.crypto?.subtle) {
-    throw new Error('当前环境没有 crypto.subtle（需要 https 或 localhost）');
+/**
+ * 格式版本兼容检查。内容与壳一起发布，所以不匹配说明**这次部署本身是坏的**
+ * （或者 HTTP/中间缓存给出了另一份产物）：如实报错、不渲染、不猜测。
+ * @returns {{ok: true} | {ok: false, kind: 'incompatible', message: string}}
+ */
+export function checkCompatibility(doc) {
+  const v = doc?.formatVersion;
+  if (!isInt(v)) {
+    return { ok: false, kind: 'incompatible', message: '内容里没有可用的 formatVersion' };
   }
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
-  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  if (v > SUPPORTED_FORMAT_VERSION) {
+    return {
+      ok: false,
+      kind: 'incompatible',
+      message: `内容格式版本 ${v} 高于本站壳支持的 ${SUPPORTED_FORMAT_VERSION}：`
+        + '这属于部署不一致（内容与壳应当一起发布），不解析这份内容',
+    };
+  }
+  if (v < SUPPORTED_FORMAT_VERSION) {
+    return {
+      ok: false,
+      kind: 'incompatible',
+      message: `内容格式版本 ${v} 低于本站壳支持的 ${SUPPORTED_FORMAT_VERSION}：`
+        + '这属于部署不一致（内容与壳应当一起发布），不处理这份内容',
+    };
+  }
+  return { ok: true };
 }
 
-export class ContentError extends Error {
-  constructor(kind, message, detail) {
-    super(message);
-    this.name = 'ContentError';
-    this.kind = kind;      // network | http | json | checksum | schema
-    this.detail = detail;
-  }
-}
+const utf8Size = (text) => new TextEncoder().encode(text).length;
 
 /**
- * 完整下载 + 校验。任何一步失败都抛 ContentError，**不写任何存储**。
- * @param {{bustCache?: boolean}} opts
- * @returns {Promise<{doc: object, meta: object}>}
+ * 取一份内容并校验。成功返回 {doc, meta}；失败抛 ContentError（带 kind 与可读原因）。
+ * 注意：**不做任何更新决策、不写任何存储**。
  */
-export async function fetchAndValidateContent({ bustCache = true } = {}) {
-  const q = bustCache ? `?t=${Date.now()}` : '';
-  let text;
+export async function loadContent() {
+  let res;
   try {
-    const res = await fetch(`${CONTENT_URL}${q}`, { cache: 'no-store' });
-    if (!res.ok) throw new ContentError('http', `内容请求返回 HTTP ${res.status}`);
-    text = await res.text();
+    // no-cache：在线时向服务器确认一次（避免 HTTP 缓存给出上一次部署的 content.json）。
+    // Service Worker 若已接管，会从**本站点缓存**里直接应答（与壳同一个版本）。
+    res = await fetch(CONTENT_URL, { cache: 'no-cache' });
   } catch (err) {
-    if (err instanceof ContentError) throw err;
-    throw new ContentError('network', `内容下载失败：${err.message}`, err);
+    throw new ContentError('network',
+      `取内容失败：网络不可达（离线，且本站缓存里还没有 content.json）——${err.message}`, err);
+  }
+  if (!res.ok) {
+    throw new ContentError('http',
+      `取内容失败：服务器返回 HTTP ${res.status} ${res.statusText}`
+      + '（可能是这次部署里没有 content.json，也可能是离线且本站缓存里缺了它）', { status: res.status });
   }
 
-  const sha256 = await sha256Hex(text);
-  // 校验和文件是可选的边车（契约 v0 没有该字段）。有就强制核对，没有就退化为
-  // 「本机自算哈希 + 结构校验」，并把降级事实记进 meta，不假装做过校验和比对。
-  let expected = null;
-  try {
-    const res = await fetch(`${CHECKSUM_URL}${q}`, { cache: 'no-store' });
-    if (res.ok) {
-      const raw = (await res.text()).trim().split(/\s+/)[0].toLowerCase();
-      if (/^[0-9a-f]{64}$/.test(raw)) expected = raw;
-    }
-  } catch { /* 边车不存在或取不到：不是失败，只是少了强校验 */ }
-
-  if (expected !== null && expected !== sha256) {
-    throw new ContentError('checksum', '内容校验和不匹配（文件可能损坏或被截断）',
-      { expected, actual: sha256 });
-  }
-
+  const text = await res.text();
   let doc;
   try {
     doc = JSON.parse(text);
   } catch (err) {
-    throw new ContentError('json', `内容不是合法 JSON：${err.message}`, err);
+    throw new ContentError('json', `内容不是合法 JSON：${err.message}（${utf8Size(text)} 字节）`, err);
   }
 
   const { ok, errors } = validateContent(doc);
   if (!ok) {
-    throw new ContentError('schema', `内容结构校验失败（${errors.length} 项）`, errors);
+    throw new ContentError('schema',
+      `内容结构校验失败（${errors.length} 项）：${errors.slice(0, 3).join('；')}`
+      + (errors.length > 3 ? `；…还有 ${errors.length - 3} 项` : ''), errors);
   }
 
-  const meta = {
-    contentVersion: doc.contentVersion,
-    formatVersion: doc.formatVersion,
-    sha256,
-    integrity: expected ? 'sha256-sidecar+自算' : 'sha256-自算(无边车)',
-    bytes: new TextEncoder().encode(text).length,
-    fetchedAt: new Date().toISOString(),
-    placeholder: doc.placeholder === true,
-  };
-  return { doc, meta };
-}
+  const compat = checkCompatibility(doc);
+  if (!compat.ok) {
+    throw new ContentError('incompatible', compat.message, doc.formatVersion);
+  }
 
-/**
- * 纯函数：拿「本地 active 元信息」和「新下载到的内容」判断该怎么办。
- * 不做任何副作用，方便自测与阅读。
- */
-export function decideUpdate(active, incomingDoc) {
-  if (!active) return { action: DECISION.FIRST, reason: '本地没有内容副本' };
-  if (!isInt(incomingDoc?.formatVersion)) {
-    return { action: DECISION.REFUSE_FORMAT, reason: 'formatVersion 不是整数' };
-  }
-  if (incomingDoc.formatVersion > SUPPORTED_FORMAT_VERSION) {
-    return {
-      action: DECISION.REFUSE_FORMAT,
-      reason: `内容格式版本 ${incomingDoc.formatVersion} 高于本应用支持的 ${SUPPORTED_FORMAT_VERSION}，不解析`,
-    };
-  }
-  if (incomingDoc.formatVersion < SUPPORTED_FORMAT_VERSION) {
-    return {
-      action: DECISION.REFUSE_FORMAT,
-      reason: `内容格式版本 ${incomingDoc.formatVersion} 低于本应用支持的 ${SUPPORTED_FORMAT_VERSION}，不处理`,
-    };
-  }
-  const cmp = compareContentVersion(incomingDoc.contentVersion, active.contentVersion);
-  if (cmp > 0) {
-    return {
-      action: DECISION.ACCEPT,
-      reason: `${active.contentVersion} → ${incomingDoc.contentVersion}`,
-    };
-  }
   return {
-    action: DECISION.UP_TO_DATE,
-    reason: cmp === 0 ? '本地已是同一版本' : '远端版本不比本地新',
+    doc,
+    meta: {
+      contentVersion: doc.contentVersion,
+      formatVersion: doc.formatVersion,
+      generatedAt: doc.generatedAt ?? null,
+      bytes: utf8Size(text),
+      poemCount: doc.poems.length,
+      dynastyCount: doc.dynasties.length,
+      loadedAt: new Date().toISOString(),
+    },
   };
 }

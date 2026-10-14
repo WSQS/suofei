@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// 把一份内容 JSON 放到 web/content.json（+ content.json.sha256 边车），供本地阅读/演练/测试。
+// 把一份内容 JSON 放到 web/content.json，供本地阅读/演练/测试。
 //
 // 基座优先级（会打印实际用了哪一个）：
 //   1. --from <file>
@@ -9,19 +9,20 @@
 // 用法：
 //   node web/scripts/prepare-dev-content.mjs                       # 真实产物优先，没有就用占位夹具
 //   node web/scripts/prepare-dev-content.mjs --from D:/x.json
-//   node web/scripts/prepare-dev-content.mjs --variant update      # 从基座派生测试变体
+//   node web/scripts/prepare-dev-content.mjs --variant broken      # 从基座派生测试变体
 //
 // 变体（前两个是仓库里的夹具文件，其余从**基座**现场派生；见 scripts/lib/variants.mjs）：
-//   placeholder  占位夹具（与基座无关，固定用 fixtures/content.placeholder.json）
-//   no-sortkeys  老产物形状的老夹具：既没有 orderInSource 也没有拼音名次键（文件名是历史叫法）
-//   update       删首尾各 1 首、改 1 行、加 1 首测试诗并新增 1 个时代分组
-//   update2      在 update 基础上去掉那首测试诗 → 那个时代分组随之消失
-//   lower        内容同 update，版本更旧 → 必须拒绝（不降级）
-//   corrupt      内容合法、版本更高，但边车哈希故意不匹配
-//   broken       截断的非法 JSON
-//   future       formatVersion 更高 → 不解析、保留旧内容
-//   minimal      最小产物形状（只有 orderInSource，没有拼音名次键）→ 仍照数组次序
-//   noOrderIndex 老产物形状（无 orderInSource、无拼音键，数组次序被反转）→ 本机拼音兜底
+//   placeholder   占位夹具（与基座无关，固定用 fixtures/content.placeholder.json）
+//   no-sortkeys   老产物形状的夹具：既没有 orderInSource 也没有拼音名次键（文件名是历史叫法）
+//   minimal       最小产物形状（只有 orderInSource）→ 仍照数组次序
+//   noOrderIndex  老产物形状（无 orderInSource，数组次序反转）→ 本机拼音兜底
+//   fixtureContent 下一次部署用的内容（删末首 + 加一首带笔记/空行分段的测试诗）
+//   broken        截断的非法 JSON → 失败状态：不是合法 JSON
+//   schemaBroken  合法 JSON 但结构不合法 → 失败状态：结构校验失败
+//   futureFormat  formatVersion 更高 → 失败状态：格式版本不兼容
+//
+// 注意：Web 端已不再依赖 content.json.sha256 边车（内容与壳由 Service Worker 成对缓存、
+// 随站点一起更新）。脚本仍会写它，只是给别的消费者留的，Web 不读。
 
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
@@ -57,7 +58,7 @@ function describe(text) {
     return `formatVersion=${doc.formatVersion} contentVersion=${doc.contentVersion} poems=${doc.poems?.length} `
       + `dynasties=${(doc.dynasties ?? []).map((d) => d.key).join(',')} ${kind}`;
   } catch {
-    return '（内容不是合法 JSON —— 变体故意造成的）';
+    return `（内容不是合法 JSON —— 变体故意造成的，${Buffer.byteLength(text, 'utf8')} 字节）`;
   }
 }
 
@@ -84,29 +85,27 @@ async function main() {
   }
 
   let text = baseText;
-  let checksumMode = 'correct';
   let origin = baseOrigin;
   if (variantName && !FIXTURE_VARIANTS[variantName]) {
-    const variants = buildVariants(JSON.parse(baseText));
+    let variants;
+    try {
+      variants = buildVariants(JSON.parse(baseText));
+    } catch (err) {
+      throw new Error(`基座不是合法 JSON，无法派生变体（${err.message}）`);
+    }
     const v = variants[variantName];
     if (!v) {
       throw new Error(`未知变体「${variantName}」；可用：${[...Object.keys(FIXTURE_VARIANTS), ...Object.keys(variants)].join(' / ')}`);
     }
     text = v.text;
-    checksumMode = v.checksum === 'wrong' ? 'wrong' : 'correct';
     origin = `${baseOrigin} → 派生变体 ${v.name}（${v.note}）`;
   }
 
   await writeFile(target, text, 'utf8');
-  if (checksumMode === 'correct') {
-    await writeFile(checksumTarget, `${sha256(text)}  content.json\n`, 'utf8');
-  } else {
-    // 故意写一个不匹配的哈希：只有真做了校验和比对的客户端才会失败。
-    await writeFile(checksumTarget, `${'0'.repeat(64)}  content.json\n`, 'utf8');
-  }
+  await writeFile(checksumTarget, `${sha256(text)}  content.json\n`, 'utf8');
 
   console.log(`来源：${origin}`);
-  console.log(`写入：web/content.json（${text.length} 字节）+ web/content.json.sha256（校验和模式：${checksumMode}）`);
+  console.log(`写入：web/content.json（${Buffer.byteLength(text, 'utf8')} 字节）+ content.json.sha256（Web 已不读取）`);
   console.log(`内容：${describe(text)}`);
 }
 

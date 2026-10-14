@@ -1,54 +1,16 @@
-// 从一份基座产物派生「内容更新」测试变体。
+// 从一份基座产物派生的测试变体。
 //
-// 为什么不再把变体 JSON 提交进版本库：变体必须跟**真实产物**长在一起才有效。
-//   node tools/build-content.mjs --out dist/content.json --content-version 2026.10.14.1 --order source
-//   node web/scripts/prepare-dev-content.mjs --variant update
-// 这样「更新流程」验的是真实 19 首上的删/改/增，而不是手抄的一份 8 首。
-//
-// 变体（相对基座）：
-//   update  正常新版：删掉首尾各 1 首、改 1 行、加 1 首测试诗（带笔记 + 空行分段，落在新的时代分组）
-//   update2 再下一版：把 update 里那首测试诗去掉 → 那个新的时代分组随之消失（验证「整组可删」）
-//   lower   内容同 update，但版本比基座更旧 → 必须拒绝（不降级）
-//   corrupt 内容合法、版本更高，但 sha256 边车故意不匹配 → 必须拒绝（校验闸）
-//   broken  截断的非法 JSON → 必须拒绝（解析闸）
-//   future  formatVersion = 支持版本 + 1、版本更高 → 必须不解析、保留旧内容
+// Web 端**不再有独立的内容版本通道**（用户 2026-10-14 拍板：Web 的内容更新就是站点更新），
+// 所以变体只剩两类：
+//   A) 内容形状变体：验证「次序判定 / 本机拼音兜底」（不换站点版本也能测）；
+//   B) 站点部署变体：给「两版本切换」与「失败状态」测试用，每个部署带自己的 APP_VERSION，
+//      由 tests/lib/deploy.mjs 组装（壳 + 内容一起换）。
 
-/** 版本形状：发布版 `YYYY.MM.DD.N`（契约 §4.1）。 */
-const RELEASE_RE = /^(\d{4})\.(\d{1,2})\.(\d{1,2})\.(\d+)$/;
-
-/** 比基座更大的版本；基座不是发布版形状时用必然更新的 release 版本。 */
-export function bumpVersion(version, step = 1) {
-  const m = RELEASE_RE.exec(String(version ?? ''));
-  if (!m) return `2999.1.1.${step}`;
-  return `${m[1]}.${m[2]}.${m[3]}.${Number(m[4]) + step}`;
-}
-
-/** 比基座更小的版本（release 形状合法、且与基座不可比大小的情况下也一定更小）。 */
-export function lowerVersion(version) {
-  const m = RELEASE_RE.exec(String(version ?? ''));
-  if (m && Number(m[1]) > 2020) return '2020.1.1.1';
-  return '0.0.0-dev+000000000000';
-}
-
-/** 只留实际有内容的组，按 order 升序（与编译期同一规则）。 */
-function collectDynasties(poems) {
-  const m = new Map();
-  for (const p of poems) {
-    if (!m.has(p.dynastyKey)) {
-      m.set(p.dynastyKey, { key: p.dynastyKey, label: p.dynastyLabel, order: p.dynastyOrder });
-    }
-  }
-  return [...m.values()].sort((a, b) => a.order - b.order);
-}
-
-/** 加进来的那首测试诗：自带笔记、空行分段与转义样本，且落在新的时代分组里。 */
+/** 加进来的那首测试诗：自带笔记、空行分段与转义样本；分组继承基座最后一首。 */
 export const FIXTURE_POEM = {
   id: 'fixture-test-poem-01',
   title: '测试夹具诗（非诗文）',
   author: '测试作者',
-  dynastyKey: 'tang',
-  dynastyLabel: '唐',
-  dynastyOrder: 400,
   era: '测试夹具',
   genre: '测试夹具',
   source: '测试夹具（不是发布内容）',
@@ -59,42 +21,17 @@ export const FIXTURE_POEM = {
     ['空行之后的一段（测试夹具）。'],
   ],
   notes: '【测试笔记·不是用户笔记】\n\n用于验证「笔记按需展开」的测试文本。\n\n- 第一点：列表与段落。\n- 第二点：换行保留。\n\n这里验证最小 Markdown 子集：**粗体**与普通文字混排。\n\n这里验证转义：<b>不应被当作标签</b>，应原样显示。',
-  // 产物只保留 orderInSource（用户 2026-10-14 拍板），拼音名次键不再发布；
-  // 这首是后加的诗，没有底本原次序，写在数组末尾就能验证「附加诗在后」。
-  orderInSource: null,
 };
 
-/** update 变体：删首尾各一首、改一行、加一首测试诗。 */
-function makeUpdateDoc(base, { withAddedPoem = true } = {}) {
-  const doc = structuredClone(base);
-  doc.contentVersion = bumpVersion(base.contentVersion, withAddedPoem ? 1 : 2);
-  doc.generatedAt = '2026-10-14T12:00:00Z';
-  // 夹具标记：页面上必须显示出来，不能让人误当发布内容
-  doc.fixture = true;
-  doc.fixtureNotice = '测试夹具：由 e2e 从真实产物派生（删掉首尾各 1 首、改 1 行'
-    + (withAddedPoem ? '、加 1 首测试诗并新增 1 个时代分组' : '')
-    + (withAddedPoem ? '' : '、去掉那首测试诗与其时代分组')
-    + '），不是发布内容。';
-
-  const original = doc.poems;
-  const dropped = [original[0].id, original[original.length - 1].id];
-  doc.poems = original.slice(1, -1);
-  const modified = doc.poems[0];
-  modified.stanzas[0][0] = `${modified.stanzas[0][0]}（测试夹具·新版改了这一行）`;
-  if (withAddedPoem) doc.poems.push(structuredClone(FIXTURE_POEM));
-  doc.dynasties = collectDynasties(doc.poems);
-
-  return {
-    doc,
-    expect: {
-      dropped,
-      modifiedPoemId: modified.id,
-      modifiedFirstLine: modified.stanzas[0][0],
-      addedPoemId: withAddedPoem ? FIXTURE_POEM.id : null,
-      poemCount: doc.poems.length,
-      dynastyKeys: doc.dynasties.map((d) => d.key),
-    },
-  };
+/** 只留实际有内容的组，按 order 升序（与编译期同一规则）。 */
+function collectDynasties(poems) {
+  const m = new Map();
+  for (const p of poems) {
+    if (!m.has(p.dynastyKey)) {
+      m.set(p.dynastyKey, { key: p.dynastyKey, label: p.dynastyLabel, order: p.dynastyOrder });
+    }
+  }
+  return [...m.values()].sort((a, b) => a.order - b.order);
 }
 
 /** 去掉编译期的两个拼音名次键（保留 orderInSource）：模拟 C 线改完后的最小产物形状。 */
@@ -121,19 +58,17 @@ function reverseWithinGroups(doc) {
 }
 
 /** 最小产物形状：只有 orderInSource，没有拼音名次键（C 线改完后就是这样）。 */
-function makeMinimalDoc(base) {
+export function makeMinimalDoc(base) {
   const doc = stripPinyinKeys(base);
-  doc.contentVersion = bumpVersion(base.contentVersion, 5);
   doc.fixture = true;
   doc.fixtureNotice = '测试夹具：C 线改完后的最小产物形状（只有 orderInSource、没有拼音名次键），'
     + '用于验证客户端仍照数组次序渲染。不是发布内容。';
   return doc;
 }
 
-/** 老产物形状：既没有 orderInSource 也没有拼音名次键（且数组次序被反转，便于看出兜底）。 */
-function makeNoOrderIndexDoc(base) {
+/** 老产物形状：既没有 orderInSource 也没有拼音名次键（数组次序被反转，便于看出兜底）。 */
+export function makeNoOrderIndexDoc(base) {
   const doc = stripPinyinKeys(base);
-  doc.contentVersion = bumpVersion(base.contentVersion, 6);
   doc.fixture = true;
   doc.fixtureNotice = '测试夹具：模拟老产物（既没有 orderInSource 也没有拼音名次键），'
     + '验证客户端退回本机拼音兜底排序。不是发布内容。';
@@ -142,80 +77,101 @@ function makeNoOrderIndexDoc(base) {
 }
 
 /**
- * 生成全部变体。
+ * 下一个站点部署要用的内容：删掉末首、加入一首带空行分段与测试笔记的诗。
+ * contentVersion 只作展示（Web 不再用它做更新决策）。
+ */
+export function makeFixtureContent(base) {
+  const doc = structuredClone(base);
+  doc.contentVersion = '2026.10.15.1';
+  doc.generatedAt = '2026-10-15T00:00:00Z';
+  doc.fixture = true;
+  doc.fixtureNotice = '测试部署内容：从真实产物派生（删掉末首、加入一首带空行分段与测试笔记的诗），'
+    + '用于验证两版本成对切换与渲染路径。不是发布内容。';
+  const last = base.poems[base.poems.length - 1];
+  doc.poems = doc.poems.slice(0, -1);
+  doc.poems.push({
+    ...structuredClone(FIXTURE_POEM),
+    dynastyKey: last.dynastyKey,
+    dynastyLabel: last.dynastyLabel,
+    dynastyOrder: last.dynastyOrder,
+  });
+  doc.dynasties = collectDynasties(doc.poems);
+  return doc;
+}
+
+/** 截断的非法 JSON（模拟下载不完整/产物损坏）。 */
+export function makeBrokenText(base) {
+  const full = `${JSON.stringify(base, null, 2)}\n`;
+  return full.slice(0, Math.floor(full.length * 0.6));
+}
+
+/** 合法 JSON 但结构不合法（stanzas 空 + dynastyKey 未声明）→ 客户端必须给明确失败状态。 */
+export function makeSchemaBrokenDoc(base) {
+  const doc = structuredClone(base);
+  doc.poems[0].stanzas = [[]];
+  doc.poems[1].dynastyKey = 'nonexistent-group';
+  return doc;
+}
+
+/** formatVersion 更高：内容与壳应当一起发布，所以这属于部署不一致 → 不解析并如实报错。 */
+export function makeFutureFormatDoc(base) {
+  const doc = structuredClone(base);
+  doc.formatVersion = Number(base.formatVersion) + 1;
+  return doc;
+}
+
+/**
+ * 生成全部测试变体。
  * @param {object} base 基座产物（真实产物优先）
- * @returns {Record<string, {name: string, text: string, checksum: 'correct'|'wrong', expect: object, note: string}>}
+ * @returns {Record<string, {name: string, kind: 'doc'|'text', doc?: object, text?: string, note: string}>}
  */
 export function buildVariants(base) {
-  const update = makeUpdateDoc(base, { withAddedPoem: true });
-  const update2 = makeUpdateDoc(base, { withAddedPoem: false });
-  const lowerDoc = structuredClone(update.doc);
-  lowerDoc.contentVersion = lowerVersion(base.contentVersion);
-  const corruptDoc = structuredClone(update.doc);
-  corruptDoc.contentVersion = bumpVersion(base.contentVersion, 3);
-  const futureDoc = structuredClone(update.doc);
-  futureDoc.formatVersion = Number(base.formatVersion) + 1;
-  futureDoc.contentVersion = bumpVersion(base.contentVersion, 4);
-  const minimalDoc = makeMinimalDoc(base);
-  const noOrderIndexDoc = makeNoOrderIndexDoc(base);
-
-  const updateText = `${JSON.stringify(update.doc, null, 2)}\n`;
+  const minimal = makeMinimalDoc(base);
+  const noOrderIndex = makeNoOrderIndexDoc(base);
+  const fixtureContent = makeFixtureContent(base);
+  const schemaBroken = makeSchemaBrokenDoc(base);
+  const futureFormat = makeFutureFormatDoc(base);
   return {
-    update: {
-      name: 'update',
-      text: updateText,
-      checksum: 'correct',
-      expect: update.expect,
-      note: `正常新版，版本 ${update.doc.contentVersion}`,
-    },
-    update2: {
-      name: 'update2',
-      text: `${JSON.stringify(update2.doc, null, 2)}\n`,
-      checksum: 'correct',
-      expect: update2.expect,
-      note: `再下一版（去掉测试诗与其分组），版本 ${update2.doc.contentVersion}`,
-    },
-    lower: {
-      name: 'lower',
-      text: `${JSON.stringify(lowerDoc, null, 2)}\n`,
-      checksum: 'correct',
-      expect: update.expect,
-      note: `内容同 update，但版本更旧（${lowerDoc.contentVersion}）→ 必须拒绝`,
-    },
-    corrupt: {
-      name: 'corrupt',
-      text: `${JSON.stringify(corruptDoc, null, 2)}\n`,
-      checksum: 'wrong',
-      expect: update.expect,
-      note: `内容合法、版本更高（${corruptDoc.contentVersion}），边车哈希故意不匹配 → 必须拒绝`,
-    },
-    broken: {
-      name: 'broken',
-      text: updateText.slice(0, Math.floor(updateText.length * 0.6)),
-      checksum: 'correct',
-      expect: update.expect,
-      note: '截断的非法 JSON → 必须拒绝',
-    },
-    future: {
-      name: 'future',
-      text: `${JSON.stringify(futureDoc, null, 2)}\n`,
-      checksum: 'correct',
-      expect: update.expect,
-      note: `formatVersion=${futureDoc.formatVersion}、版本 ${futureDoc.contentVersion} → 不解析、保留旧内容`,
-    },
     minimal: {
       name: 'minimal',
-      text: `${JSON.stringify(minimalDoc, null, 2)}\n`,
-      checksum: 'correct',
-      expect: {},
-      note: `最小产物形状（只有 orderInSource，没有拼音名次键），版本 ${minimalDoc.contentVersion}`,
+      kind: 'doc',
+      doc: minimal,
+      text: `${JSON.stringify(minimal, null, 2)}\n`,
+      note: '最小产物形状（只有 orderInSource，没有拼音名次键）→ 仍照数组次序',
     },
     noOrderIndex: {
       name: 'noOrderIndex',
-      text: `${JSON.stringify(noOrderIndexDoc, null, 2)}\n`,
-      checksum: 'correct',
-      expect: {},
-      note: `老产物形状（无 orderInSource、无拼音名次键，数组次序被反转），版本 ${noOrderIndexDoc.contentVersion}`,
+      kind: 'doc',
+      doc: noOrderIndex,
+      text: `${JSON.stringify(noOrderIndex, null, 2)}\n`,
+      note: '老产物形状（无 orderInSource、无拼音键，数组次序被反转）→ 本机拼音兜底',
+    },
+    fixtureContent: {
+      name: 'fixtureContent',
+      kind: 'doc',
+      doc: fixtureContent,
+      text: `${JSON.stringify(fixtureContent, null, 2)}\n`,
+      note: `下一次部署用的内容（删末首 + 加带笔记/空行分段的测试诗）→ ${fixtureContent.poems.length} 首`,
+    },
+    broken: {
+      name: 'broken',
+      kind: 'text',
+      text: makeBrokenText(base),
+      note: '截断的非法 JSON → 客户端应显示「不是合法 JSON」的失败状态',
+    },
+    schemaBroken: {
+      name: 'schemaBroken',
+      kind: 'doc',
+      doc: schemaBroken,
+      text: `${JSON.stringify(schemaBroken, null, 2)}\n`,
+      note: '合法 JSON 但结构不合法 → 客户端应显示「结构校验失败」的失败状态',
+    },
+    futureFormat: {
+      name: 'futureFormat',
+      kind: 'doc',
+      doc: futureFormat,
+      text: `${JSON.stringify(futureFormat, null, 2)}\n`,
+      note: `formatVersion=${futureFormat.formatVersion} → 客户端应显示「格式版本不兼容」的失败状态`,
     },
   };
 }

@@ -1,24 +1,20 @@
-// 应用入口：内容装载、路由、更新检查与「下载校验通过才切换」。
+// 应用入口。
 //
-// 更新语义（与 Android 端语义一致，机制各自实现）：
-//  1. 打开时自动检查一次 + 手动「检查内容更新」入口；
-//  2. 只接受「完整下载 + 校验通过」的内容，校验不过绝不写存储；
-//  3. 阅读中（诗页打开着）不突然替换：新版先落到 staged，提示后等回到目录
-//     或用户点「立即切换」再原子替换；
-//  4. 失败 / 损坏 / formatVersion 更高不兼容 → 保留旧版并如实提示；
-//  5. 新版可删改：切换是按整份文档替换，不做累积合并。
+// 流程（用户 2026-10-14 拍板）：
+//   1. 外壳（HTML/JS/CSS）一到就先渲染框架与状态面板，并如实显示「正在取内容…」；
+//   2. 内容（content.json）**单独取**，取到后渲染目录/诗页；取不到就显示失败原因，不是白屏；
+//   3. 「内容更新」= 「站点更新」：由 Service Worker 的更新生命周期负责（见 sw.js）。
+//      新版本装好后停在 waiting，**不自动刷新**，只提示「有新版本」；
+//      用户点「刷新」立即生效，或在阅读时先继续读、回到目录时自动切换。
+//      —— 代价（README 里也写明）：不自动刷新意味着用户可能长时间停在旧版本。
 
 import {
-  ContentError, DECISION,
-  decideUpdate, fetchAndValidateContent,
+  ContentError, SUPPORTED_FORMAT_VERSION, loadContent,
 } from './content.js';
-import { APP_VERSION, ROUTES, SUPPORTED_FORMAT_VERSION } from './config.js';
-import { ContentStore } from './store.js';
+import { APP_VERSION, ROUTES, resourceCacheName } from './config.js';
 import {
-  hasProductOrder, productOrderStatus, renderIndex, renderPoemPage, renderSearchResults,
+  productOrderStatus, renderIndex, renderPoemPage, renderSearchResults,
 } from './render.js';
-
-const store = new ContentStore();
 
 const els = {
   view: document.getElementById('view'),
@@ -33,19 +29,39 @@ export { APP_VERSION };
 
 const state = {
   doc: null,
-  activeMeta: null,
-  staged: null,        // {doc, meta} 已下载校验通过、尚未生效的新版
+  meta: null,
+  loading: false,
+  error: null,          // {kind, message, hint}
   query: '',
   view: { kind: 'index', id: null },
   online: navigator.onLine,
-  lastCheck: null,     // {at, result, detail}
-  notice: null,        // {kind, text, action}
-  sw: { supported: 'serviceWorker' in navigator, secure: window.isSecureContext, registered: false, error: null, cache: null },
-  persist: null,       // {granted, usage, quota}
-  fatal: null,
+  notice: null,         // {kind, text, action}
+  sw: {
+    supported: 'serviceWorker' in navigator,
+    secure: window.isSecureContext,
+    registration: null,
+    registered: false,
+    controlled: false,
+    error: null,
+    cache: null,        // {appVersion, cacheName, entries, hasContent}
+    waitingVersion: null,
+  },
+  update: { available: false, applying: false },
+  persist: null,
 };
 
-const nowIso = () => new Date().toISOString();
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const ERROR_HINTS = {
+  network: '首次访问必须联网；联网后重试即可。已经缓存过本站的浏览器离线也能读。',
+  http: '可能是这次部署里没有 content.json（路径不对），也可能是离线且本站缓存里缺了它（例如刚清除过站点数据）。',
+  json: '内容文件损坏或被截断，可能没有下载完整。可以重试一次。',
+  schema: '内容结构不符合契约，可能是编译产物有问题。',
+  incompatible: '内容与壳不是同一次部署的产物（应当一起发布），已按不兼容处理。',
+  unknown: '未预期的错误，详见原因。',
+};
+
+// ---------------------------------------------------------------- 基础工具
 
 function fmtTime(iso) {
   if (!iso) return '—';
@@ -62,6 +78,23 @@ function fmtBytes(n) {
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / 1024 / 1024).toFixed(2)} MB`;
 }
+
+const h = (tag, props = {}, children = []) => {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (v === null || v === undefined || v === false) continue;
+    if (k === 'text') el.textContent = v;
+    else if (k === 'dataset') Object.assign(el.dataset, v);
+    else if (k === 'class') el.className = v;
+    else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? '' : String(v));
+  }
+  for (const c of [].concat(children)) {
+    if (c === null || c === undefined) continue;
+    el.append(typeof c === 'string' ? document.createTextNode(c) : c);
+  }
+  return el;
+};
 
 function setNotice(kind, text, action = null) {
   state.notice = text ? { kind, text, action } : null;
@@ -84,49 +117,42 @@ function navigate(hash) {
   } else {
     location.hash = hash;
   }
-  maybeApplyStaged();
+  maybeApplyUpdateOnIndex();
 }
 
-/** 阅读中不替换：只要离开诗页（回到目录/发起搜索），已暂存的新版就自动生效。 */
-async function maybeApplyStaged() {
-  if (!state.staged) return;
-  if (state.view.kind === 'poem' && state.query.trim() === '') return;
-  await applyStaged('回到目录后自动生效');
+/** 回到目录（不是诗页）时，若已有待生效的新版本，就切换（刷新）。 */
+function maybeApplyUpdateOnIndex() {
+  if (!state.update.available || state.update.applying) return;
+  if (state.view.kind === 'poem' && state.query.trim() === '') return; // 还在阅读：不打断
+  applyUpdate('回到目录后自动生效');
 }
 
 // ---------------------------------------------------------------- 渲染
 
-const h = (tag, props = {}, children = []) => {
-  const el = document.createElement(tag);
-  for (const [k, v] of Object.entries(props)) {
-    if (v === null || v === undefined || v === false) continue;
-    if (k === 'text') el.textContent = v;
-    else if (k === 'dataset') Object.assign(el.dataset, v);
-    else if (k === 'class') el.className = v;
-    else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v);
-    else el.setAttribute(k, v === true ? '' : String(v));
-  }
-  for (const c of [].concat(children)) {
-    if (c === null || c === undefined) continue;
-    el.append(typeof c === 'string' ? document.createTextNode(c) : c);
-  }
-  return el;
-};
-
 function renderView() {
   els.view.replaceChildren();
-  if (state.fatal) {
-    els.view.append(h('div', { class: 'view view--fatal', dataset: { test: 'view-fatal' } }, [
-      h('h1', { class: 'poem-title', text: '内容不可用' }),
-      h('p', { class: 'empty-state', dataset: { test: 'fatal-text' }, text: state.fatal }),
-      h('p', { class: 'view-hint', text: '首次访问需要网络以取得内容；取得之后即可离线阅读。' }),
+
+  if (state.error) {
+    els.view.append(h('div', { class: 'view view--error', dataset: { test: 'view-error' } }, [
+      h('h1', { class: 'poem-title', text: '内容没能取到' }),
+      h('p', { class: 'empty-state', dataset: { test: 'error-text' }, text: state.error.message }),
+      h('p', { class: 'view-hint', dataset: { test: 'error-hint' }, text: state.error.hint }),
+      h('button', {
+        type: 'button', class: 'btn btn--primary', dataset: { test: 'retry-load' },
+        text: '重试取内容', onclick: () => loadContentIntoState(),
+      }),
     ]));
     return;
   }
+
   if (!state.doc) {
-    els.view.append(h('p', { class: 'view-hint', dataset: { test: 'view-loading' }, text: '正在装载内容…' }));
+    els.view.append(h('p', {
+      class: 'view-hint', dataset: { test: 'view-loading' },
+      text: state.loading ? '正在取内容…（外壳已经到达，内容单独取）' : '等待取内容…',
+    }));
     return;
   }
+
   const onOpen = (id) => { state.query = ''; els.search.value = ''; navigate(ROUTES.poem(id)); };
   if (state.query.trim() !== '') {
     els.view.append(renderSearchResults(state.doc, state.query, { onOpen }));
@@ -139,9 +165,8 @@ function renderView() {
 
 function renderNotices() {
   els.notices.replaceChildren();
+
   const doc = state.doc;
-  // 占位夹具 / 测试夹具都要在界面上明说，不能让人把它当发布内容。
-  // 真实产物（tools/build-content.mjs 产出）没有这两个标记，所以不会出黄条。
   if (doc && (doc.placeholder === true || doc.fixture === true)) {
     const isFixtureVariant = doc.fixture === true;
     els.notices.append(h('div', { class: 'notice notice--warn', dataset: { test: 'fixture-notice' } }, [
@@ -149,26 +174,28 @@ function renderNotices() {
       h('span', {
         dataset: { test: 'fixture-notice-text' },
         text: isFixtureVariant
-          ? (doc.fixtureNotice || '由测试从产物派生、含人为增删改，不是发布内容。')
+          ? (doc.fixtureNotice || '由测试部署派生、含人为增删改，不是发布内容。')
           : (doc.placeholderNotice || '非校对文本，仅用于开发与验证。'),
       }),
     ]));
   }
-  if (state.staged) {
-    const btn = h('button', {
-      type: 'button', class: 'btn', dataset: { test: 'apply-staged' },
-      text: '立即切换到新内容',
-      onclick: () => applyStaged('用户手动切换'),
-    });
-    const node = h('div', { class: 'notice notice--info', dataset: { test: 'update-staged' } }, [
+
+  if (state.update.available) {
+    const next = state.sw.waitingVersion;
+    els.notices.append(h('div', { class: 'notice notice--info', dataset: { test: 'update-available' } }, [
       h('span', {
-        dataset: { test: 'update-staged-text' },
-        text: `新内容 ${state.staged.meta.contentVersion} 已下载并通过校验，因为正在阅读，先不替换；回到目录后自动生效。`,
+        dataset: { test: 'update-available-text' },
+        text: `站点有新版本${next ? `（应用资源 v${next}，当前 v${APP_VERSION}）` : ''}`
+          + '已经下载完成并等待生效。为了不打断阅读，本站不会自动刷新：'
+          + '点「刷新」立即改用新版本；在诗页阅读时可以先继续读，回到目录后会自动生效。',
       }),
-      btn,
-    ]);
-    els.notices.append(node);
+      h('button', {
+        type: 'button', class: 'btn', dataset: { test: 'apply-update' },
+        text: '刷新到新版本', onclick: () => applyUpdate('用户点了刷新'),
+      }),
+    ]));
   }
+
   if (state.notice) {
     const node = h('div', {
       class: `notice notice--${state.notice.kind}`,
@@ -187,37 +214,39 @@ function renderNotices() {
 function renderStatus() {
   els.status.replaceChildren();
   const doc = state.doc;
-  const meta = state.activeMeta;
+  const meta = state.meta;
   const cache = state.sw.cache;
   const rows = [];
   const row = (k, v, test) => rows.push([k, v, test]);
 
-  row('内容版本', doc ? `v${doc.contentVersion}` : '（无）', 'status-content-version');
-  row('内容格式版本', doc ? `${doc.formatVersion}（本应用支持 ${SUPPORTED_FORMAT_VERSION}）` : '—', 'status-format-version');
-  if (meta) {
-    row('完整性', `${meta.integrity} · ${fmtBytes(meta.bytes)}`, 'status-integrity');
-    row('离线副本存入时间', fmtTime(meta.fetchedAt || meta.promotedAt), 'status-stored-at');
+  row('站点资源版本', `v${APP_VERSION}`, 'status-app-version');
+  if (state.sw.supported && state.sw.secure) {
+    row('站点缓存', state.sw.registered
+      ? (cache ? `${cache.cacheName}（${cache.entries.length} 个条目${cache.hasContent ? '，含 content.json' : '，缺 content.json'}）` : '正在读取…')
+      : 'Service Worker 未注册', 'status-site-cache');
+    row('Service Worker', state.sw.error
+      ? `注册失败：${state.sw.error}`
+      : `${state.sw.controlled ? '已接管本页' : '未接管本页'}${state.update.available ? ' · 有新版本在等待' : ''}`,
+    'status-sw');
+  } else {
+    row('站点缓存', state.sw.supported ? '不可用：需要 https 或 localhost' : '不可用：浏览器不支持 Service Worker', 'status-site-cache');
   }
-  row('内容离线存储', meta ? 'IndexedDB（poetry-web）' : '尚无', 'status-content-store');
+  // 内容版本只是展示：Web 的更新决策由站点/SW 负责，不比对 contentVersion。
+  row('内容版本（仅展示）', doc ? `v${doc.contentVersion}` : '（尚未取到）', 'status-content-version');
+  if (meta) {
+    row('内容体积 / 诗数', `${fmtBytes(meta.bytes)} / ${meta.poemCount} 首 / ${meta.dynastyCount} 个分组`, 'status-content-size');
+    row('内容生成时间', fmtTime(meta.generatedAt), 'status-content-generated');
+    row('内容取到时间', fmtTime(meta.loadedAt), 'status-content-loaded');
+  }
+  row('内容格式版本', doc ? `${doc.formatVersion}（本站壳支持 ${SUPPORTED_FORMAT_VERSION}）` : '—', 'status-format-version');
   if (doc) {
-    // 把「组内次序由谁决定」写出来：产物次序是权威，本机拼音只是兜底，且不静默。
     const os = productOrderStatus(doc);
     row('组内次序', os.productOrderAuthoritative
       ? `照产物数组次序（编译期是唯一排序权威；${os.usable} 首带 orderInSource）`
       : `本机拼音兜底（产物未给 orderInSource${os.wrongType ? '，现有值类型不对' : ''}）`,
     'status-order-mode');
   }
-  if (state.sw.supported && state.sw.secure) {
-    row('应用资源缓存', state.sw.registered
-      ? (cache ? `${cache.cacheName}（${cache.entries.length} 个条目）` : '正在读取…')
-      : 'Service Worker 未注册', 'status-resource-cache');
-  } else {
-    row('应用资源缓存', state.sw.supported ? '不可用：需要 https 或 localhost' : '不可用：浏览器不支持 Service Worker', 'status-resource-cache');
-  }
   row('网络', state.online ? '浏览器报告：在线' : '浏览器报告：离线', 'status-network');
-  row('上次检查更新', state.lastCheck
-    ? `${fmtTime(state.lastCheck.at)} · ${state.lastCheck.result}${state.lastCheck.detail ? ` · ${state.lastCheck.detail}` : ''}`
-    : '本次会话尚未检查', 'status-last-check');
   row('持久化存储', state.persist
     ? (state.persist.granted ? '浏览器已授予' : '未授予（浏览器可能自动回收）')
       + ` · 已用 ${fmtBytes(state.persist.usage)} / 配额 ${fmtBytes(state.persist.quota)}`
@@ -232,8 +261,8 @@ function renderStatus() {
 
   const actions = h('div', { class: 'status-actions' });
   actions.append(h('button', {
-    type: 'button', class: 'btn btn--primary', dataset: { test: 'check-update' },
-    text: '检查内容更新', onclick: () => checkForUpdate({ manual: true }),
+    type: 'button', class: 'btn btn--primary', dataset: { test: 'check-site-update' },
+    text: '检查站点更新', onclick: () => checkForSiteUpdate(),
   }));
   actions.append(h('button', {
     type: 'button', class: 'btn', dataset: { test: 'persist-storage' },
@@ -250,23 +279,24 @@ function renderStatus() {
       }
     },
   }));
-  if (state.staged) {
+  if (doc) {
     actions.append(h('button', {
-      type: 'button', class: 'btn', dataset: { test: 'check-update-status' },
-      text: `待切换版本 v${state.staged.meta.contentVersion}`,
-      disabled: true,
+      type: 'button', class: 'btn', dataset: { test: 'reload-content' },
+      text: '重新取内容', onclick: () => loadContentIntoState(),
     }));
   }
   els.status.append(actions);
 
   els.status.append(h('p', { class: 'status-honest', dataset: { test: 'honest-storage-note' },
-    text: '诚实说明：首次访问需要网络；此后应用资源由 Service Worker 缓存、内容另存于 IndexedDB，'
-      + '两者都可能在用户「清除站点数据」或浏览器回收存储时丢失，离线副本不承诺永久保存。'
+    text: '诚实说明：首次访问需要网络；此后外壳与内容一起由 Service Worker 存在本站缓存里，'
+      + '用户「清除站点数据」或浏览器回收存储都可能让它丢失，离线副本不承诺永久保存。'
+      + '本站**不会自动刷新**：发现新版本只给提示，长时间不点刷新就会一直停在旧版本；'
+      + '点提示里的「刷新」（或在诗页时先回目录）才会整套换成新版本。'
       + 'Service Worker 只在 https 或 localhost 下可用（file:// 打开无法离线）。' }));
 }
 
 function renderChrome() {
-  els.appVersion.textContent = `应用资源版本 ${APP_VERSION}`;
+  els.appVersion.textContent = `站点资源版本 ${APP_VERSION}`;
   renderNotices();
   renderStatus();
 }
@@ -276,100 +306,39 @@ function render() {
   renderChrome();
 }
 
-// ---------------------------------------------------------------- 内容装载与切换
+// ---------------------------------------------------------------- 内容装载
 
-async function loadLocal() {
-  const [active, staged] = await Promise.all([store.get('active'), store.get('staged')]);
-  if (active) {
-    state.doc = active.doc;
-    state.activeMeta = active.meta;
-  }
-  if (staged) state.staged = { doc: staged.doc, meta: staged.meta };
-  return { active, staged };
-}
-
-async function applyStaged(how) {
-  const row = await store.promoteStaged();
-  if (!row) { state.staged = null; render(); return null; }
-  state.doc = row.doc;
-  state.activeMeta = row.meta;
-  state.staged = null;
-  setNotice('info', `已切换到内容 v${row.meta.contentVersion}（${how}）。`);
+async function loadContentIntoState() {
+  state.loading = true;
+  state.error = null;
   render();
-  return row;
-}
-
-/**
- * 一次完整的更新检查。返回结构化结果，便于自测与报告。
- * 关键：任何失败路径都不写存储，因此 active 永远是旧版。
- */
-export async function checkForUpdate({ manual = false } = {}) {
-  const at = nowIso();
-  const finish = (result, detail) => {
-    state.checkCount = (state.checkCount || 0) + 1;
-    state.lastCheck = { at, result, detail };
-    renderChrome();
-    return { result, detail };
-  };
-
-  let incoming;
   try {
-    incoming = await fetchAndValidateContent();
+    const { doc, meta } = await loadContent();
+    state.doc = doc;
+    state.meta = meta;
+    state.error = null;
   } catch (err) {
-    const detail = err instanceof ContentError ? err.message : `检查失败：${err.message}`;
-    if (manual) setNotice('warn', `${detail}；仍使用本地 v${state.doc?.contentVersion ?? '（无）'}。`);
-    return finish('失败（保留本地版本）', detail);
-  }
-
-  const decision = decideUpdate(state.activeMeta, incoming.doc);
-
-  if (decision.action === DECISION.FIRST) {
-    await store.putActive(incoming);
-    state.doc = incoming.doc;
-    state.activeMeta = incoming.meta;
-    state.fatal = null;
+    const kind = err instanceof ContentError ? err.kind : 'unknown';
+    state.error = {
+      kind,
+      message: err.message || String(err),
+      hint: ERROR_HINTS[kind] ?? ERROR_HINTS.unknown,
+    };
+  } finally {
+    state.loading = false;
     render();
-    if (manual) setNotice('info', `已取得内容 v${incoming.meta.contentVersion}。`);
-    return finish('已取得内容', decision.reason);
   }
-
-  if (decision.action === DECISION.REFUSE_FORMAT) {
-    await store.dropStaged();
-    state.staged = null;
-    setNotice('warn', `${decision.reason}；已保留当前内容 v${state.activeMeta.contentVersion}。`);
-    return finish('拒绝（格式版本不兼容，保留旧版）', decision.reason);
-  }
-
-  if (decision.action === DECISION.UP_TO_DATE) {
-    if (manual) setNotice('info', `已是最新内容 v${state.activeMeta.contentVersion}。`);
-    return finish('已是最新', decision.reason);
-  }
-
-  // ACCEPT：先落 staged（完整下载 + 校验通过才写），再决定是否立即切换。
-  if (state.view.kind === 'poem' && state.query.trim() === '') {
-    // 阅读中：不突然替换。提示由 renderNotices 的 staged 横幅负责（含「立即切换」按钮），
-    // 这里不重复再发一条 notice。
-    await store.putStaged(incoming);
-    state.staged = { doc: incoming.doc, meta: incoming.meta };
-    renderChrome();
-    return finish('已下载，待切换（阅读中）', decision.reason);
-  }
-
-  await store.putStaged(incoming);
-  await applyStaged('打开时/在目录中自动切换');
-  setNotice('info', `内容已更新到 v${incoming.meta.contentVersion}。`);
-  return finish('已更新并切换', decision.reason);
 }
 
 // ---------------------------------------------------------------- Service Worker
 
-const CACHE_STATUS_TIMEOUT = 3000;
+const WORKER_REPLY_TIMEOUT = 3000;
 
-function askSwForCacheReport(reg) {
+/** 向某个 worker 要它的缓存报告（active 或 waiting 都可以问）。 */
+function askWorker(worker) {
   return new Promise((resolve) => {
-    const worker = reg.active || reg.waiting || reg.installing;
     if (!worker) return resolve(null);
-    const timer = setTimeout(() => resolve(null), CACHE_STATUS_TIMEOUT);
+    const timer = setTimeout(() => resolve(null), WORKER_REPLY_TIMEOUT);
     const channel = new MessageChannel();
     channel.port1.onmessage = (event) => {
       clearTimeout(timer);
@@ -380,22 +349,121 @@ function askSwForCacheReport(reg) {
   });
 }
 
+function markUpdateAvailable(reg) {
+  if (state.update.available) return;
+  state.update.available = true;
+  state.sw.registration = reg;
+  render();
+  askWorker(reg.waiting).then((report) => {
+    if (report?.appVersion) {
+      state.sw.waitingVersion = report.appVersion;
+      renderChrome();
+    }
+  });
+}
+
+/** 切换到新版本：让 waiting 的 SW 接管，然后在 controller 真的换了之后刷新。
+ *  兜底用轮询而不是固定延时 —— 固定延时可能在旧 SW 还在控制时就刷新，
+ *  那样页面会带着旧壳重新打开（实测过这种抖动）。 */
+async function applyUpdate(how) {
+  if (state.update.applying) return;
+  state.update.applying = true;
+  setNotice('info', `正在切换到新版本（${how}）…`);
+
+  const reg = state.sw.registration;
+  const controllerBefore = navigator.serviceWorker.controller;
+  if (!reg?.waiting && !reg?.installing) {
+    // 没有在等/在装的 worker：新版本可能已经生效，直接刷新即可。
+    location.reload();
+    return;
+  }
+
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    location.reload();
+  };
+  navigator.serviceWorker.addEventListener('controllerchange', finish, { once: true });
+  reg.waiting?.postMessage({ type: 'SKIP_WAITING' });
+  for (let i = 0; i < 80 && !done; i += 1) {
+    await sleep(100);
+    if (navigator.serviceWorker.controller && navigator.serviceWorker.controller !== controllerBefore) break;
+  }
+  finish();
+}
+
+/** 手动检查站点更新：让浏览器去要比一次 sw.js。 */
+async function checkForSiteUpdate() {
+  const reg = state.sw.registration;
+  if (!reg) {
+    setNotice('warn', state.sw.supported
+      ? '这个页面没有 Service Worker 在控制（需要 https 或 localhost），无法检查站点更新。'
+      : '浏览器不支持 Service Worker，无法检查站点更新。');
+    return;
+  }
+  setNotice('info', '正在检查站点更新…');
+  try {
+    await reg.update();
+  } catch (err) {
+    setNotice('warn', `检查站点更新失败：${err.message}（离线时这正是预期行为）`);
+    return;
+  }
+  for (let i = 0; i < 20 && !state.update.available; i += 1) {
+    if (reg.waiting || reg.installing) break;
+    await sleep(100);
+  }
+  await sleep(200);
+  if (state.update.available) {
+    setNotice('info', '发现新版本，见上方提示：点「刷新」立即生效。');
+  } else {
+    setNotice('info', `已是最新站点版本（应用资源 v${APP_VERSION}）。`);
+  }
+}
+
 async function setupServiceWorker() {
   if (!state.sw.supported || !state.sw.secure) {
     renderChrome();
     return;
   }
   try {
-    const reg = await navigator.serviceWorker.register('sw.js');
+    // updateViaCache:'none' —— 每次都直接向服务器要比 sw.js，不让 HTTP 缓存把新版本挡住。
+    const reg = await navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' });
+    state.sw.registration = reg;
     state.sw.registered = true;
     state.sw.error = null;
-    await navigator.serviceWorker.ready;
-    state.sw.cache = await askSwForCacheReport(reg);
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      setNotice('info', '应用资源缓存已更新，刷新页面后生效。', {
-        label: '刷新', run: () => location.reload(),
+
+    if (reg.waiting && navigator.serviceWorker.controller) markUpdateAvailable(reg);
+
+    reg.addEventListener('updatefound', () => {
+      const fresh = reg.installing;
+      if (!fresh) return;
+      fresh.addEventListener('statechange', () => {
+        // installed + 已有旧 SW 在控制 = 新版本在等（不要抢在首次安装时误报）
+        if (fresh.state === 'installed' && navigator.serviceWorker.controller) markUpdateAvailable(reg);
       });
     });
+
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      const wasControlled = state.sw.controlled;
+      state.sw.controlled = true;
+      state.sw.cache = null;
+      renderChrome();
+      askWorker(reg.active).then((report) => {
+        state.sw.cache = report;
+        renderChrome();
+      });
+      // 首次安装时也会 claim（那时并没有「新版接管」这回事），所以只在本已被旧 SW 控制时提示。
+      if (!state.update.applying && wasControlled) {
+        setNotice('info', '站点资源已在后台更新并接管，刷新后生效。', {
+          label: '刷新', run: () => location.reload(),
+        });
+      }
+    });
+
+    await navigator.serviceWorker.ready;
+    state.sw.controlled = Boolean(navigator.serviceWorker.controller);
+    state.sw.cache = await askWorker(reg.active);
   } catch (err) {
     state.sw.registered = false;
     state.sw.error = err.message;
@@ -418,31 +486,16 @@ async function refreshPersist() {
 
 async function boot() {
   state.view = parseHash();
-  await loadLocal();
-
-  if (!state.doc) {
-    // 首次访问：必须联网取一份完整内容。
-    const res = await checkForUpdate({ manual: false });
-    if (res.result === '失败（保留本地版本）') {
-      state.fatal = `首次访问需要网络下载内容，但下载失败：${res.detail}`;
-    }
-  } else {
-    render();
-    // 打开时自动检查更新（不阻塞首屏：先用本地副本渲染）。
-    checkForUpdate({ manual: false });
-  }
-
-  if (state.staged && state.view.kind !== 'poem') {
-    // 上次留下的待切换版本，且这次不是直接进阅读页 → 直接生效。
-    await applyStaged('打开时生效上次已暂存的新版');
-  } else if (state.staged) {
-    setNotice('info', `待切换版本 v${state.staged.meta.contentVersion} 已就绪，回到目录后自动生效。`);
-  }
-  render();
-
-  setupServiceWorker();
+  state.loading = true;
+  render();                       // 外壳 + 「正在取内容…」先出来，不被内容阻塞
+  await Promise.allSettled([
+    loadContentIntoState(),       // 内容**单独取**
+    setupServiceWorker(),         // 站点更新交给 SW 生命周期
+  ]);
   refreshPersist();
 }
+
+// ---------------------------------------------------------------- 事件
 
 els.searchForm.addEventListener('submit', (e) => {
   e.preventDefault();
@@ -457,7 +510,7 @@ els.search.addEventListener('input', () => {
 window.addEventListener('hashchange', () => {
   state.view = parseHash();
   render();
-  maybeApplyStaged();
+  maybeApplyUpdateOnIndex();
 });
 window.addEventListener('online', () => { state.online = true; renderChrome(); });
 window.addEventListener('offline', () => { state.online = false; renderChrome(); });
@@ -467,38 +520,44 @@ window.__app = {
   APP_VERSION,
   state,
   ready: false,
-  checkForUpdate,
-  applyStaged,
   render,
   navigate,
+  loadContentIntoState,
+  checkForSiteUpdate,
+  applyUpdate,
   setQuery(q) { state.query = q; els.search.value = q; render(); },
-  /** 测试用：模拟「用户清除站点数据」前先放开 IndexedDB 连接，否则 deleteDatabase 会被阻塞。 */
-  closeContentStore() { try { store._db?.close(); store._db = null; } catch { /* ignore */ } },
   summary() {
     return {
       ready: window.__app.ready,
+      appVersion: APP_VERSION,
+      loading: state.loading,
+      hasDoc: Boolean(state.doc),
       contentVersion: state.doc?.contentVersion ?? null,
-      poems: state.doc?.poems.length ?? 0,
+      poems: state.doc ? state.doc.poems.length : 0,
+      dynasties: state.doc ? state.doc.dynasties.map((d) => d.key) : [],
       formatVersion: state.doc?.formatVersion ?? null,
-      integrity: state.activeMeta?.integrity ?? null,
-      stagedVersion: state.staged?.meta.contentVersion ?? null,
+      error: state.error,
       view: state.view,
       query: state.query,
       online: state.online,
-      lastCheck: state.lastCheck,
-      checkCount: state.checkCount || 0,
-      sw: state.sw,
+      sw: {
+        supported: state.sw.supported,
+        registered: state.sw.registered,
+        controlled: state.sw.controlled,
+        error: state.sw.error,
+        waitingVersion: state.sw.waitingVersion,
+        cache: state.sw.cache,
+      },
+      update: state.update,
       persist: state.persist,
-      fatal: state.fatal,
+      expectedCacheName: resourceCacheName(),
     };
   },
 };
 
-const readyPromise = boot()
-  .catch((err) => {
-    state.fatal = `启动失败：${err.message}`;
-    render();
-  })
-  .finally(() => { window.__app.ready = true; });
+const readyPromise = boot().catch((err) => {
+  state.error = { kind: 'unknown', message: `启动失败：${err.message}`, hint: ERROR_HINTS.unknown };
+  render();
+}).finally(() => { window.__app.ready = true; });
 
 window.__appReady = readyPromise;

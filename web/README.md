@@ -6,8 +6,7 @@
 **不假设能自定义响应头**。
 
 > **视觉是占位，待评审。** 本轮不做视觉设计：`styles.css` 只是最朴素的占位样式，
-> 视觉与交互由原型线（`prototype/`，worktree `wt/b-bc5853db`）评审后再统一落到两端。
-> 本轮 Web 端只保证结构清楚、正文分行/空行正确、笔记展开正常。
+> 视觉与交互由原型线评审后再统一落到两端。本轮只保证结构清楚、正文分行/空行正确、笔记展开正常。
 
 ## 1. 怎么看效果（确切命令）
 
@@ -17,7 +16,7 @@ Service Worker 只在 **http(s) 或 localhost** 下能注册；`file://` 直接�
 ```bash
 # 1) 放一份内容到 web/content.json：默认真实产物 dist/content.json 优先，没有才用占位夹具
 node web/scripts/prepare-dev-content.mjs
-#    也可 --from <file>（指定文件）或 --variant <name>（见下面「手动演练」）
+#    也可 --from <file>（指定文件）或 --variant <name>（见下）
 
 # 2) 起本地静态服务（零依赖，等价于 npx serve web）
 node web/scripts/serve.mjs              # http://127.0.0.1:8080/
@@ -26,25 +25,21 @@ node web/scripts/serve.mjs --port 8137  # 换端口
 # 3) 浏览器打开 http://127.0.0.1:8080/  （也可以用 npx serve web）
 ```
 
-手动演练内容更新（两个终端）：先按上面打开页面，然后
+看「站点更新」的完整效果（**要发两版**，所以得改版本号）：
 
 ```bash
-node web/scripts/prepare-dev-content.mjs --variant update   # 从基座派生一份「新版」内容
-# 回页面点「检查内容更新」：在诗页阅读时会先暂存，回到目录后自动切换
-# 其它变体：update2（再看一组被删） / lower / corrupt / broken / future（四种失败）
-#            minimal（最小产物形状：只有 orderInSource）/ noOrderIndex（老产物：无 orderInSource，验证兜底）
-#            另有 placeholder / no-sortkeys 两个夹具文件（后者文件名是历史叫法）
+# 把站点版本从 0.1.0 改成 0.2.0（两个文件都要改，e2e 会交叉断言它们一致）：
+#   web/app/config.js: export const APP_VERSION = '0.2.0';
+#   web/sw.js:         const APP_VERSION = '0.2.0';
+# 再改一次内容，例如 node web/scripts/prepare-dev-content.mjs --variant fixtureContent
+# 然后刷新页面：会出现「有新版本」提示（不自动刷新），点「刷新到新版本」才整套切换。
 ```
-
-变体都是从**当前基座（真实产物）现场派生**的（`scripts/lib/variants.mjs`），所以演练的就是
-真实 19 首上的删/改/增，而不是另一份手抄内容。派生出的内容带着「测试夹具内容」黄条，
-不会跟发布内容混。
 
 一次跑完所有验证（无头 Chromium + CDP，零第三方依赖）：
 
 ```bash
 node web/tests/e2e-cdp.mjs
-# 产物：web/tests/artifacts/（截图 + dom-dumps.txt，已 gitignore）
+# 产物：web/tests/artifacts/（截图 + dom-dumps.txt + deploy/ 各版本部署目录，均已 gitignore）
 # 本机 Chromium 不在默认位置时：CHROME_BIN=/path/to/chrome node web/tests/e2e-cdp.mjs
 ```
 
@@ -52,32 +47,29 @@ node web/tests/e2e-cdp.mjs
 
 ```
 web/
-  index.html            外壳（标题写「索斐」）
+  index.html            外壳（标题写「索斐」；内含静态的「正在装载站点…」，JS/内容没到时也不白屏）
   styles.css            占位样式（待原型评审）
   manifest.json         只声明名称与作用域（故意不含图标）
-  sw.js                 Service Worker：只缓存**应用资源**
+  sw.js                 ★ Service Worker：站点的唯一缓存与更新通道（壳 + 内容一起缓存）
   app/config.js         ★ 所有对外接口常量集中在这里（见 §7）
-  app/content.js        内容下载 / 校验 / 版本比较 / 切换决策（纯函数为主，node 里可直接测）
-  app/store.js          内容离线副本：IndexedDB（不是 Cache Storage）
+  app/content.js        内容装载：单独取 + 结构校验 + 格式版本兼容检查（不做更新决策）
   app/render.js         纯渲染：分组目录 / 搜索 / 诗页（分行、分节、笔记）
-  app/main.js           入口：路由、更新检查、原子切换、状态面板
+  app/main.js           入口：先渲染外壳 → 单独取内容 → 渲染；站点更新提示与切换
   scripts/serve.mjs     零依赖静态服务
-  scripts/prepare-dev-content.mjs   把一份内容 JSON 放到 web/content.json（+ .sha256 边车）
-  scripts/lib/variants.mjs          从基座派生更新/失败测试变体（不再把变体提交入库）
+  scripts/prepare-dev-content.mjs   把一份内容 JSON 放到 web/content.json
+  scripts/lib/variants.mjs          从基座派生测试变体（部署内容 / 失败内容 / 次序形状）
   fixtures/             **测试夹具（不是发布内容）**
   tests/e2e-cdp.mjs                 端到端验证（无头 Chromium + CDP）
+  tests/lib/deploy.mjs              组装「部署目录」，用来真发两版
   content.json(.sha256) 本地生成物，已 gitignore（部署时才需要放置）
 ```
 
-`fixtures/` 里的两份都是**测试夹具，不是发布内容**，页面上都会显示黄色提示：
+`fixtures/` 里两份都是**测试夹具，不是发布内容**，页面上都会显示黄色提示：
 
-- `content.placeholder.json`：占位夹具（真实产物不存在时也能开发），形状与产物一致（带整数 `orderInSource`、**不带**两个拼音名次键），
-  但正文只是几句广为人知的开篇，**非校对文本**；
-- `content.no-sortkeys.json`：老产物形状（既没有 `orderInSource` 也没有两个拼音键，文件名 `no-sortkeys` 是历史叫法），
-  用来验证本机拼音兜底排序。
-
-发布用的内容永远是 `dist/content.json` → `web/content.json`（`prepare-dev-content.mjs` 默认就走这条），
-页面对夹具内容会显示黄条，不会把夹具当交付内容。
+- `content.placeholder.json`：占位夹具（真实产物不存在时也能开发），形状与产物一致（带整数
+  `orderInSource`、**不带**两个拼音名次键），但正文只是几句广为人知的开篇，**非校对文本**；
+- `content.no-sortkeys.json`：老产物形状（既没有 `orderInSource` 也没有两个拼音键，文件名
+  `no-sortkeys` 是历史叫法），用来验证本机拼音兜底排序。
 
 ## 3. 次序：编译期是唯一排序权威（客户端不重排）
 
@@ -99,160 +91,168 @@ web/
 「谁是佚名/未知作者」的清单**逐字取自契约 §2.1**（`佚名`/`无名氏`/`未知`/`未详`/`不详`；空白作者
 由 `isUnknownAuthor` 的空白判定处理，不写进集合），不在代码里自己增减。e2e 直接读契约文件
 核对这份清单 —— 三端曾出现「未知」缺失、`阙名` 各写一套的问题，这条断言就是防再漂移。
-「`阙名`」是否并入由用户拍板，本轮**不自行加入**（测试里明写了这一点）。
-
-为什么必须这样：编译期是唯一排序权威。如果两端各自再排一遍，用户刚拍板的「底本原次序」会被
-静默推翻，而且两端还可能排出不同结果。
 
 钉住这个缺陷的回归断言（`tests/e2e-cdp.mjs`，两处独立）：① 真实产物第 1 首必须是 `行行重行行`，
 且它的 `orderInSource === 1`（全场最小、数组首位；本机拼音重排会把它推到第 19 位）；
 ② 目录里「汉」组的 19 个诗名次序必须**逐字等于**《文选》原次序（硬编码在测试里）。
-另有两条实测覆盖改完后的形状与兜底路径：**「最小产物形状」（只有 `orderInSource`、没有拼音键）**
-与**「老产物」（没有 `orderInSource`）**。
 
-## 4. 离线与更新：具体设计
+## 4. 离线与更新：内容随站点一起换（Service Worker 统一管理）
 
-### 4.1 两套缓存，版本键分开（契约 §4 的硬要求）
+> **曾经的独立内容版本通道已移除。** 早先 Web 端有一套「内容单独更新」的机制：远端比对
+> `contentVersion`、把内容单独存进 IndexedDB 的 `active`/`staged`、校验通过后原子切换引用，
+> 还依赖可选的 `content.json.sha256` 边车。用户 2026-10-14 拍板把它**删掉**，理由是判据
+> 「内容能不能单独发布」：Android 的 APK 要用户手动安装、内容得能单独热更，所以那边保留小纸条
+> 清单；而 **Web 的内容与壳（HTML/JS/CSS）本来就是同一次部署一起换的**，独立通道只是多一套
+> 会漂移的状态。删掉之后只剩一条真相来源（站点部署），也就不可能出现「旧壳配新内容」。
 
-| | 应用资源 | 内容 |
+### 4.1 一条通道：站点缓存按 `APP_VERSION` 成对切换
+
+| | 站点资源（壳） | 内容 |
 |---|---|---|
-| 存放位置 | Cache Storage | IndexedDB（库 `poetry-web` → 对象仓 `content`） |
-| 版本键 | `pc-resources-` + **应用资源版本**（`APP_VERSION=0.1.0`）→ `pc-resources-0.1.0` | **`contentVersion`**（内容自己的字符串，如 `2026.10.14.2`） |
-| 谁写 | `sw.js`（install 预缓存外壳 + 运行时 SWR） | `app/content.js`（下载校验通过后写） |
-| 版本不混用 | 资源发新版只会换 `CACHE_NAME` 并删旧 cache；内容版本完全由 `contentVersion` 决定，两者互不推导 | 同左 |
+| 放在哪 | 同一个 Cache Storage：`pc-resources-<APP_VERSION>` | **同一个** cache 里的 `content.json` |
+| 谁写 | `sw.js` 的 install 预缓存（`cache: 'reload'`，绕开 HTTP 缓存） | 同上，和壳在同一份预缓存清单里 |
+| 版本键 | 只有 `APP_VERSION` 一个 | 不再单独做更新决策（`contentVersion` 只在界面上展示） |
+| 取用策略 | **cache-first**：本版本缓存里有就直接给，没有才去网络（且**不写回**本版本缓存） | 同左 |
 
-`sw.js` 对 `content.json` / `content.json.*` **主动放行走网络**（不 respondWith、不进 Cache
-Storage），所以内容永远不可能被塞进资源缓存。e2e 里有断言直接核对这一点。
+- **成对生效**：装好新版本后停在 waiting，页面上只是提示；用户点「刷新」（或在诗页时回到目录）
+  才切换。旧 SW 还在控制时，即使服务器已经换成新版本，页面拿到的仍是旧缓存里的**整套** ——
+  这就是「不可能旧壳配新内容」的机制保证。e2e 里既断言了「服务器换成 v2 后页面仍是 v0.1.0 的壳
+  与旧内容」，也断言了「服务器上单独换掉 content.json（不动版本）也带不跑页面」。
+- **失败不留半套**：install 里任何一个文件取不到就让 install 失败，旧 SW 继续服务。
+  activate 里删掉同前缀的旧 cache（`pc-resources-*`），所以服务器上不会累积历史版本。
+- **`updateViaCache: 'none'`**：注册时强制每次都向服务器要比 `sw.js`（否则 HTTP 缓存可能把新版
+  挡住），这是真实部署里必须的一条。
 
-### 4.2 原子切换
+### 4.2 内容必须**单独取**，不许内联进 HTML/JS
 
-1. 检查更新 = `fetch('content.json?t=<now>', {cache:'no-store'})` → 算 sha256（有
-   `content.json.sha256` 边车就比对，没有就退化为「自算哈希 + 结构校验」并如实记进 meta）
-   → `JSON.parse` → 结构校验（对应契约 §3）。**任何一步失败都不写任何存储。**
-2. 通过后先写 `staged`，切换 = 一个 IndexedDB `readwrite` 事务里 `put(active)` + `delete(staged)`。
-   事务要么整体提交要么回滚，所以 `active` 只会是旧版或新版，不存在半成品。
-3. **阅读中不突然替换**：如果当前正开着诗页，新版只落 `staged` 并显示横幅（含「立即切换」）；
-   回到目录时自动切换。`staged` 存在 IndexedDB 里，刷新/离线都不丢。
-4. **新版可删改**：整份文档替换，不做累积合并 —— e2e 实测删掉一整首诗、删掉一个时代分组、
-   改掉一行、加一首诗都生效。
-5. 失败保留旧版并如实提示：
-   - 网络失败 → 「失败（保留本地版本）」+ 状态面板仍显示本地版本；
-   - 校验和不匹配 / 非法 JSON / 结构校验不过 → 保留旧版，原因如实写出（含 JSON 报错位置）；
-   - `formatVersion` 高于本应用支持 → **不解析**，保留旧内容；
-   - 远端不比本地新 → 不降级。
+这是用户特别关心的点：单独取才能在外壳到达后**立刻**渲染框架，并如实显示「正在取内容／失败原因」；
+内联则坏网时没有可显示的中间状态、失败即白屏。所以：
 
-### 4.3 诚实边界（写在页面上，也写在这里）
+- `index.html` 里有一个静态的「正在装载站点…」（JS 还没跑时也有可读状态）；
+- `app/main.js` 的 boot 是「先渲染外壳 + 状态面板 → 再单独 `fetch('content.json')`」，
+  期间显示「正在取内容…」；
+- 部署文件里**没有任何诗题或正文**（e2e 有一条断言直接检查这件事），内容只以 URL 形式出现
+  （`config.js: CONTENT_URL`、`sw.js` 的预缓存清单）。
+- 实测体积（本轮实测，非估算）：**壳 56.0 KB**（index.html 1.6 + styles.css 4.9 + manifest.json 0.4
+  + sw.js 5.4 + app/{config 2.6, content 7.0, main 20.6, render 13.5}），**内容 23.3 KB**（真实 19 首的
+  `content.json`，含底本来源与异文校记）。两者分开取，互不阻塞首屏。
 
-- **首次访问需要网络**：没有任何本地副本时取不到内容就明确说「首次访问需要网络下载内容，但下载失败」，
-  不会假装还能读。
-- **不承诺永久存储**：离线副本是浏览器存储（Cache Storage + IndexedDB），用户「清除站点数据」
-  或浏览器回收存储时可能丢失。状态面板里写明了这一点，并提供一个「请求持久化存储」按钮，
-  结果（授予/未授予 + 已用/配额）如实显示——授予了也只是降低概率，不是保证。
-- `file://` 打开没有 Service Worker，也就没有离线能力。
+### 4.3 更新提示与「不打断阅读」（含取舍）
+
+- 打开页面时浏览器会自动检查 `sw.js`（另有「检查站点更新」按钮手动触发 `registration.update()`）；
+- 发现新版本 → **只置一个「有新版本」提示**（含版本号与「刷新到新版本」按钮），
+  **不自动刷新**；
+- 在诗页阅读时，正文不会被中途替换，也不会被自动刷新（e2e 实测：等待 2.5 秒文档没换、正文没变）；
+- 用户点「刷新」，或**回到目录**时自动切换（回到目录=不再阅读）；
+- **代价（诚实写明）**：不自动刷新意味着用户可能长时间停在旧版本 —— 提示必须清楚、可点，
+  状态面板里也写明「长时间不点刷新就会一直停在旧版本」。这是为了不打断阅读主动选的口径，
+  不是遗漏；将来若要更积极，可以改成「在目录页空闲 N 秒后自动切换」，但那要重新评估打断风险。
+
+### 4.4 失败状态（全部如实显示原因，不白屏）
+
+| 情况 | 界面表现 |
+|---|---|
+| 内容 JSON 解析失败 | 失败状态：「内容不是合法 JSON：…（N 字节）」+ 可重试；外壳与状态面板仍渲染 |
+| 结构校验不通过 | 失败状态列出前几条错误（如 `poems[0].stanzas 全空`、`dynastyKey 未在 dynasties 中声明`） |
+| `formatVersion` 与壳不匹配 | 失败状态说明这属于**部署不一致**（内容与壳应当一起发布），不解析 |
+| 内容取不到（HTTP/离线且缓存缺内容） | 失败状态带上 HTTP 状态与原因（可能是这次部署缺 content.json，或离线且缓存里缺它） |
+| 首次访问 + 离线（连壳都没缓存） | 浏览器自己的错误页 —— 应用还没机会运行，这一条只能诚实说明，不能假装有中间状态 |
+
+### 4.5 诚实边界（写在页面上，也写在这里）
+
+- **首次访问需要网络**；
+- 离线副本是浏览器存储（Cache Storage），用户「清除站点数据」或浏览器回收存储时可能丢失，
+  **不承诺永久存储**（状态面板里有「请求持久化存储」按钮，结果如实显示，授予也只是降低概率）；
+- **不自动刷新** ⇒ 可能长时间停在旧版本（见 §4.3）；
+- Service Worker 只在 https 或 localhost 下可用（`file://` 打开无法离线）。
 
 ## 5. 已验证 / 未验证
 
-### 已验证（`node web/tests/e2e-cdp.mjs`，基座 = 真实产物（19 首），本机无头 Chromium 129，167/167 通过）
+### 已验证（`node web/tests/e2e-cdp.mjs`，基座 = 真实产物 19 首，本机无头 Chromium 129，140/140 通过）
 
-真跑真断言，不是「构建成功」：真实内容装载与版本（`2026.10.14.1` / 19 首 / 1 个分组）；
-**目录次序逐字等于《文选》卷二十九原次序**（19 个诗名硬编码断言），第 1 首必须是 `行行重行行`
-且 `orderInSource === 1`，本机拼音重排会把它推到第 19 位（两处独立断言，专钉「客户端重排」这个缺陷）；
-**客户端不读已停止发布的 `authorSortKey`/`titleSortKey`**（只带这两个键、没有 `orderInSource` 时仍走兜底）、
-**最小产物形状（只有 `orderInSource`）仍照数组次序**、**老产物（无 `orderInSource`）退回本机拼音兜底**；
-**佚名/未知作者清单逐字对齐契约 §2.1**（直接读契约文件核对，「未知」不再缺失，`阙名` 不自行并入）；
-跨组搜索保持产物相对次序；诗页逐行文本与 JSON 完全一致、分节/空行、异文块、无笔记的真实空状态；
-Service Worker 注册并控制页面、资源缓存内容与名字、**`content.json` 不在资源缓存里**、IndexedDB 副本；
-真离线（CDP `offline` **并且关掉本地服务进程**）下重载仍可读；
-内容更新（阅读中不替换 → staged 跨刷新保持 → 回目录自动切换）与删/改/增（含整个分组被删）；
-笔记默认折叠→展开、笔记里的 HTML 原样显示（不注入）；四种失败全部保留旧版；
-离线持久化；模拟「清除站点数据」后如实提示首次需要网络、恢复后自愈；
-老产物（一个排序键都没给）退回本机拼音兜底；整轮无未捕获 JS 异常。
-
-离线是怎么模拟的：CDP `Network.emulateNetworkConditions{offline:true}` **加上 `kill` 掉本地
-HTTP 服务进程**。只用前者不够——Service Worker 自己的 fetch 属于另一个 target，不受页面
-offline 条件限制（第一版就是这么被骗过的：探针拿到的 404 其实来自仍然活着的服务器）。
-现在关掉服务后，同一轮里「应用外壳」仍是 200（只能来自 Cache Storage），而取一个没缓存的文件
-拿到 SW 自己返回的 504，这才算证明。
+- **真发了 7 个版本**（v0.1.0 → v0.7.0，各自独立部署目录、同一 origin 依次替换）：新 SW 安装并
+  等待、页面出现「有新版本」提示（含新版本号）、**两个 cache 同时存在**（旧的在服务、新的已就绪
+  且内部也是壳+内容成对）、阅读中不自动刷新且正文不变、点「刷新」后**成对**切到新壳+新内容、
+  旧 cache 被删、第三个版本用「回到目录后自动切换」路径生效、失败版本（坏 JSON / 坏结构 /
+  formatVersion 更高）各自显示明确失败状态且重试不假装修好、最后发一版好的自愈。
+- **cache-first 的配对保证**：服务器换成 v2 后页面仍是 v0.1.0 的壳与旧内容；服务器上单独替换
+  `content.json`（不动版本）后页面取到的仍是本版本缓存里的内容。
+- **内容单独取、不内联**：延迟 1.2s 下先看到外壳与「正在装载站点…」，JS 起来后显示「正在取内容…」
+  且尚未有任何诗行；部署文件里没有任何诗题/正文；壳与内容体积分开报告。
+- **独立通道确实删干净**：`indexedDB.databases()` 为空、`localStorage` 为空、代码里没有
+  `compareContentVersion/decideUpdate/putStaged/promoteStaged`、SW 里没有「内容不进缓存」的特例。
+- 真离线（CDP 断网 **并 kill 掉本地服务进程**）重载仍可读；「清除站点数据」的两种后果都实测：
+  外壳还在→应用自己的失败状态；连外壳都没了→浏览器错误页（应用没机会显示任何东西）。
+- 次序策略与佚名清单（见 §3）在真实产物上逐字断言；整轮无未捕获 JS 异常。
 
 **真实内容没有覆到的两条路径（诚实说明）**：A 线这份 19 首全部是**单节**、`notes` 全部为 `null`，
-所以「空行分段」与「笔记展开」在真实内容上**没有样本**。它们是用从真实产物**派生的测试夹具**
-（加一首带空行分段 + 测试笔记的诗）验的，那份夹具在界面上带「测试夹具内容」黄条。
-用户笔记目前尚不存在（没人写过），这是真实状态，不是 bug。
+所以「空行分段」与「笔记展开」在真实内容上**没有样本**；它们是用派生部署内容（加一首带空行分段
++ 测试笔记的诗）验的，那份内容在界面上带「测试夹具内容」黄条。用户笔记目前不存在，是真实状态。
 
-它**不能**证明：真实弱网/高丢包/慢速移动网络下的行为；CDP offline 与真实断网的差别；
-移动浏览器（iOS Safari 等）的存储回收策略差异；`caches`/IndexedDB 配额耗尽时的表现。
+它**不能**证明：真实弱网/高丢包下的行为；CDP 的 offline/latency 与真实网络的差别；移动浏览器
+（iOS Safari 等）的存储回收与 SW 更新节奏差异；Cache Storage 配额耗尽时的表现。
 
 ### 未验证
 
-- **没有部署到真实 GitHub Pages**（未获授权），也没在 https + 子路径下跑过。子路径是靠
-  `sw.js` 用 scope 相对 URL 预缓存来支持的，但没实测。
+- **没有部署到真实 GitHub Pages**（未获授权），没在 https + 子路径下跑过。子路径能工作是因为
+  `sw.js` 用 scope 相对 URL 预缓存，但没有实测。
 - 没在移动浏览器 / 真机浏览器上验证；没做 iOS/Safari 兼容验证。
-- 没做多标签页并发、长时间挂机、大内容量（几百首以上）、超大笔记的性能验证。
-- 视觉/交互未评审（见文件头提示），也没做无障碍专项验证（只用了语义标签、`<details>`、
-  文字对比度未核对）。
-- 应用资源更新（`APP_VERSION` 变化 → 新 SW）只在代码层面成立，没有做「发两版资源」的实测；
-  目前只在 `activate` 里删除旧 cache、`controllerchange` 时提示刷新。
-- `manifest.json` 不含图标，所以「安装到桌面」的体验**没有**验证，也没打算在本轮承诺。
+- 没做多标签页并发切换、长时间挂机、大内容量（几百首以上）的性能验证。
+- 视觉/交互未评审；无障碍只做到语义标签与 `<details>`，对比度未核对。
+- `manifest.json` 不含图标，所以「安装到桌面」的体验**没有**验证，本轮不承诺。
 
 ## 6. 部署到静态托管（Pages）注意点
 
-1. 要放到站点上的实际文件是：`index.html`、`styles.css`、`manifest.json`、`sw.js`、`app/`、
-   以及 `content.json`（+ 可选 `content.json.sha256`）。`web/fixtures/`、`web/tests/`、
-   `web/scripts/` 不需要发布（放上去也无害，但它们不是应用的一部分）。
-   发布用的产物不应该带 `authorSortKey`/`titleSortKey`（本轮决策，C 线在改）：即使还带着，
-   客户端也不读它们，不影响渲染与判定。
-2. `index.html` 用的是**哈希路由**，所以不需要服务器重写规则；刷新深链不会 404。
-3. 内容地址是相对路径（`content.json`），因此 `/repo-name/` 这种子路径部署也能用。
-4. 缓存控制不用管：Pages 的响应头不可自定义，本项目也不依赖它——资源缓存由 SW 自己维护，
-   内容请求一律带 `?t=<now>` + `cache:'no-store'`。
-5. Service Worker 的**作用域**就是它所在目录。放在 `web/` 根下 → 作用域是整个站点；
-   如果哪天要挪到子目录，记得子目录里的页面不会自动受它控制。
-6. 发布新版内容：替换 `content.json`（并把 `contentVersion` 递增）即可，不需要动资源版本；
-   改代码才动 `APP_VERSION`（并清掉旧 cache）。
-7. 两个版本号要一起出现在产物里这件事属于发布流程（tag 触发），本轮不涉及。
+1. 要发布的文件：`index.html`、`styles.css`、`manifest.json`、`sw.js`、`app/`（四个模块）、
+   以及 `content.json`（+ 可选的 `content.json.sha256`，Web 已不读它）。`web/fixtures/`、
+   `web/tests/`、`web/scripts/` 不发布（`tests/lib/deploy.mjs` 里有一份清单，e2e 也断言了
+   部署目录里没有测试文件）。
+2. `index.html` 用**哈希路由**，不需要服务器重写规则；刷新深链不会 404。
+3. 内容地址是相对路径（`content.json`），`/repo-name/` 子路径部署也能用。
+4. 缓存控制不用管：资源与内容由 SW 自己缓存；Pages 的响应头不可自定义，本项目也不依赖它。
+   SW 的**作用域**就是它所在的目录。
+5. 发新版：改 `APP_VERSION`（**`app/config.js` 与 `sw.js` 两处都要改**，e2e 会交叉断言，
+   漂移会报红），同时把新 `content.json` 一起发布；两者是同一批产物。
+6. 不要用同一个 `APP_VERSION` 重发（会既有旧 cache 又有同名新 cache，浏览器可能沿用旧的）。
+   编译器现在也会拒绝「同版本产物重编」（`VERSION_NOT_MONOTONIC`）——重编同一版本时先清掉
+   `dist/content.json` 或显式传 `--previous-version`，这条属于发布流程（F 线）。
+7. `sw.js` 自身不要被 CDN 长缓存：注册时已经用 `updateViaCache:'none'` 兜住，但发布流程
+   最好也别给 `sw.js` 设置长 `max-age`。
 
 ## 7. 接口决定（暂定，待用户确认）
 
 判据：**明天要改它，是不是有别人也得跟着改？** 下面的每一条都属于「别人会跟着改」的接口。
-为了便于一处改，所有常量集中在 `web/app/config.js`（`sw.js` 里两个经典 worker 无法 import
-的常量由 e2e 交叉断言保持一致）。
+为了便于一处改，所有常量集中在 `web/app/config.js`（`sw.js` 里经典 worker 无法 import 的
+常量由 e2e 交叉断言保持一致）。
 
 | 接口 | 谁依赖 | 暂定成什么样 | 要改的话动哪里 |
 |---|---|---|---|
-| **内容文件位置/名字** | Android 端（同一份产物）、内容线 C、发布流程、已上线的 Pages | 站点根下 `content.json`（约定 `dist/content.json` 编译产物原样发布），相对路径引用 | `config.js: CONTENT_URL`、`sw.js: isContentRequest()`、发布脚本 |
-| **更新检查协议** | 服务器上的产物、已缓存旧内容的浏览器、Android 端（同语义） | HTTP `GET content.json?t=<now>` + `cache:'no-store'`，响应体就是契约 §2 的 JSON；**没有**额外的版本清单/ETag 接口 | `config.js: CONTENT_URL` + `app/content.js: fetchAndValidateContent()` |
-| **可选校验和边车** | 内容线（决定要不要产出）、发布流程 | 同目录 `content.json.sha256`，`<64位小写hex>  content.json`（sha256sum 格式）。**取不到就降级**为自算哈希+结构校验，并把降级事实写进 meta（不假装比过） | `config.js: CHECKSUM_URL`、`app/content.js` |
-| **`contentVersion` 比较规则** | Android 端必须同规则，否则两端对「谁更新」判断不一致 | 按 `.` 分段、逐段数值比较（非数值段按字符串）——与契约 §4.1（发布版 `[年,月,日,N]` 数值比、dev 串比、dev < release）一致；**纯字典序会把 `…14.10` 判成小于 `…14.9`**，所以不用字典序 | `app/content.js: compareContentVersion()` |
-| **内容存储位置与格式** | 已装过旧版 Web 的浏览器（旧副本要能被新代码读到） | IndexedDB 库 `poetry-web`(v1) → 对象仓 `content` → 记录 `k='active'`/`k='staged'`，值为 `{k, doc, meta}`；`meta` 含 `contentVersion/formatVersion/sha256/integrity/bytes/fetchedAt` | `config.js: CONTENT_DB`、`app/store.js` |
-| **资源缓存名字** | 已装过旧版 Web 的浏览器（清旧 cache 依赖这个前缀） | Cache Storage `pc-resources-<APP_VERSION>`，前缀 `pc-resources-` | `config.js: RESOURCE_CACHE_PREFIX/APP_VERSION` + `sw.js` 同名常量 |
-| **`localStorage` 键空间** | — | **本版本完全不用 `localStorage`**（没有键，也就没有兼容负担）；离线副本只在 IndexedDB | `config.js: LOCAL_STORAGE_KEYS`（现在是空对象，作为显式声明） |
-| **可分享 URL 形态** | 用户已分享出去的链接、Android 端「打开链接」、书签 | 哈希路由：目录 `#/`，诗 `#/p/<poemId>`（用契约里的稳定 id，不用标题）。**搜索不进 URL**（`?q=` 暂不做） | `config.js: ROUTES` + `app/main.js: parseHash()`；`app/render.js` 的链接都用 `ROUTES.poem()` |
-| **`formatVersion` 支持范围** | 内容线（什么时候递增）、Android 端（同样要拒） | 本客户端只接受 `formatVersion === 1`：更高**不解析、保留旧内容**，更低也拒绝 | `config.js: SUPPORTED_FORMAT_VERSION` + `app/content.js: decideUpdate()` |
-| **应用资源版本号** | 已缓存旧资源的浏览器、发布流程 | `0.1.0`，只在改代码时递增；它**不**参与内容版本比较 | `config.js: APP_VERSION` |
-| **组内 / 分组次序权威** | Android 端、原型端、B 线设计的阅读次序 | **判定依据 = `orderInSource`**：产物组内有任何一首带整数 `orderInSource` 就一律照数组次序（目录与搜索都是，分组次序照 `dynasties` 数组）；一首都没带才退回本机拼音兜底，值类型不对也在状态面板写明。已由用户拍板 `--order source`（《文选》原顺序），且产物只发 `orderInSource`（不再发两个拼音键） | `app/render.js: hasProductOrder / productOrderStatus / groupPoems / searchPoems`；兜底比较器 `comparePoems` |
+| **内容文件位置/名字** | Android 端（同一份产物）、内容线 C、发布流程、已上线的站点 | 站点根下 `content.json`（`dist/content.json` 原样发布），相对路径引用，**单独取、不内联** | `config.js: CONTENT_URL`、`sw.js` 的预缓存清单、发布脚本 |
+| **站点缓存名字** | 已缓存过旧站点的浏览器（清旧 cache 依赖这个前缀） | Cache Storage `pc-resources-<APP_VERSION>`，前缀 `pc-resources-`；**壳与内容同处一个 cache** | `config.js: RESOURCE_CACHE_PREFIX/APP_VERSION` + `sw.js` 同名常量 |
+| **站点版本号** | 已缓存旧资源的浏览器、发布流程 | `APP_VERSION`（`0.1.0` 起），发新版必须递增；是**唯一**的版本键 | `config.js` + `sw.js`（两处，e2e 交叉断言） |
+| **更新检查协议** | 发布流程、已上线站点 | **没有**额外的内容清单接口：浏览器按标准 SW 生命周期取 `sw.js`（`updateViaCache:'none'`）；内容随站点一起换 | `sw.js`（install/activate/updatefound） |
+| **内容版本 `contentVersion`** | 内容线 C、Android 端（那边仍用它做热更决策） | Web **只展示、不参与决策**（状态面板里注明「仅展示」） | `app/main.js` 的状态面板 |
+| **`content.json.sha256` 边车** | 内容线是否产出 | Web **不再依赖**（可继续产出给别的消费者）；校验靠「同一次部署 + HTTPS + SW 预缓存的整体性」 | 无需改动；`config.js` 里已无此项 |
+| **`formatVersion` 支持范围** | 内容线（什么时候递增）、Android 端（同样要判） | 只接受 `=== 1`；不匹配按**部署不一致**处理（内容与壳一起发布才对） | `config.js: SUPPORTED_FORMAT_VERSION` + `app/content.js: checkCompatibility()` |
+| **组内 / 分组次序权威** | Android 端、原型端、B 线设计的阅读次序 | **判定依据 = `orderInSource`**：组内有任何一首带整数 `orderInSource` 就一律照数组次序（目录与搜索都是，分组次序照 `dynasties` 数组）；一首都没带才退回本机拼音兜底 | `app/render.js: hasProductOrder / productOrderStatus / groupPoems / searchPoems` |
+| **可分享 URL 形态** | 用户已分享出去的链接、Android 端「打开链接」、书签 | 哈希路由：目录 `#/`，诗 `#/p/<poemId>`（用契约里的稳定 id）。**搜索不进 URL**（`?q=` 暂不做） | `config.js: ROUTES` + `app/main.js: parseHash()` |
+| **本地存储键空间** | — | **完全不用 `localStorage`，也不用 IndexedDB**（离线副本只在 Cache Storage 里） | `config.js: LOCAL_STORAGE_KEYS`（空对象，显式声明） |
 
-我暂定这些形态的理由、以及每条改动的影响面，都在上面的表里；**如果你要换其中任何一条
-（比如搜索也要能分享、内容地址改成带哈希的清单、id 改成路径路由），告诉我，我按表改一处 + 同步 Android 端。**
-
-其中最容易后悔的一条是**URL 形态**：一旦分享出去就收不回。当前选择「hash + 稳定 id + 搜索不进
-URL」，好处是 Pages 上不需要重写规则、链接只跟 id 绑定（改标题不失效）；代价是链接里带 `#`，
-且搜索结果页面不能直接分享。
+最容易后悔的是 **URL 形态**（分享出去收不回）：当前选择「hash + 稳定 id + 搜索不进 URL」，
+好处是 Pages 上不需要重写规则、链接只跟 id 绑定（改标题不失效）；代价是链接里带 `#`，
+且搜索结果页不能直接分享。要换请先说，我按表改一处 + 同步 Android 端。
 
 ## 8. 待协调（需要父会话 / 其他线决定）
 
-1. **产物「已经排好了」的判定依据已统一为 `orderInSource`（本轮改完，请两端与原型对齐）**：
-   「组内有任何一首带整数 `orderInSource` ⇒ 照数组次序；一首都没带 ⇒ 本机拼音兜底」。
-   我这边已实现并实测，包括「只带两个旧拼音键、没有 `orderInSource` ⇒ 仍走兜底」与
-   「最小产物形状（只有 `orderInSource`）仍照数组次序」。
-2. **契约 §2.1 的键序表里现在还写着** `authorSortKey`/`titleSortKey`（IF-15），
-   请 C 线按「只发 `orderInSource`」写回移除；客户端已经不读它们，所以我这边不用等。
-3. **「阙名」是否并入佚名清单由用户拍板**：我按契约 §2.1 的
-   `佚名`/`无名氏`/`未知`/`未详`/`不详` 逐字对齐（**不含**「阙名」，测试里明写了「不自行加入」）；
-   用户答复后三端一起改，改的地方就一处（`app/render.js: UNKNOWN_AUTHORS`）+ 那条断言。
-4. **`content.json.sha256` 边车要不要由 C 线产出**：不产出也不影响功能（自动降级），
-   但产出才能真校验完整性。若要产出，建议 `tools/` 编译时一并写。
-5. **夹具与真实内容的分界**：`fixtures/` 保留为测试夹具（e2e 与派变体都靠它），
-   发布流程只能拿 `dist/content.json`；页面对夹具内容一律显黄条，不静默。
-6. 应用资源更新的实测（发两版资源）与 SW 更新提示的交互，等发布流程定了再一起做。
-7. 契约 §4.1 的 `contentVersion` 措辞已由 C 线写回，与 `compareContentVersion()` 一致
-   （已补两条单元断言：发布版 > dev 版、dev 之间按十六进制串比），本轮无需再改。
+1. **发布流程要改的地方（F 线）**：一次发布 = 新 `content.json` + 递增的 `APP_VERSION`
+   （`config.js` 与 `sw.js` 两处）+ 同批发布；`sw.js` 不要长缓存；重编同版本产物会被编译器拒
+   （`VERSION_NOT_MONOTONIC`）。
+2. **契约 §2.1 的键序表仍写着** `authorSortKey`/`titleSortKey`（C 线的移除还没落地）：
+   客户端已经不读它们，届时不需要改我的代码；请把契约与 `schema/content.schema.json` 一并对齐。
+3. **「阙名」是否并入佚名清单由用户拍板**：我按契约 §2.1 逐字对齐（**不含**「阙名」，测试里
+   明写了「不自行加入」）；答复后三端一起改，改的地方就一处 + 那条断言。
+4. **`content.json.sha256` 是否还要产出**：Web 不依赖了，若没有别的消费者建议不再产出，
+   免得让人以为还有校验环节。
+5. **多标签页/长期挂机的更新行为**：当前是「有提示、不自动刷新」；若用户希望更主动
+   （例如目录页空闲后自动切换），需要重新评估打断风险，我再改。
+6. 视觉待原型评审结果，届时只改 `styles.css` + `render.js` 的少量结构。
