@@ -1,0 +1,127 @@
+# 一次 tag 触发的完整发布：内容 → 两端产物 → 就绪检查 → Pages → Release。
+#
+# ⚠️ 诚实边界（2026-10-14）：**这个工作流还没有在 CI 上跑过一次**。它依赖的
+#   ① 发布线的 `--android-variant release`（同批落地）、
+#   ② CI 环境的 JDK/SDK/Chromium/依赖下载
+#   都只在"本机演练"里验证过。第一次跑 CI 大概率需要迭代——这是预期的，不是意外。
+#
+# 需要的仓库 secrets（值只由用户设置，仓库里只有名字）：
+#   SUOFEI_KEYSTORE / SUOFEI_KEYSTORE_PASSWORD / SUOFEI_KEY_ALIAS / SUOFEI_KEY_PASSWORD
+# 见 docs/design/ci-and-signing.md
+
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '模拟一个 tag（形如 v0.1.0+content-2026.10.16.13）'
+        required: true
+      dry_run:
+        description: '干跑：只构建 + 跑门，不发 Release、不部署 Pages'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write   # 建 Release
+  pages: write      # 部署 Pages
+  id-token: write   # Pages 部署需要
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      # tag 名是两个版本号的唯一来源：v<应用版本>+content-<内容版本>
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      # 正式签名的四项从 secrets 注入；keystore 先解码到 runner 的临时目录
+      - name: 解码签名密钥到临时文件
+        env:
+          KS_B64: ${{ secrets.SUOFEI_KEYSTORE }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KS_B64:-}" ]; then
+            echo "::error::缺少 secret SUOFEI_KEYSTORE —— 正式签名无法进行（fail-closed，不退回 debug 签名）"
+            exit 1
+          fi
+          printf '%s' "$KS_B64" | base64 -d > "$RUNNER_TEMP/suofei-release.jks"
+          test -s "$RUNNER_TEMP/suofei-release.jks"
+
+      - name: 编译内容 + 构建已签名 APK + 准备 Web 目录
+        env:
+          SUOFEI_KEYSTORE: ${{ runner.temp }}/suofei-release.jks
+          SUOFEI_KEYSTORE_PASSWORD: ${{ secrets.SUOFEI_KEYSTORE_PASSWORD }}
+          SUOFEI_KEY_ALIAS: ${{ secrets.SUOFEI_KEY_ALIAS }}
+          SUOFEI_KEY_PASSWORD: ${{ secrets.SUOFEI_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          node release/build-release.mjs --tag "$RELEASE_TAG" --android-variant release
+
+      - name: 产物就绪检查（含 apksigner 签名证书不是 debug 那条门）
+        env:
+          # 无头 Chromium：ubuntu runner 预装 google-chrome
+          CHROME_BIN: /usr/bin/google-chrome
+        run: |
+          set -euo pipefail
+          node release/check-ready.mjs --out release/out
+
+      - name: 上传产物（供下载与排障）
+        uses: actions/upload-artifact@v4
+        with:
+          name: suofei-release-artifacts
+          path: release/out/**
+          if-no-files-found: error
+
+      # ── Pages：只在真发布时部署（干跑不部署）─────────────────────────
+      - if: ${{ github.event_name == 'push' || inputs.dry_run == false }}
+        uses: actions/configure-pages@v5
+      - if: ${{ github.event_name == 'push' || inputs.dry_run == false }}
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: release/out/web
+
+      # ── Release：只在真发布时建（干跑跳过）───────────────────────────
+      - name: 建 GitHub Release 并附 APK
+        if: ${{ github.event_name == 'push' || inputs.dry_run == false }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          APK=$(ls release/out/apk/*.apk)
+          gh release create "$RELEASE_TAG" "$APK" \
+            --title "$RELEASE_TAG" \
+            --notes "索斐 $RELEASE_TAG（内容由 release/out/dist/content.json 编译，APK 内置同版内容；签名证书见 check-ready 回执）"
+
+  deploy-pages:
+    needs: build
+    # 干跑（手动触发且 dry_run=true）不部署
+    if: ${{ github.event_name == 'push' || inputs.dry_run == false }}
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
