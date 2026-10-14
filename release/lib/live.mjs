@@ -49,6 +49,34 @@ const DEFAULT_EXTRA_MAVEN_MIRROR = 'https://maven.aliyun.com/repository/public';
 const logsDir = (outDir) => path.join(outDir, '.work', 'logs');
 
 /**
+ * 镜像根里**故意不复制**、但被测脚本需要的**仓库级**文件 → 用环境变量把它指回仓库的唯一来源。
+ *
+ * 为什么用环境变量而不是把文件复制进镜像根（负责人 2026-10-16 建议 A，我采纳）：
+ *   `schema/unknown-authors.json` 是**仓库级唯一来源**，不是发布产物的一部分。
+ *   复制进 `.work/e2e/` 会让人以为「产物里该有 schema/」，而后人照着改只会越走越偏；
+ *   E 的 e2e 明确支持 `UNKNOWN_AUTHORS_FILE`（它自证时就是这么跑的），指回仓库即可。
+ *   真踩过：镜像根没有 schema/ ⇒ E 的 e2e 报「唯一来源清单文件存在」红，
+ *   而同一天在主线跑同一份 out/web 是 151/151 全绿 —— 那条红纯粹是接缝，不是产物问题。
+ */
+export const REPO_FILE_ENV = Object.freeze({ 'schema/unknown-authors.json': 'UNKNOWN_AUTHORS_FILE' });
+
+/**
+ * 扫出 E 的 e2e 会读哪些**仓库级**路径（`resolve(repoRoot, 'a', 'b')` 字面量）。
+ *
+ * 目的：把「接缝」变成**开跑前的响亮报错**。不然 E 以后再加一个仓库级读取，
+ * 我这边只会在它的脚本深处看到一条莫名其妙的红，得靠人去翻。
+ * @returns {string[]} 相对仓库根的路径
+ */
+export function findE2ERepoReads(e2eSource) {
+  const found = new Set();
+  for (const m of e2eSource.matchAll(/resolve\(\s*repoRoot\s*,\s*((?:'[^']*'\s*,\s*)*'[^']*')\s*\)/g)) {
+    const parts = [...m[1].matchAll(/'([^']*)'/g)].map((x) => x[1]);
+    if (parts.length) found.add(parts.join('/'));
+  }
+  return [...found];
+}
+
+/**
  * E 线「一次部署真正要发布的文件」清单（`web/tests/lib/deploy.mjs: DEPLOY_FILES`）。
  *
  * 直接读**它的**清单，而不是我再手写一份：它改了发布集我自动跟上，不会因为两份清单漂移而假绿。
@@ -187,6 +215,41 @@ export function runWebE2E({ outDir: outDirIn }) {
     return { status: 'FAIL', detail: `准备被测站点失败：${err.message}` };
   }
 
+  // ★ 接缝预检（把 E 需要的**仓库级**文件对清楚；缺了必须红，不许跳过）
+  const e2eSource = fs.readFileSync(path.join(root, 'web/tests/e2e-cdp.mjs'), 'utf8');
+  const repoReads = findE2ERepoReads(e2eSource);
+  const envOverrides = {};
+  const envNotes = [];
+  for (const rel of repoReads) {
+    const inMirror = exists(path.join(root, rel));
+    const envName = REPO_FILE_ENV[rel];
+    if (envName) {
+      const fromRepo = path.join(REPO_ROOT, rel);
+      // 调用方自己传了就用它的（允许换来源），但**无论来自哪里都要存在** —— 缺了必须红。
+      const chosen = process.env[envName] || fromRepo;
+      if (!exists(chosen)) {
+        return {
+          status: 'FAIL',
+          detail:
+            `被测脚本需要的**仓库级唯一来源**不存在：${chosen}\n` +
+            `   （${envName}=${process.env[envName] ? '调用方提供' : '本流水线默认'}；E 的 e2e 会读它）\n` +
+            '   缺它必须红 —— 不跳过、也不当通过。先把它合入主线（或改对 ' + envName + '）再重跑。',
+        };
+      }
+      envOverrides[envName] = chosen;
+      envNotes.push(`${envName} → ${display(chosen)}`);
+    } else if (!inMirror) {
+      return {
+        status: 'FAIL',
+        detail:
+          `被测脚本会读仓库级路径 \`${rel}\`，但镜像根里没有它：${display(path.join(root, rel))}\n` +
+          '   —— 这是**我这一层的接缝**，不是产物问题。修法二选一：\n' +
+          '     ① 在 release/lib/live.mjs 的 REPO_FILE_ENV 里给它配一个环境变量（若 E 的脚本支持）；\n' +
+          '     ② 在 prepareE2ERoot 里把它复制进镜像根（并在文档里说明它不是发布产物）。',
+      };
+    }
+  }
+
   // 基座断言（在跑之前）：脚本首选的 dist/content.json 与站点根 content.json 都是**本次产物**。
   const baseSha = sha256File(path.join(root, 'dist', 'content.json'));
   const servedSha = sha256File(path.join(root, 'web', 'content.json'));
@@ -213,7 +276,13 @@ export function runWebE2E({ outDir: outDirIn }) {
   const logFile = path.join(logsDir(outDir), 'web-e2e.log');
   const r = runCaptureFull(process.execPath, [path.resolve(root, 'web/tests/e2e-cdp.mjs')], {
     cwd: root,
-    env: { ...process.env, CHROME_BIN: chrome.bin, TEST_PORT: String(ports.port), TEST_DEBUG_PORT: String(ports.debugPort) },
+    env: {
+      ...process.env,
+      CHROME_BIN: chrome.bin,
+      TEST_PORT: String(ports.port),
+      TEST_DEBUG_PORT: String(ports.debugPort),
+      ...envOverrides,
+    },
     logFile,
     tailLines: 12,
   });
@@ -295,6 +364,7 @@ export function runWebE2E({ outDir: outDirIn }) {
     detail:
       `通过 ${pass} / ${total}（${r.seconds.toFixed(0)}s，真 Chromium，${portNote}）\n` +
       `  基座 = out/dist/content.json（sha256 ${distSha.slice(0, 16)}…），站点载荷 = out/web（APP_VERSION=${builtVersion}），仓库 web/content.json 未参与\n` +
+      (envNotes.length ? `  接缝：${envNotes.join('；')}（镜像根故意不带 schema/，仓库级唯一来源指回仓库）\n` : '') +
       `  机械核对：E 发的 v1 目录里 content.json 与 dist 逐字节相同；index.html/sw.js/app/* 与 out/web 一致\n` +
       `  完整输出：${display(logFile)}`,
   };
