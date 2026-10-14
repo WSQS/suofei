@@ -39,6 +39,12 @@ node release/build-release.mjs --tag 'v0.2.0+content-2026.10.16.5' --android-var
   非零退出，**不生成密钥、不退回 debug 签名**；
 - 就绪检查的 `apk-signing` 门：release 变体会用 `apksigner verify --print-certs` 断言证书**不是** debug 证书
   （是 ⇒ 红）并把证书 DN 打进回执；debug 变体如实标**黄**（「不能用于正式发布」，结论行也会写「演练口径就绪」）。
+- 实测口径（2026-10-14）：本机用那枚正式密钥跑 `--android-variant release`，`apk-signing` 绿并报出
+  `CN=Suofei, OU=suofei, O=WSQS, C=CN`；**CI 上「签名 + 验签 + 证书正确」这一环也已实测通过**
+  （secrets 注入成功、`apksigner` 验过、DN 正确）。仍未验证：整条 workflow 跑绿、Pages 真部署、真机安装/覆盖升级。
+- `apksigner` 输出格式**跨平台不同**（本机 `Signer #1 certificate DN:`，CI 上 `V2 Signer: certificate DN:`）——
+  解析只认 `certificate DN:` 这个共同子串；**验签通过但读不出 DN ⇒ 黄**（不是红）。可自测：`node release/selftest-apksigner.mjs`。
+- 签名约定见 `docs/design/ci-and-signing.md`。
 
 常用开关（`--help` 有全量）：`--out <dir>`、`--previous-version <v>`（严格大于它，否则拒绝）、
 `--skip-apk`（只出内容/Web；就绪检查会因缺 APK 报红）、`--android-feed none`（不产出小纸条清单，仅演练用）、
@@ -78,6 +84,13 @@ node release/build-release.mjs --tag 'v0.2.0+content-2026.10.16.5' --android-var
 另外：`build-release.mjs` **开跑时会先清掉本次产物目录里的残留** —— `web/`、`apk/` 整份删（派生物，每次重建），
 `dist/` 只剪掉「本产物集之外」的文件（不整删：编译失败要保留上一版的规范产物与 manifest，它们同时是下一版的基线）。
 所以**一次失败的构建会让 `out/` 缺 `web/`**：这时就绪检查会报「产物目录不完整」——那是“上次构建失败”的信号，不是产物坏了。
+
+## 在 CI 里跑（注意两个前置条件）
+
+`.github/workflows/release.yml` 已按本流水线的接口调它，但静态读它能看出两件**会让第一次 tag 失败**的事：
+① 就绪检查的 `schema-validation` 需要项目本地 `ajv`（`tools/validate-content.mjs` 依赖它）⇒ **检查之前要先 `npm ci`**；
+② 本流水线默认给 Gradle 传 `--offline`，CI 是冷缓存 ⇒ **要传 `--online`**（或先预热 Gradle 缓存）。
+两条的修法都写在设计文档 §7.4；**CI 路径在真跑通之前不算已验证**。
 
 ## 演练约定
 

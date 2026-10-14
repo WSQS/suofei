@@ -110,6 +110,10 @@ dist/content.json ──字节复制──► web/content.json ──►（Web �
 
 **语义**：**绿**＝查过且通过；**红**＝查过且不通过（必须修）；**黄**＝环境不可用/需人工确认（**没通过**）；**跳过**＝没查（不是「查过了」）。红/黄/跳过分别列出，绝不合并成「差不多就行」。
 
+**结论由各门状态推出来**（不是一句固定话）：release 变体只有在「两个真跑门 + `apk-signing`」**都是绿**时才写
+「三样产物就绪…可以推进」；任一为**黄/跳过** ⇒ 写「**暂不推进**」并把是哪些门、什么状态列出来；
+debug 变体永远写「演练口径就绪（debug 签名 → 不得用于正式发布）」。
+
 | # | id | 查什么 | 红了意味着什么 |
 |---|---|---|---|
 | 1 | `out-dir` | 产物目录存在且**完整**（缺 `dist`/`web` 直接报红并提示「上次构建可能失败」） | 还没构建，或上次构建失败/正在跑（产物目录只由本流水线管理，不要与别的构建共用 `--out`） |
@@ -133,7 +137,7 @@ dist/content.json ──字节复制──► web/content.json ──►（Web �
 | 19 | `apk-present` | APK 存在且文件哈希与清单一致 | 三样产物少一样 |
 | 20 | `apk-builtin-same-source` | **从 APK 里读回 `assets/content/content.json`** 与 `dist` 逐字节比对 | **最关键的一条**：用户以为发的是这一版内容，APK 里却是别的 |
 | 21 | `apk-identity` | `aapt2 dump badging`：包名 == `dev.sopho.suofei`、`versionCode` == 清单 | 打错包名（发布后不可改） |
-| 22 | `apk-signing` | 变体是 `release` ⇒ `apksigner verify --print-certs`：**证书不得是 debug 证书**（`CN=Android Debug` ⇒ 红），把证书 DN 打进回执；未签名/验不过 ⇒ 红；缺 apksigner ⇒ 黄。变体是 `debug` ⇒ **黄** + 明写「debug 签名，不能用于正式发布」 | 「以为发的是正式签名包、实际是 debug 包」（或压根没签名） |
+| 22 | `apk-signing` | 变体是 `release` ⇒ `apksigner verify --print-certs`，**三路分开**：① 验签失败 ⇒ **红**；② 验签**通过但读不出证书 DN** ⇒ **黄**（产物是签过的，只是身份没读出来，要人看日志）；③ 验签通过且 DN 可得 ⇒ 任一 signer 是 debug 证书 ⇒ **红**，否则**绿**并把 DN 打进回执。缺 apksigner ⇒ 黄。变体是 `debug` ⇒ **黄** + 明写「debug 签名，不能用于正式发布」 | 「以为发的是正式签名包、实际是 debug 包」（或压根没签名） |
 | 23 | `live-web-e2e` | **真跑**：用 `out/web` 当站点跑 **E 自己的** `web/tests/e2e-cdp.mjs` | 页面/离线/更新流程真有断言失败 |
 | 24 | `live-android-unit-tests` | **真跑**：Android JVM 单测，内置内容＝本次产物 | 产物让 Android 解析器读不进去，或仓库测试真有失败 |
 
@@ -185,19 +189,49 @@ dist/content.json ──字节复制──► web/content.json ──►（Web �
 
 | 事项 | 约定 | 谁做 |
 |---|---|---|
-| 正式签名密钥 | 四项由 **CI 从仓库 secrets 注入**：`SUOFEI_KEYSTORE`（keystore 的 base64）/ `SUOFEI_KEYSTORE_PASSWORD` / `SUOFEI_KEY_ALIAS` / `SUOFEI_KEY_PASSWORD`。`android/app/build.gradle.kts` 顶端注释是当前唯一事实来源（负责人另有签名文档，未落地前以它为准） | CI / 用户 |
+| 正式签名密钥 | 四项：`SUOFEI_KEYSTORE` / `SUOFEI_KEYSTORE_PASSWORD` / `SUOFEI_KEY_ALIAS` / `SUOFEI_KEY_PASSWORD`（`SUOFEI_KEYSTORE` 在本地是 `.jks` 的路径，在仓库 secrets 里是它的 base64）。**约定见 [`docs/design/ci-and-signing.md`](ci-and-signing.md)**；CI 侧见 `.github/workflows/release.yml`；生成密钥并写 secrets 的脚本是 `release/init-signing-key.sh`（密钥落在**仓库之外**，如 `~/.suofei/`，全程不打印取值） | 用户/负责人（生成与写入）；CI（注入） |
 | 本地开发与验收 | 用默认的 `--android-variant debug`（`assembleDebug`，debug 签名） | 任何人 |
-| 本地验证**签名链路本身** | 用**一次性测试密钥**跑 `--android-variant release`，用完删掉测试密钥；**不涉及正式密钥** | 负责人/用户（**生成密钥属未授权动作，本工作线不做**） |
+| 本地验证**签名链路本身** | 用一枚测试密钥（或负责人授权下的正式密钥）跑 `--android-variant release` + `check-ready`，看 `apk-signing` 报出的证书 DN | 负责人/用户 |
 | 正式发布 | 必须 `--android-variant release` + 四项齐全；**debug 变体永不用于正式发布** | CI |
 | 缺环境变量 | `build-release.mjs` 在**动任何东西之前**非零退出并列出缺哪几项；**不生成密钥、不退回 debug 签名** | 流水线（fail-closed） |
 | 签名真伪 | 就绪检查的 `apk-signing` 门（§7 第 22 项）：release 变体断言「能验签且证书不是 debug 证书」并把 DN 打进回执；debug 变体如实标黄 | 流水线 |
-| 本工作线**不做** | 不读取/不生成任何密钥、不写 secrets、不执行密钥生成脚本（那是用户/负责人的动作） | — |
+| 本工作线**不做** | 不生成密钥、不写 secrets、不执行 `release/init-signing-key.sh`；**不在文档或输出里写任何密钥取值**（只写证书 DN 与「四项是否已设」的布尔） | — |
 
-**能力边界（必须说清）**：本机**没有**正式密钥，所以 **release 变体的「签名成功路径」未经验证**。
-已验证的只有：① 缺环境变量 ⇒ fail-closed（动任何东西之前就停）；② debug 变体全门通过且如实标黄；
-③ 两个反例 —— 把 debug 证书的包当 release 产物 ⇒ 红并打出 `CN=Android Debug, O=Android, C=US`；
-未签名的 release 产物 ⇒ 红（`DOES NOT VERIFY / Missing META-INF/MANIFEST.MF`）。
-真正的签名成功路径只能在 **CI（有 secrets）** 或**用户本地持密钥**时验证。
+**验证状态（2026-10-14 更新）**：
+
+- **release 变体的「签名成功路径」已实测通过**：负责人本机用生成的正式密钥跑 `assembleRelease` 得到
+  `app-release.apk`（**7,029,170 字节**），`apksigner` 读出 **`CN=Suofei, OU=suofei, O=WSQS, C=CN`**。
+  我在本地用**同一枚密钥**复核了整条链路（`--android-variant release` → `check-ready`）：
+  `apk-signing` **绿**，回执里的 DN 正是 `CN=Suofei, OU=suofei, O=WSQS, C=CN`，整轮 `绿 23 / 黄 0 / 跳 1 / 红 0`。
+- **CI 上的「签名 / 验签 / 证书正确」这一环也已实测通过**（2026-10-14，负责人两次 CI 干跑）：CI 从仓库
+  secrets 解出 keystore + 口令、`assembleRelease` 成功、`apksigner verify` 通过、证书 DN 是 `CN=Suofei, …`。
+  ⚠️ 只是那一环；**仍未验证**：**整条 workflow 跑绿**、**Pages 真部署**、**真机安装与覆盖升级**（含「固定签名能否覆盖安装」）。
+- **由此抓到我这条门的一个真 bug（已修）**：Windows 本机的 apksigner 打 `Signer #1 certificate DN: …`，
+  而 CI/Linux 上是 `V2 Signer: certificate DN: …` —— 我第一版把前缀写死成 `Signer #\d+`，
+  于是 **CI 上「验签其实通过了」却因为读不出 DN 被判红**（把解析失败当成签名不合格）。
+  现在：解析只认**共同子串** `certificate DN:`（对所有前缀成立，`|` 之后的 digest 切掉、去重），
+  并把结果分成**三路**（失败 ⇒ 红；通过但读不出 DN ⇒ **黄**；通过且 DN 可得 ⇒ 按 debug 判）。
+  验证：`node release/selftest-apksigner.mjs` 用**两个平台的真实输出样本** + 四种反例喂给纯函数判定，全过；
+  另用 stub 冒充 apksigner 把 **CI/Linux 格式**喂给**真门**（绿、DN 正确），以及「无 DN」样本（黄、不判红）。
+- 其余已验证：缺环境变量 ⇒ fail-closed（**动任何东西之前**就停，`out/` 都不会被创建）；debug 变体全门通过且如实标黄；
+  两个反例 —— 把 debug 证书的包当 release 产物 ⇒ 红并打出 `CN=Android Debug, O=Android, C=US`；
+  未签名的 release 产物 ⇒ 红（`DOES NOT VERIFY / Missing META-INF/MANIFEST.MF`）。
+
+### 7.4 CI 的前置条件（本流水线对 workflow 的接口要求）
+
+`.github/workflows/release.yml` 按这个接口调我（**接口对得上**：`--tag` + `--android-variant release`、
+`check-ready --out release/out`、Pages 用 `release/out/web`、Release 附 `release/out/apk/*.apk`）。
+
+下面四条是**本流水线对 workflow 的要求**；2026-10-14 负责人已把前两条修掉并两次 CI 干跑复核（**已满足**）：
+
+| # | 要求 | 为什么 | 状态 |
+|---|---|---|---|
+| 1 | 就绪检查之前要有 `npm ci` | `schema-validation` 要跑 `tools/validate-content.mjs`，它需要项目本地 `ajv`；不装就会**红**（fail-closed，不静默降级） | **已满足**（`1cb1b26` 补了 `npm ci`） |
+| 2 | 发布构建要传 `--online`（或预热 Gradle 缓存） | 本流水线默认给 Gradle 传 `--offline`（正式构建不该悄悄依赖网络），而 runner 是**冷缓存** | **已满足**（`438e170`） |
+| 3 | `CHROME_BIN` 指向可执行的无头浏览器 | Web 真跑门要它；本机默认路径在 CI 上不存在 | **已满足**（workflow 里指 `/usr/bin/google-chrome`） |
+| 4 | `ANDROID_HOME` 或 `ANDROID_SDK_ROOT` 可用（含 `build-tools`） | `aapt2`（APK 身份）与 `apksigner`（签名门）都从那里找；两者都从 build-tools 取 | **已满足**（workflow 改用 runner 预装 SDK；**实测证据**：CI 日志里 `apk-signing` 确实跑到了 `apksigner` 并打印出证书 DN） |
+
+顺带一条协同：第 2 条修好后 Gradle 缓存已被预热，所以 Android 单测门里那个「先 `--offline`、缺依赖再自动联网重试」的分支在 CI 上通常不会触发。
 
 ## 8. 失败 / 中断了怎么办
 
@@ -401,7 +435,7 @@ E 的 e2e 在合并 E 线后续提交后已到 **147 条**，本轮实测 **147/
 - 真实 19 首/21 条异文编译为**压缩产物** 20964 字节；单调性闸通过；**编译失败保留旧产物**（哈希逐字节不变）。
 - Web 部署目录准备（字节一致、白名单精确、**无任何边车**）；`app-version-agree` 两处一致 + 与 tag 一致。
 - APK 构建 + **从 APK 读回 assets 与 `dist` 逐字节相同**；APK 身份 `dev.sopho.suofei` / versionCode 1 / 应用名「索斐」。
-- **变体与签名**：`--android-variant release` 缺环境变量 ⇒ 动任何东西之前就非零退出（实测 `out/` 未被创建）；`--android-variant debug`（默认）全门通过，`apk-signing` 如实标黄「debug 签名，不能用于正式发布」，结论行也改成「演练口径就绪」。反例两条都实测红：伪装成 release 变体的 debug 证书包 ⇒ 红并打出 `CN=Android Debug, O=Android, C=US`；未签名的 release 产物（本树里 `assembleRelease` 的产出）⇒ 红 `DOES NOT VERIFY / Missing META-INF/MANIFEST.MF`。
+- **变体与签名（CI 环 + 本地环都实测过）**：**CI 上签名/验签/证书正确这一环已实测**（secrets 注入成功、`assembleRelease` 成功、`apksigner` 验过、DN `CN=Suofei, …`）；**本地 release 成功路径也实测**（2026-10-14，负责人本机的正式密钥与我用同一枚密钥的复核）：`assembleRelease` 成功、APK 7,029,170 字节、`apk-signing` 绿并报出 `CN=Suofei, OU=suofei, O=WSQS, C=CN`、整轮 `绿 23 / 黄 0 / 跳 1 / 红 0`；**CI 路径（secrets + workflow）未验证**。`--android-variant release` 缺环境变量 ⇒ 动任何东西之前就非零退出（实测 `out/` 未被创建）；`--android-variant debug`（默认）全门通过，`apk-signing` 如实标黄「debug 签名，不能用于正式发布」，结论行也改成「演练口径就绪」。反例两条都实测红：伪装成 release 变体的 debug 证书包 ⇒ 红并打出 `CN=Android Debug, O=Android, C=US`；未签名的 release 产物（本树里 `assembleRelease` 的产出）⇒ 红 `DOES NOT VERIFY / Missing META-INF/MANIFEST.MF`。
 - **真跑门（本轮全绿）**：E 的 Web e2e **151/151**（真无头 Chromium，站点＝`out/web`，机械核对被测站点就是本次产物；仓库级来源用 `UNKNOWN_AUTHORS_FILE` 指回 `schema/unknown-authors.json`）；Android JVM 单测 **55 例 / 0 失败**（真执行，内置内容＝本次产物）。整轮 `check-ready` = 绿 22 / 黄 0 / 跳 1 / 红 0，退出码 0。
 - 红/黄路径：tag 缺号、tag 与代码不一致、内容版本倒退、产物未构建、`--skip-apk`、APK 不同源、产物少一首（两门同时红）、`--skip-live`（黄）、副本被改（拒跑）、APP_VERSION 未递增。
 - 跑完五个源目录 `git status` 干净。
@@ -441,6 +475,8 @@ node release/check-ready.mjs --out <dir> --json                     # 指定产�
 | `release/lib/artifacts.mjs` | **产物布局、部署白名单、必需项的唯一处**（build 与 check 共用，防漂移） |
 | `release/lib/version-source.mjs` | **tag 双号解析**、内容版本来源候选项、单调性基线解析 |
 | `release/lib/android-work.mjs` | Android 只读副本、内容注入、**代码一致性闸** |
+| `release/lib/apksigner.mjs` | apksigner 输出的**跨平台**解析与「签名是否合格」的**三路判定**（纯函数，可单测） |
+| `release/selftest-apksigner.mjs` | 用两个平台的真实输出样本 + 反例自测上面那个纯函数（`node release/selftest-apksigner.mjs`） |
 | `release/lib/live.mjs` | 两个**真跑门**（E 的 e2e 镜像根与机械核对 / Android 单测与静默通过防线） |
 | `release/lib/zip.mjs` | 零依赖最小 zip 读取器（从 APK 读回内置内容） |
 | `release/lib/util.mjs` | 哈希/进程/文件/打印；仓库根固定，从任何 cwd 调用结果一致 |

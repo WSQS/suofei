@@ -251,7 +251,8 @@ function main() {
   const steps = [];
 
   console.log('索斐发布流水线 F（本地演练）—— 产物目录：' + display(outDir));
-  console.log('本次**不做**：推远端仓库、启用 Pages/Release、读取或生成签名私钥、装设备。');
+  console.log('本次**不做**：推远端仓库、启用 Pages/Release、生成或上传密钥、装设备。');
+  console.log('（release 变体的签名由**外部注入**的四项环境变量提供：本流水线只判断是否齐全、从不读取或打印密钥取值。）');
 
   // ── 0. release 变体的**签名前置检查**：必须在做任何事之前失败（fail early，不留半成品）──
   // 签名由**仓库 secrets 注入的四项环境变量**提供（约定见 docs/design/ci-and-signing.md）。
@@ -475,7 +476,19 @@ function main() {
     const gradleTask = variant === 'release' ? 'assembleRelease' : 'assembleDebug';
     const gradleArgs = [gradleTask];
     if (opts.offline) gradleArgs.push('--offline');
-    const build = run(gradlew, gradleArgs, { cwd: work.projectDir });
+    let build;
+    try {
+      build = run(gradlew, gradleArgs, { cwd: work.projectDir });
+    } catch (err) {
+      // 默认给 Gradle 传 --offline（正式构建不该悄悄依赖网络），但在**冷缓存**（CI 首次跑、
+      // 刚清过 ~/.gradle）上会因缺依赖失败 —— 把这个因果说清楚，别让人对着 Gradle 的报错猜。
+      throw new ReleaseError(
+        `${err.message}\n` +
+          '  提示：本流水线默认给 Gradle 传 --offline。在**冷缓存**（例如 CI 首次跑、刚清过 ~/.gradle）上，\n' +
+          '  这会因为本地缓存里没有依赖而失败 ⇒ 传 --online，或在跑之前先预热一份 Gradle 缓存。',
+        { code: 'GRADLE_FAILED' },
+      );
+    }
     steps.push({ name: `构建 APK（${variant}）`, command: `${gradlew} ${gradleArgs.join(' ')}`, seconds: build.seconds });
 
     const built = findBuiltApk(work.projectDir, variant);

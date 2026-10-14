@@ -26,6 +26,7 @@ import { REPO_ROOT, display, exists, listTop, runCapture, sha256 } from './lib/u
 import { RELEASE_VERSION_RE } from './lib/version-source.mjs';
 import { compareContentVersion } from '../tools/lib/version.mjs';
 import { LIVE_CHECK_IDS, findE2EDeployFiles, runAndroidUnitTests, runWebE2E } from './lib/live.mjs';
+import { decideSigning } from './lib/apksigner.mjs';
 import { listZipEntries, readZipEntry } from './lib/zip.mjs';
 
 const USAGE = `用法：node release/check-ready.mjs [选项]
@@ -161,7 +162,10 @@ check('schema-validation', '结构校验走契约线 C 的 tools/validate-conten
   const target = A.distPath(c.outDir);
   const schema = path.join(REPO_ROOT, 'schema/content.schema.json');
   if (!exists(path.join(REPO_ROOT, 'node_modules/ajv'))) {
-    fail('跑不了 C 线的 schema 校验：项目本地缺 ajv（在仓库根执行 npm install 后重跑）。这是「没查」，不是「查过」');
+    fail(
+      '跑不了 C 线的 schema 校验：项目本地缺 ajv —— 这是「没查」，不是「查过」。\n' +
+        '   本地：在仓库根执行 `npm install`（或 `npm ci`）；**CI：在就绪检查之前加一步 `npm ci`**（ajv 是 devDependency，不进仓库）。',
+    );
   }
   const r = runCapture(process.execPath, ['tools/validate-content.mjs', '--schema', schema, target], { cwd: REPO_ROOT });
   if (!r) fail('无法执行 node tools/validate-content.mjs');
@@ -440,27 +444,13 @@ check('apk-signing', 'APK 的签名：release 变体不得是 debug 证书；deb
   }
   const r = runCapture(apksigner, ['verify', '--print-certs', c.apkFile]);
   const out = `${r?.stdout ?? ''}${r?.stderr ?? ''}`;
-  if (!r || r.status !== 0) {
-    fail(
-      `apksigner verify 未通过（退出码 ${r?.status ?? 'n/a'}）—— 这份 release 产物**不能当作已签名包**：\n` +
-        out
-          .trim()
-          .split('\n')
-          .slice(0, 6)
-          .map((l) => `   ${l}`)
-          .join('\n'),
-    );
-  }
-  const dns = [...out.matchAll(/Signer #\d+ certificate DN: (.+)/g)].map((m) => m[1].trim());
-  const debugDn = dns.filter((d) => /CN=Android Debug/i.test(d));
-  if (debugDn.length) {
-    fail(
-      `这份 release 产物是 **debug 证书**签的（DN: ${debugDn.join(' / ')}）——\n` +
-        '   正是「以为发的是正式签名包、实际是 debug 包」：不得发布（要用四项 SUOFEI_* 环境变量提供的密钥重签）。',
-    );
-  }
-  if (dns.length === 0) fail(`apksigner 通过了，但读不出证书 DN（输出格式变了？）：${out.trim().split('\n').slice(0, 4).join(' | ')}`);
-  return `apksigner verify 通过｜变体 release｜证书 DN：${dns.join(' / ')}`;
+  // 三路判定抽到 release/lib/apksigner.mjs（纯函数，用**两个平台的真实样本**自测：
+  // release/selftest-apksigner.mjs）。关键：**验签通过、只是读不出 DN ⇒ 黄**，
+  // 不能把「解析失败」当成「签名不合格」（CI 上真踩过：Windows 前缀 `Signer #N`、Linux 前缀 `V2 Signer:`）。
+  const decision = decideSigning({ verifyOk: Boolean(r) && r.status === 0, exitCode: r?.status ?? null, output: out });
+  if (decision.status === 'FAIL') fail(decision.detail);
+  if (decision.status === 'WARN') return { status: 'WARN', detail: `${decision.detail}\n   变体 release。` };
+  return `apksigner verify 通过｜变体 release｜证书 DN：${decision.dns.join(' / ')}`;
 });
 
 check('apk-identity', 'APK 的身份（包名 / versionCode）与清单一致', (c) => {
@@ -649,8 +639,7 @@ function main() {
   }
 
   console.log('');
-  if (fails.length > 0) {
-    const liveRan = results.filter((r) => isLive(r.id) && (r.status === 'PASS' || r.status === 'FAIL'));
+  if (fails.length > 0) {    const liveRan = results.filter((r) => isLive(r.id) && (r.status === 'PASS' || r.status === 'FAIL'));
     console.log('结论：**不满足推进条件**（有红项）。');
     console.log('影响：不推进「最新版」；旧版本仍然可以下载、可以读，没有东西被删掉。');
     console.log('红项：');
@@ -665,11 +654,23 @@ function main() {
   const webRun = results.find((r) => r.id === 'live-web-e2e');
   const androidRun = results.find((r) => r.id === 'live-android-unit-tests');
   const liveGreen = webRun?.status === 'PASS' && androidRun?.status === 'PASS';
-  console.log(
-    variant === 'debug'
-      ? '结论：**演练口径就绪**（debug 变体：三样产物齐、各门过，但 **debug 签名 → 不得用于正式发布**）。'
-      : '结论：**三样产物就绪**（release 变体）。可以推进「最新版」。',
-  );
+  // 结论必须**由各门的状态推出来**（不再是一句固定话）：
+  //   debug 变体 ⇒ 永远是演练口径；release 变体只有在「两个真跑门 + apk-signing」都是绿时才叫就绪。
+  //   **黄 = 没通过**（环境不可用/需人工确认）、**跳过 = 没查** —— 都不能被读成“可以推进”。
+  const gating = [...LIVE_CHECK_IDS, 'apk-signing'].map((id) => results.find((r) => r.id === id)).filter(Boolean);
+  const notGreen = gating.filter((r) => r.status !== 'PASS');
+  if (variant === 'debug') {
+    console.log('结论：**演练口径就绪**（debug 变体：三样产物齐、各门过，但 **debug 签名 → 不得用于正式发布**）。');
+  } else if (notGreen.length === 0) {
+    console.log('结论：**三样产物就绪**（release 变体）。可以推进「最新版」。');
+  } else {
+    console.log(
+      '结论：**暂不推进** —— 下面这些门不是绿的，' +
+        '而「黄 = 没通过 / 跳过 = 没查」，都不能当成通过：\n' +
+        notGreen.map((r) => `  · ${r.id} = ${r.status}`).join('\n') +
+        '\n  旧版本不受影响（不推进只是不把 tag/Release 指向这一版）。',
+    );
+  }
   if (liveGreen) {
     // ⚠️ 数字**一律取自本次运行结果**（不写死）：断言条数/用例数会随别线增加，写死会出现
     // 「门是绿的、文案在说谎」这种最难查的假象（真踩过：这里曾写死「49 例」，实际跑到 55 例）。
