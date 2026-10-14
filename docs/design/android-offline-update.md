@@ -99,6 +99,10 @@ filesDir/content/
 5. 切完指针**立即清理旧快照目录**（`pruneOldVersions`：只留当前版本目录）与 `staging/` 残留；
 6. `Files.move(..., ATOMIC_MOVE)` 不被文件系统支持时退回 `REPLACE_EXISTING`（Windows 上即 `MoveFileEx+REPLACE`）；该回退路径在**本机 Windows JVM 单测里真实跑过**。
 
+**失败不等于「抛异常上去」**：第 2、3、4 步的落盘或写指针失败（磁盘满 / IO 错误）都归为 `InstallResult.Refused(IO)`，
+并顺手做两件事：**不留下无人引用的快照目录**、清掉写了一半的 `current.tmp`；失败原因沿与其它失败相同的路（Refused → `UpdateStatus.Failed`）如实显示给用户。
+另外，**指针已经指着本次要装的版本时根本不做切换**（同名重装：已装快照损坏、远端又给同一版）：此时「重下一次同一版」就是一次修复，指针无需改动，直接算生效。
+
 因为内容文件一旦落盘就不再被改写，新读者要么看到旧版本号、要么看到新版本号，不存在「半个文件」的中间态。
 第 5 步会在切换后**删掉旧快照目录**，但这对正在阅读的会话没有影响——它手里是解析后的数据（`LoadedContent`），不是磁盘文件句柄。
 
@@ -124,6 +128,7 @@ filesDir/content/
 | 下载字节数与清单不符 | 报 `SIZE_MISMATCH` | 丢弃下载，旧内容保留 |
 | SHA-256 不符（下载损坏/被篡改） | 报 `CHECKSUM_MISMATCH` | 丢弃下载，旧内容保留 |
 | 内容 JSON 非法 / 载荷版本与清单不符 | 报 `PAYLOAD_INVALID` | 不落盘，旧内容保留 |
+| 落盘或**写生效指针**失败（磁盘满 / IO 错误） | 报 `IO`（`InstallResult.Refused`，不抛异常） | 未切换；**不留无人引用的快照目录**、清掉半个 `current.tmp`；旧内容继续生效 |
 | 已生效快照后来损坏 | 读取时退回内置内容 | 仍可读，且如实提示 |
 
 **没有「事后回退」这一条**（已按用户决定删除，见第 6 节开头）。
@@ -158,10 +163,12 @@ filesDir/content/
 
 **已验证（可复现）**
 - `./gradlew assembleDebug` 通过；APK 内 `assets/content/content.json` 存在且与源文件字节一致（命令见 `android/README.md`）。
-- **50 个 JVM 单测通过**（`./gradlew testDebugUnitTest`）：`ContentParserTest`(14)、`ContentStoreTest`(9)、`ContentRepositoryTest`(6)、`ContentVersionTest`(5)、`UpdateFlowTest`(9)、`UpdateManifestParserTest`(7)。
+- **54 个 JVM 单测通过**（`./gradlew testDebugUnitTest`）：`ContentParserTest`(14)、`ContentStoreTest`(12)、`ContentRepositoryTest`(6)、`ContentVersionTest`(5)、`UpdateFlowTest`(10)、`UpdateManifestParserTest`(7)。
   - 其中 `UpdateFlowTest` 用本机临时 HTTP 服务真跑「检查→下载→校验→切换」，覆盖成功、校验失败、体积不符、结构过新、应用过旧、HTTP 500、清单非法、连续升级与「只剩当前一个快照」。
   - 覆盖的降级/保旧版路径：失败保旧版、不兼容拒绝、损坏退回内置、指针与载荷不一致、结构过新不解析。
 - 存储层新语义有专门断言：升级后**旧版本目录确实被删除**（`upgrade_deletesOldVersionDirectory`），且内容根目录恰好只有 `current`/`versions`/`staging` 三项（多一项少一项都算回归）。
+- 落盘/写指针失败有 4 条专门断言：`ContentStoreTest` 三条（`pointerWriteFailure_…` / `pointerRenameFailure_…` / `reinstallOfSameVersion_repairsActiveSnapshot_…`）+ `UpdateFlowTest` 一条（`pointerWriteFailure_surfacesAsIoFailure_…`）。断言内容是：结果是明确的 `Refused(IO)` / `Failed(IO)` 而不是抛异常、**不留孤儿快照目录**、清掉半个 `current.tmp`、当前生效版本不变，且失败原因可读、走与其它失败同一条显示路径。
+  其中 `ContentStoreTest` 那两条失败用例做过**反向验证**：把修复临时还原后它们会红（分别报 `FileNotFoundException: …current.tmp`、`DirectoryNotEmptyException: …content\`），证明它们真的在测这个修复而不是空过。
 
 **未验证（不要当成已成立）**
 - **未在真机/模拟器上运行过**（本轮授权禁止 adb/模拟器操作）：界面渲染效果、实际点击路径、Android 平台 `assets` 读取与 `filesDir` 行为「按代码正确」但未在设备上观察。

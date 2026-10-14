@@ -42,6 +42,7 @@ class ContentStore(private val rootDir: File) {
     private val stagingDir = File(rootDir, "staging")
     private val versionsDir = File(rootDir, "versions")
     private val currentPointer = File(rootDir, "current")
+    private val currentPointerTemp = File(rootDir, "current.tmp")
 
     // 单进程应用；进程内串行化安装，避免两个更新流程同时改指针。
     private val lock = Any()
@@ -57,6 +58,13 @@ class ContentStore(private val rootDir: File) {
 
     fun activeVersion(): String? = readPointer(currentPointer)
 
+    /**
+     * 磁盘上现有的快照版本号（正常情况下最多一个，即当前生效的那个）。
+     *
+     * **只读诊断 / 测试用；生产代码不调用它**（没有任何界面入口需要它）——它不是「功能」，
+     * 与已删除的 `rollbackToPrevious()` 有本质区别：它不改变任何状态，只是把磁盘真相念出来。
+     * 单测用它当断言面（例如「只剩当前一个快照」），免得把存储布局的知识在测试里再抄一份。
+     */
     fun installedVersions(): List<String> =
         (versionsDir.listFiles() ?: emptyArray())
             .filter { it.isDirectory && File(it, CONTENT_FILE).isFile }
@@ -158,11 +166,28 @@ class ContentStore(private val rootDir: File) {
                 Charsets.UTF_8,
             )
         } catch (e: IOException) {
-            return InstallResult.Refused("写入版本目录失败：${e.message}", RefusalKind.IO)
+            discardUnreferencedVersionDir(versionDir, version)
+            staged.delete() // 已移入版本目录时为 no-op；仅在写目录早期失败时真正有用
+            return InstallResult.Refused("写入版本目录失败：${e.message}；未切换", RefusalKind.IO)
         }
 
         // 指针就位才算「生效」。指针本身写得再糟，也只是一个文本文件：原子换它即可。
-        atomicReplaceText(currentPointer, version)
+        // 指针**已经指着这个版本**时（同名重装：例如已装快照损坏、远端又给同一版）无需切换，
+        // 此时内容文件已换成本次校验通过的载荷，直接把“重下一次同一版”当成一次修复。
+        // 这一步同样可能真失败（磁盘满 / IO 错误）——那就当作一次**明确的失败**：不抛异常上去、
+        // 不留无人引用的目录、旧内容继续生效，失败原因走与其它失败同一条路（Refused → UI 如实显示）。
+        if (activeVersion() != version) {
+            try {
+                swapCurrentPointer(version)
+            } catch (e: IOException) {
+                discardUnreferencedVersionDir(versionDir, version)
+                currentPointerTemp.delete()
+                return InstallResult.Refused(
+                    "生效指针写入失败：${e.message}；未切换，旧内容保留、未留下无人引用的快照目录",
+                    RefusalKind.IO,
+                )
+            }
+        }
 
         pruneOldVersions()
         return InstallResult.Activated(version = version)
@@ -192,12 +217,19 @@ class ContentStore(private val rootDir: File) {
         null
     }
 
-    /** 写临时文件 → 原子重命名覆盖目标。目标不存在时同样成立。 */
-    private fun atomicReplaceText(target: File, value: String) {
-        target.parentFile?.mkdirs()
-        val tmp = File(target.parentFile, "${target.name}.tmp")
-        tmp.writeText(value, Charsets.UTF_8)
-        replace(tmp, target)
+    /**
+     * 安装中途失败时的收尾：**不留下没有被指针引用的目录**。
+     * 例外：若指针当前指的正是这个版本（同名重装），删掉它会让生效内容瞬间不可读，所以保留。
+     */
+    private fun discardUnreferencedVersionDir(versionDir: File, version: String) {
+        if (activeVersion() == version) return
+        versionDir.deleteRecursively()
+    }
+
+    /** 写 `current.tmp` → 单次重命名覆盖 `current`；失败抛 IOException，由调用方收拾（见 install）。 */
+    private fun swapCurrentPointer(version: String) {
+        currentPointerTemp.writeText(version, Charsets.UTF_8)
+        replace(currentPointerTemp, currentPointer)
     }
 
     companion object {

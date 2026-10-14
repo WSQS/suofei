@@ -185,6 +185,93 @@ class ContentStoreTest {
     }
 
     @Test
+    fun pointerWriteFailure_isRefused_leavesNoOrphanSnapshot_oldVersionUntouched() {
+        val store = ContentStore(tmp.newFolder("content"))
+        store.install(stage(store, "2026.10.14.1", payload("2026.10.14.1")), "2026.10.14.1", null, null)
+        assertEquals("2026.10.14.1", store.activeVersion())
+
+        // 模拟「指针写不下去」（磁盘满 / IO 错误）：让临时指针文件的位置被一个非空目录占住，
+        // 于是 current.tmp 的写入必然抛 IOException。旧指针文件本身没被动过。
+        val blocker = File(tmp.root, "content/current.tmp")
+        assertTrue(blocker.mkdirs())
+        File(blocker, "occupied").writeText("x", Charsets.UTF_8)
+
+        val result = store.install(
+            stage(store, "2026.10.14.2", payload("2026.10.14.2")),
+            "2026.10.14.2",
+            null,
+            null,
+        )
+
+        assertTrue("指针写入失败必须是明确的 Refused，而不是抛异常上去", result is InstallResult.Refused)
+        val refused = result as InstallResult.Refused
+        assertEquals(RefusalKind.IO, refused.kind)
+        assertTrue("原因要能直接给人看：${refused.reason}", refused.reason.contains("指针写入失败"))
+        // 当前生效版本不变，旧内容仍读得到
+        assertEquals("2026.10.14.1", store.activeVersion())
+        assertEquals("2026.10.14.1", store.loadActive()!!.content.contentVersion)
+        // 不留「没有被指针引用的目录」
+        assertEquals(listOf("2026.10.14.1"), store.installedVersions())
+        assertFalse("孤儿快照目录必须被清掉", File(tmp.root, "content/versions/2026.10.14.2").exists())
+    }
+
+    @Test
+    fun pointerRenameFailure_isRefused_andCleansTempPointerFile() {
+        val store = ContentStore(tmp.newFolder("content"))
+        store.install(stage(store, "2026.10.14.1", payload("2026.10.14.1")), "2026.10.14.1", null, null)
+
+        // 让「覆盖 current」这一步失败：同名的非空目录无法被文件覆盖。
+        // 与上一个用例不同，这里是 current.tmp 写入成功、失败发生在 rename 那一步。
+        val occupied = File(tmp.root, "content/current")
+        assertTrue(File(tmp.root, "content/current").isFile)
+        assertTrue(File(tmp.root, "content/current").delete())
+        assertTrue(occupied.mkdirs())
+        File(occupied, "occupied").writeText("x", Charsets.UTF_8)
+
+        val result = store.install(
+            stage(store, "2026.10.14.2", payload("2026.10.14.2")),
+            "2026.10.14.2",
+            null,
+            null,
+        )
+
+        assertTrue(result is InstallResult.Refused)
+        assertEquals(RefusalKind.IO, (result as InstallResult.Refused).kind)
+        assertFalse("孤儿快照目录必须被清掉", File(tmp.root, "content/versions/2026.10.14.2").exists())
+        assertFalse("失败留下的半个临时指针文件要清掉", File(tmp.root, "content/current.tmp").exists())
+        // 没有发生任何切换：旧快照仍在，且占位物没被我们破坏
+        assertEquals(listOf("2026.10.14.1"), store.installedVersions())
+        assertTrue(occupied.isDirectory)
+    }
+
+    @Test
+    fun reinstallOfSameVersion_repairsActiveSnapshot_withoutPointerSwap() {
+        // 场景：已装快照损坏，远端又提供了同一版本 ⇒ 重下一次同一版。
+        // 此时指针本来就指着这个版本，无需切换；“重下一次同版”就是一次修复。
+        val store = ContentStore(tmp.newFolder("content"))
+        store.install(
+            stage(store, "2026.10.14.1", payload("2026.10.14.1", title = "损坏前的载荷")),
+            "2026.10.14.1",
+            null,
+            null,
+        )
+        File(tmp.root, "content/versions/2026.10.14.1/content.json").writeText("{ broken")
+        assertNull("损坏后读不出来", store.loadActive())
+
+        val result = store.install(
+            stage(store, "2026.10.14.1", payload("2026.10.14.1", title = "重下的载荷")),
+            "2026.10.14.1",
+            null,
+            null,
+        )
+
+        assertTrue("同名重装应当直接生效：$result", result is InstallResult.Activated)
+        assertEquals("2026.10.14.1", store.activeVersion())
+        assertEquals(listOf("重下的载荷"), store.loadActive()!!.content.poems.map { it.title })
+        assertEquals(listOf("2026.10.14.1"), store.installedVersions())
+    }
+
+    @Test
     fun sha256_ofKnownBytes_matches() {
         val f = tmp.newFile("x.txt")
         f.writeText("abc", Charsets.UTF_8)
