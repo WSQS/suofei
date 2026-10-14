@@ -4,9 +4,13 @@
 // 那**不证明页面能跑、也不证明产物能被客户端解析**。这两个门补上这件事：
 //
 //   1. Web e2e：用**刚构建出来的 `out/web`** 当被测站点，跑 E 线的
-//      `web/tests/e2e-cdp.mjs`（真 Chromium + CDP，167 条断言）。
-//   2. Android 单测：在 Android 只读副本里跑 49 例 JVM 单测，
+//      `web/tests/e2e-cdp.mjs`（真 Chromium + CDP）。
+//   2. Android 单测：在 Android 只读副本里跑那套 JVM 单测，
 //      且副本的内置内容就是**本次发布的内容**（`ContentParserTest` 会真解析它）。
+//
+// ⚠️ 本文件与回执里**不写死**任何会随别线变化的数字（断言条数、用例数、诗数、异文数）：
+// 全部从**本次运行结果**里取。写法死的数字会出现「门是绿的、文案在说谎」这种最难查的假象
+// （真踩过：这里曾写死「Android 单测 49 例」，而实际跑到 55 例）。
 //
 // 两条硬规矩（负责人明确要求）：
 //   - 环境不可用（没有浏览器 / 依赖拉不下来）⇒ **标黄并写明原因**，不当通过、也不静默跳过。
@@ -15,7 +19,7 @@
 // 踩过的坑（写在这里免得后人再踩）：
 //   `:app:testDebugUnitTest` 的输入里**不包含** `src/main/assets/**`（测试是用相对路径在运行时读它的），
 //   所以热缓存下 Gradle 会直接 `UP-TO-DATE`/`FROM-CACHE` 什么也不跑 —— 我实测过：
-//   故意把内置内容改成 18 首，不带 `--rerun-tasks` 时退出码仍然是 0（**静默通过**）。
+//   故意把内置内容删掉一首（与测试断言不一致），不带 `--rerun-tasks` 时退出码仍然是 0（**静默通过**）。
 //   因此这一门强制 `--rerun-tasks`，并且**再断言一次任务行不是 UP-TO-DATE/FROM-CACHE**。
 
 import fs from 'node:fs';
@@ -56,7 +60,7 @@ const logsDir = (outDir) => path.join(outDir, '.work', 'logs');
  *   复制进 `.work/e2e/` 会让人以为「产物里该有 schema/」，而后人照着改只会越走越偏；
  *   E 的 e2e 明确支持 `UNKNOWN_AUTHORS_FILE`（它自证时就是这么跑的），指回仓库即可。
  *   真踩过：镜像根没有 schema/ ⇒ E 的 e2e 报「唯一来源清单文件存在」红，
- *   而同一天在主线跑同一份 out/web 是 151/151 全绿 —— 那条红纯粹是接缝，不是产物问题。
+ *   而同一天在主线跑同一份 out/web 是**全绿**（当时 151/151）—— 那条红纯粹是接缝，不是产物问题。
  */
 export const REPO_FILE_ENV = Object.freeze({ 'schema/unknown-authors.json': 'UNKNOWN_AUTHORS_FILE' });
 
@@ -312,6 +316,7 @@ export function runWebE2E({ outDir: outDirIn }) {
       .slice(0, 3);
     return {
       status: 'FAIL',
+      meta: { passed: Number(pass), total: Number(total) },
       detail:
         `e2e 真跑了并失败：通过 ${pass} / ${total}（退出码 ${r.status}，${r.seconds.toFixed(0)}s，${portNote}）\n` +
         (failed.length ? `失败项（原样，含实际/期望值）：\n${failed.map((f, i) => `  - ${f}${details[i] ? `\n      ${details[i]}` : ''}`).join('\n')}` : '') +
@@ -361,6 +366,7 @@ export function runWebE2E({ outDir: outDirIn }) {
   }
   return {
     status: 'PASS',
+    meta: { passed: Number(pass), total: Number(total) },
     detail:
       `通过 ${pass} / ${total}（${r.seconds.toFixed(0)}s，真 Chromium，${portNote}）\n` +
       `  基座 = out/dist/content.json（sha256 ${distSha.slice(0, 16)}…），站点载荷 = out/web（APP_VERSION=${builtVersion}），仓库 web/content.json 未参与\n` +
@@ -446,15 +452,25 @@ export function runAndroidUnitTests({ outDir: outDirIn, androidSrc }) {
     return { status: 'FAIL', detail: `测试任务执行了，但读不到用例报告（${display(path.join(work.projectDir, 'app/build/test-results/testDebugUnitTest'))}）` };
   }
   if (counts.failures > 0) {
-    return { status: 'FAIL', detail: `报告里有 ${counts.failures} 个失败用例（用例 ${counts.tests}），退出码却是 0？报告不可信` };
+    return { status: 'FAIL', meta: counts, detail: `报告里有 ${counts.failures} 个失败用例（用例 ${counts.tests}），退出码却是 0？报告不可信` };
+  }
+  // 内容摘要也从**本次产物**里读，不写死诗数/首末诗名。
+  let contentNote;
+  try {
+    const doc = JSON.parse(fs.readFileSync(distFile, 'utf8'));
+    const titles = (doc.poems ?? []).map((p) => p.title);
+    contentNote = `本次产物是 ${titles.length} 首（首＝${titles[0]}、末＝${titles[titles.length - 1]}）；ContentParserTest 真解析的就是它`;
+  } catch {
+    contentNote = 'ContentParserTest 真解析的就是它（读不出内容摘要）';
   }
   return {
     status: 'PASS',
+    meta: counts,
     detail:
       `用例 ${counts.tests} / 失败 0 / 跳过 ${counts.skipped}（${r.seconds.toFixed(0)}s，真 JVM）\n` +
       `  内置内容 = 本次产物（sha256 ${distSha.slice(0, 16)}…，注入到副本的 app/src/main/assets/content/content.json）\n` +
-      `  ContentParserTest 真解析了它（19 首、首=行行重行行、orderInSource 1..19）\n` +
-      `  强制 --rerun-tasks，并断言任务行不是 UP-TO-DATE/FROM-CACHE（防「绿了但没跑」）\n` +
+      `  ${contentNote}\n` +
+      '  强制 --rerun-tasks，并断言任务行不是 UP-TO-DATE/FROM-CACHE（防「绿了但没跑」）\n' +
       `  副本：${display(work.projectDir)}（android/ 本身未被写；${work.recreated ? '本次重建' : '复用'}）\n` +
       `  完整输出：${display(logFile)}`,
   };
