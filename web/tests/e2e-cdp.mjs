@@ -143,6 +143,18 @@ function fallbackOrder(doc) {
   return out;
 }
 
+/**
+ * 从当前站点版本派生一个「更大」的部署版本。
+ * **绝不写死**具体版本号：真发布演练时仓库 APP_VERSION 可能正好就是写死的那个值（实测踩过），
+ * 那时「部署的新版本」与当前版本相同 → 页面永远不会有「有新版本」提示 →
+ * 超时症状会**伪装成时序问题**，排查半天才发现是版本号撞车。
+ */
+function nextAppVersion(base, step) {
+  const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(base));
+  if (!m) throw new Error(`APP_VERSION 不是 x.y.z 形状，无法派生部署版本：${base}`);
+  return `${m[1]}.${Number(m[2]) + step}.0`;
+}
+
 // ------------------------------------------------------------------ CDP 薄客户端
 
 class CDP {
@@ -405,28 +417,45 @@ function unitTests(baseDoc, variants) {
   eq('orderInSource 非整数 → 不认，退回兜底', productOrderStatus(stringIndex),
     { present: stringIndex.poems.length, usable: 0, productOrderAuthoritative: false, wrongType: true });
 
-  section('0e 佚名/未知作者清单逐字对齐契约 §2.1（三端曾不一致）');
-  const contractText = readFileSync(resolve(repoRoot, 'docs', 'design', 'content-contract.md'), 'utf8');
-  const contractList = /`佚名`\/`无名氏`\/`未知`\/`未详`\/`不详`\/空/.exec(contractText);
-  check('契约 §2.1 里能找到那份清单（否则这条测试自身先失效）', Boolean(contractList), contractList ? contractList[0] : '没找到');
-  eq('UNKNOWN_AUTHORS 与契约清单逐字一致', [...UNKNOWN_AUTHORS], ['佚名', '无名氏', '未知', '未详', '不详']);
-  check('清单里不含空串（空白由 isUnknownAuthor 处理）',
-    !UNKNOWN_AUTHORS.has('') && [...UNKNOWN_AUTHORS].every((a) => a.trim() !== ''));
-  check('「阙名」不在清单里（是否并入待用户拍板，不自行加入）', !UNKNOWN_AUTHORS.has('阙名'));
+  section('0e 匿名作者清单：与唯一来源 schema/unknown-authors.json 逐字一致');
+  // 唯一来源是**机器可读的文件**（契约正文只说明来源）。以前这里正则解析契约散文，
+  // 结果一改措辞（比如把「阙名」插进去）就报「找不到清单」——对排查毫无帮助，已改掉。
+  const listPath = process.env.UNKNOWN_AUTHORS_FILE
+    ? resolve(process.env.UNKNOWN_AUTHORS_FILE)
+    : resolve(repoRoot, 'schema', 'unknown-authors.json');
+  const listExists = existsSync(listPath);
+  check('唯一来源清单文件存在', listExists, listExists
+    ? listPath
+    : `${listPath} 不在本树（可能还没合并到 master）——这一条先红；文件到位后会自动开始核对。`);
+  if (listExists) {
+    const fromFile = JSON.parse(readFileSync(listPath, 'utf8'));
+    check('清单文件是非空字符串数组', Array.isArray(fromFile) && fromFile.length > 0
+      && fromFile.every((a) => typeof a === 'string'), dump(fromFile));
+    eq('UNKNOWN_AUTHORS 与唯一来源逐字一致（含顺序）', [...UNKNOWN_AUTHORS], fromFile);
+    check('清单里没有空串/带空白的项（空白由 isUnknownAuthor 处理）',
+      fromFile.every((a) => a !== '' && a.trim() === a), dump(fromFile));
+  } else {
+    console.log(`      当前 app 侧清单 = ${dump([...UNKNOWN_AUTHORS])}（等文件到位后自动核对）`);
+  }
+
+  section('0f 未知作者排最后（只验机制；清单内容由 0e 核对）');
+  // 故意只用**无论清单怎么改都确定**的名字，不依赖清单文件是否存在：
+  // 苏轼/杨万里 一定是具名作者；佚名 一定是未知作者；空串一定是空白作者。
   const anonDoc = {
     dynasties: [{ key: 'song', label: '宋', order: 500 }],
-    poems: ['苏轼', '杨万里', '阙名', '佚名', '未详', '未知', '无名氏', ''].map((author, i) => ({
+    poems: ['苏轼', '杨万里', '佚名', ''].map((author, i) => ({
       id: `t-${i}`, title: `戏题${i}`, author, dynastyKey: 'song', dynastyLabel: '宋',
       dynastyOrder: 500, orderInSource: null, stanzas: [['一']], notes: null,
     })),
   };
   const orderedAuthors = groupPoems(anonDoc)[0].poems.map((p) => p.author);
-  check('具名作者（含暂未并入的「阙名」）排在前面',
-    [...orderedAuthors.slice(0, 3)].sort().join() === ['杨万里', '苏轼', '阙名'].sort().join(), dump(orderedAuthors));
-  check('五个「未知作者」（含空白）排在最后',
-    orderedAuthors.slice(3).length === 5 && orderedAuthors.slice(3).every((a) => isUnknownAuthor(a)), dump(orderedAuthors));
+  check('具名作者排在前面',
+    [...orderedAuthors.slice(0, 2)].sort().join() === ['杨万里', '苏轼'].sort().join(), dump(orderedAuthors));
+  check('未知作者（佚名）与空白作者排在最后',
+    orderedAuthors.length === 4 && orderedAuthors.slice(2).every((a) => isUnknownAuthor(a)), dump(orderedAuthors));
+  check('空白作者按未知处理', isUnknownAuthor('') && isUnknownAuthor('   '));
 
-  section('0f 仓库里两份夹具自身合法（防止夹具自己慢慢烂掉）');
+  section('0g 仓库里两份夹具自身合法（防止夹具自己慢慢烂掉）');
   for (const name of ['content.placeholder.json', 'content.no-sortkeys.json']) {
     const doc = JSON.parse(readFileSync(resolve(webRoot, 'fixtures', name), 'utf8'));
     const v = validateContent(doc);
@@ -437,7 +466,7 @@ function unitTests(baseDoc, variants) {
 
 /** 「内容必须单独取、不许内联」的自证 + 体积报告。 */
 async function inlineChecks(contentText) {
-  section('0g 内容必须单独取、不许内联进 HTML/JS（自证 + 体积）');
+  section('0h 内容必须单独取、不许内联进 HTML/JS（自证 + 体积）');
   const texts = new Map();
   for (const rel of DEPLOY_FILES) texts.set(rel, await readFile(resolve(webRoot, rel), 'utf8'));
   const shellBytes = [...texts.values()].reduce((a, t) => a + Buffer.byteLength(t, 'utf8'), 0);
@@ -505,6 +534,28 @@ async function main() {
 
   unitTests(baseDoc, variants);
   await inlineChecks(baseText);
+
+  // ---- 各次部署的版本号一律从当前 APP_VERSION 派生（写死会撞车，见 nextAppVersion 注释）----
+  section('1-1 部署版本派生自检（写死会与真发布的版本号撞车）');
+  const deployVersions = {
+    v2: nextAppVersion(APP_VERSION, 1),
+    v3: nextAppVersion(APP_VERSION, 2),
+    broken: nextAppVersion(APP_VERSION, 3),
+    schemaBroken: nextAppVersion(APP_VERSION, 4),
+    futureFormat: nextAppVersion(APP_VERSION, 5),
+    good: nextAppVersion(APP_VERSION, 6),
+  };
+  const deployVersionList = Object.values(deployVersions);
+  console.log(`  当前站点版本 v${APP_VERSION}；本轮部署版本：`
+    + Object.entries(deployVersions).map(([k, v]) => `${k}=v${v}`).join(' '));
+  check('派生的部署版本都与当前 APP_VERSION 不同（否则不会有「有新版本」）',
+    deployVersionList.every((v) => v !== APP_VERSION),
+    `APP_VERSION=${APP_VERSION} 派生=${dump(deployVersionList)}`);
+  check('派生的部署版本互不相同',
+    new Set(deployVersionList).size === deployVersionList.length, dump(deployVersionList));
+  check('下一次部署的内容版本与基座不同（否则「新内容生效」的断言是空洞的）',
+    variants.fixtureContent.doc.contentVersion !== baseDoc.contentVersion,
+    `基座=${baseDoc.contentVersion} 部署内容=${variants.fixtureContent.doc.contentVersion}`);
 
   // ---- 部署 v1（真实内容，站点版本 APP_VERSION）----
   const v1 = await makeDeployment({ destDir: join(deployRoot, 'v1'), appVersion: APP_VERSION, contentText: baseText });
@@ -697,7 +748,7 @@ async function main() {
 
   // ---------------------------------------------------------------- 4. 两版本切换
   section('4 真发两版：新 SW 安装并等待 / 不打断阅读 / 点刷新成对切换 / 旧 cache 被删');
-  const v2App = '0.2.0';
+  const v2App = deployVersions.v2;
   const v2 = await makeDeployment({ destDir: join(deployRoot, 'v2'), appVersion: v2App, contentText: variants.fixtureContent.text });
   console.log(`部署 v2：appVersion=${v2App} cache=${v2.cacheName} 内容 ${variants.fixtureContent.doc.poems.length} 首（含测试夹具诗）`);
   await redeploy(v2.destDir);
@@ -794,7 +845,7 @@ async function main() {
 
   // ---------------------------------------------------------------- 5. 回目录后自动切换
   section('5 第三个版本：阅读中只有提示，回到目录后自动切换');
-  const v3App = '0.3.0';
+  const v3App = deployVersions.v3;
   const v3 = await makeDeployment({ destDir: join(deployRoot, 'v3'), appVersion: v3App, contentText: baseText });
   await hashTo(`#/p/${poemId}`);
   await redeploy(v3.destDir);
@@ -823,21 +874,21 @@ async function main() {
   section('6 失败状态：非法 JSON / 结构不合法 / 格式版本不兼容（各发一版）');
   const failureCases = [
     {
-      appVersion: '0.4.0',
+      appVersion: deployVersions.broken,
       contentText: variants.broken.text,
       expect: '不是合法 JSON',
       label: '截断的非法 JSON',
       hint: '损坏',
     },
     {
-      appVersion: '0.5.0',
+      appVersion: deployVersions.schemaBroken,
       contentText: variants.schemaBroken.text,
       expect: '结构校验失败',
       label: '合法 JSON 但结构不合法',
       hint: '结构不符合契约',
     },
     {
-      appVersion: '0.6.0',
+      appVersion: deployVersions.futureFormat,
       contentText: variants.futureFormat.text,
       expect: '格式版本',
       label: 'formatVersion 更高（部署不一致）',
@@ -877,7 +928,7 @@ async function main() {
   await screenshot('09-error-after-retry.png');
 
   section('6c 发布一版好的内容 → 自愈');
-  const v7 = await makeDeployment({ destDir: join(deployRoot, 'v7'), appVersion: '0.7.0', contentText: baseText });
+  const v7 = await makeDeployment({ destDir: join(deployRoot, 'v7'), appVersion: deployVersions.good, contentText: baseText });
   await redeploy(v7.destDir);
   await reload();
   await waitFor(`Boolean(document.querySelector('[data-test="update-available"]'))`, { label: 'v7 新版本提示' });
@@ -886,7 +937,7 @@ async function main() {
   await waitForNewDocument(tokenBeforeV7, 'v7 切换后新文档');
   await waitForIndex();
   s = await summary();
-  eq('恢复后的站点版本', s.appVersion, '0.7.0');
+  eq('恢复后的站点版本', s.appVersion, deployVersions.good);
   eq('恢复后的内容版本', s.contentVersion, baseDoc.contentVersion);
   eq('恢复后有完整 19 首', s.poems, total);
   eq('恢复后次序正确', await domPoemIds(), expectedDomOrder(baseDoc));

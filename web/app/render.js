@@ -19,11 +19,15 @@
 
 import { ROUTES } from './config.js';
 
-/** 契约 §2.1 的显式规则：佚名/未知作者在该组内排最后。清单**逐字**取自契约，不自己增减。
- *  「空/空白作者」由 isUnknownAuthor 里的空白判定处理，不写进集合。 */
-export const UNKNOWN_AUTHORS = new Set(['佚名', '无名氏', '未知', '未详', '不详']);
+/** 「谁是佚名/未知作者」：**唯一来源 = schema/unknown-authors.json**（契约线提供，机器可读；
+ *  契约正文只说明来源，不再被任何代码/测试正则解析）。
+ *  静态站点运行期读不到那个文件，所以这里写一份**副本**；e2e 会读文件并断言两份**逐字一致**
+ *  （失败时会把两边数组都打出来），Android 与编译器同理对齐同一份文件。
+ *  用户 2026-10-14 拍板：`阙名` 并入这份清单。
+ *  空/空白作者由 isUnknownAuthor 的空白判定处理，不写进集合。 */
+export const UNKNOWN_AUTHORS = new Set(['佚名', '无名氏', '阙名', '未知', '未详', '不详']);
 
-/** 空白作者也算「未知作者」（契约 §2.1 的清单末尾「/空」）。 */
+/** 空白作者也算「未知作者」（等价于清单末尾的「/空」）。 */
 export function isUnknownAuthor(author) {
   return typeof author !== 'string' || author.trim() === '' || UNKNOWN_AUTHORS.has(author.trim());
 }
