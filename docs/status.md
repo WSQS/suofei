@@ -13,13 +13,15 @@
 
 ## 并行工作线（写入范围互不重叠）
 
-| 线 | 内容 | 写入范围 | 状态 |
-|---|---|---|---|
-| A | 《古诗十九首》原文核对与来源 | `content/`、`docs/sources/` | 进行中（子会话） |
-| B | 阅读原型（视觉与交互，可评审） | `prototype/` | 进行中（子会话） |
-| C | 内容格式契约实现 + Markdown→JSON 编译与校验 | `tools/`、`schema/`、`tests/` | 进行中（子会话） |
-| D | Android 骨架（Compose）+ Android 离线更新 | `android/` | 进行中（子会话） |
-| E | Web 骨架 + 静态离线缓存与内容切换 | `web/` | 未开始（等 C 的产物先落地） |
+| 线 | 内容 | 写入范围 | 会话（分支/工作树） | 状态 |
+|---|---|---|---|---|
+| A | 《古诗十九首》原文核对与来源 | `content/`、`docs/sources/` | `1fcd6f3b`（`wt/a-e7e627bc`） | 进行中 |
+| B | 阅读原型（视觉与交互，可评审） | `prototype/` | `820562cf`（`wt/b-bc5853db`） | 进行中 |
+| C | 内容契约实现 + Markdown→JSON 编译与校验 | `tools/`、`schema/`、`tests/` + 契约文档 | `ccfeee5d`（`wt/c-23417088`） | 进行中 |
+| D | Android 骨架（Compose）+ Android 离线更新 | `android/` | `3ce1b5e0`（`wt/d-android-d8070ef4`） | 进行中 |
+| E | Web 骨架 + 静态离线缓存与内容切换 | `web/` | 未派 | 未开始（等 C 产物先落地） |
+
+并行方式：每条线一个隔离 git worktree（`C:\Users\wsqsy\Documents\android\.sopho-wt\<线>`），互不写同一目录；负责人读回、验收、再并入主线。任务完成后归档已落定的 worker（归档不删分支/工作树）。建议合并后回收工作树，命令与状态见 `git worktree list`。
 
 契约（`docs/design/content-contract.md`）由负责人维护，工作线不得各自改名；需要扩展先协调。
 
