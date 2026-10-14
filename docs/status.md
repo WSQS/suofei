@@ -21,7 +21,7 @@
 |---|---|---|---|---|
 | A | 《古诗十九首》原文核对与来源 | `content/`、`docs/sources/` | `1fcd6f3b`（`wt/a-e7e627bc`） | 进行中 |
 | B | 阅读原型（视觉与交互，可评审） | `prototype/` | `820562cf`（`wt/b-bc5853db`） | **已交付并入主线**（`e1146e3` → merge `326cafa`），已归档 |
-| C | 内容契约实现 + Markdown→JSON 编译与校验 | `tools/`、`schema/`、`tests/` + 契约文档 | `ccfeee5d`（`wt/c-23417088`） | 进行中 |
+| C | 内容契约实现 + Markdown→JSON 编译与校验 | `tools/`、`schema/`、`tests/` + 契约文档 | `ccfeee5d`（`wt/c-23417088`） | **已交付并入主线**（`00d84c2` → merge `27f52ea`），已归档 |
 | D | Android 骨架（Compose）+ Android 离线更新 | `android/` | `3ce1b5e0`（`wt/d-android-d8070ef4`） | 进行中 |
 | E | Web 骨架 + 静态离线缓存与内容切换 | `web/` | `2715e86a`（`wt/e-web-367f9289`） | 进行中（视觉留给原型评审后） |
 
@@ -33,7 +33,7 @@
 
 1. **视觉与交互评审**：原型已入主线，等用户选方向（A 宣纸 / B 清爽 / C「清爽骨架＋衬线正文」）。评审前两端实现保持视觉占位。
 2. A 的底本核对结果 → 若存在需要用户拍板的底本/异文取舍，交用户评审。
-3. C 编译 / E Web 报告 → 「接口决定（暂定）」集中列给用户。
+3. C 编译 / E Web 报告 → 「接口决定（暂定）」集中列给用户；C 已填完第四批（见 [interface-decisions.md](interface-decisions.md)）。
 4. IF-4 排序仍待拍板；拍板后需同步内容线（`orderInSource`）与两端排序实现。
 5. 原型评审通过后：视觉统一落到两端，再谈 tag 发布流程与产物就绪检查。
 
@@ -42,6 +42,13 @@
 - **原型 B**（`prototype/`，commit `e1146e3`）：三个视觉方向（宣纸/清爽/静默终端）、22 张实拍截图、`#/` 与 `#/p/<id>` 路由、file:// 与 http 两种数据来源分支。
   打开：双击 `prototype/index.html`，或 `cd prototype && node tools/serve.mjs`（http://127.0.0.1:8137/）。
   诚实边界（见 `prototype/README.md`）：示例数据为 fixture；未在 Android/WebView 验证；未验真机字体（宣纸方向的宋体在 Android 上大概率没有）；未做无障碍检查；真实笔记 Markdown 只渲染段落/引用/列表/粗体。
+- **内容编译 C**（`tools/`、`schema/`、`tests/`，commit `00d84c2`）：`node tools/build-content.mjs [--check]`、`node tools/validate-content.mjs dist/content.json`、`npm test`（75 tests）。负责人**自己复跑过**：75/75 pass；6 条失败用例全部 exit=1；未知键 `translator` 被拒（去掉后 exit=0）；fixture 编译 + schema 校验通过。
+  诚实边界：**未对真实 19 首跑过**（A 线内容尚未落地到主树，现在跑得到 `CONTENT_DIR_MISSING`）；未做两端消费验证；未碰构建/设备/发布。
+
+## 本地踩到的坑（值得记住）
+
+- **Windows 上 `chrome.exe --version` 不打印版本且进程不退出** —— 用它探测版本会把整个会话卡死（E 线为此卡了 5 分钟）。要查版本用 `--headless=new --dump-dom` 或直接看安装目录；kill 时按 **pid + 完整命令行 + 启动时刻** 核实，绝不按 `chrome` 模式杀（本机可能有你自己的浏览器）。
+- 用管道接 `cmd | head` 时 `$?` 是 `head` 的退出码；要断言退出码就别接管道（或看 `PIPESTATUS`）。
 
 ## 未决 / 待用户确认
 
