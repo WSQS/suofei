@@ -42,7 +42,7 @@
 {
   "formatVersion": 1,
   "contentVersion": "2026.10.14.2",
-  "url": "content/2026.10.14.2/content.json",
+  "url": "2026.10.14.2/content.json",
   "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "size": 4096,
   "minAppVersionCode": 1
@@ -50,6 +50,10 @@
 ```
 
 - 地址常量：`UpdateEndpoint.BASE_URL` / `MANIFEST_PATH`，当前是**占位** `https://example.invalid/suofei/content/latest.json`（`.invalid` 是保留域名，占位期绝不会误连真站点）。改地址＝只改这两行。
+- **`url` 的解析基准＝清单文件所在目录**（实现是 `URL(URL(manifestUrl), url)`，同 RFC 3986）。
+  所以：清单在 `<站点>/content/latest.json`、内容在 `<站点>/content/<版本>/content.json` 时，`url` 写 **`<版本>/content.json`**。
+  ⚠️ 写成 `content/<版本>/content.json` 会解析成 `/content/content/<版本>/content.json`（多一层），**真部署时 404**——这个错例原本就写在本节，2026-10-14 被发布线 F 发现、负责人核过 Android 代码与 URL 语义后改正。
+  发布线产出的形状见 `docs/design/release-pipeline.md`（`release/lib/artifacts.mjs: androidSnapshotUrl()` 一处定义）。
 - 检查方式：`GET` 清单，带 `User-Agent: Suofei-Android/<versionName> (<versionCode>)`；连接超时 10s、读超时 30s；`HTTP 2xx` 才算成功。
 - 不比较时间戳、不看 `ETag`：只比 `contentVersion`（契约 §4 的比较规则，实现见第 12 节）。
 - 载荷体积上限 32 MiB（`ContentUpdater.MAX_CONTENT_BYTES`），清单声明或实际下载超过即失败。
