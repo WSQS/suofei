@@ -30,7 +30,7 @@
 
 ## 来源与边界
 
-- 共识与推进行动来自 sophomore 主会话 `cbdb39e3-8970-4cd6-955d-eebcbe7ecf51` 的诗集 grilling；[讨论地图](../../misc/sophomore/discussion-map.md)是接续入口，不是本项目的实现任务清单。
-- [分组调研](../../misc/sophomore/reference/exploration/personal-poetry-collection-grouping-research.md)、[平台方案比较](../../misc/sophomore/reference/exploration/personal-poetry-app-platform-options.md)供参考；部分网页/版本核验有限，实施时查当前官方文档，不把历史 issue 当当前结论。
-- 本项目自身维护实现状态，sophomore 保存个人实践关联与重要取舍，不复制完整 roadmap。
+- 本项目立项前的讨论与调研记录在**本仓库之外**，未随仓库公开；本仓库内的范围共识以本文件为准，实施状态以 `docs/status.md` 为准。
+- 那批调研（分组方式、平台方案比较）只在立项时作参考；其中部分网页/版本核验有限，实施时应查当前官方文档，不把历史 issue 当当前结论。
+- 本项目自身维护实现状态与重要取舍，不复制外部项目的完整 roadmap。
 - 应用内容可以公开不等于用户私人仓库可以公开。《古诗十九首》核对可靠原文与出处，不复制现代译注、私人物料或付费版本的整套编排；来源信息可在工程维护，第一版不强加注释界面。
