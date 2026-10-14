@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://poetrycollection.invalid/schema/content.schema.json",
+  "title": "PoetryCollection 内容产物 dist/content.json",
+  "description": "契约 docs/design/content-contract.md 第 2 节的机器可校验形式。sopho 契约线 C 维护：结构随 formatVersion=1 冻结；结构不兼容变更时新开格式版本并同步两端。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["formatVersion", "contentVersion", "generatedAt", "dynasties", "poems"],
+  "properties": {
+    "formatVersion": {
+      "description": "JSON 结构版本。结构不兼容变更时递增；旧客户端遇到更高值必须保留旧内容、不去解析。",
+      "const": 1
+    },
+    "contentVersion": {
+      "description": "内容版本。发布版本 YYYY.MM.DD.N，单调递增；本地派生版本 0.0.0-dev+<sha256 前 12 位>，仅供本地/测试。比较规则见契约第 4 节。",
+      "type": "string",
+      "pattern": "^(?:\\d{4}\\.\\d{2}\\.\\d{2}\\.\\d+|0\\.0\\.0-dev\\+[0-9a-f]{12})$"
+    },
+    "generatedAt": {
+      "description": "UTC 生成时间（秒精度 ISO-8601，Z 结尾）。可被 SOURCE_DATE_EPOCH 固定以复现。",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "dynasties": {
+      "description": "实际有内容的朝代分组，按 order 升序；空组不出现。",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "label", "order"],
+        "properties": {
+          "key": { "type": "string", "minLength": 1, "description": "稳定分组键，如 han；由 tools/lib/dynasties.mjs 注册表派生" },
+          "label": { "type": "string", "minLength": 1, "description": "展示用朝代名，如 汉" },
+          "order": { "type": "integer", "description": "组排序键：先秦0/汉100/魏晋200/南北朝300/唐400/宋500/元600/明700/清800/近现代900/未详9999" }
+        }
+      }
+    },
+    "poems": {
+      "description": "所有诗。编译期已排好序，客户端可直接顺序渲染。排序策略由编译期开关决定（source：先底本原次序 orderInSource，无值者再按拼音；pinyin：作者拼音 → 诗名拼音）。",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "title",
+          "author",
+          "dynastyKey",
+          "dynastyLabel",
+          "dynastyOrder",
+          "era",
+          "genre",
+          "source",
+          "orderInSource",
+          "variants",
+          "stanzas",
+          "notes",
+          "authorSortKey",
+          "titleSortKey"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*-\\d+$",
+            "description": "全小写 ASCII，全局唯一，等于源文件名（不含 .md）"
+          },
+          "title": { "type": "string", "minLength": 1, "pattern": "\\S" },
+          "author": { "type": "string", "minLength": 1, "pattern": "\\S", "description": "佚名/未知作者写 佚名，不编造人名" },
+          "dynastyKey": { "type": "string", "minLength": 1 },
+          "dynastyLabel": { "type": "string", "minLength": 1 },
+          "dynastyOrder": { "type": "integer" },
+          "era": { "type": ["string", "null"], "description": "更细的时代/年代说明，可空" },
+          "genre": { "type": ["string", "null"], "description": "体裁，可空" },
+          "source": { "type": "string", "minLength": 1, "pattern": "\\S", "description": "可核的底本/校录来源" },
+          "orderInSource": {
+            "type": ["integer", "null"],
+            "minimum": 1,
+            "description": "作品在底本中的原次序（1 起）；可选，未写则为 null。source 排序策略下它在组内最先比较。"
+          },
+          "variants": {
+            "type": "array",
+            "description": "异文记录，异文不进正文",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["text", "note"],
+              "properties": {
+                "text": { "type": "string", "minLength": 1, "pattern": "\\S" },
+                "note": { "type": ["string", "null"] }
+              }
+            }
+          },
+          "stanzas": {
+            "type": "array",
+            "minItems": 1,
+            "description": "分段数组，内层为行数组；空行→段边界，原文空行信息不丢",
+            "items": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string", "minLength": 1, "pattern": "\\S" }
+            }
+          },
+          "notes": {
+            "type": ["string", "null"],
+            "description": "用户个人笔记（Markdown 文本）或 null；客户端按需展开，默认折叠"
+          },
+          "authorSortKey": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "作者拼音名次（Intl.Collator('zh-Hans-CN-u-co-pinyin')）。佚名/未知作者的键统一大于所有具名作者 ⇒ 组内排最后。"
+          },
+          "titleSortKey": { "type": "integer", "minimum": 0, "description": "诗名拼音名次，同作者内依次比较" }
+        }
+      }
+    }
+  }
+}

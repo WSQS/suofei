@@ -1,0 +1,15 @@
+{
+  "name": "poetry-collection",
+  "version": "0.0.0",
+  "private": true,
+  "description": "PoetryCollection（个人诗集阅读应用）——内容契约编译与校验（契约线 C）。产物 dist/ 不进仓库。",
+  "scripts": {
+    "build:content": "node tools/build-content.mjs",
+    "check:content": "node tools/build-content.mjs --check",
+    "validate:content": "node tools/validate-content.mjs",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "ajv": "^8.17.1"
+  }
+}
