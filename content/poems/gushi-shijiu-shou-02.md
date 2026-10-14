@@ -1,0 +1,17 @@
+---
+id: gushi-shijiu-shou-02
+title: "青青河畔草"
+author: "佚名"
+dynasty: "汉"
+dynastyOrder: 100
+era: "东汉末"
+genre: "五言古诗"
+orderInSource: 2
+source: "《文选》卷二十九·杂诗上「古诗一十九首」（李善注本）。电子文本：汉典古籍 gj.zdic.net/jibu/1224/34173.html，2026-10-14 访问；以四库全书本《六臣注文选》卷二十九对校。异文校记见 docs/sources/gushi-shijiu-shou.md。"
+---
+
+青青河畔草，郁郁园中柳。
+盈盈楼上女，皎皎当窗牖。
+娥娥红粉妆，纤纤出素手。
+昔为倡家女，今为荡子妇。
+荡子行不归，空床难独守。
