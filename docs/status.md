@@ -113,8 +113,8 @@
 | 1 | 建公开 GitHub 仓库并推送 | 需单独授权（AGENTS） |
 | 2 | 启用 Pages 并部署 | 需单独授权；且**未在 https+子路径下实测过** |
 | 3 | 打 tag 并发 Release | 需单独授权；tag 格式已定（`v<应用版本>+content-<内容版本>`），F 只解析不创建 |
-| 4 | **固定签名方案**（keystore 放哪、是否用 secrets） | 需用户决定 + 授权；当前 APK 是 **debug 签名，不能用于正式发布**，也未跑 `assembleRelease`/覆盖升级 |
-| 5 | **真机/模拟器验收（一次都没做过）** | 需单独授权核对设备身份与占用；这是**最大的未验证项**——尤其「深色长文疲劳」用户已接受风险但从未目验 |
+| 4 | **固定签名方案**（keystore 放哪、是否用 secrets）——选项与代价见 [signing-options.md](design/signing-options.md) | 需用户决定 + 授权；当前 APK 是 **debug 签名，不能用于正式发布**，也未跑 `assembleRelease`/覆盖升级 |
+| 5 | **真机/模拟器验收（一次都没做过）**——可照抄的执行计划见 [device-acceptance-plan.md](design/device-acceptance-plan.md) | 需单独授权核对设备身份与占用；这是**最大的未验证项**——尤其「深色长文疲劳」用户已接受风险但从未目验 |
 | 6 | CI 上跑一遍 | 未做；CI 会撞本机那个到不了 `dl.google.com` 的 Gradle 代理，真跑门已内置镜像开关 |
 | 7 | 首次发布的 `APP_VERSION` 起始值与上一版 manifest 保留规则 | `APP_VERSION` 现为 `0.1.0`；「递增」门依赖上一版 `release-manifest.json`，真发布必须保留它 |
 
