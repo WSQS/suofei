@@ -14,8 +14,6 @@ export const OUT_DEFAULT = 'release/out';
 
 /** 本次发布的规范内容产物：**唯一**一次编译的结果，其它副本都是它的字节复制。 */
 export const DIST_REL = 'dist/content.json';
-/** 规范产物的 sha256 边车。 */
-export const DIST_SIDECAR_REL = 'dist/content.json.sha256';
 /** Web 部署目录（整目录内容就是站点根）。 */
 export const WEB_DIR_REL = 'web';
 /** APK 存放目录。 */
@@ -28,8 +26,6 @@ export const ANDROID_MANIFEST_REL_IN_WEB = 'content/latest.json';
 export const ANDROID_SNAPSHOT_DIR_REL_IN_WEB = 'content';
 /** Web 端内容文件名（IF-26：站点根下 `content.json`）。 */
 export const WEB_CONTENT_NAME = 'content.json';
-/** Web 端校验和边车名（IF-27）。 */
-export const WEB_CHECKSUM_NAME = 'content.json.sha256';
 /** 显式传给编译器的排序策略（IF-16 已定：source，流水线必须显式传，不依赖默认值）。 */
 export const ORDER_STRATEGY = 'source';
 /** 本流水线与客户端共同支持的内容结构版本（IF-30）。 */
@@ -41,7 +37,15 @@ export const SUPPORTED_FORMAT_VERSION = 1;
 export const DEPLOY_ALLOWLIST = ['index.html', 'styles.css', 'manifest.json', 'sw.js', 'app'];
 
 /** 流水线自己生成、允许出现在部署目录里的顶层条目。 */
-export const DEPLOY_GENERATED = [WEB_CONTENT_NAME, WEB_CHECKSUM_NAME, ANDROID_SNAPSHOT_DIR_REL_IN_WEB];
+export const DEPLOY_GENERATED = [WEB_CONTENT_NAME, ANDROID_SNAPSHOT_DIR_REL_IN_WEB];
+
+/**
+ * Web / 规范产物两处的 sha256 边车：**2026-10-16 已定：不产出、不检查、不登记**（用户拍板）。
+ * 理由：内容与壳同处一个 SW 缓存、成对切换，校验靠「同一次部署 + HTTPS + 预缓存整体性」；
+ * 留一个没人消费的边车只会让人以为还有一道校验环节。
+ * Android 小纸条清单里的 `sha256` **字段**保留（那是真在用的）。
+ */
+export const WEB_CHECKSUM_NAME = 'content.json.sha256';
 
 /** 明确不许出现的开发期条目（复制前就排除；就绪检查再断言一次，防回归）。 */
 export const DEPLOY_DENYLIST = [
@@ -58,6 +62,18 @@ export const DEPLOY_DENYLIST = [
  *  这样 web/ 新增顶层文件时流水线会**大声失败**并要求人工确认是否该发布。 */
 export const DEPLOY_EXPECTED = [...DEPLOY_ALLOWLIST, ...DEPLOY_GENERATED].sort();
 
+/**
+ * 部署目录里**必须**存在的条目。
+ *
+ * `content.json` 是必需项：契约 §4（2026-10-16 用户拍板）明确「内容仍要**单独取**，
+ * 不得内联进 HTML/JS」——单独取才能在外壳到达后先渲染框架并如实显示取内容的状态；
+ * 站点上少这份文件 = Web 端没有内容可读。
+ */
+export const DEPLOY_REQUIRED = [...DEPLOY_ALLOWLIST, WEB_CONTENT_NAME];
+
+/** 内容边车：**不产出**（2026-10-16 已定）。常量保留只为消息里点名。 */
+export const WEB_CHECKSUM_REQUIRED = false;
+
 // ---------- Android 更新清单字段（IF-22，字段名以 Android 端为准） ----------
 
 export const MANIFEST_FIELDS = Object.freeze([
@@ -72,7 +88,6 @@ export const MANIFEST_FIELDS = Object.freeze([
 // ---------- 路径拼装 ----------
 
 export const distPath = (outDir) => path.join(outDir, DIST_REL);
-export const distSidecarPath = (outDir) => path.join(outDir, DIST_SIDECAR_REL);
 export const webDir = (outDir) => path.join(outDir, WEB_DIR_REL);
 export const apkDir = (outDir) => path.join(outDir, APK_DIR_REL);
 export const manifestPath = (outDir) => path.join(outDir, MANIFEST_REL);

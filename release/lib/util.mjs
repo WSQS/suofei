@@ -78,17 +78,6 @@ export function sha256Text(text) {
   return createHash('sha256').update(text, 'utf8').digest('hex');
 }
 
-/** `sha256sum` 风格边车文本（web/README §6 定的格式）。 */
-export function sidecarText(hash, fileName) {
-  return `${hash}  ${fileName}\n`;
-}
-
-/** 解析边车文本 → {hash, fileName}；格式不对返回 null（不猜）。 */
-export function parseSidecar(text) {
-  const m = /^([0-9a-f]{64}) {2}(\S+)\s*$/.exec(text);
-  return m ? { hash: m[1], fileName: m[2] } : null;
-}
-
 // ---------- 文件 ----------
 
 export function readJson(file) {
@@ -145,6 +134,14 @@ function quoteForWindows(arg) {
   return /[\s"]/.test(arg) ? `"${arg.replace(/"/g, '\\"')}"` : arg;
 }
 
+/** 在 Windows 上，`.bat`（gradlew.bat）必须经 cmd.exe 才能执行（直接 spawnSync 会 EINVAL）。 */
+function spawnTarget(cmd, args) {
+  if (process.platform === 'win32' && /\.bat$/i.test(cmd)) {
+    return { file: 'cmd.exe', argv: ['/c', cmd, ...args.map(quoteForWindows)] };
+  }
+  return { file: cmd, argv: args };
+}
+
 /**
  * 同步跑一个命令，输出直通到终端（构建日志要能被人看见）。
  * 非零退出 ⇒ 抛 ReleaseError：**不许把失败当成功**。
@@ -153,14 +150,9 @@ export function run(cmd, args, { cwd = REPO_ROOT, env, allowFailure = false, qui
   if (!quiet) showCommand(cmd, args, cwd);
   const started = Date.now();
   let result;
-  if (process.platform === 'win32' && /\.bat$/i.test(cmd)) {
-    result = spawnSync('cmd.exe', ['/c', cmd, ...args.map(quoteForWindows)], {
-      cwd,
-      env: env ?? process.env,
-      stdio: 'inherit',
-    });
-  } else {
-    result = spawnSync(cmd, args, { cwd, env: env ?? process.env, stdio: 'inherit' });
+  {
+    const t = spawnTarget(cmd, args);
+    result = spawnSync(t.file, t.argv, { cwd, env: env ?? process.env, stdio: 'inherit' });
   }
   const seconds = (Date.now() - started) / 1000;
   if (result.error) {
@@ -179,6 +171,36 @@ export function runCapture(cmd, args, { cwd = REPO_ROOT } = {}) {
   const result = spawnSync(cmd, args, { cwd, encoding: 'utf8' });
   if (result.error) return null;
   return { status: result.status, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
+}
+
+/**
+ * 跑一个长命令：输出**全量落盘**到 logFile，终端只打尾部若干行。
+ * 用在两个「真跑」门上（Web e2e 一百多条断言、Gradle 单测）——
+ * 回执要能读，但不能因为读不全而丢掉证据。
+ */
+export function runCaptureFull(cmd, args, { cwd = REPO_ROOT, env, logFile, tailLines = 25 } = {}) {
+  showCommand(cmd, args, cwd);
+  const started = Date.now();
+  const target = spawnTarget(cmd, args);
+  const result = spawnSync(target.file, target.argv, {
+    cwd,
+    env: env ?? process.env,
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  const seconds = (Date.now() - started) / 1000;
+  const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+  if (logFile) {
+    fs.mkdirSync(path.dirname(logFile), { recursive: true });
+    fs.writeFileSync(logFile, `${cmd} ${args.join(' ')}\n\n${output}`, 'utf8');
+    console.log(`  · 完整输出：${display(logFile)}（${output.length} 字符；下面只打尾部 ${tailLines} 行）`);
+  }
+  const lines = output.replace(/\s+$/, '').split('\n');
+  for (const line of lines.slice(-tailLines)) console.log(`  │ ${line}`);
+  if (result.error) {
+    throw new ReleaseError(`命令无法执行：${cmd} —— ${result.error.message}`, { code: 'SPAWN_FAILED' });
+  }
+  return { status: result.status, seconds, output, logFile };
 }
 
 /** git 子命令的 stdout（去掉尾换行）；git 不可用或失败返回 null，绝不猜。 */

@@ -8,7 +8,7 @@
 // 它做的事（每步都打印真实命令与关键数值，失败非零退出，绝不把失败当成功）：
 //   1. 记录前置事实（源提交、工作树是否干净、应用版本、已提交的内置内容版本）
 //   2. 解析 contentVersion（**来源可配置**：见 lib/version-source.mjs，没有默认值）＋单调性基线
-//   3. 编译内容（调用 tools/build-content.mjs，一次）→ <out>/dist/content.json + sha256 边车
+//   3. 编译内容（调用 tools/build-content.mjs，一次）→ <out>/dist/content.json（压缩；不产边车）
 //   4. 准备 Web 部署目录（<out>/web/）——内容是第 3 步那份文件的**字节复制**
 //   5. 准备 Android 更新源（<out>/web/content/latest.json + 快照）——同一份字节
 //   6. 构建 APK（android/ 的只读副本 + Gradle init script 注入 assets）——同一份字节
@@ -40,29 +40,31 @@ import {
   runCapture,
   sha256,
   sha256File,
-  sidecarText,
   step,
   warn,
   writeFileEnsured,
 } from './lib/util.mjs';
-import { resolvePreviousVersion, resolveVersionRequest } from './lib/version-source.mjs';
+import { RELEASE_TAG_HINT, resolvePreviousVersion, resolveVersionRequest } from './lib/version-source.mjs';
+import { builtApkPath, gradlewCommand, prepareAndroidWorkDir } from './lib/android-work.mjs';
 import { listZipEntries, readZipEntry } from './lib/zip.mjs';
 
 const USAGE = `用法：node release/build-release.mjs [选项]
 
-  --content-version <v>   本次发布的 contentVersion，形如 2026.10.14.2（候选 A：人工显式给）
-  --tag <tag 名>          从 tag 名解析（候选 B）：2026.10.14.2 / v2026.10.14.2 / content-2026.10.14.2
-  --version-source date   候选 C：UTC 当天日期 + 当天已有最大 N + 1（N 从 git tag 里数）
+  --tag <tag 名>          **正式发布的版本来源**（用户 2026-10-16 拍板）：一个 tag 同时带两个号 ——
+                          v<应用资源版本>+content-<内容版本>，例如 v0.2.0+content-2026.10.14.2
+                          两个号都必须解析得出来，否则**拒绝发布**（不猜、不填默认）
+  --content-version <v>   只给内容版本，形如 2026.10.14.2 —— **本地演练用途**；正式发布以 tag 为准
+  --version-source date   本地演练用：UTC 当天日期 + 当天已有最大 N + 1（N 从 git tag 里数）
   --previous-version <v>  单调性基线（默认取「已提交的内置内容版本」与上次 release-manifest 里的较大者）
   --out <dir>             产物目录，默认 ${A.OUT_DEFAULT}（release/.gitignore 忽略 /out/）
   --android-src <dir>     要构建的 Android 工程，默认 android/（只读，会被复制）
   --source-date-epoch <secs>  固定编译产物的 generatedAt（Unix 秒），让「同一次发布的产物字节」可复现；
                           不传则用真实时间（于是同一份内容重复编译字节不同，哈希只在一次发布内可比）
   --skip-apk              跳过 APK 构建（内容/Web 两样照常产出；就绪检查会因此报红）
-  --android-feed <mode>   是否产出远端更新清单：manifest（默认）| none
-                          ⚠️ 这是**接口待定项**（决策点 2：两端协议不一致，用户未拍板）。
-                          manifest：站点上同时放 content/latest.json + content/<版本>/content.json（Android 现状需要）
-                          none    ：只放 Web 那套 content.json + 边车（若用户选「统一到无清单」）
+  --android-feed <mode>   是否产出远端更新清单：manifest（默认，**已定形态**）| none
+                          ⚠️ 决策点 2 已拍板（2026-10-16）：**Android 保留小纸条清单**
+                          （content/latest.json + content/<版本>/content.json）；Web 不再需要独立内容通道
+                          （内容随壳走，更新交给 SW 生命周期）。none 只用于本地演练，不是发布形态。
   --no-android-manifest   = --android-feed none
   --online                不用 Gradle --offline（默认 offline，避免发布构建偷偷依赖网络）
   -h, --help              显示本帮助
@@ -216,6 +218,27 @@ function main() {
   if (!opts.skipApk) info('Android SDK', requireAndroidSdk(androidSrc));
   const app = readAppIdentity();
   info('应用版本（android/app/build.gradle.kts）', `${app.versionName} (versionCode ${app.versionCode}), applicationId=${app.applicationId}`);
+  // Web 站点版本（= SW 缓存名 + 预缓存的版本键）。2026-10-16 起发布硬要求：必须有递增，且
+  // config.js 与 sw.js 两处同时改（一致性由 check-ready 的 sw-config-agree 把关）。
+  const readAppVersionConstant = (file) => {
+    try {
+      return /APP_VERSION\s*=\s*'([^']+)'/.exec(fs.readFileSync(path.join(REPO_ROOT, file), 'utf8'))?.[1] ?? null;
+    } catch {
+      return null;
+    }
+  };
+  const webAppVersion = readAppVersionConstant('web/app/config.js');
+  const webSwAppVersion = readAppVersionConstant('web/sw.js');
+  info('Web 站点版本 APP_VERSION', `config.js=${webAppVersion ?? '读不到'} / sw.js=${webSwAppVersion ?? '读不到'}`);
+  const previousManifest = (() => {
+    try {
+      return JSON.parse(fs.readFileSync(A.manifestPath(outDir), 'utf8'));
+    } catch {
+      return null;
+    }
+  })();
+  const previousWebAppVersion = previousManifest?.app?.webAppVersion ?? null;
+  if (previousWebAppVersion) info('上一版 APP_VERSION', `${previousWebAppVersion}（来自上次的 release-manifest.json）`);
   const dirty = dockerDirtyFlags();
   for (const [p, isDirty] of Object.entries(dirty)) {
     if (isDirty === 'unknown') warn(`${p}/ 的 git 状态读不到（不确定是否干净）`);
@@ -248,7 +271,10 @@ function main() {
 
   // ── 3. 编译内容（唯一一次）────────────────────────────────────
   step(3, TOTAL_STEPS, '编译内容（调用 tools/build-content.mjs，只此一次）');
-  rmrf(outDir);
+  // 只准备 dist/ 目录，**不清空整个产物目录**：编译器自己是「先全量建到内存、成功后才临时文件+rename」，
+  // 所以编译失败时上一版的 dist/web/apk/manifest 都还在（“失败保留旧版”）。
+  // 踩过的坑：早期在这里 rmrf(outDir)，于是一次编译失败就把上一版 manifest 也删了 ——
+  // 那既违背约定，又弄丢了下一版做单调性/APP_VERSION 递增比对的基线。
   fs.mkdirSync(path.join(outDir, 'dist'), { recursive: true });
   const compileArgs = [
     'tools/build-content.mjs',
@@ -256,6 +282,12 @@ function main() {
     '--out', display(A.distPath(outDir)),
     '--order', A.ORDER_STRATEGY,
     '--content-version', versionReq.contentVersion,
+    // --minify：发布产物用单行压缩 JSON。两个理由：
+    //   1. 站点/APK 里传的是这份字节，越小越省（本机实测 22921 → 18206 字节，-20.6%）；
+    //   2. 仓库里已提交的 Android 内置产物也是压缩的（两端同源字节），
+    //      流水线不压缩就会跟仓库现状不一致，每次发布都产生一份无谓的「格式差异」。
+    // 代价：产物 diff 不再是逐行可读（评审看仓库内的源 Markdown 与这台机器的快照即可）。
+    '--minify',
   ];
   if (prev.version) compileArgs.push('--previous-version', prev.version);
   const compile = run(process.execPath, compileArgs, {
@@ -282,8 +314,8 @@ function main() {
   if (distDoc.formatVersion !== A.SUPPORTED_FORMAT_VERSION) {
     warn(`产物 formatVersion=${distDoc.formatVersion}，而流水线约定客户端只支持 ${A.SUPPORTED_FORMAT_VERSION} —— 就绪检查会报红，需要人工确认`);
   }
-  writeFileEnsured(A.distSidecarPath(outDir), sidecarText(distSha, 'content.json'));
-  info('边车', `${A.DIST_SIDECAR_REL}（sha256sum 格式）`);
+  // 不再产出 dist/content.json.sha256（2026-10-16 已定：Web/侧车不产出、不检查、不登记）。
+  // 规范产物的完整性由「每处副本都逐字节比对 + 取回重建对比」保证，不靠一个没人消费的文件。
 
   // ── 4. Web 部署目录 ───────────────────────────────────────────
   step(4, TOTAL_STEPS, '准备 Web 部署目录（内容＝第 3 步那份文件的字节复制）');
@@ -307,8 +339,11 @@ function main() {
   }
   info('复制自 web/', copied.join(', '));
   const webContent = copyFileVerified(distFile, path.join(webOut, A.WEB_CONTENT_NAME), 'Web 内容同源');
-  writeFileEnsured(path.join(webOut, A.WEB_CHECKSUM_NAME), sidecarText(distSha, A.WEB_CONTENT_NAME));
+  // 不再产出 web/content.json.sha256（2026-10-16 用户拍板，负责人转达）：
+  // 内容与壳同处一个 SW 缓存、成对切换，校验靠「同一次部署 + HTTPS + 预缓存整体性」；
+  // 留一个没人消费的边车只会让人以为还有一道校验环节。Android 侧的清单 sha256 仍然保留（那是真在用的）。
   info('部署内容', `${A.WEB_CONTENT_NAME}  ${webContent.bytes} 字节  sha256=${webContent.sha256}（与 dist 字节一致）`);
+  note('Web 侧**不产出** sha256 边车（已定）；Android 小纸条清单里的 sha256 保留');
   const leaked = (listTop(webOut) ?? []).filter((n) => A.DEPLOY_DENYLIST.includes(n));
   if (leaked.length) throw new ReleaseError(`Web 部署目录里出现了不该发布的条目：${leaked.join(', ')}`, { code: 'DEPLOY_LEAK' });
   info('部署目录顶层', (listTop(webOut) ?? []).join(', '));
@@ -321,8 +356,7 @@ function main() {
     warn('--android-feed none：本次**不**产出远端更新清单与快照。');
     note('若决策点 2 最终选「保持两端现状」或「统一到有清单」，就必须改回 manifest —— 这一步是可配置的，没有写死。');
   } else {
-    const snapshot = A.androidSnapshotInWeb(outDir, versionReq.contentVersion);
-    snapInfo = copyFileVerified(distFile, snapshot, 'Android 快照同源');
+    const snapshot = A.androidSnapshotInWeb(outDir, versionReq.contentVersion);    snapInfo = copyFileVerified(distFile, snapshot, 'Android 快照同源');
     const androidUrl = A.androidSnapshotUrl(versionReq.contentVersion);
     latest = {
       formatVersion: distDoc.formatVersion,
@@ -344,40 +378,21 @@ function main() {
   if (opts.skipApk) {
     warn('--skip-apk：本次不构建 APK。就绪检查会因此报红，不得推进最新版。');
   } else {
-    const work = path.join(outDir, '.work');
-    const androidCopy = path.join(work, 'android');
-    const injectAssets = path.join(work, 'inject-assets');
-    rmrf(work);
-    copyTree(androidSrc, androidCopy, {
-      filter: (from) => {
-        const base = path.basename(from);
-        return !['build', '.gradle', '.idea', '.kotlin', 'local.properties.bak'].includes(base);
-      },
-    });
-    info('只读副本', `${display(androidCopy)}（android/ 本身一个字节都没被写）`);
-    const injected = copyFileVerified(distFile, path.join(injectAssets, 'content/content.json'), 'APK 注入内容同源');
-    info('待注入内容', `${display(path.join(injectAssets, 'content/content.json'))}  ${injected.bytes} 字节  sha256=${injected.sha256}`);
-    const template = fs.readFileSync(path.join(REPO_ROOT, 'release/lib/inject-assets.init.gradle'), 'utf8');
-    const initScript = path.join(work, 'inject-assets.init.gradle');
-    // Groovy 单引号字符串：把反斜杠转义。用 replaceAll：模板里若还有第二处占位符，
-    // 只替换第一处会让脚本里留着字面量 '__ASSETS_DIR__'（真的踩过一次：assets 全空）。
-    const rendered = template.replaceAll('__ASSETS_DIR__', injectAssets.replace(/\\/g, '\\\\'));
-    if (rendered.includes('__ASSETS_DIR__')) {
-      throw new ReleaseError('init script 里还残留未替换的占位符 __ASSETS_DIR__', { code: 'INJECT_SCRIPT_BROKEN' });
-    }
-    if (!exists(path.join(injectAssets, 'content/content.json'))) {
-      throw new ReleaseError(`注入源目录里没有 content/content.json：${display(injectAssets)}`, { code: 'INJECT_SCRIPT_BROKEN' });
-    }
-    writeFileEnsured(initScript, rendered);
-    info('assets 覆盖脚本', display(initScript));
+    const work = prepareAndroidWorkDir({ outDir, androidSrc, distFile });
+    info(
+      '只读副本',
+      `${display(work.projectDir)}（android/ 本身一个字节都没被写；${work.recreated ? '本次重建' : '复用上次副本'}）`,
+    );
+    info('内置内容已就位', `${display(work.assetFile)}  ${work.contentBytes} 字节  sha256=${work.contentSha256}（与 dist 字节一致）`);
+    note('同一个文件既是 APK 的 assets、也是 ContentParserTest 的输入 —— 一处替换、两处一致（详见 release/lib/android-work.mjs）');
 
-    const gradlew = process.platform === 'win32' ? 'gradlew.bat' : './gradlew';
-    const gradleArgs = ['--init-script', initScript, 'assembleDebug'];
+    const gradlew = gradlewCommand();
+    const gradleArgs = ['assembleDebug'];
     if (opts.offline) gradleArgs.push('--offline');
-    const build = run(gradlew, gradleArgs, { cwd: androidCopy });
+    const build = run(gradlew, gradleArgs, { cwd: work.projectDir });
     steps.push({ name: '构建 APK', command: `${gradlew} ${gradleArgs.join(' ')}`, seconds: build.seconds });
 
-    const builtApk = path.join(androidCopy, 'app/build/outputs/apk/debug/app-debug.apk');
+    const builtApk = builtApkPath(work.projectDir);
     if (!exists(builtApk)) throw new ReleaseError(`Gradle 成功但没有 APK：${display(builtApk)}`, { code: 'NO_ARTIFACT' });
     const apkBuiltIn = readApkBuiltInContent(fs.readFileSync(builtApk), builtApk);
     if (apkBuiltIn.sha256 !== distSha) {
@@ -391,9 +406,9 @@ function main() {
         { code: 'APK_CONTENT_MISMATCH' },
       );
     }
-    info('APK 内置内容校验', `${apkBuiltIn.entry}  ${apkBuiltIn.bytes} 字节  sha256=${apkBuiltIn.sha256} == dist ✓`);
-    const apkName = A.apkFileName(versionReq.contentVersion);
+    info('APK 内置内容校验', `${apkBuiltIn.entry}  ${apkBuiltIn.bytes} 字节  sha256=${apkBuiltIn.sha256} == dist ✓`);    const apkName = A.apkFileName(versionReq.contentVersion);
     const apkPath = path.join(A.apkDir(outDir), apkName);
+    rmrf(A.apkDir(outDir)); // 上一版的 APK 不是本次产物，不留在同一个目录里混着
     copyOneFile(builtApk, apkPath);
     apk = {
       path: `${A.APK_DIR_REL}/${apkName}`,
@@ -412,7 +427,7 @@ function main() {
 
   // ── 7. 发布清单 ───────────────────────────────────────────────
   step(7, TOTAL_STEPS, '写本次发布的机器可读清单');
-  for (const f of [A.distPath(outDir), A.distSidecarPath(outDir), path.join(webOut, A.WEB_CONTENT_NAME)]) {
+  for (const f of [A.distPath(outDir), path.join(webOut, A.WEB_CONTENT_NAME)]) {
     if (!exists(f)) throw new ReleaseError(`清单前自检失败：缺 ${display(f)}`, { code: 'NO_ARTIFACT' });
   }
   if (opts.androidFeed !== 'none' && !exists(A.androidManifestInWeb(outDir))) {
@@ -425,6 +440,13 @@ function main() {
     finishedAt: new Date().toISOString(),
     contentVersion: versionReq.contentVersion,
     versionSource: versionReq.source,
+    releaseTag: {
+      name: opts.tag ?? null,
+      appVersion: versionReq.appVersion ?? null,
+      // tag 是**正式发布**的版本锚点；显式传 --content-version 只用于本地演练。
+      isReleaseAnchor: Boolean(versionReq.appVersion),
+      expectedFormat: RELEASE_TAG_HINT,
+    },
     previousVersion: prev.version,
     previousVersionSource: prev.source,
     formatVersion: distDoc.formatVersion,
@@ -440,11 +462,10 @@ function main() {
     sourceBranch: branch,
     dirtyAtReleaseTime: dirty,
     bundledContentVersionBefore: bundledBefore,
-    app: { ...app, buildType: 'debug', signed: false },
+    app: { ...app, webAppVersion, webSwAppVersion, tagAppVersion: versionReq.appVersion ?? null, previousWebAppVersion, buildType: 'debug', signed: false },
     steps,
     artifacts: [
       { role: 'content-json', path: A.DIST_REL, bytes: distBuf.length, sha256: distSha },
-      { role: 'content-checksum', path: A.DIST_SIDECAR_REL, note: 'sha256sum 格式边车' },
       { role: 'web-deploy-dir', path: A.WEB_DIR_REL, ...dirBytes(webOut) },
       { role: 'web-content', path: `${A.WEB_DIR_REL}/${A.WEB_CONTENT_NAME}`, bytes: webContent.bytes, sha256: webContent.sha256 },
       ...(latest
@@ -482,7 +503,7 @@ function main() {
   step(8, TOTAL_STEPS, '摘要');
   const rows = [
     ['内容 JSON', A.DIST_REL, `${distBuf.length} 字节`],
-    ['Web 部署目录', `${A.WEB_DIR_REL}/`, `${dirBytes(webOut).files} 个文件（含站点根 content.json + 边车）`],
+    ['Web 部署目录', `${A.WEB_DIR_REL}/`, `${dirBytes(webOut).files} 个文件（含单独取的内容 content.json）`],
     [
       '远端更新清单',
       latest ? `${A.WEB_DIR_REL}/${A.ANDROID_MANIFEST_REL_IN_WEB}` : '（--android-feed none，未产出）',

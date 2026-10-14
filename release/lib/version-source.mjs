@@ -18,18 +18,30 @@ import { ReleaseError, REPO_ROOT, git } from './util.mjs';
 // —— 两份实现迟早会漂移，而「谁更新」的判定必须两端 + 流水线同句。
 import { compareContentVersion } from '../../tools/lib/version.mjs';
 
-/** 发布版本形状（与 tools/lib/version.mjs 的 RELEASE_VERSION_RE 同形状）。 */
+/** 发布内容版本形状（与 tools/lib/version.mjs 的 RELEASE_VERSION_RE 同形状）。 */
 export const RELEASE_VERSION_RE = /^(\d{4})\.(\d{2})\.(\d{2})\.(\d+)$/;
 
-/** tag 名里允许的包装：`2026.10.14.2` / `v2026.10.14.2` / `content-2026.10.14.2`。 */
-export function versionFromTag(tag) {
-  const name = String(tag).replace(/^refs\/tags\//, '').trim();
-  const m = /^(?:v|content-|content\/)?(\d{4})\.(\d{2})\.(\d{2})\.(\d+)$/.exec(name);
+/**
+ * 发布 tag 的形状（2026-10-16 用户拍板）：**一个 tag 同时带两个号**
+ *
+ *   v<应用资源版本>+content-<内容版本>      例如 v0.2.0+content-2026.10.14.2
+ *
+ * 应用版本就是 Web 的 APP_VERSION（站点缓存键，必须先子），内容版本就是 contentVersion（契约 §4.1）。
+ * 两个号都必须解析得出来；少一个、或形状不符 ⇒ **拒绝发布**（不猜、不填默认）。
+ */
+export const RELEASE_TAG_RE = /^(?:refs\/tags\/)?v?(\d+(?:\.\d+)*)\+content-(\d{4}\.\d{2}\.\d{2}\.\d+)$/;
+
+/** tag 期望格式（错误信息里直接复用，不手写两遍）。 */
+export const RELEASE_TAG_HINT = 'v<应用资源版本>+content-<内容版本>，例如 v0.2.0+content-2026.10.14.2';
+
+/** @returns {{appVersion: string, contentVersion: string}|null} */
+export function parseReleaseTag(tag) {
+  const m = RELEASE_TAG_RE.exec(String(tag).trim());
   if (!m) return null;
-  return `${m[1]}.${m[2]}.${m[3]}.${m[4]}`;
+  return { appVersion: m[1], contentVersion: m[2] };
 }
 
-/** 候选 A：人工显式给。 */
+/** 候选 A：人工显式给（**本地演练**用途；正式发布以 tag 为准）。 */
 function fromExplicit(value) {
   if (!RELEASE_VERSION_RE.test(value)) {
     throw new ReleaseError(
@@ -37,19 +49,27 @@ function fromExplicit(value) {
       { code: 'USAGE' },
     );
   }
-  return { contentVersion: value, source: `explicit(--content-version=${value})` };
+  return {
+    contentVersion: value,
+    appVersion: null,
+    source: `explicit(--content-version=${value})，**本地演练用途**；正式发布以 tag（${RELEASE_TAG_HINT}）为准`,
+  };
 }
 
-/** 候选 B：从 tag 名解析。 */
+/** 候选 B（已拍板）：从 tag 名解析出**两个号**。 */
 function fromTag(tag) {
-  const version = versionFromTag(tag);
-  if (!version) {
+  const parsed = parseReleaseTag(tag);
+  if (!parsed) {
     throw new ReleaseError(
-      `tag 名里找不到发布版本：${tag}；可接受的形状：<内容版本> / v<内容版本> / content-<内容版本>`,
+      `tag 名解析不出两个版本号：${tag}\n  期望格式：${RELEASE_TAG_HINT}\n  （缺号或形状不符一律拒绝 —— 不猜、不填默认）`,
       { code: 'USAGE' },
     );
   }
-  return { contentVersion: version, source: `tag(${tag} → ${version})` };
+  return {
+    contentVersion: parsed.contentVersion,
+    appVersion: parsed.appVersion,
+    source: `tag(${tag} → 应用 ${parsed.appVersion} / 内容 ${parsed.contentVersion})`,
+  };
 }
 
 /** 候选 C：当天日期 + 「当天已有最大 N」+1。N 的来源是 git tag（仓库里唯一可查的发布记录）。 */
@@ -64,15 +84,16 @@ function fromDate() {
   }
   let maxN = 0;
   for (const line of tags.split('\n')) {
-    const version = versionFromTag(line);
-    if (!version) continue;
-    const m = RELEASE_VERSION_RE.exec(version);
-    if (`${m[1]}.${m[2]}.${m[3]}` === today) maxN = Math.max(maxN, Number(m[4]));
+    const parsed = parseReleaseTag(line);
+    if (!parsed) continue;
+    const m = RELEASE_VERSION_RE.exec(parsed.contentVersion);
+    if (m && `${m[1]}.${m[2]}.${m[3]}` === today) maxN = Math.max(maxN, Number(m[4]));
   }
   const version = `${today}.${maxN + 1}`;
   return {
     contentVersion: version,
-    source: `date(UTC ${today}，当天 tag 里最大 N=${maxN} → ${version})`,
+    appVersion: null,
+    source: `date(UTC ${today}，当天 tag 里最大 N=${maxN} → ${version})，**本地演练用途**；正式发布以 tag（${RELEASE_TAG_HINT}）为准`,
   };
 }
 
@@ -86,9 +107,9 @@ export function resolveVersionRequest({ explicit, tag, source }) {
     throw new ReleaseError(
       [
         '没给 contentVersion 的来源，且**没有默认值**：',
-        '「发布时这个号由谁产生」是接口决定，尚未由用户拍板（IF-19 尾部），流水线不替你选。',
-        '请显式选一种：--content-version <v> / --tag <tag 名> / --version-source date',
-        '候选与各自代价见 docs/design/release-pipeline.md §3。',
+        `- 正式发布用 tag：--tag ${RELEASE_TAG_HINT}`,
+        '- 本地演练可以显式给：--content-version <YYYY.MM.DD.N> / --version-source date',
+        '没给来源时流水线不替你选（发布锚点必须是人给的）。',
       ].join('\n'),
       { code: 'VERSION_SOURCE_NOT_DECIDED' },
     );
