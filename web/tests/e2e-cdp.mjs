@@ -216,6 +216,14 @@ async function reload() {
 }
 
 const hashTo = async (hash) => { await evaluate(`location.hash = ${JSON.stringify(hash)}; true`); };
+
+/** 以某个 URL **真·新开一次**（先跳到 about:blank 再过去）：
+ *  用于验证「深链接直接打开」，避开「只改 hash 只是同文档切视图」这个区别。 */
+async function openFresh(url) {
+  await cdp.send('Page.navigate', { url: 'about:blank' });
+  await sleep(200);
+  await goto(url);
+}
 const summary = () => evaluate('JSON.parse(JSON.stringify(window.__app.summary()))');
 
 async function setQuery(text) {
@@ -555,6 +563,32 @@ async function main() {
     await evaluate(`document.querySelector('[data-test="status-order-mode"]').textContent`), '照产物数组次序');
   await pushDump('首访目录（真实内容）');
   await screenshot('02-index-real-content.png');
+
+  // ------------------------------------------------ 1b 可分享 URL 形态（用户 2026-10-14 拍板：保持现状）
+  section('1b 可分享 URL 形态：诗页深链接可直接打开、刷新仍在同一首；搜索不进地址栏');
+  const deepPoem = baseDoc.poems[5];              // 挑一首非首首的，证明是按 id 定位、不是「碰巧第一首」
+  await openFresh(`${BASE}#/p/${deepPoem.id}`);   // 真·新开一个文档落在这一首
+  await waitForPoemView(deepPoem.id);
+  eq('深链接直接打开就是这一首（按稳定 id 定位）',
+    await evaluate(`document.querySelector('[data-test="view-poem"]').dataset.poemId`), deepPoem.id);
+  eq('地址栏用的是契约 id', await evaluate('location.hash'), `#/p/${deepPoem.id}`);
+  check('地址栏里没有把标题当路径（所以改标题不会让老链接失效）',
+    !(await evaluate('location.hash')).includes(encodeURIComponent(deepPoem.title)));
+  await reload();                                  // 刷新后仍定位到同一首
+  await waitForPoemView(deepPoem.id);
+  eq('刷新后仍在同一首',
+    await evaluate(`document.querySelector('[data-test="view-poem"]').dataset.poemId`), deepPoem.id);
+  eq('刷新后地址栏不变', await evaluate('location.hash'), `#/p/${deepPoem.id}`);
+
+  await hashTo('#/');
+  await waitForIndex();
+  await setQuery('佚名');                          // 搜索不进地址栏（用户拍板）
+  check('目录里搜索会显示结果', await evaluate(`Boolean(document.querySelector('[data-test="view-search"]'))`));
+  eq('搜索时地址栏不变、没有搜索参数',
+    [await evaluate('location.hash'), (await evaluate('location.href')).includes('?q=')], ['#/', false]);
+  await setQuery('');
+  await hashTo('#/');
+  await waitForIndex();
 
   // ---------------------------------------------------------------- 2. 站点缓存 = 壳 + 内容成对
   section('2 站点缓存：壳与内容在同一个 cache 里成对；独立内容通道已不存在');
