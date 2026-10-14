@@ -83,8 +83,10 @@ class ContentParserTest {
     fun variants_areParsedButNeverEnterStanzas() {
         val content = ContentParser.parse(assetFile.readText(Charsets.UTF_8))
         val poem = content.poems.first { it.id == "gushi-shijiu-shou-09" }
-        assertEquals(1, poem.variants.size)
-        assertTrue(poem.variants.first().text.contains("贵"))
+        // ⚠️ 这里**不能断言条数**：异文会随补核增加（G 线补核后这首从 1 条变 2 条，
+        //    旧写法 assertEquals(1, …) 就变成一条过时断言，使真跑门假红）。断言「内容」。
+        assertTrue("第 9 首应至少有一条异文", poem.variants.isNotEmpty())
+        assertTrue("异文应记着别本作「贵」", poem.variants.any { it.text.contains("贵") })
         // 正文用底本（李善注本）「贡」；异文绝不混入正文
         assertTrue(poem.stanzas.flatten().any { it.contains("此物何足贡") })
         assertTrue(poem.stanzas.flatten().none { it.contains("何足贵") })

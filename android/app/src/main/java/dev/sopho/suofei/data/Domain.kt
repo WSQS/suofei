@@ -74,8 +74,8 @@ data class Content(
     companion object {
         /** 契约 §2.1 的显式规则：佚名/未知作者排在该组最后，不靠字符串碰巧。
          *  **逐字对齐契约清单（三端唯一来源）**：编译器 `UNKNOWN_AUTHOR_MARKERS`、Web 端 `UNKNOWN_AUTHORS` 必须同此清单；
-         *  空串/空白由 isBlank 处理，不写进集合。 */
-        private val ANONYMOUS_AUTHORS = setOf("佚名", "无名氏", "未知", "未详", "不详")
+         *  空串/空白由 isBlank 处理，不写进集合。`阙名` 已按用户 2026-10-14 决定并入（对现有 19 首无可见影响——它们都是「佚名」）。 */
+        private val ANONYMOUS_AUTHORS = setOf("佚名", "无名氏", "阙名", "未知", "未详", "不详")
 
         private fun authorRank(author: String): Int =
             if (author.isBlank() || author in ANONYMOUS_AUTHORS) 1 else 0
