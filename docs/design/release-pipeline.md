@@ -189,7 +189,7 @@ Web 的内容更新交给 SW 生命周期（内容与壳同一次部署、同一
 ### 9.3 演练/返修中抓到的真问题
 
 1. **我解析了 E 的内部结构 ⇒ 在主线上报过一次假红**（已修）。E 重写 `sw.js`（`SHELL` → 同一份预缓存清单、内容与壳成对）后，我那条「按常量名找预缓存数组」的检查在主线上报了 `[红] 从 sw.js 里没解析出 SHELL 预缓存清单` —— 报得没错（没静默放过），但根因是我在断言**别人文件的内部形状**。现在：静态层只断言**部署契约**与**契约常量 `APP_VERSION`**，SW 行为交给 E 的 e2e（§7.2）。
-2. **D 线一条测试断言写死了异文条数**（**仍未修，是当前唯一的红**）：`ContentParserTest.variants_areParsedButNeverEnterStanzas` 断言第 9 首《庭中有奇树》恰好 1 条异文；G 线补核后全部异文 13 → 21 条，该首变为 2 条 ⇒ 实测 `49 tests completed, 1 failed`（`expected:<1> but was:<2>`）。该测试的意图（异文被解析、但绝不混入正文）仍然有效，只是条数写死了；建议改成内容断言。我没改它：`android/` 不在我的写入范围，且 §6 的代码一致性闸正是为这种情况设的。
+2. **D 线一条测试断言写死了异文条数**（**仍未修，是当前唯一的红**）：`ContentParserTest.variants_areParsedButNeverEnterStanzas` 断言第 9 首《庭中有奇树》恰好 1 条异文；G 线补核后全部异文 13 → 21 条，该首变为 2 条 ⇒ 实测 `54 tests completed, 1 failed`（`expected:<1> but was:<2>`）。该测试的意图（异文被解析、但绝不混入正文）仍然有效，只是条数写死了；建议改成内容断言。我没改它：`android/` 不在我的写入范围，且 §6 的代码一致性闸正是为这种情况设的。
 3. **Gradle 缓存的静默通过**：见 §7.1。任何人手跑单测验证内容改动时都应加 `--rerun-tasks`。
 4. **并行的另一个会话会让门测到别人的站点**：见 §7.1 的端口处理。
 5. **编译失败会清空产物目录**（我自己的缺陷）：已修，见 §0/§8。
@@ -210,6 +210,12 @@ Web 的内容更新交给 SW 生命周期（内容与壳同一次部署、同一
 
 ### 11.1 主路径（tag 作发布锚点）
 
+> 下面的哈希是**那一次演练**的产物字节；不固定 `SOURCE_DATE_EPOCH` 时 `generatedAt` 会变，
+> 所以同一份内容重编也会得到不同的哈希（这正是 `--source-date-epoch` 存在的理由）。
+> 合并主线（含 D 线改动）后重跑的同一套门：dist `c354e58e…`、APK `1d0d2353…`、
+> e2e 140/140、Android 单测 **54 例 / 1 失败**（仍是下面那条 D 线断言）。
+
+
 ```bash
 $ node release/build-release.mjs --tag 'v0.1.0+content-2026.10.16.5'      # exit 0
 [2/8] 本次 contentVersion: 2026.10.16.5
@@ -217,14 +223,14 @@ $ node release/build-release.mjs --tag 'v0.1.0+content-2026.10.16.5'      # exit
       单调性基线（上一版）: 2026.10.16.4  ← 来源：已提交的内置内容
 [3/8] $ node tools/build-content.mjs --out release/out/dist/content.json --order source \
             --content-version 2026.10.16.5 --minify --previous-version 2026.10.16.4
-      产物: dist/content.json  20964 字节  sha256=3a78bc4f87f6dc5120af7870403512de44a0df2f8fcff2671f1e008947d3138b
+      产物: dist/content.json  20964 字节  sha256=c354e58ee0d718d06927ed1f38abc30a81435992fdd52719cdca970c03ea8fd7
       内容: formatVersion=1 contentVersion=2026.10.16.5 poems=19 dynasties=1
 [4/8] 部署内容: content.json 20964 字节（与 dist 字节一致）
       Web 侧**不产出** sha256 边车（已定）；Android 小纸条清单里的 sha256 保留
 [5/8] 清单: content/latest.json  url=2026.10.16.5/content.json
 [6/8] 只读副本: release/out/.work/android（android/ 本身一个字节都没被写）
-      APK 内置内容校验: assets/content/content.json 20964 字节 sha256=3a78bc4f… == dist ✓
-      APK: apk/suofei-2026.10.16.5-debug.apk  9568028 字节  sha256=3a3773ab35aa1198bb3b4a45d43b2686373cc97a7b59431631d589d3f3128642
+      APK 内置内容校验: assets/content/content.json 20964 字节 sha256=c354e58e… == dist ✓
+      APK: apk/suofei-2026.10.16.5-debug.apk  9568032 字节  sha256=1d0d2353ca7d18a41bc074e2203c3753587d0a16c0af4ee8d2d33a9d9e037969
 [7/8] 清单: release-manifest.json（4012 字节）
 [8/8] Web 部署目录 web/ 11 个文件（含单独取的内容 content.json）
 
@@ -233,8 +239,8 @@ $ node release/check-ready.mjs                                            # 67s�
         apk-builtin-same-source / …）
 [跳] app-version-bumped  本次 APP_VERSION=0.1.0，但没有上一版的记录（首次发布 / 换了产物目录）
                          ⇒ 无法自动判断是否递增（真发布应保留上次的 release-manifest.json）
-[绿] live-web-e2e        通过 140 / 140（36s，真 Chromium，端口 8137/9237）
-       基座 = out/dist/content.json（sha256 3a78bc4f87f6dc51…），站点载荷 = out/web（APP_VERSION=0.1.0）
+[绿] live-web-e2e        通过 140 / 140（37s，真 Chromium，端口 8137/9237）
+       基座 = out/dist/content.json（sha256 c354e58ee0d718d0…），站点载荷 = out/web（APP_VERSION=0.1.0）
        机械核对：E 发的 v1 目录里 content.json 与 dist 逐字节相同；index.html/sw.js/app/* 与 out/web 一致
 [红] live-android-unit-tests  Android 单测真跑了并失败（退出码 1）：
        失败用例：ContentParserTest > variants_areParsedButNeverEnterStanzas
@@ -243,7 +249,7 @@ $ node release/check-ready.mjs                                            # 67s�
 真跑门：live-web-e2e=PASS，live-android-unit-tests=FAIL
 ```
 
-**红项没有清零，唯一那条红不是流水线的缺陷**：它是 §9.3.2 里 D 线的过时断言（`expected:<1> but was:<2>`，49 例里 1 例）。修它要动 `android/`，不在我的写入范围。
+**红项没有清零，唯一那条红不是流水线的缺陷**：它是 §9.3.2 里 D 线的过时断言（`expected:<1> but was:<2>`，54 例里 1 例）。修它要动 `android/`，不在我的写入范围。
 
 ### 11.2 拒绝路径（fail-closed）
 
@@ -318,7 +324,7 @@ $ node release/check-ready.mjs --skip-live
 - 真实 19 首/21 条异文编译为**压缩产物** 20964 字节；单调性闸通过；**编译失败保留旧产物**（哈希逐字节不变）。
 - Web 部署目录准备（字节一致、白名单精确、**无任何边车**）；`app-version-agree` 两处一致 + 与 tag 一致。
 - APK 构建 + **从 APK 读回 assets 与 `dist` 逐字节相同**；APK 身份 `dev.sopho.suofei` / versionCode 1 / 应用名「索斐」。
-- **真跑门**：E 的 Web e2e **140/140**（真无头 Chromium，站点＝`out/web`，机械核对被测站点就是本次产物）；Android JVM 单测 **49 例真执行**（1 例红＝D 线过时断言）。
+- **真跑门**：E 的 Web e2e **140/140**（真无头 Chromium，站点＝`out/web`，机械核对被测站点就是本次产物）；Android JVM 单测 **54 例真执行**（1 例红＝D 线过时断言）。
 - 红/黄路径：tag 缺号、tag 与代码不一致、内容版本倒退、产物未构建、`--skip-apk`、APK 不同源、产物少一首（两门同时红）、`--skip-live`（黄）、副本被改（拒跑）、APP_VERSION 未递增。
 - 跑完五个源目录 `git status` 干净。
 
