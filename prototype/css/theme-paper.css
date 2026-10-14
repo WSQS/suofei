@@ -1,0 +1,73 @@
+/* 方向 A「宣纸」——极简纸感：暖白底、宋/楷衬线、细线、几乎无圆角与阴影。
+ * 取向：把界面退到纸的后面，让读诗像读一页宣纸本。
+ * 代价：冷启动观感偏「旧」，列表信息密度低，计数/标签这类 UI 文字也得跟着收敛。
+ */
+html[data-theme='paper'] {
+  --bg: #f6f1e6;
+  --bg-sticky: rgba(246, 241, 230, 0.94);
+  --bg-pattern: none;
+  --bg-pattern-opacity: 0;
+
+  --surface: #fbf7ee;
+  --surface-hover: #f3ecdd;
+  --surface-sunken: #f1ead9;
+
+  --text: #2a251d;
+  --text-dim: #6f6455;
+  --text-faint: #9a8f7d;
+
+  --line: #e0d6c2;
+  --line-strong: #c9bca2;
+  --accent: #8a5a3b;
+  --accent-strong: #7a4b2c;
+  --accent-text: #6d4126;
+  --accent-soft: rgba(138, 90, 59, 0.08);
+  --accent-line: rgba(138, 90, 59, 0.3);
+
+  --warn: #b98b2f;
+  --warn-soft: rgba(185, 139, 47, 0.08);
+  --warn-text: #8a6420;
+  --line-warn: rgba(185, 139, 47, 0.35);
+
+  --test-line: rgba(138, 90, 59, 0.35);
+  --test-soft: rgba(138, 90, 59, 0.06);
+  --test-text: #6d4126;
+
+  --mark-bg: rgba(185, 139, 47, 0.22);
+  --mark-text: inherit;
+
+  --radius: 2px;
+  --radius-s: 2px;
+  --radius-pill: 2px;
+  --shadow: none;
+  --chip-transition: none;
+  --row-transition: background 0.15s ease;
+
+  --font-body: 'Songti SC', 'SimSun', 'Noto Serif CJK SC', serif;
+  --font-poem: 'Songti SC', 'SimSun', 'Noto Serif CJK SC', serif;
+  --font-title: 'KaiTi', 'STKaiti', 'Songti SC', 'SimSun', serif;
+  --font-ui: 'Songti SC', 'SimSun', serif;
+  --font-note: 'Songti SC', 'SimSun', serif;
+  --font-mono: 'Georgia', 'Songti SC', serif;
+
+  --font-size: 15px;
+  --lh: 1.8;
+  --ls: 0.01em;
+  --poem-size: 17.5px;
+  --poem-lh: 2.05;
+  --poem-ls: 0.05em;
+  --note-size: 14px;
+  --note-measure: 34em;
+  --title-size: 1.7rem;
+  --title-weight: 400;
+  --title-ls: 0.14em;
+  --brand-ls: 0.4em;
+  --gname-ls: 0.2em;
+  --ptitle-ls: 0.08em;
+
+  --stanza-gap: 1.15em;
+  --group-gap: 0.7rem;
+  --row-pad: 0.95rem 1.05rem;
+  --pad: 1.35rem;
+  --measure: 640px;
+}

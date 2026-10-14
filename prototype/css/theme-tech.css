@@ -1,0 +1,102 @@
+/* 方向 C「静默终端」——克制的深色未来科技感。
+ * 取向：深墨底 + 低饱和青灰 + 发丝线 + 等宽数字/标签，科技感只靠「结构感」表达。
+ * 明确不用霓虹、不用发光、不用扫描线动效——那些会直接干扰读诗。
+ * 代价：这是三个方向里最不「像书」的一个；深底大字长时间阅读更累，
+ *       且纸质/印刷的引文习惯（如异文小字）在深底上更弱。作为横向对照项保留。
+ */
+html[data-theme='tech'] {
+  --bg: #0e1315;
+  --bg-sticky: rgba(14, 19, 21, 0.92);
+  --bg-pattern: linear-gradient(to right, rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+  --bg-pattern-opacity: 1;
+
+  --surface: #141b1e;
+  --surface-hover: #182124;
+  --surface-sunken: #111719;
+
+  --text: #dde5e4;
+  --text-dim: #98a8a6;
+  --text-faint: #6d7d7c;
+
+  --line: #233034;
+  --line-strong: #35494d;
+  --accent: #4fb3a5;
+  --accent-strong: #62c6b7;
+  --accent-text: #7fd4c6;
+  --accent-soft: rgba(79, 179, 165, 0.1);
+  --accent-line: rgba(79, 179, 165, 0.38);
+
+  --warn: #c9a24a;
+  --warn-soft: rgba(201, 162, 74, 0.08);
+  --warn-text: #dcc078;
+  --line-warn: rgba(201, 162, 74, 0.34);
+
+  --test-line: rgba(79, 179, 165, 0.36);
+  --test-soft: rgba(79, 179, 165, 0.07);
+  --test-text: #7fd4c6;
+
+  --mark-bg: rgba(79, 179, 165, 0.22);
+  --mark-text: #eaf5f3;
+
+  --radius: 4px;
+  --radius-s: 3px;
+  --radius-pill: 3px;
+  --shadow: none;
+  --chip-transition: color 0.15s ease, border-color 0.15s ease;
+  --row-transition: border-color 0.15s ease, background 0.15s ease;
+
+  --font-body: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-poem: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-title: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-ui: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-note: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-mono: 'Consolas', 'SFMono-Regular', ui-monospace, monospace;
+
+  --font-size: 15px;
+  --lh: 1.75;
+  --ls: 0.005em;
+  --poem-size: 17px;
+  --poem-lh: 2;
+  --poem-ls: 0.045em;
+  --note-size: 13.5px;
+  --note-measure: 36em;
+  --title-size: 1.5rem;
+  --title-weight: 500;
+  --title-ls: 0.1em;
+  --brand-ls: 0.3em;
+  --gname-ls: 0.16em;
+  --ptitle-ls: 0.06em;
+
+  --stanza-gap: 1.2em;
+  --group-gap: 0.6rem;
+  --row-pad: 0.9rem 1.05rem;
+  --pad: 1.25rem;
+  --measure: 660px;
+}
+
+/* 深色方向的一点结构性标记：分组行的「组名」左沿加一条发丝竖线，
+ * 计数器用等宽方括号。这些都不发光、不动，只是排版记号。 */
+html[data-theme='tech'] .grouprow .gname {
+  padding-left: 0.6rem;
+  border-left: 2px solid var(--accent-line);
+}
+
+html[data-theme='tech'] .grouprow .gcount b::before {
+  content: '[';
+  color: var(--text-faint);
+  font-size: 0.85em;
+  margin-right: 1px;
+}
+
+html[data-theme='tech'] .grouprow .gcount b::after {
+  content: ']';
+  color: var(--text-faint);
+  font-size: 0.85em;
+  margin-left: 1px;
+}
+
+html[data-theme='tech'] .poem-head {
+  border-bottom: none;
+  padding-bottom: 0;
+}

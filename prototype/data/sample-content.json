@@ -1,0 +1,54 @@
+{
+  "_comment": "这不是真实内容产物，只是照 docs/design/content-contract.md 的 content.json 形状手写的小样本，用来验证原型在 http 下读取外部 JSON 的那条分支（?dist=...）确实生效。真实产物由编译线（工作线 C）从 content/poems/*.md 生成。",
+  "formatVersion": 1,
+  "contentVersion": "sample.2026.10.14.0",
+  "generatedAt": "2026-10-14T00:00:00Z",
+  "dynasties": [
+    { "key": "tang", "label": "唐", "order": 400 },
+    { "key": "unknown", "label": "未详", "order": 9999 }
+  ],
+  "poems": [
+    {
+      "id": "sample-li-bai-jing-ye-si",
+      "title": "静夜思",
+      "author": "李白",
+      "dynastyKey": "tang",
+      "dynastyLabel": "唐",
+      "dynastyOrder": 400,
+      "era": "唐",
+      "genre": "五言绝句",
+      "source": "样本数据（非真实内容），来源字段示例：《文选》卷二十九（示例，未核对）",
+      "variants": [],
+      "stanzas": [["床前明月光，疑是地上霜。", "举头望明月，低头思故乡。"]],
+      "notes": "样本 JSON 里的一条笔记，用来确认外部数据源的 notes 字段同样会走「默认折叠」的路径。"
+    },
+    {
+      "id": "sample-wang-wei-lu-zhai",
+      "title": "鹿柴",
+      "author": "王维",
+      "dynastyKey": "tang",
+      "dynastyLabel": "唐",
+      "dynastyOrder": 400,
+      "era": "唐",
+      "genre": "五言绝句",
+      "source": "样本数据（非真实内容）",
+      "variants": [],
+      "stanzas": [["空山不见人，但闻人语响。", "返景入深林，复照青苔上。"]],
+      "notes": null
+    },
+    {
+      "id": "sample-anonymous-gu-ge",
+      "title": "古歌（样本）",
+      "author": "佚名",
+      "dynastyKey": "unknown",
+      "dynastyLabel": "未详",
+      "dynastyOrder": 9999,
+      "era": "",
+      "genre": "",
+      "source": "样本数据（非真实内容）",
+      "variants": [],
+      "stanzas": [["山有木兮木有枝，心悦君兮君不知。"]],
+      "notes": null
+    }
+  ]
+}

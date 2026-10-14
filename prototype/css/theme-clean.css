@@ -1,0 +1,73 @@
+/* 方向 B「清爽」——现代无衬线：白底、卡片、明确的层级与蓝色强调。
+ * 取向：信息最清楚，分组数量/搜索结果/更新提示这类「应用界面」的部分最好读。
+ * 代价：读诗的气质偏「应用」不偏「书」，正文与 UI 同族无衬线，长诗的呼吸感弱于纸感。
+ */
+html[data-theme='clean'] {
+  --bg: #f5f7fa;
+  --bg-sticky: rgba(255, 255, 255, 0.88);
+  --bg-pattern: none;
+  --bg-pattern-opacity: 0;
+
+  --surface: #ffffff;
+  --surface-hover: #f2f5f9;
+  --surface-sunken: #f7f9fc;
+
+  --text: #14171c;
+  --text-dim: #5b6472;
+  --text-faint: #8b94a3;
+
+  --line: #e4e8ee;
+  --line-strong: #cfd6e0;
+  --accent: #2563eb;
+  --accent-strong: #1d4ed8;
+  --accent-text: #1d4ed8;
+  --accent-soft: rgba(37, 99, 235, 0.07);
+  --accent-line: rgba(37, 99, 235, 0.35);
+
+  --warn: #f59e0b;
+  --warn-soft: rgba(245, 158, 11, 0.08);
+  --warn-text: #92610a;
+  --line-warn: rgba(245, 158, 11, 0.4);
+
+  --test-line: rgba(37, 99, 235, 0.4);
+  --test-soft: rgba(37, 99, 235, 0.06);
+  --test-text: #1d4ed8;
+
+  --mark-bg: rgba(245, 158, 11, 0.28);
+  --mark-text: inherit;
+
+  --radius: 14px;
+  --radius-s: 10px;
+  --radius-pill: 999px;
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 6px 18px rgba(16, 24, 40, 0.04);
+  --chip-transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  --row-transition: background 0.15s ease, border-color 0.15s ease;
+
+  --font-body: 'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC', system-ui, sans-serif;
+  --font-poem: 'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC', system-ui, sans-serif;
+  --font-title: 'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC', system-ui, sans-serif;
+  --font-ui: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-note: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-mono: 'Consolas', 'SFMono-Regular', ui-monospace, monospace;
+
+  --font-size: 15px;
+  --lh: 1.75;
+  --ls: 0;
+  --poem-size: 17px;
+  --poem-lh: 1.95;
+  --poem-ls: 0.02em;
+  --note-size: 14px;
+  --note-measure: 36em;
+  --title-size: 1.55rem;
+  --title-weight: 600;
+  --title-ls: 0.04em;
+  --brand-ls: 0.18em;
+  --gname-ls: 0.04em;
+  --ptitle-ls: 0.02em;
+
+  --stanza-gap: 1.1em;
+  --group-gap: 0.75rem;
+  --row-pad: 1rem 1.15rem;
+  --pad: 1.15rem;
+  --measure: 660px;
+}
