@@ -93,6 +93,27 @@ export function validateContent(doc) {
     if (p.notes !== null && typeof p.notes !== 'string') {
       errors.push(`${at}.notes 既不是 null 也不是字符串`);
     }
+    // variants：契约要求产物里有这个字段（数组，元素 {text, note}）。
+    // **只解析与结构校验、绝不渲染**（用户 2026-10-14 拍板：异文只存档、不上界面；Android 同此）。
+    // 缺失/ null 时按「空」容忍（老手写 JSON），给了就必须形状正确。
+    if (p.variants !== undefined && p.variants !== null) {
+      if (!Array.isArray(p.variants)) {
+        errors.push(`${at}.variants 不是数组`);
+      } else {
+        p.variants.forEach((v, vi) => {
+          if (!isPlainObject(v)) {
+            errors.push(`${at}.variants[${vi}] 不是对象`);
+            return;
+          }
+          if (typeof v.text !== 'string' || v.text === '') {
+            errors.push(`${at}.variants[${vi}].text 缺失或为空`);
+          }
+          if (v.note !== undefined && v.note !== null && typeof v.note !== 'string') {
+            errors.push(`${at}.variants[${vi}].note 不是字符串`);
+          }
+        });
+      }
+    }
   });
 
   return { ok: errors.length === 0, errors };

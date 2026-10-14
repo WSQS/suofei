@@ -382,6 +382,17 @@ function unitTests(baseDoc, variants) {
   const bad = validateContent(variants.schemaBroken.doc);
   check('结构不合法的内容被拒（并给出可读条目）', bad.ok === false && bad.errors.length >= 2, bad.errors.join(' / '));
   check('非对象内容被拒', validateContent('nope').ok === false);
+
+  // variants：**只解析与校验、不渲染**（用户决定：异文只存档、不上界面；Android 同此）。
+  // 校验仍然生效，而界面上不该出现它 —— 反向断言在 §1c。
+  const withVariants = baseDoc.poems.filter((p) => (p.variants ?? []).length > 0);
+  check('真实产物里确实带着异文（字段仍在产物里，只是不显示）', withVariants.length > 0,
+    `${withVariants.length} 首有异文，共 ${withVariants.reduce((a, p) => a + p.variants.length, 0)} 条`);
+  const badVariants = structuredClone(baseDoc);
+  badVariants.poems[0].variants = [{ text: '' }, 'nope'];
+  const bv = validateContent(badVariants);
+  check('variants 形状不对 → 结构校验仍然失败（只是不渲染，不是不校验）',
+    bv.ok === false && bv.errors.length >= 2, bv.errors.join(' / '));
   const future = checkCompatibility(variants.futureFormat.doc);
   check('格式版本更高 → 判定为部署不一致', future.ok === false && future.message.includes('部署不一致'), future.message);
   check('格式版本更低 → 也判不兼容', checkCompatibility({ formatVersion: 0 }).ok === false);
@@ -677,6 +688,56 @@ async function main() {
   await hashTo('#/');
   await waitForIndex();
 
+  // ------------------------------------------------ 1c 诗页渲染（真实内容）
+  section('1c 诗页渲染：正文分行/分节与「底本」照旧；**异文不上界面**（用户决定，Android 同此）');
+  const p1 = baseDoc.poems[0];                                             // 行行重行行：8 行、3 条异文
+  const p9 = baseDoc.poems.find((x) => x.id === 'gushi-shijiu-shou-09');    // 其九：含「此物何足贵」
+  await hashTo(`#/p/${p1.id}`);
+  await waitForPoemView(p1.id);
+  eq('逐行文本与 JSON 完全一致',
+    await evaluate(`[...document.querySelectorAll('[data-test="poem-line"]')].map(e => e.textContent)`), p1.stanzas.flat());
+  eq('分节数量与 JSON 一致', await evaluate(`document.querySelectorAll('[data-test="stanza"]').length`), p1.stanzas.length);
+  eq('每节的行数',
+    await evaluate(`[...document.querySelectorAll('[data-test="stanza"]')].map(s => s.querySelectorAll('[data-test="poem-line"]').length)`),
+    p1.stanzas.map((x) => x.length));
+  eq('行元素 white-space=pre-wrap（防止行内空白被折叠）',
+    await evaluate(`getComputedStyle(document.querySelector('[data-test="poem-line"]')).whiteSpace`), 'pre-wrap');
+  eq('题下那行（时代 · 作者 · 年代 · 体裁）与 Android 的取值与顺序一致',
+    await evaluate(`document.querySelector('[data-test="poem-meta"]').textContent`),
+    [p1.dynastyLabel, p1.author, p1.era, p1.genre].filter(Boolean).join(' · '));
+  check('notes: null → 如实空状态，不伪造笔记', await evaluate(`Boolean(document.querySelector('[data-test="notes-empty"]'))`));
+
+  const sourceInfo = await evaluate(`(() => {
+    const dl = document.querySelector('[data-test="source-block"]');
+    return { labels: [...dl.querySelectorAll('dt')].map(e => e.textContent), text: dl.innerText };
+  })()`);
+  eq('底本栏位仍在（与 Android 一致），且只有「底本」与「id」两项', sourceInfo.labels, ['底本', 'id']);
+  includes('底本/来源的文字照旧显示', sourceInfo.text, p1.source);
+  check('没有「异文」栏位（连空占位也没有）',
+    !sourceInfo.labels.includes('异文') && !sourceInfo.text.includes('未记录'), dump(sourceInfo.labels));
+
+  // 关键反向断言：诗页不得出现异文文本（上线实测就是这条没覆盖到）
+  for (const poem of [p1, p9]) {
+    await hashTo(`#/p/${poem.id}`);
+    await waitForPoemView(poem.id);
+    const viewText = await evaluate(`document.querySelector('[data-test="view"]').innerText`);
+    const variantTexts = (poem.variants ?? []).map((v) => v.text);
+    check(`[${poem.title}] 页面上没有任何 variants[].text（${variantTexts.join('、')}）`,
+      variantTexts.every((t) => !viewText.includes(t)), dump(variantTexts));
+    // 「异文」二字：底本/来源文字里本来就带「异文校记见…」（Android 也一样显示它），
+    // 所以这里精确断言「出现次数 == 来源文字里的次数」，即没有额外的异文栏位文字。
+    eq(`[${poem.title}] 页面上的「异文」二字只来自底本/来源文字本身`,
+      viewText.split('异文').length - 1, poem.source.split('异文').length - 1);
+    includes(`[${poem.title}] 底本/来源仍在`, viewText, poem.source);
+  }
+  await hashTo(`#/p/${p1.id}`);
+  await waitForPoemView(p1.id);
+  await pushDump('诗页（真实内容；异文不上界面）');
+  await screenshot('03-poem-no-variants.png');
+  // 回到目录：让后面的小节从已知状态开始（以前因为停在诗页 hash 上、reload 后等目录超时过）。
+  await hashTo('#/');
+  await waitForIndex();
+
   // ---------------------------------------------------------------- 2. 站点缓存 = 壳 + 内容成对
   section('2 站点缓存：壳与内容在同一个 cache 里成对；独立内容通道已不存在');
   const expectedCache = resourceCacheName(APP_VERSION);
@@ -715,6 +776,7 @@ async function main() {
   eq('页面取到的仍是本版本缓存里的内容（不会被服务器上的新内容配上旧壳）',
     probe.contentVersion, baseDoc.contentVersion);
   await writeFile(resolve(v1.destDir, CONTENT_URL), baseText, 'utf8');
+  await hashTo('#/');            // 显式回目录：reload 落在哪个 hash 就渲染哪个视图，不依赖上一节留下的状态
   await reload();
   await waitForIndex();
 
