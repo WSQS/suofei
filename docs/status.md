@@ -9,7 +9,8 @@
 
 - **应用展示名：索斐**（2026-10-14 用户定；工程目录名 `PoetryCollection` 保持不变，两者互不冲突）。
 - **Android 包名 `applicationId`：`dev.sopho.suofei`**（2026-10-14 用户定）。仅影响 Android 工程标识，与工程目录名无关。
-- 评审门槛：v2 —— **A/B 两类都需用户确定**，差别只在「先问后做」与「先做后报可否决」，见 [review-gates.md](review-gates.md)。
+- 评审门槛：v3 —— **A/B 两类都需用户确定**，且**接口性质的事项归「先问后做」**，判据与分档见 [review-gates.md](review-gates.md)。
+- **接口清单见 [interface-decisions.md](interface-decisions.md)**：已定 3 条（展示名、包名、目录边界），待确认 1 批（契约层 IF-1…IF-4），待补 1 批（平台层 IF-6…IF-10，等 C/D/E 报回）。
 - 范围与边界见 [CONTEXT.md](../CONTEXT.md)；工作约定见 [AGENTS.md](../AGENTS.md)；**哪些事需要用户评审见 [review-gates.md](review-gates.md)**。
 - 技术选型（负责人判断）：**Kotlin + Jetpack Compose（Android 原生）+ 独立轻量静态 DOM Web**。理由见工作线 D 的报告；
   已核实的备选是共享 Web + Capacitor 壳（一套 UI），若在意「只维护一套 UI」可换，见 `../../misc/sophomore/reference/exploration/personal-poetry-app-platform-options.md`。
@@ -37,7 +38,8 @@
 
 ## 未决 / 待用户确认
 
-- 评审门槛清单 v2 的**分档点**（哪些算「先问后做」）：已给判据，待用户点头或修改。
+- 评审门槛清单 v3 的分档点：已问 `q-37751eea`，待答或修改。
+- 契约层接口 IF-1…IF-4：已问 `q-65466f27`，待答（若不接受，此时改动代价最小）。
 - 原型视觉与交互（评审后冻结，再落到两端实现）。
 - 仓库名与 Pages 地址：默认 `suofei`；建仓属 A4.1，需单独授权时一并确认。
 - 底本文字取舍（如《文选》与《玉台新咏》异文）——仅在两个文本都有出处且影响观感时升级为用户决定。
