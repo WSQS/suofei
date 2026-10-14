@@ -23,7 +23,10 @@
 
   <div id="notices" class="notices" data-test="notices"></div>
 
-  <main id="view" class="view-host" data-test="view"></main>
+  <main id="view" class="view-host" data-test="view">
+    <!-- 静态占位：JS 与内容都还没到时候，页面上也有可读状态（不是白屏） -->
+    <p class="view-hint" data-test="view-loading">正在装载站点…</p>
+  </main>
 
   <footer id="status" class="status" data-test="status"></footer>
 
