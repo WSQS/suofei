@@ -12,7 +12,7 @@
 | IF-1 | **一诗一 Markdown 的 front matter 字段与 ID 规则** | `docs/design/content-contract.md` §1：`id/title/author/dynasty/dynastyOrder/era/genre/source/variants/notes`；id 形如 `gushi-shijiu-shou-01` | 内容线正在按它写 **19 个真实文件**；编译脚本按它解析 | 改字段名 = 重写 19 个内容文件 + 编译脚本 + schema | 暂定（内容线已开工） |
 | IF-2 | **`dist/content.json` 的读取接口**（两端唯一的读取入口） | 契约 §2：`formatVersion/contentVersion/generatedAt/dynasties[]/poems[]`，诗内含 `stanzas/notes/…` | Android 端读取、Web 端读取、编译脚本、JSON Schema、测试 | 改结构 = 两端代码 + 编译 + schema + 已缓存内容失效 | 暂定（C 线正在实现） |
 | IF-3 | **分段表示**（正文分行与空行怎么表达） | `stanzas: 段数组，内层行数组`；空行 = 段边界 | 两端渲染（必须两端一致地保留分行与空行）、编译 | 两端渲染代码 + 编译 + 19 个文件的写法 | 暂定 |
-| IF-4 | **排序键与「佚名排最后」** | 编译期算好 `authorSortKey/titleSortKey`（拼音 `Intl.Collator`）；未知作者在该组内排最后 | 两端列表顺序都照它，不自算 | 编译 + 两端（若两端各自算则要同步改） | 暂定 |
+| IF-4 | **排序键与「佚名排最后」** | 编译期算好 `authorSortKey/titleSortKey`（拼音名次，整数）；组内先按 `orderInSource`（有值者）再按作者/诗名拼音；未知作者在该组内排最后；**客户端不得重排** | 两端列表顺序都照产物的数组次序，不自算 | 编译 + 两端（若两端各自算则要同步改） | **已定**（2026-10-14 用户拍板 `source`） |
 | IF-5 | **版本语义** | `formatVersion`（结构）与 `contentVersion`（内容）分开；比较规则由 C 线定死在契约 §4.1（发布版本逐段数值比较、强制递增；dev 版本不可发布） | 更新检查、缓存键、两端降级行为 | 改了会让已更新过的客户端认不出新旧 | **已实现**（见 IF-19） |
 | IF-9 | **目录与模块边界** | `content/`（一诗一 MD）、`dist/`（编译产物，gitignore）、`tools/`+`schema/`+`tests/`、`android/`、`web/`、`prototype/`、`docs/` | 所有工作线 | 跨线同时改 | 已定（本行即记录） |
 
@@ -32,7 +32,7 @@
 | 编号 | 接口 | 暂定值 | 谁依赖它 | 改一次的代价 | 状态 |
 |---|---|---|---|---|---|
 | IF-15 | **产物每首诗新增 3 个字段**：`orderInSource`（整数或 `null`）、`authorSortKey`、`titleSortKey` | 直传；两个 sort key 是**整数名次**（拼音排序的名次，不是拼音字符串） | 两端解析与渲染 | 两端读取 + schema + 契约；已下发的客户端内容缓存要重算 | **待你确认**（契约 v0 的示例 JSON 里没有这三个字段） |
-| IF-16 | **组内排序默认策略** `--order source\|pinyin` | 暂定 `source`（优先底本原次序，缺失时退拼音） | 你看到的阅读次序；两端 | 改一处（`tools/lib/interface.mjs`） | **待你拍板**（与 IF-4 同一件事，已问 `q-2b1b14d2`） |
+| IF-16 | **组内排序默认策略** `--order source\|pinyin` | **已定：`source`**（保留《文选》卷二十九原次序） | 你看到的阅读次序；两端 | 改一处（`tools/lib/interface.mjs`）；**发布流水线应显式传 `--order source`**，不依赖默认值 | **已定**（2026-10-14 用户拍板） |
 | IF-17 | front matter **未知键 = 编译失败**（`UNKNOWN_KEY`，不静默忽略） | 严格 | 内容线的 19 个文件 | 放开只需改一处 | 已实现；**我的判断：保留严格**（拼错键名不应静默少一个字段）。你可否决 |
 | IF-18 | 朝代**不做别名猜测**（写 `三国`/`东汉` 直接失败）；`dynastyOrder` 必须等于注册表值 | 注册表 11 项写死在 `tools/lib/dynasties.mjs` | 内容线 | 加朝代要改一处 + 契约 | 已实现；同上，先做后报 |
 | IF-19 | **`contentVersion` 由发布流水线显式给**（`YYYY.MM.DD.N`，逐段数值比较、强制递增）；不给则用 `0.0.0-dev+<内容 sha256 前12位>`（**永不发布**） | 见上 | 更新检查、缓存键 | 改比较规则改一处 | 已实现；**部分待定**：“发布时这个号由谁产生（tag？日期+当日递增？）”属发布流程，推到 A4.3 一并定 |
