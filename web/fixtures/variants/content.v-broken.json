@@ -1,0 +1,105 @@
+{
+  "formatVersion": 1,
+  "contentVersion": "2026.10.14.2",
+  "generatedAt": "2026-10-14T18:00:00Z",
+  "placeholder": true,
+  "placeholderNotice": "占位夹具，非校对文本（update 变体，仅用于更新流程验证）",
+  "dynasties": [
+    {
+      "key": "han",
+      "label": "汉",
+      "order": 100
+    },
+    {
+      "key": "weijin",
+      "label": "魏晋",
+      "order": 200
+    },
+    {
+      "key": "tang",
+      "label": "唐",
+      "order": 400
+    }
+  ],
+  "poems": [
+    {
+      "id": "gushi-shijiu-shou-01",
+      "title": "行行重行行",
+      "author": "佚名",
+      "dynastyKey": "han",
+      "dynastyLabel": "汉",
+      "dynastyOrder": 100,
+      "era": "东汉末",
+      "genre": "五言古诗",
+      "source": "占位夹具（非核对底本）",
+      "variants": [],
+      "stanzas": [
+        [
+          "行行重行行，与君生别离。",
+          "相去万余里，各在天一涯。"
+        ],
+        [
+          "道路阻且长，会面安可知？",
+          "胡马依北风，越鸟巢南枝。"
+        ]
+      ],
+      "notes": null,
+      "authorSortKey": "yiming",
+      "titleSortKey": "xingxingchongxingxing"
+    },
+    {
+      "id": "gushi-shijiu-shou-02",
+      "title": "青青河畔草",
+      "author": "佚名",
+      "dynastyKey": "han",
+      "dynastyLabel": "汉",
+      "dynastyOrder": 100,
+      "era": "东汉末",
+      "genre": "五言古诗",
+      "source": "占位夹具（非核对底本）",
+      "variants": [],
+      "stanzas": [
+        [
+          "青青河畔草，郁郁园中柳。",
+          "盈盈楼上女，皎皎当窗牖。"
+        ]
+      ],
+      "notes": null,
+      "authorSortKey": "yiming",
+      "titleSortKey": "qingqinghepancao"
+    },
+    {
+      "id": "gushi-shijiu-shou-06",
+      "title": "涉江采芙蓉",
+      "author": "佚名",
+      "dynastyKey": "han",
+      "dynastyLabel": "汉",
+      "dynastyOrder": 100,
+      "era": "东汉末",
+      "genre": "五言古诗",
+      "source": "占位夹具（非核对底本）",
+      "variants": [],
+      "stanzas": [
+        [
+          "涉江采芙蓉，兰泽多芳草。（占位夹具·新版改了这一行）",
+          "采之欲遗谁？所思在远道。"
+        ]
+      ],
+      "notes": "",
+      "_fixtureNote": "本诗故意不带 authorSortKey/titleSortKey，用于验证客户端回退到 Intl.Collator 拼音排序"
+    },
+    {
+      "id": "weijin-caocao-guancanghai",
+      "title": "观沧海",
+      "author": "曹操",
+      "dynastyKey": "weijin",
+      "dynastyLabel": "魏晋",
+      "dynastyOrder": 200,
+      "era": "东汉末·建安",
+      "genre": "四言乐府",
+      "source": "占位夹具（非核对底本）",
+      "variants": [],
+      "stanzas": [
+        [
+          "东临碣石，以观沧海。",
+          "水何澹澹，山岛竦峙。"
