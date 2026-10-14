@@ -10,62 +10,61 @@
 //    配合 .line{white-space:pre-wrap} 避免 HTML 折叠行内空白。
 //
 // 次序约定（**不许在客户端重排**）：
-//  编译期是唯一排序权威（IF-15/IF-16）。产物带了整数排序键（authorSortKey/titleSortKey）时，
-//  目录与搜索结果都**照产物数组次序**渲染；只有产物一个排序键都没给（老产物/手写 JSON）
-//  才退回本机拼音兜底。否则两端各自再排一遍，会把用户拍板的「底本原次序」静默推翻，
-//  两端还可能排出不同顺序。
+//  编译期是唯一排序权威（IF-15/IF-16）。产物组内只要有**任何一首带了 `orderInSource`（整数）**
+//  就说明「产物已经排好了」，目录与搜索结果都**照产物数组次序**渲染；一首都没带
+//  （老产物/手写 JSON）才退回本机拼音兜底，并在状态面板写明。
+//  用户 2026-10-14 拍板：产物**只发 `orderInSource`**，编译期的 `authorSortKey`/`titleSortKey`
+//  不再发布（客户端**不再读它们**，即使产物里还带着）。否则两端各自再排一遍，
+//  会把用户拍板的「底本原次序」静默推翻，两端还可能排出不同顺序。
 
 import { ROUTES } from './config.js';
 
-/** 契约 §2 的显式规则：佚名/未知作者在该组内排最后。 */
-export const UNKNOWN_AUTHORS = new Set(['佚名', '无名氏', '未详', '不详', '']);
+/** 契约 §2.1 的显式规则：佚名/未知作者在该组内排最后。清单**逐字**取自契约，不自己增减。
+ *  「空/空白作者」由 isUnknownAuthor 里的空白判定处理，不写进集合。 */
+export const UNKNOWN_AUTHORS = new Set(['佚名', '无名氏', '未知', '未详', '不详']);
+
+/** 空白作者也算「未知作者」（契约 §2.1 的清单末尾「/空」）。 */
+export function isUnknownAuthor(author) {
+  return typeof author !== 'string' || author.trim() === '' || UNKNOWN_AUTHORS.has(author.trim());
+}
 const collator = new Intl.Collator(['zh-Hans-CN-u-co-pinyin', 'zh-Hans-CN', 'zh'], {
   numeric: true,
   sensitivity: 'variant',
 });
 
-function compareByKey(aKey, bKey, aRaw, bRaw) {
-  // 编译期写好的拼音排序键（契约 §2）优先；缺少键就回退到运行时拼音 Collator。
-  if (aKey && bKey) return collator.compare(aKey, bKey);
-  return collator.compare(aRaw, bRaw);
-}
-
 /**
- * 本机拼音兜底比较器：**只在产物没给排序键时**使用（见 productSortKeysStatus）。
+ * 本机拼音兜底比较器：**只在产物一首都没带 `orderInSource` 时**使用（见 productOrderStatus）。
  * 组内顺序：作者（佚名/未知作者最后）→ 诗名 → id 兜底稳定。
+ * 完全不看 `authorSortKey`/`titleSortKey` —— 那两个键已不再由产物发布（用户 2026-10-14 拍板）。
  */
 export function comparePoems(a, b) {
-  const au = UNKNOWN_AUTHORS.has(a.author);
-  const bu = UNKNOWN_AUTHORS.has(b.author);
+  const au = isUnknownAuthor(a.author);
+  const bu = isUnknownAuthor(b.author);
   if (au !== bu) return au ? 1 : -1;
-  const byAuthor = compareByKey(a.authorSortKey, b.authorSortKey, a.author, b.author);
+  const byAuthor = collator.compare(a.author ?? '', b.author ?? '');
   if (byAuthor !== 0) return byAuthor;
-  const byTitle = compareByKey(a.titleSortKey, b.titleSortKey, a.title, b.title);
+  const byTitle = collator.compare(a.title ?? '', b.title ?? '');
   if (byTitle !== 0) return byTitle;
   return collator.compare(a.id, b.id);
 }
 
 /**
- * 产物是否给了可用的排序键（IF-15：`authorSortKey`/`titleSortKey` 是**整数名次**）。
+ * 产物「已经排好了吗」的开关依据 = **`orderInSource`**。
  *
- * 这是「谁说了算」的开关：
- *  - 给了（至少一个可用的整数键）→ **产物数组次序就是权威**，客户端一律不重排；
- *  - 一个都没给（老产物 / 手写 JSON）→ 退回本机拼音排序兜底。
- *
- * 为什么键必须是整数才认：IF-15 已经把形状冻结为整数名次；v0 式的字符串键
- * （或任何非整数）不是当前产物形状，此时按「没给」处理，拿本机拼音兜底，
- * 并在状态面板里把这件事写出来，不静默。
+ * 用户 2026-10-14 拍板：产物只保留 `orderInSource`（底本原次序），
+ * `authorSortKey`/`titleSortKey` 不再发布（只在编译期内部用于排序）。所以：
+ *  - 组内只要有任何一首带了**整数** `orderInSource` → **产物数组次序就是权威**，客户端一律不重排；
+ *  - 一首都没带（老产物 / 手写 JSON）→ 退回本机拼音排序兜底；
+ *  - 带的是非整数（形状不对）→ 按「没带」处理，拿兜底，并在状态面板里写出来，不静默。
  */
-export function productSortKeysStatus(doc) {
+export function productOrderStatus(doc) {
   let present = 0;
   let usable = 0;
   for (const p of doc?.poems ?? []) {
-    for (const k of ['authorSortKey', 'titleSortKey']) {
-      const v = p?.[k];
-      if (v === undefined || v === null) continue;
-      present += 1;
-      if (Number.isInteger(v)) usable += 1;
-    }
+    const v = p?.orderInSource;
+    if (v === undefined || v === null) continue;
+    present += 1;
+    if (Number.isInteger(v)) usable += 1;
   }
   return {
     present,
@@ -76,13 +75,13 @@ export function productSortKeysStatus(doc) {
 }
 
 /** 产物次序是否权威（供渲染与状态面板共用）。 */
-export function hasProductSortKeys(doc) {
-  return productSortKeysStatus(doc).productOrderAuthoritative;
+export function hasProductOrder(doc) {
+  return productOrderStatus(doc).productOrderAuthoritative;
 }
 
 /**
  * 按时代分组。**组的次序照产物给的 `dynasties` 数组**（契约 §2：产物里已按 order 升序），
- * 组内**照 `poems` 数组次序原样**，不在客户端重排（见 hasProductSortKeys）。
+ * 组内**照 `poems` 数组次序原样**，不在客户端重排（见 hasProductOrder）。
  */
 export function groupPoems(doc) {
   const byKey = new Map();
@@ -112,7 +111,7 @@ export function groupPoems(doc) {
   const leftovers = [...byKey.values()].sort((a, b) => (a.order - b.order) || collator.compare(a.label, b.label));
   const all = [...groups, ...leftovers];
 
-  if (!hasProductSortKeys(doc)) {
+  if (!hasProductOrder(doc)) {
     for (const g of all) g.poems.sort(comparePoems);
   }
   return all;
@@ -126,7 +125,7 @@ export function searchPoems(doc, query) {
   const q = String(query ?? '').trim().toLowerCase();
   if (!q) return [];
   const hits = doc.poems.filter((p) => p.title.toLowerCase().includes(q) || p.author.toLowerCase().includes(q));
-  return hasProductSortKeys(doc) ? hits : hits.sort(comparePoems);
+  return hasProductOrder(doc) ? hits : hits.sort(comparePoems);
 }
 
 export function getPoem(doc, id) {

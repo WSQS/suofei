@@ -59,8 +59,9 @@ export const FIXTURE_POEM = {
     ['空行之后的一段（测试夹具）。'],
   ],
   notes: '【测试笔记·不是用户笔记】\n\n用于验证「笔记按需展开」的测试文本。\n\n- 第一点：列表与段落。\n- 第二点：换行保留。\n\n这里验证最小 Markdown 子集：**粗体**与普通文字混排。\n\n这里验证转义：<b>不应被当作标签</b>，应原样显示。',
-  authorSortKey: 0,
-  titleSortKey: 0,
+  // 产物只保留 orderInSource（用户 2026-10-14 拍板），拼音名次键不再发布；
+  // 这首是后加的诗，没有底本原次序，写在数组末尾就能验证「附加诗在后」。
+  orderInSource: null,
 };
 
 /** update 变体：删首尾各一首、改一行、加一首测试诗。 */
@@ -96,6 +97,50 @@ function makeUpdateDoc(base, { withAddedPoem = true } = {}) {
   };
 }
 
+/** 去掉编译期的两个拼音名次键（保留 orderInSource）：模拟 C 线改完后的最小产物形状。 */
+function stripPinyinKeys(doc) {
+  const out = structuredClone(doc);
+  for (const p of out.poems) {
+    delete p.authorSortKey;
+    delete p.titleSortKey;
+  }
+  return out;
+}
+
+/** 逐组反转数组次序（确定性打乱）：用来证明「照数组次序」与「兜底排序」确实不同。 */
+function reverseWithinGroups(doc) {
+  const byD = new Map();
+  for (const p of doc.poems) {
+    if (!byD.has(p.dynastyKey)) byD.set(p.dynastyKey, []);
+    byD.get(p.dynastyKey).push(p);
+  }
+  const reversed = [];
+  for (const d of doc.dynasties) reversed.push(...[...(byD.get(d.key) ?? [])].reverse());
+  doc.poems = reversed;
+  return doc;
+}
+
+/** 最小产物形状：只有 orderInSource，没有拼音名次键（C 线改完后就是这样）。 */
+function makeMinimalDoc(base) {
+  const doc = stripPinyinKeys(base);
+  doc.contentVersion = bumpVersion(base.contentVersion, 5);
+  doc.fixture = true;
+  doc.fixtureNotice = '测试夹具：C 线改完后的最小产物形状（只有 orderInSource、没有拼音名次键），'
+    + '用于验证客户端仍照数组次序渲染。不是发布内容。';
+  return doc;
+}
+
+/** 老产物形状：既没有 orderInSource 也没有拼音名次键（且数组次序被反转，便于看出兜底）。 */
+function makeNoOrderIndexDoc(base) {
+  const doc = stripPinyinKeys(base);
+  doc.contentVersion = bumpVersion(base.contentVersion, 6);
+  doc.fixture = true;
+  doc.fixtureNotice = '测试夹具：模拟老产物（既没有 orderInSource 也没有拼音名次键），'
+    + '验证客户端退回本机拼音兜底排序。不是发布内容。';
+  for (const p of doc.poems) delete p.orderInSource;
+  return reverseWithinGroups(doc);
+}
+
 /**
  * 生成全部变体。
  * @param {object} base 基座产物（真实产物优先）
@@ -111,6 +156,8 @@ export function buildVariants(base) {
   const futureDoc = structuredClone(update.doc);
   futureDoc.formatVersion = Number(base.formatVersion) + 1;
   futureDoc.contentVersion = bumpVersion(base.contentVersion, 4);
+  const minimalDoc = makeMinimalDoc(base);
+  const noOrderIndexDoc = makeNoOrderIndexDoc(base);
 
   const updateText = `${JSON.stringify(update.doc, null, 2)}\n`;
   return {
@@ -155,6 +202,20 @@ export function buildVariants(base) {
       checksum: 'correct',
       expect: update.expect,
       note: `formatVersion=${futureDoc.formatVersion}、版本 ${futureDoc.contentVersion} → 不解析、保留旧内容`,
+    },
+    minimal: {
+      name: 'minimal',
+      text: `${JSON.stringify(minimalDoc, null, 2)}\n`,
+      checksum: 'correct',
+      expect: {},
+      note: `最小产物形状（只有 orderInSource，没有拼音名次键），版本 ${minimalDoc.contentVersion}`,
+    },
+    noOrderIndex: {
+      name: 'noOrderIndex',
+      text: `${JSON.stringify(noOrderIndexDoc, null, 2)}\n`,
+      checksum: 'correct',
+      expect: {},
+      note: `老产物形状（无 orderInSource、无拼音名次键，数组次序被反转），版本 ${noOrderIndexDoc.contentVersion}`,
     },
   };
 }
