@@ -67,7 +67,7 @@ const skip = (msg) => {
 
 /** 检查注册表：每条都应该能单独说出「查了什么、依据是什么」。
  *  needs 是**前置上下文键**：前置没就绪时本项报「跳过」，而不是抛出一串栈
- *  —— 一个红项不应该把 20 条无关检查全部带崩（那样人读不出真正的问题在哪）。 */
+ *  —— 一个红项不应该把后面一串无关检查全部带崩（那样人读不出真正的问题在哪）。 */
 const CHECKS = [];
 const check = (id, title, fn, needs = []) => CHECKS.push({ id, title, fn, needs });
 
@@ -499,6 +499,7 @@ function main() {
     if (opts.liveOnly && !isLive(c.id)) continue;
     let status = 'PASS';
     let detail = '';
+    let meta;
     if (opts.skipLive && isLive(c.id)) {
       // 明确的「本次不跑」：标黄，绝不能当成通过。
       results.push({ id: c.id, title: c.title, status: 'WARN', detail: '本次用 --skip-live 跳过：**没跑**，不是通过' });
@@ -525,6 +526,7 @@ function main() {
         if (r && typeof r === 'object' && r.status) {
           status = r.status;
           detail = r.detail ?? '';
+          meta = r.meta;
         } else {
           detail = r ?? '';
         }
@@ -541,7 +543,7 @@ function main() {
         }
       }
     }
-    results.push({ id: c.id, title: c.title, status, detail });
+    results.push({ id: c.id, title: c.title, status, detail, ...(meta ? { meta } : {}) });
     const mark = { PASS: '[绿]', WARN: '[黄]', SKIP: '[跳]', FAIL: '[红]' }[status];
     console.log(`${mark} ${c.id.padEnd(28, ' ')} ${c.title}`);
     if (detail) {
@@ -588,8 +590,20 @@ function main() {
   const liveGreen = webRun?.status === 'PASS' && androidRun?.status === 'PASS';
   console.log('结论：**三样产物就绪**（本地演练口径）。可以推进「最新版」。');
   if (liveGreen) {
-    console.log('本轮含真跑：E 线的 Web e2e（真无头 Chromium，站点＝out/web 的构建产物）+');
-    console.log('  Android JVM 单测 49 例（内置内容＝本次产物，强制 --rerun-tasks）。');
+    // ⚠️ 数字**一律取自本次运行结果**（不写死）：断言条数/用例数会随别线增加，写死会出现
+    // 「门是绿的、文案在说谎」这种最难查的假象（真踩过：这里曾写死「49 例」，实际跑到 55 例）。
+    const w = webRun.meta;
+    const a = androidRun.meta;
+    console.log(
+      '本轮含真跑：E 线的 Web e2e（真无头 Chromium，站点＝out/web 的构建产物，实测 ' +
+        (w ? `${w.passed}/${w.total}` : '条数以该门回执为准') +
+        '）+',
+    );
+    console.log(
+      '  Android JVM 单测（内置内容＝本次产物，强制 --rerun-tasks，实测 ' +
+        (a ? `${a.tests} 例 / 失败 ${a.failures}` : '用例数以该门回执为准') +
+        '）。',
+    );
   } else {
     console.log(
       `⚠ 真跑门未全绿：${[webRun, androidRun]

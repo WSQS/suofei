@@ -147,6 +147,12 @@ dist/content.json ──字节复制──► web/content.json ──►（Web �
 **环境不可用 ⇒ 标黄并写明原因**（不许静默跳过、也不当通过）：找不到 Chromium（提示 `CHROME_BIN`）、找不到 JDK/SDK、Gradle 拉不到依赖、端口全被占、e2e 连汇总都没打印出来。**真跑起来但断言失败 ⇒ 红，并原样列出失败断言/用例名与完整日志路径**（`<out>/.work/logs/*.log`）。
 ⚠️ 边界（负责人已确认并让 E 修）：**E 的 e2e 在本机负载高时有偶发的时序敏感失败**。这一门**不因此被删**；红了先看失败点是不是时序相关，日志路径就在回执里。
 
+**数字不写死**：这一层打印的任何计数（断言条数、用例数、诗数、异文数）都**取自本次运行结果** ——
+回执里出现一个具体的数，就一定是这次跑出来的值（用例数取自 JUnit XML、断言数取自 e2e 的汇总行、
+诗数与首末诗名取自本次产物），而不是源码里写死的常量。
+（真踩过：收尾文案曾写死「Android 单测 49 例」而门实际跑到 55 例 ⇒「门是绿的、文案在说谎」——
+这是最难查的一类假象，所以定成硬规则。）
+
 **接缝（仓库级文件）**：镜像根是仓库的部分副本，而被测脚本可能读**仓库级**文件 —— 例如
 `schema/unknown-authors.json`（匿名作者清单的唯一来源）。这类文件用**环境变量指回仓库**
 （`REPO_FILE_ENV`：`schema/unknown-authors.json → UNKNOWN_AUTHORS_FILE`），**不复制进产物工作目录**
@@ -243,24 +249,28 @@ Web 的内容更新交给 SW 生命周期（内容与壳同一次部署、同一
 > 所以同一份内容重编也会得到不同的哈希（这正是 `--source-date-epoch` 存在的理由）。
 
 ```bash
-$ node release/build-release.mjs --tag 'v0.1.0+content-2026.10.16.10'      # exit 0
-[2/8] 本次 contentVersion: 2026.10.16.10
-      ← 来源：tag(v0.1.0+content-2026.10.16.10 → 应用 0.1.0 / 内容 2026.10.16.10)
+$ node release/build-release.mjs --tag 'v0.1.0+content-2026.10.16.11'      # exit 0
+[2/8] 本次 contentVersion: 2026.10.16.11
+      ← 来源：tag(v0.1.0+content-2026.10.16.11 → 应用 0.1.0 / 内容 2026.10.16.11)
       单调性基线（上一版）: 2026.10.16.9  ← 来源：已提交的内置内容
-[3/8] 产物: dist/content.json  23011 字节  sha256=aa98b0c4fcbe2f1cb17a139d3697905ba79baf7e77fd13e869f54f772c1e5412
+[3/8] 产物: dist/content.json  23011 字节  sha256=3898634603fc69275c1aebf64d9434d1c9c80877cdad2609acec7c341c2b3f85
 [4/8] 部署内容: content.json 23011 字节（与 dist 字节一致）；Web 侧**不产出** sha256 边车
-[6/8] APK 内置内容校验: assets/content/content.json 23011 字节 sha256=aa98b0c4… == dist ✓
-      APK: apk/suofei-2026.10.16.10-debug.apk  9568808 字节  sha256=bce66422600bd59e…
+[6/8] APK 内置内容校验: assets/content/content.json 23011 字节 sha256=38986346… == dist ✓
+      APK: apk/suofei-2026.10.16.11-debug.apk  9568808 字节  sha256=eccb9f1edab74d3c…
 
-$ node release/check-ready.mjs                                             # 80s，**exit 0**
-[绿] live-web-e2e              通过 151 / 151（36s，真 Chromium，端口 8137/9237）
-       基座 = out/dist/content.json（sha256 aa98b0c4…），站点载荷 = out/web（APP_VERSION=0.1.0）
+$ node release/check-ready.mjs                                             # 61s，**exit 0**
+[绿] live-web-e2e              通过 151 / 151（37s，真 Chromium，端口 8137/9237）
+       基座 = out/dist/content.json（sha256 38986346…），站点载荷 = out/web（APP_VERSION=0.1.0）
        接缝：UNKNOWN_AUTHORS_FILE → schema/unknown-authors.json（镜像根故意不带 schema/，指回仓库唯一来源）
        机械核对：E 发的 v1 目录里 content.json 与 dist 逐字节相同；index.html/sw.js/app/* 与 out/web 一致
-[绿] live-android-unit-tests   用例 55 / 失败 0 / 跳过 0（43s，真 JVM；内置内容＝本次产物）
+[绿] live-android-unit-tests   用例 55 / 失败 0 / 跳过 0（23s，真 JVM）
+       本次产物是 19 首（首＝行行重行行、末＝明月何皎皎）；ContentParserTest 真解析的就是它
 [跳] app-version-bumped        没有上一版记录（首次发布 / 换了产物目录）⇒ 无法自动判断是否递增
 绿 22 / 黄 0 / 跳过 1 / 红 0
 结论：**三样产物就绪**（本地演练口径）。可以推进「最新版」。
+本轮含真跑：E 线的 Web e2e（真无头 Chromium，站点＝out/web 的构建产物，实测 151/151）+
+  Android JVM 单测（内置内容＝本次产物，强制 --rerun-tasks，实测 55 例 / 失败 0）。
+   ↑ 这两个数字来自**本次运行**（e2e 汇总行 / JUnit XML），源码里没有写死的条数
 ```
 
 **本轮红项清零**：唯一的红（真跑门的接缝，§9.3.6）修好后两个真跑门都绿。
@@ -268,6 +278,10 @@ $ node release/check-ready.mjs                                             # 80s
 `release-manifest.json`**，否则这一项只能跳过 —— 它不会被当成通过。
 另外这次还实测到单调性闸的反向：用 `.8` 重发（基线已到 `.9`）被拒，且 `out/` 变成「不完整」，
 就绪检查准确报「产物目录不完整，缺：web」。
+
+**演练约定（真踩过）**：想用**同一个 `APP_VERSION`** 重跑演练时，先 `rm -rf release/out`（或换个 `--out`）。
+否则上一版 `release-manifest.json` 还在 ⇒ `app-version-bumped` 会按规则报红「APP_VERSION 没递增
+（本次 0.1.0 ≤ 上一版 0.1.0）」—— 那是**正确**的红（真发布确实不该同版本重发），不是流水线的毛病。
 
 ### 11.2 拒绝路径（fail-closed）
 
