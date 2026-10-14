@@ -87,6 +87,7 @@
 - `dist/` 里留着**上一次构建的产物**会让单调性闸门拒绝新版本（`VERSION_NOT_MONOTONIC`），而错误信息只比版本号、不提「这是旧产物」——换内容构建前先想清楚版本号。
 - 本机**全局** `~/.gradle/gradle.properties` 配了 `localhost:7890` 代理，而该代理到不了 `dl.google.com` / `repo.maven.apache.org`（直连 200、走代理 000）。Gradle 单测若要下新依赖会撞墙；D 留了 `-PextraMavenMirror=…` 开关。CI 会撞同一堵墙。
 - **新建的 git worktree 没有 `node_modules`**：在子线里跑 `npm test` 会因 import 不到 `ajv` 而 `ERR_MODULE_NOT_FOUND`，看着像测试挂了、实际是环境问题（A 线遇到：51 pass / 1 fail）。在**项目本地** `npm install` 即可（别装全局）。
+- **Markdown 表格改坏不会报错、只会错位**：负责人连续 4 次把台账表格的行改多/改少一列，渲染出来「看着还能读」但信息落进错误的列。已做一个小检查：`node tools/check-doc-tables.mjs`（检查 `docs/` 下所有 .md 的表格列数是否与表头一致，不一致则非 0 退出）。改台账后跑一次。
 
 ## 未决 / 待用户确认
 
