@@ -25,11 +25,14 @@ import * as A from './lib/artifacts.mjs';
 import { REPO_ROOT, display, exists, listTop, parseSidecar, runCapture, sha256 } from './lib/util.mjs';
 import { RELEASE_VERSION_RE } from './lib/version-source.mjs';
 import { compareContentVersion } from '../tools/lib/version.mjs';
+import { LIVE_CHECK_IDS, runAndroidUnitTests, runWebE2E } from './lib/live.mjs';
 import { listZipEntries, readZipEntry } from './lib/zip.mjs';
 
 const USAGE = `用法：node release/check-ready.mjs [选项]
 
   --out <dir>   产物目录，默认 ${A.OUT_DEFAULT}
+  --skip-live   不跑两个「真跑」门（Web e2e、Android 单测）—— 它们会标黄，不会当成通过
+  --live-only   只跑那两个「真跑」门（迭代时用，跳过静态检查）
   --json        末尾额外打印一份机器可读的结果
   -h, --help    显示本帮助
 `;
@@ -38,7 +41,7 @@ class CheckFailed extends Error {}
 class CheckSkipped extends Error {}
 
 function parseArgs(argv) {
-  const opts = { out: A.OUT_DEFAULT, json: false, help: false };
+  const opts = { out: A.OUT_DEFAULT, json: false, help: false, skipLive: false, liveOnly: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--out') {
@@ -46,9 +49,12 @@ function parseArgs(argv) {
       if (v === undefined) throw new Error('--out 后面缺参数');
       opts.out = v;
     } else if (a === '--json') opts.json = true;
+    else if (a === '--skip-live') opts.skipLive = true;
+    else if (a === '--live-only') opts.liveOnly = true;
     else if (a === '-h' || a === '--help') opts.help = true;
     else throw new Error(`未知选项：${a}`);
   }
+  if (opts.skipLive && opts.liveOnly) throw new Error('--skip-live 与 --live-only 不能同时用');
   return opts;
 }
 
@@ -238,21 +244,30 @@ check('web-same-source', 'Web 部署目录里的内容是规范产物的字节�
   return `${buf.length} 字节，与 dist 逐字节相同`;
 });
 
-check('web-sidecar', 'Web 校验和边车与部署内容匹配（客户端会真比它）', (c) => {
+check('web-sidecar', 'Web 校验和边车：可选出产；出了就必须与实际内容匹配', (c) => {
   const f = path.join(A.webDir(c.outDir), A.WEB_CHECKSUM_NAME);
-  if (!exists(f)) fail(`缺 ${display(f)}`);
+  if (!exists(f)) {
+    // 契约 §4（2026-10-16 用户拍板）：Web 端的边车**不再是必需**（完整性由 SW 缓存 + HTTPS 承担）。
+    // 因此缺了不算错（否则就是假红）；只需如实说明。
+    return { status: 'PASS', detail: `${A.WEB_CHECKSUM_NAME} 未产出 —— 已是可选项（契约 §4：Web 不再需要独立校验通道），不算问题` };
+  }
   const parsed = parseSidecar(fs.readFileSync(f, 'utf8'));
-  if (!parsed) fail(`${display(f)} 不是 sha256sum 格式`);
+  if (!parsed) fail(`${display(f)} 不是 sha256sum 格式（要么写对、要么干脆不产出）`);
   if (parsed.hash !== c.distSha) fail(`边车 ${parsed.hash} ≠ 内容 ${c.distSha}`);
   if (parsed.fileName !== A.WEB_CONTENT_NAME) fail(`边车里的文件名是 ${parsed.fileName}`);
-  return parsed.hash;
+  return `${parsed.hash}（本流水线仍产出，但契约上它是可选项）`;
 });
 
-check('web-required-files', '部署白名单里的文件都在部署目录里', (c) => {
+check('web-required-files', '部署目录里该有的文件都在（含单独取的内容 content.json）', (c) => {
   const dir = A.webDir(c.outDir);
-  const missing = A.DEPLOY_ALLOWLIST.filter((n) => !exists(path.join(dir, n)));
-  if (missing.length) fail(`部署目录缺：${missing.join(', ')}（白名单见 release/lib/artifacts.mjs）`);
-  return A.DEPLOY_ALLOWLIST.join(', ');
+  const missing = A.DEPLOY_REQUIRED.filter((n) => !exists(path.join(dir, n)));
+  if (missing.length) {
+    fail(
+      `部署目录缺：${missing.join(', ')}（必需清单见 release/lib/artifacts.mjs 的 DEPLOY_REQUIRED）\n` +
+        `   注意 content.json 是必需项：契约 §4 要求内容**单独取、不得内联**，站点上少它 = Web 端没内容可读`,
+    );
+  }
+  return A.DEPLOY_REQUIRED.join(', ');
 });
 
 check('web-no-unexpected', '部署目录没有多出不该发布的条目（顶层精确比对）', (c) => {
@@ -274,10 +289,15 @@ check('sw-shell-files', 'Service Worker 预缓存清单里的每个文件都真�
   const swFile = path.join(dir, 'sw.js');
   if (!exists(swFile)) fail(`缺 ${display(swFile)}`);
   const src = fs.readFileSync(swFile, 'utf8');
-  const m = /const SHELL = \[([\s\S]*?)\];/.exec(src);
-  if (!m) fail('从 sw.js 里没解析出 SHELL 预缓存清单（结构变了？）');
-  const entries = [...m[1].matchAll(/'([^']*)'/g)].map((x) => x[1]);
-  if (entries.length === 0) fail('sw.js 的 SHELL 清单是空的');
+  const entries = findPrecacheList(src);
+  if (!entries) {
+    fail(
+      '从 sw.js 里找不到**包含 index.html 的字符串数组**（预缓存清单）。SW 结构可能变了（E 线正在改 Web 更新机制）⇒\n' +
+        '   这条检查需要人工重新对齐（刻意不按常量名找，就是为了不改也尽量不假红；但真找不到时不能当成通过）。\n' +
+        '   若清单已改成由别的文件（如内容清单 JSON）驱动，请把本项改成与那个来源比对。',
+    );
+  }
+  if (entries.length === 0) fail('sw.js 的预缓存清单是空的');
   const missing = [];
   for (const e of entries) {
     const rel = e === '' ? 'index.html' : e; // '' 是 scope 自身 → 起服务时就是 index.html
@@ -286,40 +306,67 @@ check('sw-shell-files', 'Service Worker 预缓存清单里的每个文件都真�
   if (missing.length) {
     fail(`sw.js 预缓存里这些文件在部署目录里不存在：${missing.join(', ')} —— cache.addAll 会 reject，SW 装不上，离线能力直接没有`);
   }
-  return `${entries.length} 条预缓存路径全部存在`;
+  return `${entries.length} 条预缓存路径全部存在（内容随壳走之后，缺一个就直接没有离线）`;
 });
 
-check('sw-config-agree', 'sw.js 与 app/config.js 的版本常量一致（两处写死的经典 worker 常量）', (c) => {
+check('sw-config-agree', 'sw.js 与 app/config.js 的版本常量一致（结构无关地比对）', (c) => {
   const dir = A.webDir(c.outDir);
   for (const n of ['sw.js', 'app/config.js']) {
     if (!exists(path.join(dir, n))) fail(`缺 ${display(path.join(dir, n))}`);
   }
   const sw = fs.readFileSync(path.join(dir, 'sw.js'), 'utf8');
   const cfg = fs.readFileSync(path.join(dir, 'app/config.js'), 'utf8');
-  const pick = (src, re, what) => {
-    const m = re.exec(src);
-    if (!m) fail(`从 ${what} 里没解析出常量（${re}）`);
-    return m[1];
+  const decl = (src, name) => {
+    const m = new RegExp(`(?:export\\s+)?const\\s+${name}\\s*=\\s*['"]([^'"]+)['"]`).exec(src);
+    return m ? m[1] : null;
   };
-  const swApp = pick(sw, /const APP_VERSION = '([^']+)'/, 'sw.js');
-  const cfgApp = pick(cfg, /export const APP_VERSION = '([^']+)'/, 'app/config.js');
-  const swPrefix = pick(sw, /const CACHE_PREFIX = '([^']+)'/, 'sw.js');
-  const cfgPrefix = pick(cfg, /export const RESOURCE_CACHE_PREFIX = '([^']+)'/, 'app/config.js');
-  const supported = Number(pick(cfg, /export const SUPPORTED_FORMAT_VERSION = (\d+)/, 'app/config.js'));
-  if (swApp !== cfgApp) fail(`APP_VERSION 不一致：sw.js=${swApp} app/config.js=${cfgApp}（资源缓存会各自为政）`);
-  if (swPrefix !== cfgPrefix) fail(`缓存名前缀不一致：sw.js=${swPrefix} app/config.js=${cfgPrefix}`);
-  if (supported !== c.dist.formatVersion) {
-    fail(`app/config.js 只接受 formatVersion=${supported}，而产物是 ${c.dist.formatVersion} —— 部署上去等于「新版内容谁都读不了」`);
+  const pairs = [
+    ['APP_VERSION', decl(sw, 'APP_VERSION'), decl(cfg, 'APP_VERSION')],
+    ['缓存名前缀', decl(sw, 'CACHE_PREFIX') ?? decl(sw, 'RESOURCE_CACHE_PREFIX'), decl(cfg, 'RESOURCE_CACHE_PREFIX') ?? decl(cfg, 'CACHE_PREFIX')],
+  ];
+  const lines = [];
+  let comparable = 0;
+  for (const [what, a, b] of pairs) {
+    if (a !== null && b !== null) {
+      comparable += 1;
+      if (a !== b) {
+        fail(
+          `${what} 两处不一致：sw.js=${a} app/config.js=${b}\n` +
+            '   （内容随壳走之后，缓存名不同步就可能新旧壳/内容混用）',
+        );
+      }
+      lines.push(`${what}=${a}（两处一致）`);
+    } else if (a !== null || b !== null) {
+      lines.push(`${what} 只在 ${a !== null ? 'sw.js' : 'app/config.js'} 里声明，另一侧没有 ⇒ 跳过比对`);
+    } else {
+      lines.push(`${what} 两处都没有`);
+    }
   }
-  return `APP_VERSION=${swApp}（两处一致）前缀=${swPrefix} 支持的 formatVersion=${supported}==产物`;
+  if (comparable === 0) {
+    fail(
+      'sw.js 与 app/config.js 里找不到任何**两处都声明**的版本常量 ⇒ SW/config 结构可能变了（E 线正在改 Web 更新机制）。\n' +
+        '   这条检查必须人工重新对齐：不能因为「解析不到」就当通过（那是假绿），也不能断言旧结构（那是假红）。\n' +
+        '   若版本常量已集中到唯一一处，请把本项改成与那个唯一来源比对。',
+    );
+  }
+  const supported =
+    /\bSUPPORTED_FORMAT_VERSION\s*=\s*(\d+)/.exec(cfg)?.[1] ?? /\bSUPPORTED_FORMAT_VERSION\s*=\s*(\d+)/.exec(sw)?.[1] ?? null;
+  if (supported === null) {
+    lines.push('SUPPORTED_FORMAT_VERSION 未在 sw.js/config.js 声明：契约 §4（2026-10-16 拍板）后 Web 不再用它做更新判断 ⇒ 本项不适用');
+  } else if (Number(supported) !== c.dist.formatVersion) {
+    fail(`客户端只接受 formatVersion=${supported}，而产物是 ${c.dist.formatVersion} —— 部署上去等于「新版内容谁都读不了」`);
+  } else {
+    lines.push(`支持的 formatVersion=${supported}==产物`);
+  }
+  return lines.join('；');
 });
 
 check('android-manifest', '远端更新清单（IF-22）自洽，且 url 能指回部署目录里同一份字节', (c) => {
   const mode = c.manifest.androidFeed ?? 'manifest';
   if (mode === 'none') {
     skip(
-      '本次构建用了 --android-feed none（是否产出远端清单是**待用户拍板的接口**，决策点 2）：' +
-        '部署目录里没有 latest.json。若最终选「保持两端现状」或「统一到有清单」，这一步必须改回 manifest。',
+      '本次构建用了 --android-feed none（只用于本地演练）。但决策点 2 已经拍板：\n' +
+        '   Android 保留小纸条清单（manifest 是**最终形态**），Web 不再需要独立内容通道 —— 正式的本地演练也应当用 manifest。',
     );
   }
   const f = A.androidManifestInWeb(c.outDir);
@@ -418,7 +465,38 @@ check('apk-identity', 'APK 的身份（包名 / versionCode）与清单一致', 
   return `${name} versionCode=${code} versionName=${ver} 应用名=${label}`;
 });
 
+// ─────────────────────── 真跑门（慢；需要真浏览器 / 真 JVM）───────────────────────
+
+check('live-web-e2e', '真跑：用 out/web 当站点跑 E 线的 Web e2e（无头 Chromium，167 条断言）', (c) => {
+  const r = runWebE2E({ outDir: c.outDir });
+  return r;
+});
+
+check('live-android-unit-tests', '真跑：Android JVM 单测 49 例（--rerun-tasks；内置内容＝本次产物）', (c) => {
+  const r = runAndroidUnitTests({ outDir: c.outDir, androidSrc: path.join(REPO_ROOT, 'android') });
+  return r;
+});
+
 // ─────────────────────────── 辅助 ───────────────────────────
+
+/**
+ * 结构无关地找 sw.js 里的**预缓存清单**：包含 `'index.html'` 的那个字符串数组字面量。
+ *
+ * 为何不按常量名（`SHELL` 之类）找：E 线正在改 Web 的更新机制，名字/写法会变，
+ * 按名字找就会变成「契约改了就假红」。找不到时返回 null，由调用方报红并要求人工对齐
+ * （「找不到」不等于「没问题」）。
+ */
+function findPrecacheList(swSource) {
+  const found = [];
+  for (const m of swSource.matchAll(/\[([^[\]]*)\]/g)) {
+    const items = [...m[1].matchAll(/'([^']*)'|"([^"]*)"/g)].map((x) => x[1] ?? x[2]);
+    if (items.some((i) => i === 'index.html' || i.endsWith('/index.html'))) found.push(items);
+  }
+  if (found.length === 0) return null;
+  // 预缓存清单通常是文件里最长的那个路径数组；取最长的以免误拿某个小清单。
+  found.sort((a, b) => b.length - a.length);
+  return found[0];
+}
 
 function findAapt2() {
   const home = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT;
@@ -457,10 +535,28 @@ function main() {
 
   const ctx = { outDir };
   const results = [];
+  const isLive = (id) => LIVE_CHECK_IDS.includes(id);
   for (const c of CHECKS) {
+    if (opts.liveOnly && !isLive(c.id)) continue;
     let status = 'PASS';
     let detail = '';
+    if (opts.skipLive && isLive(c.id)) {
+      // 明确的「本次不跑」：标黄，绝不能当成通过。
+      results.push({ id: c.id, title: c.title, status: 'WARN', detail: '本次用 --skip-live 跳过：**没跑**，不是通过' });
+      console.log(`[黄] ${c.id.padEnd(28, ' ')} ${c.title}\n     本次用 --skip-live 跳过（没跑，不是通过）`);
+      continue;
+    }
+    if (!opts.liveOnly && isLive(c.id) && results.some((r) => r.status === 'FAIL')) {
+      const why = '前面已有红项：不为一份已经不合格的产物再花几十秒真跑（修完重跑；或 --live-only 单独跑）';
+      results.push({ id: c.id, title: c.title, status: 'SKIP', detail: why });
+      console.log(`[跳] ${c.id.padEnd(28, ' ')} ${c.title}\n     ${why}`);
+      continue;
+    }
     const missingNeeds = (PREREQUISITES[c.id] ?? []).filter((k) => ctx[k] === undefined);
+    if (!missingNeeds.length && isLive(c.id)) {
+      // 真跑门的日志很长，先声明「正在跑」，免得它的输出跑到标题上面去（读起来像别人的）。
+      console.log(`[跑] ${c.id.padEnd(28, ' ')} 正在真跑（可能要 20~40 秒）…`);
+    }
     if (missingNeeds.length) {
       status = 'SKIP';
       detail = `前置未就绪（${missingNeeds.join(', ')}）—— 本项没查`;
@@ -516,17 +612,32 @@ function main() {
 
   console.log('');
   if (fails.length > 0) {
+    const liveRan = results.filter((r) => isLive(r.id) && (r.status === 'PASS' || r.status === 'FAIL'));
     console.log('结论：**不满足推进条件**（有红项）。');
     console.log('影响：不推进「最新版」；旧版本仍然可以下载、可以读，没有东西被删掉。');
     console.log('红项：');
     for (const r of fails) console.log(`  - ${r.id}：${r.title}`);
     console.log('');
+    if (liveRan.length) console.log(`真跑门：${liveRan.map((r) => `${r.id}=${r.status}`).join('，')}`);
     console.log('本检查**不做**的事：不推远端、不打 tag、不启用 Pages/Release、不签名、不装设备。');
     if (opts.json) console.log(JSON.stringify({ ready: false, outDir: display(outDir), results }, null, 2));
     process.exit(1);
   }
 
+  const webRun = results.find((r) => r.id === 'live-web-e2e');
+  const androidRun = results.find((r) => r.id === 'live-android-unit-tests');
+  const liveGreen = webRun?.status === 'PASS' && androidRun?.status === 'PASS';
   console.log('结论：**三样产物就绪**（本地演练口径）。可以推进「最新版」。');
+  if (liveGreen) {
+    console.log('本轮含真跑：Web e2e（无头 Chromium，167 条断言，站点＝out/web）+');
+    console.log('  Android JVM 单测 49 例（内置内容＝本次产物，强制 --rerun-tasks）。');
+  } else {
+    console.log(
+      `⚠ 真跑门未全绿：${[webRun, androidRun]
+        .map((r) => `${r?.id ?? '?'}=${r?.status ?? '没跑'}`)
+        .join('，')} —— 静态断言全过，但**页面/客户端是否真能跑没被完整证明**（看上面黄色/跳过的原因）。`,
+    );
+  }
   console.log('诚实边界（这些都没验证过）：未推远端、未在真实 Pages/Release 上跑、');
   console.log('  未用固定签名（APK 是 debug 签名）、未在真机或模拟器上安装运行。');
   console.log('  GitHub Pages / Release 各自的缓存与生效延迟由服务商决定，本流水线**不声称原子性**。');

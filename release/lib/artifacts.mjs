@@ -58,6 +58,21 @@ export const DEPLOY_DENYLIST = [
  *  这样 web/ 新增顶层文件时流水线会**大声失败**并要求人工确认是否该发布。 */
 export const DEPLOY_EXPECTED = [...DEPLOY_ALLOWLIST, ...DEPLOY_GENERATED].sort();
 
+/**
+ * 部署目录里**必须**存在的条目。
+ *
+ * `content.json` 是必需项：契约 §4（2026-10-16 用户拍板）明确「内容仍要**单独取**，
+ * 不得内联进 HTML/JS」——单独取才能在外壳到达后先渲染框架并如实显示取内容的状态；
+ * 站点上少这份文件 = Web 端没有内容可读。
+ */
+export const DEPLOY_REQUIRED = [...DEPLOY_ALLOWLIST, WEB_CONTENT_NAME];
+
+/**
+ * Web 端的 sha256 边车：**不再是必需**（契约 §4：Web 的完整性由 SW 缓存 + HTTPS 承担）。
+ * 流水线仍产出它（无害、便于人核对），但就绪检查**不得**把它当成必需项（否则会假红）。
+ */
+export const WEB_CHECKSUM_REQUIRED = false;
+
 // ---------- Android 更新清单字段（IF-22，字段名以 Android 端为准） ----------
 
 export const MANIFEST_FIELDS = Object.freeze([

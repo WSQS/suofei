@@ -46,6 +46,7 @@ import {
   writeFileEnsured,
 } from './lib/util.mjs';
 import { resolvePreviousVersion, resolveVersionRequest } from './lib/version-source.mjs';
+import { builtApkPath, gradlewCommand, prepareAndroidWorkDir } from './lib/android-work.mjs';
 import { listZipEntries, readZipEntry } from './lib/zip.mjs';
 
 const USAGE = `用法：node release/build-release.mjs [选项]
@@ -59,10 +60,10 @@ const USAGE = `用法：node release/build-release.mjs [选项]
   --source-date-epoch <secs>  固定编译产物的 generatedAt（Unix 秒），让「同一次发布的产物字节」可复现；
                           不传则用真实时间（于是同一份内容重复编译字节不同，哈希只在一次发布内可比）
   --skip-apk              跳过 APK 构建（内容/Web 两样照常产出；就绪检查会因此报红）
-  --android-feed <mode>   是否产出远端更新清单：manifest（默认）| none
-                          ⚠️ 这是**接口待定项**（决策点 2：两端协议不一致，用户未拍板）。
-                          manifest：站点上同时放 content/latest.json + content/<版本>/content.json（Android 现状需要）
-                          none    ：只放 Web 那套 content.json + 边车（若用户选「统一到无清单」）
+  --android-feed <mode>   是否产出远端更新清单：manifest（默认，**已定形态**）| none
+                          ⚠️ 决策点 2 已拍板（2026-10-16）：**Android 保留小纸条清单**
+                          （content/latest.json + content/<版本>/content.json）；Web 不再需要独立内容通道
+                          （内容随壳走，更新交给 SW 生命周期）。none 只用于本地演练，不是发布形态。
   --no-android-manifest   = --android-feed none
   --online                不用 Gradle --offline（默认 offline，避免发布构建偷偷依赖网络）
   -h, --help              显示本帮助
@@ -256,6 +257,12 @@ function main() {
     '--out', display(A.distPath(outDir)),
     '--order', A.ORDER_STRATEGY,
     '--content-version', versionReq.contentVersion,
+    // --minify：发布产物用单行压缩 JSON。两个理由：
+    //   1. 站点/APK 里传的是这份字节，越小越省（本机实测 22921 → 18206 字节，-20.6%）；
+    //   2. 仓库里已提交的 Android 内置产物也是压缩的（两端同源字节），
+    //      流水线不压缩就会跟仓库现状不一致，每次发布都产生一份无谓的「格式差异」。
+    // 代价：产物 diff 不再是逐行可读（评审看仓库内的源 Markdown 与这台机器的快照即可）。
+    '--minify',
   ];
   if (prev.version) compileArgs.push('--previous-version', prev.version);
   const compile = run(process.execPath, compileArgs, {
@@ -321,8 +328,7 @@ function main() {
     warn('--android-feed none：本次**不**产出远端更新清单与快照。');
     note('若决策点 2 最终选「保持两端现状」或「统一到有清单」，就必须改回 manifest —— 这一步是可配置的，没有写死。');
   } else {
-    const snapshot = A.androidSnapshotInWeb(outDir, versionReq.contentVersion);
-    snapInfo = copyFileVerified(distFile, snapshot, 'Android 快照同源');
+    const snapshot = A.androidSnapshotInWeb(outDir, versionReq.contentVersion);    snapInfo = copyFileVerified(distFile, snapshot, 'Android 快照同源');
     const androidUrl = A.androidSnapshotUrl(versionReq.contentVersion);
     latest = {
       formatVersion: distDoc.formatVersion,
@@ -344,40 +350,21 @@ function main() {
   if (opts.skipApk) {
     warn('--skip-apk：本次不构建 APK。就绪检查会因此报红，不得推进最新版。');
   } else {
-    const work = path.join(outDir, '.work');
-    const androidCopy = path.join(work, 'android');
-    const injectAssets = path.join(work, 'inject-assets');
-    rmrf(work);
-    copyTree(androidSrc, androidCopy, {
-      filter: (from) => {
-        const base = path.basename(from);
-        return !['build', '.gradle', '.idea', '.kotlin', 'local.properties.bak'].includes(base);
-      },
-    });
-    info('只读副本', `${display(androidCopy)}（android/ 本身一个字节都没被写）`);
-    const injected = copyFileVerified(distFile, path.join(injectAssets, 'content/content.json'), 'APK 注入内容同源');
-    info('待注入内容', `${display(path.join(injectAssets, 'content/content.json'))}  ${injected.bytes} 字节  sha256=${injected.sha256}`);
-    const template = fs.readFileSync(path.join(REPO_ROOT, 'release/lib/inject-assets.init.gradle'), 'utf8');
-    const initScript = path.join(work, 'inject-assets.init.gradle');
-    // Groovy 单引号字符串：把反斜杠转义。用 replaceAll：模板里若还有第二处占位符，
-    // 只替换第一处会让脚本里留着字面量 '__ASSETS_DIR__'（真的踩过一次：assets 全空）。
-    const rendered = template.replaceAll('__ASSETS_DIR__', injectAssets.replace(/\\/g, '\\\\'));
-    if (rendered.includes('__ASSETS_DIR__')) {
-      throw new ReleaseError('init script 里还残留未替换的占位符 __ASSETS_DIR__', { code: 'INJECT_SCRIPT_BROKEN' });
-    }
-    if (!exists(path.join(injectAssets, 'content/content.json'))) {
-      throw new ReleaseError(`注入源目录里没有 content/content.json：${display(injectAssets)}`, { code: 'INJECT_SCRIPT_BROKEN' });
-    }
-    writeFileEnsured(initScript, rendered);
-    info('assets 覆盖脚本', display(initScript));
+    const work = prepareAndroidWorkDir({ outDir, androidSrc, distFile });
+    info(
+      '只读副本',
+      `${display(work.projectDir)}（android/ 本身一个字节都没被写；${work.recreated ? '本次重建' : '复用上次副本'}）`,
+    );
+    info('内置内容已就位', `${display(work.assetFile)}  ${work.contentBytes} 字节  sha256=${work.contentSha256}（与 dist 字节一致）`);
+    note('同一个文件既是 APK 的 assets、也是 ContentParserTest 的输入 —— 一处替换、两处一致（详见 release/lib/android-work.mjs）');
 
-    const gradlew = process.platform === 'win32' ? 'gradlew.bat' : './gradlew';
-    const gradleArgs = ['--init-script', initScript, 'assembleDebug'];
+    const gradlew = gradlewCommand();
+    const gradleArgs = ['assembleDebug'];
     if (opts.offline) gradleArgs.push('--offline');
-    const build = run(gradlew, gradleArgs, { cwd: androidCopy });
+    const build = run(gradlew, gradleArgs, { cwd: work.projectDir });
     steps.push({ name: '构建 APK', command: `${gradlew} ${gradleArgs.join(' ')}`, seconds: build.seconds });
 
-    const builtApk = path.join(androidCopy, 'app/build/outputs/apk/debug/app-debug.apk');
+    const builtApk = builtApkPath(work.projectDir);
     if (!exists(builtApk)) throw new ReleaseError(`Gradle 成功但没有 APK：${display(builtApk)}`, { code: 'NO_ARTIFACT' });
     const apkBuiltIn = readApkBuiltInContent(fs.readFileSync(builtApk), builtApk);
     if (apkBuiltIn.sha256 !== distSha) {
@@ -391,8 +378,7 @@ function main() {
         { code: 'APK_CONTENT_MISMATCH' },
       );
     }
-    info('APK 内置内容校验', `${apkBuiltIn.entry}  ${apkBuiltIn.bytes} 字节  sha256=${apkBuiltIn.sha256} == dist ✓`);
-    const apkName = A.apkFileName(versionReq.contentVersion);
+    info('APK 内置内容校验', `${apkBuiltIn.entry}  ${apkBuiltIn.bytes} 字节  sha256=${apkBuiltIn.sha256} == dist ✓`);    const apkName = A.apkFileName(versionReq.contentVersion);
     const apkPath = path.join(A.apkDir(outDir), apkName);
     copyOneFile(builtApk, apkPath);
     apk = {
