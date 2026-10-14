@@ -48,12 +48,18 @@ internal object Json {
     }
 
     /**
-     * 可选整数：缺键 / null → null；**类型不对直接报错**（例如把整数写成字符串）。
-     * 不能用 optNonBlankString 读排序名次：那会把整数读成字符串，字符串比较会让第 10 名排到第 2 名前面。
+     * 可选整数：缺键 / null / **类型不对** → 一律返回 null（＝视为「产物没给这个信息」）。
+     * 与 Web 端（E 线）口径一致：非整数不静默当作 0，也不让整份内容解析失败——
+     * 阅读器宁可按兜底次序把诗显示出来并如实告知，也不该因为一个字段类型不对就什么都读不到。
+     * 产物形状的严格性由编译期（tools/）与构建门（ContentParserTest 真解析内置产物）保证。
      */
     fun optInt(o: JSONObject, key: String): Int? {
         if (!o.has(key) || o.isNull(key)) return null
-        return requiredInt(o, key)
+        val v = o.opt(key)
+        if (v !is Number) return null
+        val asLong = v.toLong()
+        if (asLong < Int.MIN_VALUE || asLong > Int.MAX_VALUE) return null
+        return asLong.toInt()
     }
 
     fun optObject(o: JSONObject, key: String): JSONObject? = o.optJSONObject(key)

@@ -24,17 +24,17 @@ data class Poem(
     val stanzas: List<List<String>>,
     /** null 表示「没有笔记」这个真实状态；客户端不得用占位内容顶替。 */
     val notes: String?,
-    /** 编译期算好的拼音排序**名次**（整数，不是拼音字符串）；缺失时退回 author/title 本身。 */
-    val authorSortKey: Int?,
-    val titleSortKey: Int?,
-    /** 在 JSON 数组里的原始下标，用于排序键相同时保持确定性。 */
+    /** 底本原次序（编译期写入的整数）。**产物公开发布的唯一次序字段**（决策：两个拼音名次键只在编译期内部用，不发布）。缺失＝产物没给次序信息。 */
+    val orderInSource: Int?,
+    /** 在 JSON 数组里的原始下标，用于兜底排序键相同时保持确定性。 */
     val originIndex: Int,
 ) {
     /**
      * 产物是否带了次序信息。带了就**照数组次序原样渲染**：编译期是唯一排序权威，客户端不得重排
      * —— 否则用户在编译期选定的次序（如《文选》原次序）会被两端各自重排静默推翻。
+     * 判定依据＝整数 orderInSource（与 Web 端口径一致）。
      */
-    val hasOrderingInfo: Boolean get() = authorSortKey != null || titleSortKey != null
+    val hasOrderingInfo: Boolean get() = orderInSource != null
 }
 
 data class DynastyGroup(val dynasty: Dynasty, val poems: List<Poem>)
@@ -72,15 +72,16 @@ data class Content(
     }
 
     companion object {
-        /** 契约的显式规则：佚名/未知作者排在该组最后，不靠字符串碰巧。 */
-        private val ANONYMOUS_AUTHORS = setOf("佚名", "未详", "无名氏", "阙名")
+        /** 契约 §2.1 的显式规则：佚名/未知作者排在该组最后，不靠字符串碰巧。
+         *  **逐字对齐契约清单（三端唯一来源）**：编译器 `UNKNOWN_AUTHOR_MARKERS`、Web 端 `UNKNOWN_AUTHORS` 必须同此清单；
+         *  空串/空白由 isBlank 处理，不写进集合。 */
+        private val ANONYMOUS_AUTHORS = setOf("佚名", "无名氏", "未知", "未详", "不详")
 
         private fun authorRank(author: String): Int =
             if (author.isBlank() || author in ANONYMOUS_AUTHORS) 1 else 0
 
+        /** 兜底排序（仅在产物未给任何次序信息时使用）：具名作者在前、佚名类在后，然后作者名/诗名/原始下标。 */
         internal val POEM_ORDER: Comparator<Poem> = compareBy<Poem> { authorRank(it.author) }
-            .thenBy(nullsLast()) { it.authorSortKey }
-            .thenBy(nullsLast()) { it.titleSortKey }
             .thenBy { it.author }
             .thenBy { it.title }
             .thenBy { it.originIndex }

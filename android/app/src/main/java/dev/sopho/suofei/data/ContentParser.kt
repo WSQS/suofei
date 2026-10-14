@@ -79,8 +79,7 @@ object ContentParser {
                 variants = parseVariants(o, index = i),
                 stanzas = stanzas,
                 notes = Json.optNonBlankString(o, "notes"),
-                authorSortKey = Json.optInt(o, "authorSortKey"),
-                titleSortKey = Json.optInt(o, "titleSortKey"),
+                orderInSource = Json.optInt(o, "orderInSource"),
                 originIndex = i,
             )
         }

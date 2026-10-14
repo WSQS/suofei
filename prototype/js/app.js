@@ -89,9 +89,10 @@
     });
     groups.forEach(function (g) {
       // 契约：编译产物已按组内规则排好序，客户端不得重排（见 docs/interface-decisions.md IF-15/IF-16）。
-      // 只有产物一个次序信息都没给时（早先手写的旧 fixture），才退回本地排序兜底。
+      // 判定依据＝整数 orderInSource（产物只发布这一个次序字段；两个拼音名次键只在编译期内部用）。
+      // 只有产物一首带 orderInSource 的都没有（老产物 / 手写 JSON）时，才退回本地排序兜底。
       var hasOrderInfo = g.poems.some(function (p) {
-        return p.orderInSource != null || p.authorSortKey != null || p.titleSortKey != null;
+        return typeof p.orderInSource === 'number';
       });
       if (!hasOrderInfo) g.poems.sort(comparePoems);
     });

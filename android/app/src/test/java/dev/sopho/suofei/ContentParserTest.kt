@@ -87,34 +87,41 @@ class ContentParserTest {
     }
 
     @Test
-    fun clientDoesNotResort_compiledOrderWinsOverSortKeys() {
+    fun clientDoesNotResort_arrayOrderEqualsSourceOrder() {
         val content = ContentParser.parse(assetFile.readText(Charsets.UTF_8))
-        val first = content.poems.first()
-        // 契约：编译期是唯一排序权威。行行重行行 的 titleSortKey 是全场最大（18）；
-        // 若客户端自己按排序键重排，它会被扔到第 19 位——这条测试就是为了拦住这种重排。
-        assertEquals("行行重行行", first.title)
-        assertEquals(18, first.titleSortKey)
+        // 契约：编译期是唯一排序权威，客户端不得重排。产物只发布 orderInSource（底本原次序）。
+        assertEquals("行行重行行", content.poems.first().title)
+        assertEquals(1, content.poems.first().orderInSource)
         assertEquals("明月何皎皎", content.poems.last().title)
+        assertEquals(19, content.poems.last().orderInSource)
+        // 整串必须严格递增 1..19 ⇒ 数组次序＝底本原次序（本机拼音序会把「行行重行行」推到第 19 位，
+        // 所以这条就是「没重排」的牙齿）。
+        assertEquals((1..19).toList(), content.poems.map { it.orderInSource })
         // 目录里也必须是同一份次序
         assertEquals("行行重行行", content.groups.single().poems.first().title)
     }
 
-    @Test(expected = ContentParseException::class)
-    fun stringTypedSortKey_isRejected() {
-        // 排序名次是**整数**。写成字符串必须报错，不得静默按字符串比较：
-        // 字符串比较会把第 10 名（"10"）排到第 2 名（"2"）前面。
-        ContentParser.parse(
+    @Test
+    fun nonIntegerOrderInSource_isTreatedAsAbsent_notAsAnError() {
+        // 与 Web 端口径一致：类型不对既不静默当 0、也不让整份内容解析失败——按「产物没给」处理，走兜底。
+        // 理由：阅读器宁可按兜底次序把诗显示出来，也不该因为一个字段类型不对就什么都读不到；
+        // 产物形状的严格性由编译期与「真解析内置产物」的构建门保证。
+        val content = ContentParser.parse(
             """
             {"formatVersion":1,"contentVersion":"1.0.0","dynasties":[{"key":"han","label":"汉","order":100}],
-             "poems":[{"id":"a","title":"t","author":"佚名","dynastyKey":"han","source":"s",
-                       "stanzas":[["line"]],"authorSortKey":"0","titleSortKey":"2"}]}
+             "poems":[
+               {"id":"a","title":"乙诗","author":"佚名","dynastyKey":"han","source":"s","stanzas":[["a"]],"orderInSource":"2"},
+               {"id":"b","title":"甲诗","author":"曹植","dynastyKey":"han","source":"s","stanzas":[["b"]],"orderInSource":"1"}]}
             """.trimIndent(),
         )
+        assertTrue(content.poems.all { it.orderInSource == null })
+        // 无可用次序信息 ⇒ 兜底规则生效：具名作者在前、佚名在后
+        assertEquals(listOf("曹植", "佚名"), content.groups.single().poems.map { it.author })
     }
 
     @Test
-    fun fallbackOrdering_appliesOnlyWhenProductGivesNoSortKeys() {
-        // 老产物 / 手写 JSON 没有任何排序键时，才退回本地规则：具名作者在前、佚名在后。
+    fun fallbackOrdering_appliesOnlyWhenProductGivesNoOrderInSource() {
+        // 老产物 / 手写 JSON 没有任何 orderInSource 时，才退回本地规则：具名作者在前、佚名在后。
         val content = ContentParser.parse(
             """
             {"formatVersion":1,"contentVersion":"1.0.0","dynasties":[{"key":"han","label":"汉","order":100}],
