@@ -224,16 +224,14 @@ export function validatePoemRecord(record) {
     variants,
     stanzas,
     notes: data.notes ?? null,
-    // 排序键占位：真实值在排序前统一写入（键的插入顺序因此固定，产物可复现）。
-    authorSortKey: 0,
-    titleSortKey: 0,
   };
   return { poem, errors: [], idRaw };
 }
 
 /**
- * 拼音排序键：对去重后的字符串用 collator 排序，取稳定名次作为排序键（整数）。
+ * 拼音排序名次：对去重后的字符串用 collator 排序，取稳定名次作为整数名次。
  * collator 判定相等时用码位序兜底，保证名次确定、产物可复现。
+ * **导出的名次只在编译期内部使用，不写进产物**（见 INTERNAL_SORT_KEYS）。
  * @param {string[]} values
  * @returns {Map<string, number>}
  */
@@ -251,11 +249,35 @@ export function collatorRankMap(values) {
 }
 
 /**
- * 组内排序。两种策略共用同一套拼音名次（authorSortKey/titleSortKey 都写进产物），
+ * **编译期内部**的排序名次（不发布）：返回与传入数组同序的整数名次数组。
+ * 佚名/未知作者的名次统一大于所有具名作者 —— 显式规则，不靠字符串碰巧。
+ * 产物里不再写这两个名次（见 interface.mjs 的 INTERNAL_SORT_KEYS）。
+ * @param {any[]} poems
+ * @returns {{authorKeys: number[], titleKeys: number[]}}
+ */
+export function computeSortKeys(poems) {
+  const namedAuthors = poems.filter((p) => !isUnknownAuthor(p.author)).map((p) => p.author);
+  const unknownAuthors = poems.filter((p) => isUnknownAuthor(p.author)).map((p) => p.author);
+  const namedRanks = collatorRankMap(namedAuthors);
+  const unknownRanks = collatorRankMap(unknownAuthors);
+  const titleRanks = collatorRankMap(poems.map((p) => p.title));
+
+  const authorRank = (author) =>
+    isUnknownAuthor(author) ? namedRanks.size + unknownRanks.get(author) : namedRanks.get(author);
+
+  return {
+    authorKeys: poems.map((p) => authorRank(p.author)),
+    titleKeys: poems.map((p) => titleRanks.get(p.title)),
+  };
+}
+
+/**
+ * 组内排序。两种策略共用同一套拼音名次（**编译期算，不写进产物**），
  * 差别只在“底本原次序”这一层的优先级：
  *   pinyin：作者拼音 → 诗名拼音（佚名/未知作者在组内排最后，显式规则）
  *   source：先 orderInSource（有值者在先、升序）→ 再作者拼音 → 再诗名拼音
  * 同组同作者同诗名时以 id 兜底，保证顺序确定。
+ * 本函数**不修改**传入的诗对象（名次只存在于函数内部的 Map）。
  * @param {any[]} poems
  * @param {'source'|'pinyin'} strategy
  */
@@ -266,20 +288,9 @@ export function sortPoems(poems, strategy = DEFAULT_ORDER_STRATEGY) {
       `未知的组内排序策略「${strategy}」；可用：${SORT_STRATEGIES.join(' / ')}`,
     );
   }
-  const namedAuthors = poems.filter((p) => !isUnknownAuthor(p.author)).map((p) => p.author);
-  const unknownAuthors = poems.filter((p) => isUnknownAuthor(p.author)).map((p) => p.author);
-  const namedRanks = collatorRankMap(namedAuthors);
-  const unknownRanks = collatorRankMap(unknownAuthors);
-  const titleRanks = collatorRankMap(poems.map((p) => p.title));
-
-  const authorRank = (author) =>
-    isUnknownAuthor(author) ? namedRanks.size + unknownRanks.get(author) : namedRanks.get(author);
-
-  for (const p of poems) {
-    p.authorSortKey = authorRank(p.author);
-    p.titleSortKey = titleRanks.get(p.title);
-  }
-
+  const { authorKeys, titleKeys } = computeSortKeys(poems);
+  const authorKey = new Map(poems.map((p, i) => [p, authorKeys[i]]));
+  const titleKey = new Map(poems.map((p, i) => [p, titleKeys[i]]));
   const hasSourceIndex = (p) => Number.isInteger(p.orderInSource);
 
   poems.sort((a, b) => {
@@ -291,8 +302,8 @@ export function sortPoems(poems, strategy = DEFAULT_ORDER_STRATEGY) {
       if (sa === 0 && a.orderInSource !== b.orderInSource) return a.orderInSource - b.orderInSource;
     }
     return (
-      a.authorSortKey - b.authorSortKey ||
-      a.titleSortKey - b.titleSortKey ||
+      authorKey.get(a) - authorKey.get(b) ||
+      titleKey.get(a) - titleKey.get(b) ||
       (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
     );
   });

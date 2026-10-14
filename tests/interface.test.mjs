@@ -17,6 +17,7 @@ import {
   DYNASTY_KEYS,
   FORMAT_VERSION,
   ID_PATTERN,
+  INTERNAL_SORT_KEYS,
   OPTIONAL_FRONT_MATTER_KEYS,
   POEM_KEYS,
   REQUIRED_FRONT_MATTER_KEYS,
@@ -49,6 +50,22 @@ test('schema：分组与异文对象的键序', () => {
   assert.equal(variant.additionalProperties, false);
 });
 
+// 2026-10-14 用户拍板：两个拼音名次只在编译期内部用，**不发布**。
+// 这里同时钉住「interface.mjs 与 schema 都不含它们」——不是放宽断言，而是两边都真的没有。
+test('schema / POEM_KEYS：不发布 authorSortKey/titleSortKey', () => {
+  for (const key of INTERNAL_SORT_KEYS) {
+    assert.equal(POEM_KEYS.includes(key), false, `POEM_KEYS 不应包含 ${key}`);
+    assert.equal(key in schema.properties.poems.items.properties, false, `schema 不应定义 ${key}`);
+    assert.equal(schema.properties.poems.items.required.includes(key), false);
+  }
+  assert.deepEqual(INTERNAL_SORT_KEYS, ['authorSortKey', 'titleSortKey']);
+  // 产物里也没有「排序」字样的任何字段
+  assert.equal(
+    Object.keys(schema.properties.poems.items.properties).some((k) => k.includes('SortKey')),
+    false,
+  );
+});
+
 test('schema：id 正则与 interface.mjs 的 ID_PATTERN 一致', () => {
   assert.equal(schema.properties.poems.items.properties.id.pattern, ID_PATTERN);
 });
@@ -56,7 +73,7 @@ test('schema：id 正则与 interface.mjs 的 ID_PATTERN 一致', () => {
 test('front matter 键集：必填 + 可选 = 允许的全部，且中间产物字段可追溯到源字段', () => {
   assert.deepEqual(ALL_FRONT_MATTER_KEYS, [...REQUIRED_FRONT_MATTER_KEYS, ...OPTIONAL_FRONT_MATTER_KEYS]);
   // 源字段 → 产物字段（dynasty 派生三个字段，stanzas 来自正文，排序键为编译期派生）
-  const derived = new Set(['dynastyKey', 'dynastyLabel', 'dynastyOrder', 'authorSortKey', 'titleSortKey', 'stanzas']);
+  const derived = new Set(['dynastyKey', 'dynastyLabel', 'dynastyOrder', 'stanzas']);
   for (const key of POEM_KEYS) {
     if (derived.has(key)) continue;
     assert.ok(
