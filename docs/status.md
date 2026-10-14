@@ -140,9 +140,19 @@
 | 2 | 缺 `npm ci` → `schema-validation` 门如实报红（`ajv` 是 devDependency，不进仓库） | 加 `npm ci`（后已转绿） |
 | 3 | 发布构建默认给 Gradle 传 `--offline`，CI 冷缓存必挂 | CI 传 `--online` |
 
-**当前干跑结果：20 绿 / 3 跳 / 1 红（共 24 项）**。唯一红项是 `apk-signing` 门的**跨平台 DN 解析**（Windows 输出 `Signer #1 certificate DN:`、Linux 输出 `V2 Signer: certificate DN:`）——而**签名本身在 CI 上已经成功**（`apksigner verify` 通过、证书 `CN=Suofei, OU=suofei, O=WSQS, C=CN`，由仓库 secrets 注入）。已派 F 修解析（验签通过但读不出 DN 不应等同「签名不合格」）。
+**当前干跑结果：✅ 全绿——绿 23 / 黄 0 / 跳 1 / 红 0（共 24 项）**，结论「三样产物就绪（release 变体）。可以推进【最新版】」。关键证据（CI 日志）：
 
-**仍未验证**：整条 workflow 跑绿（真跑门在 CI 上未跑过）、Pages 真部署、真机安装与覆盖升级。
+| 门 | CI 结果 |
+|---|---|
+| `apk-signing` | **绿**：`apksigner verify 通过`，证书 `CN=Suofei, OU=***, O=WSQS, C=CN`（`OU` 被打码是因为 alias 的 secret 值就是 `suofei`） |
+| `live-web-e2e` | **151 / 151**（真无头 Chromium，37s）——**E 的 e2e 在 Linux CI 上也能跑通** |
+| `live-android-unit-tests` | **55 例 / 0 失败**（13s，真 JVM，内置内容＝本次产物） |
+
+⇒ **「内容 → 正式签名构建 → 24 项就绪检查（含两项真跑门）」整条链路已在 GitHub runner 上用仓库 secrets 完整跑通**（干跑不发 Release、不部署 Pages）。
+
+期间修掉的第四个问题（F 线）：`apk-signing` 门**只认 Windows 的 `Signer #1 certificate DN:` 前缀**，而 Linux 上是 `V2 Signer: certificate DN:` ⇒ 验签明明过了却被判红；现已改成跨平台解析 + **三路语义**（验签失败=红；验签通过但读不出 DN=**黄**；通过且 DN 可得⇒按 debug 判断）。
+
+**仍未验证**：**真发布**（打 tag 实际发 Release + 部署 Pages）、**真机安装与覆盖升级**（含「固定签名能否覆盖安装」）。
 
 ## 工作树回收记录（2026-10-14）
 
