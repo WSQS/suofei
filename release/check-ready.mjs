@@ -26,6 +26,7 @@ import { REPO_ROOT, display, exists, listTop, runCapture, sha256 } from './lib/u
 import { RELEASE_VERSION_RE } from './lib/version-source.mjs';
 import { compareContentVersion } from '../tools/lib/version.mjs';
 import { LIVE_CHECK_IDS, findE2EDeployFiles, runAndroidUnitTests, runWebE2E } from './lib/live.mjs';
+import { readLiveAppVersion } from './lib/live-version.mjs';
 import { decideSigning } from './lib/apksigner.mjs';
 import { listZipEntries, readZipEntry } from './lib/zip.mjs';
 
@@ -293,23 +294,37 @@ check('app-version-agree', '站点版本 APP_VERSION 确实写进了两处（con
 check('app-version-bumped', 'APP_VERSION 比上一版大（同版本重发会让浏览器沿用旧 cache）', (c) => {
   const current = c.manifest.app?.webAppVersion ?? null;
   if (!current) fail('清单里没有记录本次的 APP_VERSION —— 构建时就读不到，说明文件结构变了');
-  const prev = c.manifest.app?.previousWebAppVersion ?? null;
-  if (!prev) {
-    skip(
-      `本次 APP_VERSION=${current}，但没有上一版的记录（首次发布 / 换了产物目录）⇒ 无法自动判断是否递增。\n` +
-        '   真发布应当保留上一次的 release-manifest.json（有它这条就能自动核）。',
-    );
-  }
   if (!/^\d+(\.\d+)*$/.test(current)) fail(`APP_VERSION=${current} 不是数值段形式，无法判断是否递增`);
+
+  // 基线优先取「同一产物目录里上一份 manifest」（离线、权威）；**没有时改读线上站点**。
+  // 2026-10-15 补的真缺口：CI 从空目录构建 ⇒ 原先只会 skip，真发布路径上不设防。
+  let prev = c.manifest.app?.previousWebAppVersion ?? null;
+  let source = prev ? '同一产物目录里上一份 release-manifest.json' : null;
+  if (!prev) {
+    const live = readLiveAppVersion();
+    if (!live.version) {
+      return {
+        status: 'WARN',
+        detail:
+          `本次 APP_VERSION=${current}，但**拿不到任何基线**：本产物目录里没有上一份 manifest，也读不到线上站点（${live.error}）。\n` +
+          '   ⇒ **这一门没查，不是通过**。两条路任选：① 构建时保留上一次的 `release-manifest.json`（与产物同目录）；\n' +
+          '   ② 让本机/CI 能访问线上站点（或用 `SUOFEI_SITE_URL` 指定站点根）。',
+      };
+    }
+    prev = live.version;
+    source = `线上站点 ${live.siteUrl}/app/config.js（站点地址来源：${live.source}）`;
+  }
+
   const cmp = compareAppVersion(current, prev);
-  if (cmp === null) fail(`APP_VERSION 不好比：本次 ${current} / 上一版 ${prev}`);
+  if (cmp === null) fail(`APP_VERSION 不好比：本次 ${current} / 上一版 ${prev}（来源：${source}）`);
   if (cmp <= 0) {
     fail(
       `APP_VERSION 没递增：本次 ${current} ≤ 上一版 ${prev}\n` +
+        `   （基线与来源：${source}）\n` +
         '   （内容与壳在同一个 pc-resources-<APP_VERSION> cache 里成对切换；同版本重发会让浏览器沿用旧 cache）',
     );
   }
-  return `${prev} → ${current}`;
+  return `本次 ${current} > 上一版 ${prev}（基线来源：${source}）`;
 });
 
 check('web-no-unexpected', '部署目录没有多出不该发布的条目（顶层精确比对）', (c) => {

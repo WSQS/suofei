@@ -39,7 +39,7 @@
 - H 组（数据组织）**--blocks-->** `app-ui` · 详情页/关于页的**数据形状**（**不挡**与页面无关的 content-format 工作）
 
 ### 已知缺口（不挡任何东西，但别当成「已有保障」）
-- `release-line` · **CI 上 `app-version-bumped` 无基线 ⇒ 只会 skip**（真发布路径上不设防）**--blocks-->** `release-line` · 「版本递增这道门在真发布路径上有效」这一宣称（建议改法：从线上 `app/config.js` 取基线）
+- `release-line` · ~~CI 上 `app-version-bumped` 无基线 ⇒ 只会 skip~~ **已修（2026-10-15）**：基线改为「同目录 manifest → 否则线上站点 → 否则报黄『没查』」；四种情形实测通过（见 `docs/status.md` 已知问题）。⚠ 残留：该路径**需要网络**，站点不可达时报黄而不猜
 - `app-icon` · 角标超出原型自述 66 圆 **0.75%**（未处置）**--blocks-->** `app-icon` · 「图标完全符合原型自述」这一宣称
 - `tools/check-doc-tables.mjs` · **只看得见「看起来像表、其实不是表」一类形状**（2026-10-15 已补两条窄判据并当场抓到一个真缺陷）⇒ **它绿 ≠ 文档没问题** ~related~ 全部文档
 
