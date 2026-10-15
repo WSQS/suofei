@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="tech">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>诗页水平对齐讨论原型 · q-poem-align（只回答「谁与谁对齐」）</title>
+<style>
+/* 令牌快照（内嵌副本，不是新权威）
+ *   来源：prototype/css/theme-tech.css（只读，未改动）
+ *   仓库提交：b85c4a0（git rev-parse --short HEAD —— 写这份快照那一刻的 HEAD；该文件在工作树里无改动）
+ *   权威仍是 docs/design/visual-tokens.md（§2 颜色 / §3 排版 / §4 间距形状 / §4.1 结构记号）。
+ *   快照只是为「单文件自包含」复制的一份，值逐字照抄、未做微调；只列本页实际用到的令牌。
+ */
+/* == TOKEN-SNAPSHOT-BEGIN == */
+:root {
+  --bg: #0e1315;
+  --bg-pattern: linear-gradient(to right, rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+  --bg-pattern-opacity: 1;
+  --text: #dde5e4;
+  --text-dim: #98a8a6;
+  --text-faint: #788a88;
+  --line: #233034;
+  --test-line: rgba(79, 179, 165, 0.36);
+  --test-soft: rgba(79, 179, 165, 0.07);
+  --test-text: #7fd4c6;
+  --warn-soft: rgba(201, 162, 74, 0.08);
+  --warn-text: #dcc078;
+  --line-warn: rgba(201, 162, 74, 0.34);
+  --radius-s: 3px;
+  --row-transition: border-color 0.15s ease, background 0.15s ease;
+  --font-body: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-poem: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-title: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-ui: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-mono: 'Consolas', 'SFMono-Regular', ui-monospace, monospace;
+  --font-size: 15px;
+  --lh: 1.75;
+  --ls: 0.005em;
+  --poem-size: 17px;
+  --poem-lh: 2;
+  --poem-ls: 0.045em;
+  --title-size: 1.5rem;
+  --title-weight: 500;
+  --title-ls: 0.1em;
+  --stanza-gap: 1.2em;
+}
+/* == TOKEN-SNAPSHOT-END == */
+
+/* 草案值（**不在** docs/design/visual-tokens.md 里；本原型为「水平对齐」临时取的数）
+ *   ⇒ 它们**不是**规范值。只列**本页实际用到**的。
+ *   ⚠ 例外（写在这里只为让页面能解析到值，**不是**草案）：--title-gap 0.7rem、--body-gap 2.1rem
+ *     是任务书给的**本轮固定值**（题名→身份 0.7rem、身份→原文 2.1rem），本轮不许改。
+ */
+/* == DRAFT-VALUES-BEGIN == */
+:root {
+  --block-w: 430px;             /* 验收宽度：真实 430 CSS px（任务书给的口径，不是草案） */
+  --edge-x: 1.05rem;            /* 草案值：内容左右内沿 ＝ 16.8px（取令牌 --row-pad 的横向分量） */
+  --title-edge: var(--edge-x);  /* 草案值：题名左沿（基线＝内容内沿） */
+  --ident-edge: var(--edge-x);  /* 草案值：身份行左沿 */
+  --body-edge: var(--edge-x);   /* 草案值：正文左沿 */
+  --body-first-indent: 0px;     /* 草案值：正文首行的额外缩进（0px ＝ 不缩进） */
+  --title-hang: 0px;            /* 草案值：题名悬挂缩进（0px ＝ 折行第二行与首行同一竖线） */
+  --ctl-edge: var(--edge-x);    /* 草案值：顶部行的左右内沿（基线＝与内容同内沿） */
+  --indent-2ch: 34px;           /* 草案值：一个「2 字符」单位 ＝ 2 × 正文 17px ＝ 34px；本页所有「退 2 字符」都用它 */
+  --ctl-size: 0.82rem;          /* 草案值：控件（返回／详情）字号 13.12px */
+  --ctl-ls: 0.06em;             /* 草案值：控件与身份行的字距 */
+  --meta-size: 0.78rem;         /* 草案值：身份行字号 12.48px */
+  --head-pad-top: 1.5rem;       /* 草案值：题头上方留白 */
+  --title-gap: 0.7rem;          /* 本轮固定值（任务书）：题名→身份行 0.7rem */
+  --body-gap: 2.1rem;           /* 本轮固定值（任务书）：身份行→原文 2.1rem */
+  --body-pad-b: 0.6rem;         /* 草案值：原文下方留白 */
+  --ctl-top-pad: 0.7rem;        /* 草案值：顶部行的上内边距 */
+}
+/* == DRAFT-VALUES-END == */
+
+/* 原型脚手架 ＋ 应用层（应用层就是被评审的那一层）*/
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--font-size);
+  line-height: var(--lh);
+  letter-spacing: var(--ls);
+}
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image: var(--bg-pattern);
+  opacity: var(--bg-pattern-opacity);
+}
+body > * { position: relative; z-index: 1; }
+a { color: inherit; }
+:focus-visible { outline: 1px solid var(--test-line); outline-offset: 2px; }
+
+/* ── 原型脚手架（不是被评审的设计）────────────────────────────────── */
+.wrap { max-width: 720px; margin: 0 auto; padding: 1.5rem 0 3rem; }
+.ptag {
+  display: inline-block;
+  margin: 0 0 0.9rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px dashed var(--test-line);
+  background: var(--test-soft);
+  color: var(--test-text);
+  border-radius: var(--radius-s);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+}
+.phead { padding: 0 12px; }
+.phead h1 { font-size: 1.1rem; font-weight: 500; letter-spacing: 0.06em; margin: 0 0 0.9rem; line-height: 1.6; }
+.phead p { color: var(--text-dim); margin: 0.5rem 0; }
+.phead b { color: var(--text); font-weight: 500; }
+.phead code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  padding: 0 0.25rem;
+}
+.pnote { border-left: 2px solid var(--test-line); padding-left: 0.7rem; }
+.shotframe { width: var(--block-w); max-width: 100%; margin: 0 auto; }
+.shotbanner {
+  display: none;
+  background: var(--test-soft);
+  border: 1px dashed var(--test-line);
+  color: var(--test-text);
+  border-radius: var(--radius-s);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  line-height: 1.6;
+  letter-spacing: 0.03em;
+  padding: 0.6rem 0.7rem;
+  margin: 0 12px 0.8rem;
+}
+html[data-shot="1"] .shotbanner { display: block; }
+.rack { width: var(--block-w); max-width: 100%; }
+.dimgroup {
+  width: var(--block-w);
+  margin-top: 1.6rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--test-line);
+}
+.dimgroup:first-of-type { margin-top: 0.4rem; }
+.dimtitle {
+  font-family: var(--font-mono);
+  font-size: 0.86rem;
+  font-weight: 400;
+  line-height: 1.6;
+  letter-spacing: 0.05em;
+  color: var(--test-text);
+  margin: 0 0 0.4rem;
+  padding: 0 12px;
+}
+.dimsub {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  line-height: 1.65;
+  letter-spacing: 0.03em;
+  color: var(--test-text);
+  opacity: 0.78;
+  margin: 0 0 0.9rem;
+  padding: 0 12px;
+}
+.inst {
+  width: var(--block-w);
+  border-top: 1px dashed var(--test-line);
+  border-bottom: 1px dashed var(--test-line);
+  padding: 0.75rem 0;
+  margin: 0 0 0.6rem;
+}
+.inst > .icap {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  line-height: 1.6;
+  letter-spacing: 0.04em;
+  color: var(--test-text);
+  padding: 0 12px;
+  margin-bottom: 0.6rem;
+}
+.inst > .icap b { color: var(--text); font-weight: 500; }
+.fxban {
+  background: var(--warn-soft);
+  border: 1px solid var(--line-warn);
+  color: var(--warn-text);
+  border-radius: var(--radius-s);
+  padding: 0.5rem 0.65rem;
+  font-size: 0.8rem;
+  line-height: 1.65;
+  letter-spacing: 0.04em;
+  margin: 0 12px 0.7rem;
+}
+.fxban b { color: var(--warn-text); font-weight: 500; }
+
+/* ── 应用页面（被评审的那一层）：宽固定 430，纵向流式 ──────────────────
+ * 三个维度共用同一套页面结构；每个实例只通过覆盖少量自定义属性来「另起一沿」。
+ */
+.page {
+  width: var(--block-w);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--font-size);
+  line-height: var(--lh);
+  letter-spacing: var(--ls);
+}
+/* 顶部行：返回（左）与详情（右）**同一行**；正文之后没有页脚行（本轮固定）。
+ * 这一行不加分隔线 —— 常驻控件越「轻」，越不抢正文。 */
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: var(--ctl-top-pad) var(--ctl-edge) 0;
+}
+.topbar > * { flex: 0 0 auto; white-space: nowrap; }
+.ctl {
+  font-family: var(--font-ui);
+  font-size: var(--ctl-size);
+  letter-spacing: var(--ctl-ls);
+  color: var(--text-dim);
+  text-decoration: none;
+  background: none;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  transition: var(--row-transition);
+}
+.ctl:hover { color: var(--text); }
+/* §4.1 记号③：诗页题头**不画**下划线 */
+.poem-head { padding: var(--head-pad-top) 0 0; border-bottom: 0; }
+/* 题名左沿 = --title-edge；悬挂缩进时，左内边距再退 --title-hang、首行用 text-indent 拉回来。 */
+.p-title {
+  margin: 0;
+  padding: 0 var(--edge-x) 0 calc(var(--title-edge) + var(--title-hang));
+  text-indent: calc(-1 * var(--title-hang));
+  font-family: var(--font-title);
+  font-size: var(--title-size);
+  font-weight: var(--title-weight);
+  letter-spacing: var(--title-ls);
+  line-height: 1.4;
+}
+.p-id {
+  margin: var(--title-gap) 0 0;
+  padding: 0 var(--edge-x) 0 var(--ident-edge);
+  font-family: var(--font-ui);
+  font-size: var(--meta-size);
+  letter-spacing: var(--ctl-ls);
+  color: var(--text-faint);
+}
+/* 正文：分行靠 DOM（每个印刷行一个 .line）；左右内沿固定，首行可另加缩进。 */
+.poem-body {
+  padding: var(--body-gap) var(--edge-x) var(--body-pad-b) var(--body-edge);
+  font-family: var(--font-poem);
+  font-size: var(--poem-size);
+  line-height: var(--poem-lh);
+  letter-spacing: var(--poem-ls);
+  text-align: left;
+}
+.stanza { margin: 0; }
+.stanza + .stanza { margin-top: var(--stanza-gap); }
+.line { display: block; white-space: pre-wrap; }
+.poem-body .stanza:first-child .line:first-child { margin-left: var(--body-first-indent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="phead">
+
+<p class="ptag">讨论原型 · 不是产品实施 · 不是发布 · 不是已采纳规格</p>
+<h1>诗页（阅读页）<b>水平对齐</b>讨论原型 —— 只回答「<b>谁与谁对齐</b>」</h1>
+<p>本页只有<b>三个维度</b>，<b>逐维度干净对照</b>：一个维度一组块，组内<b>只有该维度的变量在动</b>，其余一律固定在「基线」。块<b>并列、不排序、不写推荐</b>；<b>选某一块 ≠ 采纳整页规格</b>（选的只是那一条对齐关系）。</p>
+<p><b>固定不变（本轮不许改）：</b>题名 <b>1.5rem／500／字距 0.1em</b>；身份行 <b>作者 · 朝代 · 体裁</b>／<b>0.78rem</b>／<code>--text-faint</code>；题名→身份 <b>0.7rem</b>；身份→原文 <b>2.1rem</b>；正文 <b>17px／行高 2／字距 0.045em</b>。顶部行＝<b>返回与详情同在顶部一行</b>（返回左、<b>详情右</b>），<b>正文之后没有页脚行</b>。诗页<b>不放</b>细时代、底本／来源、异文。视觉＝静默终端令牌，块宽＝<b>真实 430 CSS px</b>。</p>
+<p class="pnote">⚠ 本轮<b>不收</b>「阅读时附带的个人批注入口」（用户已明确：它的位置未定）—— 本页<b>不画它</b>，也<b>不留占位</b>。</p>
+<p class="pnote">⚠ <b>本页不决定 JSON／MD 分界，也不决定任何产物字段</b>；<b>也不改产品代码</b>。页面里的数只有「题名 24px／正文 17px·行高 2·字距 0.045em」与「0.7rem／2.1rem」是本轮固定值，其余都标着<b>草案值</b>；每个块的说明文字、维度标题、夹具横幅都是<b>原型的说明与夹具标注，不属于应用页面</b>（看图时尤其注意）。</p>
+<p>原文一律用<b>真实文本</b>（<code>content/poems/gushi-shijiu-shou-01.md</code> 的正文 8 行，只读、未改动）；需要长题名时用<b>醒目标注的测试夹具</b>（维度三），夹具题名在图里、页里都写着「不是真实数据」。</p>
+
+  </div>
+
+  <div class="shotframe" data-shotframe>
+    <div class="shotbanner"><b>诗页水平对齐讨论原型 · 原型的说明与夹具标注，不属于应用页面。</b>本图＝本页 <b>9 个块</b>（每块恰好 430 CSS px 宽）纵向排列：<b>维度一 4 块</b>（题名／身份行／正文的左沿关系）· <b>维度二 3 块</b>（顶部行的左右内沿）· <b>维度三 2 块</b>（长题名折行，含<b>测试夹具</b>）。维度三的<b>长题名是测试夹具，不是真实数据</b>（身份行与正文仍是真实文本照排）。图里青／黄色的文字都是原型标注与夹具标注，页面正常打开不含这条横幅。</div>
+
+    <section class="dimgroup" data-test="dim" data-dim="d1">
+      <h2 class="dimtitle">维度一 · 三块内容的左沿关系：题名／身份行／正文 是否贴同一条竖线</h2>
+      <p class="dimsub">基线 ① 三者同一条竖线；选项 ②③「正文（含身份行）与题名同一竖线、但题名另起一沿」（② 更左、③ 更右）；选项 ④ 正文首行缩进 2 字符。本维度只动左沿 —— 字号／间距／顶部行都固定在基线。</p>
+      <div class="rack" data-rack="d1"></div>
+    </section>
+
+    <section class="dimgroup" data-test="dim" data-dim="d2">
+      <h2 class="dimtitle">维度二 · 顶部行（返回 …… 详情）的左右内沿，与内容内沿是什么关系</h2>
+      <p class="dimsub">基线 ① 顶部行与内容同一内沿；选项 ② 顶部行比内容更靠外（更小的页边＝「栏外」）；选项 ③ 顶部行比内容更靠内（更大的页边）。本维度只动顶部行 —— 内容三块的左沿都固定在基线。</p>
+      <div class="rack" data-rack="d2"></div>
+    </section>
+
+    <section class="dimgroup" data-test="dim" data-dim="d3">
+      <h2 class="dimtitle">维度三 · 长题名折行时，第二行落在哪里（夹具块：长夹具题名 ＋ 真实原文照排）</h2>
+      <p class="dimsub">基线 ① 第二行与首行同一竖线；选项 ② 悬挂缩进（第二行退到竖线右侧 2 字符）。两块都问同一件事：身份行／正文还跟不跟首行对齐。</p>
+      <div class="fxban" data-test="fxban"><b>夹具：本组两块用的题名是测试夹具 —— 「不是真实数据」</b>（题名文字只为撑出「长题名折行」，页面上、图里都写着它不是真实题名）。<b>身份行与正文是真实文本</b>（<code>content/poems/gushi-shijiu-shou-01.md</code> 的 8 行，只读照排）。这条横幅本身也是原型标注，不属于应用页面。</div>
+      <div class="rack" data-rack="d3"></div>
+    </section>
+  </div>
+</div>
+<script>
+
+(function () {
+  'use strict';
+  // 真实内容：取自 content/poems/gushi-shijiu-shou-01.md（只读；正文 8 行、行间无空行 ⇒ 一段）
+  var POEM = {
+    "id": "gushi-shijiu-shou-01",
+    "title": "行行重行行",
+    "author": "佚名",
+    "dynasty": "汉",
+    "genre": "五言古诗",
+    "stanzas": [
+      [
+        "行行重行行，与君生别离。",
+        "相去万余里，各在天一涯。",
+        "道路阻且长，会面安可知？",
+        "胡马依北风，越鸟巢南枝。",
+        "相去日已远，衣带日已缓。",
+        "浮云蔽白日，游子不顾反。",
+        "思君令人老，岁月忽已晚。",
+        "弃捐勿复道，努力加餐饭。"
+      ]
+    ]
+  };
+  // 夹具题名：**不是真实数据**，只为在 430 宽下撑出「长题名折行」（24px ＋ 字距 0.1em ⇒ 每行约 15 字）。
+  var FX_TITLE = '测试夹具长题名：行行重行行并序（不是真实数据）';
+
+  var CFG = {
+    "dims": [
+      {
+        "id": "d1",
+        "insts": [
+          { "inst": "d1-base",    "cap": "① 基线：题名／身份行／正文 <b>同一条竖线</b> —— 三者的左沿都 ＝ 内容内沿 <b>16.8px</b>", "vars": {} },
+          { "inst": "d1-tleft",   "cap": "② 选项：题名<b>另起一沿 · 更左</b> —— 题名左沿 <b>0px</b>（退到页面左沿），身份行与正文仍在 <b>16.8px</b>", "vars": { "--title-edge": "0px" } },
+          { "inst": "d1-tright",  "cap": "③ 选项：题名<b>另起一沿 · 更右</b> —— 题名左沿 <b>50.8px</b>（＝内容内沿 16.8px ＋ 2 字符 34px），身份行与正文仍在 <b>16.8px</b>", "vars": { "--title-edge": "calc(var(--edge-x) + var(--indent-2ch))" } },
+          { "inst": "d1-bindent", "cap": "④ 选项：<b>正文首行缩进 2 字符</b> —— 正文首行左沿 <b>50.8px</b>、其余 7 行仍 <b>16.8px</b>；题名与身份行仍在 <b>16.8px</b>", "vars": { "--body-first-indent": "var(--indent-2ch)" } }
+        ]
+      },
+      {
+        "id": "d2",
+        "insts": [
+          { "inst": "d2-base", "cap": "① 基线：顶部行与内容<b>同一内沿</b> —— 返回左沿 <b>16.8px</b>、详情右沿 <b>413.2px</b>（与内容内沿相同，差 <b>0px</b>）", "vars": {} },
+          { "inst": "d2-out",  "cap": "② 选项：顶部行<b>比内容更靠外</b>（更小的页边＝「栏外」）—— 返回左沿 <b>0px</b>、详情右沿 <b>430px</b>（左右各向外 <b>16.8px</b>）", "vars": { "--ctl-edge": "0px" } },
+          { "inst": "d2-in",   "cap": "③ 选项：顶部行<b>比内容更靠内</b>（更大的页边）—— 返回左沿 <b>33.6px</b>、详情右沿 <b>396.4px</b>（左右各向内 <b>16.8px</b>）", "vars": { "--ctl-edge": "calc(var(--edge-x) * 2)" } }
+        ]
+      },
+      {
+        "id": "d3",
+        "insts": [
+          { "inst": "d3-same", "fx": "long-title", "title": FX_TITLE, "cap": "① 基线：长题名折行时 <b>第二行与首行同一竖线</b>（两行左沿都 ＝ <b>16.8px</b>）；身份行与正文也与首行同沿 <b>16.8px</b>", "vars": {} },
+          { "inst": "d3-hang", "fx": "long-title", "title": FX_TITLE, "cap": "② 选项：<b>悬挂缩进</b> —— 折行第二行退到竖线右侧 2 字符（<b>50.8px</b>）；首行、身份行、正文仍在 <b>16.8px</b>（只把第二行推右）", "vars": { "--title-hang": "var(--indent-2ch)" } }
+        ]
+      }
+    ]
+  };
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined && text !== null) e.textContent = text;
+    return e;
+  }
+
+  function ctlLink(test, text, hash) {
+    var a = el('a', 'ctl', text);
+    a.dataset.test = test;
+    a.href = hash;
+    return a;
+  }
+
+  function buildPage(dimId, spec) {
+    var page = el('div', 'page');
+    page.dataset.test = 'page';
+    page.dataset.inst = spec.inst;
+    page.dataset.dim = dimId;
+    if (spec.fx) page.dataset.fx = spec.fx;
+    var k;
+    for (k in spec.vars) {
+      if (Object.prototype.hasOwnProperty.call(spec.vars, k)) page.style.setProperty(k, spec.vars[k]);
+    }
+
+    // 顶部行：返回（左）＋ 详情（右），同一行（本轮固定）
+    var top = el('div', 'topbar');
+    top.dataset.test = 'topbar';
+    top.appendChild(ctlLink('back', '返回', '#/back'));
+    top.appendChild(ctlLink('detail', '详情', '#/p/' + POEM.id + '/detail'));
+    page.appendChild(top);
+
+    var head = el('header', 'poem-head');
+    head.dataset.test = 'head';
+    var h1 = el('h1', 'p-title', spec.title || POEM.title);
+    h1.dataset.test = 'title';
+    var ident = el('p', 'p-id', POEM.author + ' · ' + POEM.dynasty + ' · ' + POEM.genre);
+    ident.dataset.test = 'ident';
+    head.appendChild(h1);
+    head.appendChild(ident);
+    page.appendChild(head);
+
+    var body = el('div', 'poem-body');
+    body.dataset.test = 'poem';
+    POEM.stanzas.forEach(function (st) {
+      var d = el('div', 'stanza');
+      st.forEach(function (t) {
+        var l = el('span', 'line', t);
+        l.dataset.test = 'line';
+        d.appendChild(l);
+      });
+      body.appendChild(d);
+    });
+    page.appendChild(body);
+    return page;
+  }
+
+  var dims = CFG.dims;
+  for (var i = 0; i < dims.length; i++) {
+    var dim = dims[i];
+    var rack = document.querySelector('[data-rack="' + dim.id + '"]');
+    if (!rack) continue;
+    for (var j = 0; j < dim.insts.length; j++) {
+      var spec = dim.insts[j];
+      var inst = el('div', 'inst');
+      inst.dataset.test = 'inst';
+      inst.dataset.inst = spec.inst;
+      inst.dataset.dim = dim.id;
+      var cap = el('div', 'icap');
+      cap.innerHTML = spec.cap;
+      inst.appendChild(cap);
+      inst.appendChild(buildPage(dim.id, spec));
+      rack.appendChild(inst);
+    }
+  }
+
+  // #shot 只是「看图模式」：显示那条「原型标注不属于应用页面」的横幅；不改变任何排布规则。
+  if (location.hash === '#shot') document.documentElement.dataset.shot = '1';
+})();
+
+</script>
+</body>
+</html>
