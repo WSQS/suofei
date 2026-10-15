@@ -331,13 +331,14 @@ export function renderPoemPage(doc, id, { onBack } = {}) {
   root.append(notesSection);
 
   const foot = h('dl', { class: 'source-block', dataset: { test: 'source-block' } });
+  // 底本/来源：与 Android 诗页一致（Android 只显示「底本/来源：…」）。
+  //
+  // **异文不上界面**（用户 2026-10-14 拍板：异文只存档、不进界面；Android 端同此）。
+  // 所以这里**刻意不渲染** poem.variants，也不要在为空时补一个「未记录」占位 ——
+  // 产物里保留 variants 字段、客户端仍然**解析并做结构校验**（app/content.js: validateContent），
+  // 只是不显示。上线实测曾经发现过：Web 把「异文」渲染成 dt/dd（空时还显示「未记录」），
+  // 造成两端不一致；e2e 里现在有专门断言盯着这件事（诗页不得出现异文栏位/异文文本）。
   foot.append(h('dt', { text: '底本' }), h('dd', { text: poem.source || '未记录' }));
-  if (Array.isArray(poem.variants) && poem.variants.length) {
-    foot.append(h('dt', { text: '异文' }));
-    for (const v of poem.variants) foot.append(h('dd', { text: `${v.text}（${v.note ?? '无说明'}）` }));
-  } else {
-    foot.append(h('dt', { text: '异文' }), h('dd', { text: '未记录' }));
-  }
   foot.append(h('dt', { text: 'id' }), h('dd', { text: poem.id }));
   root.append(foot);
   return root;
