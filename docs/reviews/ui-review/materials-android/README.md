@@ -56,6 +56,17 @@ cd android && ./gradlew assembleRelease -PextraMavenMirror=https://maven.aliyun.
 **来历**：这两张是**真发布之后**拍的：用模拟器上那台**正式签名包**（内置静态内容＝仓库里提交的 `.9`），对着**线上站点**跑了一遍——取清单（`.20`）→ 下载 → sha256 校验 → 切换 → 返回目录生效 → 再检查一次显示「已是最新」。
 ⇒ 更新流程的**三条路径（已最新／下载并切换／断网失败保留旧内容）都在真实站点上验过**；仍未拍到的只有 **Idle 与 Checking** 两个瞬态（原因见上表）。
 
+
+### 图标在设备上的样子（2026-10-15 补；回答此前「图标观感未在真机/启动器上看过」）
+
+| 文件 | 内容 |
+|---|---|
+| `f-icon-launcher.png` | AOSP 桌面：图标＝**N1**（「索」＋右下 accent 角标），标签「索斐」 |
+| `f-icon-appinfo.png` | 设置→应用信息（**浅底**，看得最清）：深墨底圆板 ＋ 浅色字形 ＋ accent 角标 |
+
+**来历**：装的是**发布产物本身**（`release/out/apk/suofei-2026.10.16.20.apk`，7,034,650 字节，`apksigner` 证书 `CN=Suofei`）；`aapt2 dump badging` 的 `application-icon-160/240/320/65534` 都指向资源里的自适应图标（release 构建做了资源混淆 ⇒ 文件名是 `res/BW.xml` 这类短名，不是 `ic_launcher.xml`，所以别用 `grep ic_launcher` 去 APK 里找它）。
+
+⚠ **仍未验**：**厂商遮罩**（squircle／圆角方——本轮只看到 AOSP 的圆形遮罩）、**`<monochrome>` 主题图标**（需系统「主题图标」开关）、**favicon 在真实浏览器标签页里**的样子。
 ## 拍不到 / 只能部分拍到的格子（老实话）
 
 | 格子 | 情况 | 原因与说明 |
