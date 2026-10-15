@@ -174,6 +174,16 @@ function prepareE2ERoot({ outDir, distFile }) {
   copyTree(path.join(REPO_ROOT, 'tools'), path.join(root, 'tools'), {
     filter: (from) => path.basename(from) !== 'node_modules',
   });
+  // prototype/css/theme-tech.css：E 的 e2e §1d（「视觉令牌逐值对齐」）把它当作**令牌的唯一来源**读。
+  // 它不是发布产物（站点上不需要 prototype/），但被测脚本要它 —— 与上面 content-contract.md 同类接缝。
+  // 2026-10-15 实测：缺它时 `live-web-e2e` 在**开跑前**就报红（接缝预检报「镜像根里没有它」）；
+  // 红得没错，但根因是接缝不是产物 —— 所以照本文件的惯例把它复制进镜像根。
+  // （E 的脚本不给这个路径读环境变量，所以走不了 REPO_FILE_ENV 那条路。）
+  // 若它真的不存在，则什么都不做：接缝预检会照旧报红并说清原因（不静默过关）。
+  const protoCss = path.join(REPO_ROOT, 'prototype/css/theme-tech.css');
+  if (exists(protoCss)) {
+    writeFileEnsured(path.join(root, 'prototype/css/theme-tech.css'), fs.readFileSync(protoCss));
+  }
 
   // 2) 仓库 web/ 的镜像（测试基础设施），排除测试产物
   copyTree(path.join(REPO_ROOT, 'web'), path.join(root, 'web'), {

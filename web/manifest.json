@@ -7,5 +7,31 @@
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#ffffff",
-  "description": "索斐：个人诗歌阅读（离线可读）。本文件只声明名称与作用域，图标与安装体验本轮不做（见 README 的已验证/未验证）。"
+  "description": "索斐：个人诗歌阅读（离线可读）。",
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
 }

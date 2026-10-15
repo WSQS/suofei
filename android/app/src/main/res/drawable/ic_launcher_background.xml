@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  自适应图标 · 背景层（满幅）
+
+  ⚠️ 本文件由 `node android/tools/make-launcher-icon.mjs` 生成 —— 手工改会在下一次生成时被覆盖；
+     要改图标请改**交付源**（prototype/icons/svg/r4-N1-*.svg，只读输入）或改生成器，然后重跑。
+
+  来源：prototype/icons/svg/r4-N1-{bg,fg,mono}.svg（形态 N1 由用户 2026-10-15 选定；字形＝Noto Sans SC，OFL）
+  硬约束：① 字形是**矢量轮廓**，不引用任何字体（Android 上没有微软雅黑这类字体）；
+         ② bg 满幅 108×108；③ fg 落在系统保证可见的中心 72 方（内切圆 r=36）内，
+            与原型自述的「中心直径 66 圆」的实测差距写在 android/README「图标」一节；
+         ④ minSdk 26 ⇒ 自适应图标 + 矢量足够，**不提供 legacy 位图 mipmap**（见 android/README）。
+  画布遮罩不写在这里：原型预览里的遮罩是近似，真实遮罩随厂商/系统版本不同。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 满幅铺满整块 108×108 画布；颜色=视觉令牌 bg（与 themes.xml 的 windowBackground 同值）。 -->
+    <path android:fillColor="#0e1315" android:pathData="M 0 0 H 108 V 108 H 0 Z" />
+</vector>

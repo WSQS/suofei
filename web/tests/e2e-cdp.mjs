@@ -32,7 +32,7 @@ import {
   comparePoems, groupPoems, hasProductOrder, isUnknownAuthor, productOrderStatus, searchPoems, UNKNOWN_AUTHORS,
 } from '../app/render.js';
 import { buildVariants } from '../scripts/lib/variants.mjs';
-import { DEPLOY_FILES, makeDeployment } from './lib/deploy.mjs';
+import { DEPLOY_FILES, DEPLOY_TEXT_FILES, makeDeployment } from './lib/deploy.mjs';
 
 const webRoot = fileURLToPath(new URL('..', import.meta.url));
 const repoRoot = resolve(webRoot, '..');
@@ -478,9 +478,16 @@ function unitTests(baseDoc, variants) {
 /** 「内容必须单独取、不许内联」的自证 + 体积报告。 */
 async function inlineChecks(contentText) {
   section('0h 内容必须单独取、不许内联进 HTML/JS（自证 + 体积）');
+  // 只把**文本**文件读进来：图标 PNG 读成 utf8 等于把字节当字符，搜诗题毫无意义、体积还会算错。
   const texts = new Map();
-  for (const rel of DEPLOY_FILES) texts.set(rel, await readFile(resolve(webRoot, rel), 'utf8'));
-  const shellBytes = [...texts.values()].reduce((a, t) => a + Buffer.byteLength(t, 'utf8'), 0);
+  for (const rel of DEPLOY_TEXT_FILES) texts.set(rel, await readFile(resolve(webRoot, rel), 'utf8'));
+  // 体积分段报告：壳（html/css/js/manifest）／图标资源（icons/ 下的 svg+png，按字节读）／内容。
+  // 图标是**二进制 + 矢量资源**，把它们算进「壳」会把壳的体积说成另一个数（这里就不那么算）。
+  const shellFiles = DEPLOY_TEXT_FILES.filter((f) => !f.startsWith('icons/'));
+  const shellBytes = shellFiles.reduce((a, f) => a + Buffer.byteLength(texts.get(f), 'utf8'), 0);
+  const iconFiles = DEPLOY_FILES.filter((f) => f.startsWith('icons/'));
+  let iconBytes = 0;
+  for (const rel of iconFiles) iconBytes += (await readFile(resolve(webRoot, rel))).length;
   const contentBytes = Buffer.byteLength(contentText, 'utf8');
 
   const firstLine = JSON.parse(contentText).poems[0].stanzas[0][0];
@@ -493,8 +500,77 @@ async function inlineChecks(contentText) {
     texts.get('index.html'), '正在装载站点');
   check('外壳里只有 content.json 这个**地址**，没有它的内容',
     texts.get('sw.js').includes('content.json') && !texts.get('sw.js').includes(firstTitle));
-  console.log(`  实测体积：壳 ${(shellBytes / 1024).toFixed(1)} KB（${DEPLOY_FILES.length} 个文件）`
+  console.log(`  实测体积：壳 ${(shellBytes / 1024).toFixed(1)} KB（${shellFiles.length} 个：html/css/js/manifest）`
+    + ` ＋ 图标资源 ${(iconBytes / 1024).toFixed(1)} KB（${iconFiles.length} 个：icons/ 下的 svg + png）`
     + ` / 内容 content.json ${(contentBytes / 1024).toFixed(1)} KB`);
+}
+
+/**
+ * 图标接线自证（纯静态，不看浏览器）。
+ *
+ * 为什么值得单列一节：「在 index.html 里写了一个 href」与「这个文件真的会跟着部署到达」
+ * 是两件事：图标现在是**独立文件**（以前是内联 data: URI），漏进部署清单或漏进 SW 预缓存
+ * 都不会在桌面浏览器上立刻暴露，而是以「离线时标签页/安装入口掉图」的形式出现。
+ * 所以这里把三份清单（index.html 的 <link>、manifest 的 icons、sw.js 的 PRECACHE）互相对一遍。
+ */
+function iconChecks() {
+  section('0i 图标接线：两套资产都会随部署到达，且 SW 预缓存清单跟着更新');
+  const indexHtml = readFileSync(resolve(webRoot, 'index.html'), 'utf8');
+  const manifest = JSON.parse(readFileSync(resolve(webRoot, 'manifest.json'), 'utf8'));
+  const swSource = readFileSync(resolve(webRoot, 'sw.js'), 'utf8');
+
+  // 1) index.html 的 <link rel=icon|apple-touch-icon> 指向的文件必须真的在部署清单里
+  const linkTags = [...indexHtml.matchAll(/<link[^>]*rel="(?:icon|apple-touch-icon)"[^>]*>/g)].map((m) => m[0]);
+  const hrefs = linkTags.map((tag) => /href="([^"]*)"/.exec(tag)?.[1] ?? null);
+  check('index.html 声明了标签页图标与 apple-touch-icon（含 PNG 兜底）',
+    linkTags.length >= 3 && hrefs.filter((h) => h?.endsWith('.png')).length >= 1
+      && hrefs.some((h) => h?.endsWith('.svg')),
+    hrefs.join(' | '));
+  eq('favicon 不再用内联 data: URI（旧的那份用 <text> 画字，靠系统字体）',
+    hrefs.filter((h) => h?.startsWith('data:')), []);
+  eq('index.html 里每个图标 href 都在部署清单里（否则部署目录会缺文件）',
+    hrefs.filter((h) => h && !h.startsWith('data:') && !DEPLOY_FILES.includes(h)), []);
+
+  // 2) manifest 的 icons：字段齐、文件真在部署清单里、有 maskable
+  const icons = manifest.icons ?? [];
+  eq('manifest 的 icons 里每个 src 都在部署清单里',
+    icons.map((i) => i.src).filter((s) => !DEPLOY_FILES.includes(s)), []);
+  check('manifest 的每个 icon 都写明 sizes 与 type',
+    icons.length >= 3 && icons.every((i) => i.sizes && i.type),
+    icons.map((i) => `${i.src} ${i.sizes} ${i.type} purpose=${i.purpose ?? '（缺省 any）'}`).join(' | '));
+  check('manifest 里至少有一个 purpose=maskable 的 512 图标',
+    icons.some((i) => i.purpose === 'maskable' && i.sizes === '512x512'),
+    icons.map((i) => `${i.src}:${i.purpose}`).join(' | '));
+  check('manifest 声明了 192 与 512（安装所需的最小集）',
+    icons.some((i) => i.sizes === '192x192') && icons.some((i) => i.sizes === '512x512'));
+
+  // 3) SW 预缓存清单：必须是部署清单的子集，且把图标都包含进来
+  const precacheMatch = /const PRECACHE = \[([\s\S]*?)\]/.exec(swSource);
+  check('从 sw.js 里解析出了预缓存清单', Boolean(precacheMatch));
+  const precache = [...(precacheMatch?.[1] ?? '').matchAll(/'([^']*)'/g)].map((m) => m[1]).filter((p) => p !== '');
+  eq('预缓存清单里的每一项都在部署清单里（清单里有、部署目录没有 → install 直接失败）',
+    precache.filter((p) => !DEPLOY_FILES.includes(p)), []);
+  const iconFiles = DEPLOY_FILES.filter((f) => f.startsWith('icons/'));
+  eq(`部署清单里的 ${iconFiles.length} 个图标资源全部进了预缓存（否则离线首屏缺图标）`,
+    iconFiles.filter((f) => !precache.includes(f)), []);
+
+  // 4) 图标不得靠运行时字体画字；favicon 是**另一套**记号（用户 2026-10-15 裁决）
+  const svgPath = (rel) => {
+    const markup = readFileSync(resolve(webRoot, rel), 'utf8').replace(/<!--[\s\S]*?-->/g, ''); // 注释里提到 <text> 不算依赖（本仓的注释就会提到）
+    return { markup, d: [...markup.matchAll(/\sd="([^"]+)"/g)].map((m) => m[1]) };
+  };
+  const n1 = svgPath('icons/icon.svg');
+  const fav = svgPath('icons/favicon.svg');
+  for (const [rel, s] of [['icons/icon.svg', n1], ['icons/favicon.svg', fav]]) {
+    check(`${rel} 里没有 <text>/字体元素（字形必须是轮廓，不靠系统字体）`,
+      !/<text|<tspan|font-family|font-size=/.test(s.markup), 'ok');
+    check(`${rel} 里有非空的 path 轮廓`, s.d.length >= 1 && s.d.every((d) => d.length > 20), s.d.map((d) => d.length).join('/'));
+  }
+  eq('favicon 与启动图标是**两套不同形状**的资产（启动图标用 N1 的字形轮廓，favicon 另有极简记号）',
+    n1.d.filter((d) => fav.d.includes(d)), []);
+  check('favicon 的记号只用横竖线段（M/H/V/Z ⇒ 不含任何字形轮廓）',
+    fav.d.every((d) => /^[MHVZ ]+$/.test(d.replace(/[-\d.,]/g, ''))),
+    fav.d.join(' | '));
 }
 
 // ------------------------------------------------------------------ 浏览器主流程
@@ -545,6 +621,7 @@ async function main() {
 
   unitTests(baseDoc, variants);
   await inlineChecks(baseText);
+  iconChecks();
 
   // ---- 各次部署的版本号一律从当前 APP_VERSION 派生（写死会撞车，见 nextAppVersion 注释）----
   section('1-1 部署版本派生自检（写死会与真发布的版本号撞车）');
@@ -923,6 +1000,11 @@ async function main() {
     && entries.some((p) => p.endsWith('/app/main.js')) && entries.some((p) => p.endsWith('/styles.css')), dump(entries));
   check('缓存里有 content.json（内容与壳同一份清单、同一个 cache）',
     entries.some((p) => p.endsWith(`/${CONTENT_URL}`)), dump(entries));
+  // 图标是**独立文件**（不再是内联 data: URI）⇒「离线首屏不缺图标」只能靠预缓存真的取到它们。
+  // 逐项断言（不是抽查一个）：少一个图标就会在离线时掉图。
+  const iconPaths = DEPLOY_FILES.filter((f) => f.startsWith('icons/'));
+  eq(`预缓存里 ${iconPaths.length} 个图标都在（离线首屏图标不会缺）`,
+    iconPaths.filter((p) => !entries.some((e) => e.endsWith(`/${p}`))), []);
   await waitFor(`document.querySelector('[data-test="status-site-cache"]').textContent.includes('含 content.json')`,
     { label: '状态面板显示缓存里含 content.json' });
   includes('状态面板也显示缓存里含 content.json',

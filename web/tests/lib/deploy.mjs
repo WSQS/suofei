@@ -9,7 +9,7 @@
 //
 // 这里**不写** content.json.sha256：Web 侧已决定不产出边车（用户 2026-10-14）。
 
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -25,7 +25,26 @@ export const DEPLOY_FILES = [
   'app/content.js',
   'app/main.js',
   'app/render.js',
+  // 图标（2026-10-15 落地）：启动图标 N1 + 标签页图标另用一套无字极简记号。
+  // 它们必须在这里：makeDeployment 据此搭每次演练的站点目录，而 SW 的预缓存清单里也有它们
+  // —— 清单里有、部署目录里没有，SW 的 install 会直接失败（离线掉图）。
+  'icons/icon.svg',
+  'icons/icon-192.png',
+  'icons/icon-512.png',
+  'icons/icon-maskable-512.png',
+  'icons/apple-touch-icon.png',
+  'icons/favicon.svg',
+  'icons/favicon-32.png',
 ];
+
+/**
+ * 部署清单里**可以当文本读**的那些（源码/配置/标记），与**二进制资源**（图标 PNG）分开。
+ *
+ * 为什么要分：`inlineChecks`（「内容不得内联进壳」+ 体积报告）要逐文件读全文搜诗题/正文，
+ * 把 PNG 按 utf8 读进来等于把字节当字符（结论没有意义，体积也会被算错）。
+ * 分法是按扩展名，不是按名字逐个写死 —— 新增资源时不会静默掉队。
+ */
+export const DEPLOY_TEXT_FILES = DEPLOY_FILES.filter((f) => !/\.(png|jpg|jpeg|webp|ico|woff2?)$/.test(f));
 
 /**
  * 写一个部署目录。
@@ -41,12 +60,15 @@ export async function makeDeployment({ destDir, appVersion, contentText }) {
   for (const rel of DEPLOY_FILES) {
     const target = join(dest, rel);
     await mkdir(dirname(target), { recursive: true });
-    let text = await readFile(join(webRoot, rel), 'utf8');
     if (rel === 'app/config.js' || rel === 'sw.js') {
       // 只改版本常量：两个文件都要改，否则 e2e 里的「常量一致」断言会报红。
-      text = text.replace(/APP_VERSION = '[^']*'/, `APP_VERSION = '${appVersion}'`);
+      const text = (await readFile(join(webRoot, rel), 'utf8'))
+        .replace(/APP_VERSION = '[^']*'/, `APP_VERSION = '${appVersion}'`);
+      await writeFile(target, text, 'utf8');
+    } else {
+      // 其余文件（含图标 PNG）**按字节复制** —— 文本读写会把二进制改坏（utf8 编解码不可逆）。
+      await copyFile(join(webRoot, rel), target);
     }
-    await writeFile(target, text, 'utf8');
   }
   await writeFile(join(dest, 'content.json'), contentText, 'utf8');
   return {

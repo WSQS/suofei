@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  自适应图标（API 26+，唯一入口；minSdk 26 ⇒ 不需要 legacy 位图）
+
+  ⚠️ 本文件由 `node android/tools/make-launcher-icon.mjs` 生成 —— 手工改会在下一次生成时被覆盖；
+     要改图标请改**交付源**（prototype/icons/svg/r4-N1-*.svg，只读输入）或改生成器，然后重跑。
+
+  来源：prototype/icons/svg/r4-N1-{bg,fg,mono}.svg（形态 N1 由用户 2026-10-15 选定；字形＝Noto Sans SC，OFL）
+  硬约束：① 字形是**矢量轮廓**，不引用任何字体（Android 上没有微软雅黑这类字体）；
+         ② bg 满幅 108×108；③ fg 落在系统保证可见的中心 72 方（内切圆 r=36）内，
+            与原型自述的「中心直径 66 圆」的实测差距写在 android/README「图标」一节；
+         ④ minSdk 26 ⇒ 自适应图标 + 矢量足够，**不提供 legacy 位图 mipmap**（见 android/README）。
+  画布遮罩不写在这里：原型预览里的遮罩是近似，真实遮罩随厂商/系统版本不同。
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+    <monochrome android:drawable="@drawable/ic_launcher_monochrome" />
+</adaptive-icon>

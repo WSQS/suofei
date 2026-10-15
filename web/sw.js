@@ -23,11 +23,22 @@ const CACHE_NAME = `${CACHE_PREFIX}${APP_VERSION}`;
 const CONTENT_URL = 'content.json';
 
 // 相对 scope 的路径（'' 就是 scope 自身）。内容与壳在同一份清单里 → 成对缓存。
+// ⚠️ 图标也要在这里：它们是**独立文件**（不再是内联 data: URI），离线首屏缺了就会在标签页/安装入口处掉图。
+//    e2e 有一条断言会把这份清单与部署清单对账（新增资源必须同时进两份）。
 const PRECACHE = [
   '',
   'index.html',
   'styles.css',
   'manifest.json',
+  // 启动/安装图标（N1）
+  'icons/icon.svg',
+  'icons/icon-192.png',
+  'icons/icon-512.png',
+  'icons/icon-maskable-512.png',
+  'icons/apple-touch-icon.png',
+  // 标签页图标（另一套无字极简记号，与启动图标不是同一张）
+  'icons/favicon.svg',
+  'icons/favicon-32.png',
   'app/main.js',
   'app/config.js',
   'app/content.js',

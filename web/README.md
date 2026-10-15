@@ -52,7 +52,9 @@ node web/tests/e2e-cdp.mjs
 web/
   index.html            外壳（标题写「索斐」；内含静态的「正在装载站点…」，JS/内容没到时也不白屏）
   styles.css            ★ 静默终端主题：令牌与原型同源同值（见 §5）
-  manifest.json         只声明名称与作用域（故意不含图标）
+  manifest.json         名称/作用域/图标（icons：启动图标 N1 的 svg + 192/512/maskable）
+  icons/                图标资产（启动图标 N1 ＋ 标签页图标另一套无字记号；见 §5.2）
+  scripts/build-icons.mjs           从只读交付源生成 icons/（svg + 用无头 Chromium 出 PNG）
   sw.js                 ★ Service Worker：站点的唯一缓存与更新通道（壳 + 内容一起缓存）
   app/config.js         ★ 所有对外接口常量集中在这里（见 §8）
   app/content.js        内容装载：单独取 + 结构校验 + 格式版本兼容检查（不做更新决策）
@@ -140,7 +142,10 @@ web/
   期间显示「正在取内容…」；
 - 部署文件里**没有任何诗题或正文**（e2e 有一条断言直接检查这件事），内容只以 URL 形式出现
   （`config.js: CONTENT_URL`、`sw.js` 的预缓存清单）。
-- 实测体积（本轮实测，非估算）：**壳 68.0 KB**（index.html 1.6 + styles.css 14.2 + manifest.json 0.4 + sw.js 5.4 + app/{config 2.6, content 8.0, main 21.5, render 14.3），**内容约 27 KB**（真实 19 首的 `content.json`）。两者分开取，互不阻塞首屏。
+- 实测体积（本轮实测，非估算；含图标落地后）：**壳 69.2 KB**（8 个：index.html、styles.css、manifest.json、sw.js、app/ 四个模块）
+  **＋ 图标资源 30.6 KB**（7 个：`icons/` 下的 2 个 svg + 5 个 png，单独成组，不算进「壳」），
+  **内容 27.5 KB**（真实 19 首的 `content.json`）。三者分开取，互不阻塞首屏。
+  （这条行由 e2e 每次跑的时候打出来，数字取自本次运行 —— 见 §6。）
 
 ### 4.3 更新提示与「不打断阅读」（含取舍）
 
@@ -232,9 +237,68 @@ web/
 - **目录页结构**（规范 §4.2 第 3 条标为「待台账确认」，本轮未改）：原型是「组卡片（含 3 首题名
   预览）+ 点组进入」，本实现是「组头 + 组内诗列表内联展开」。等台账/用户结论再动。
 
+### 5.2 图标（启动图标 N1 ＋ 标签页图标另一套无字记号 M1）
+
+用户 2026-10-15 选定：**启动/安装图标 = N1**（单字「索」的**矢量轮廓** ＋ 右下一条 accent 发丝角标；
+交付源是只读的 `prototype/icons/svg/r4-N1-*.svg`）；**浏览器标签页图标 = 另一套「极简记号」M1**
+—— 同一次裁决：favicon 另用一套极简记号（自绘、无字，可从 N1 的 accent 角标派生），
+因为 N1 在 16/32px 下糊成一团（证据：`prototype/icons/out/round4-forms.png` 最后两列）。
+
+| 文件 | 用途 | 谁引用 |
+|---|---|---|
+| `icons/icon.svg` | 启动图标（矢量；任意尺寸都锐） | `manifest.json`（`sizes: any`） |
+| `icons/icon-192.png`、`icons/icon-512.png` | 安装图标（`purpose: any`） | `manifest.json` |
+| `icons/icon-maskable-512.png` | 安装图标（`purpose: maskable`） | `manifest.json` |
+| `icons/apple-touch-icon.png`（180） | iOS 主屏图标 | `index.html` 的 `<link rel="apple-touch-icon">` |
+| `icons/favicon.svg` | **标签页图标（M1 记号）** | `index.html`（`type="image/svg+xml" sizes="any"`） |
+| `icons/favicon-32.png` | 标签页图标的 **PNG 兜底** | `index.html` |
+
+**M1 记号长什么样**（单列出来供复核）：画布 108×108（与 N1 同尺寸，便于对照）；底 `#0e1315` 满幅；
+上面一个 accent `#4fb3a5` 的**方角 L** —— 右下一横臂 ＋ 右侧一竖臂，在右下角相接，
+**厚 12、每臂 36**（外角落在 (80,80)），路径 `M 44 68 H 68 V 44 H 80 V 80 H 44 Z`。
+等价说法：把 N1 那条 2.5 厚的 accent 发丝加粗到 12 —— 因为 16px 下 2.5 单位只有 **0.37px**（必然消失），
+而 12 单位是 **1.78px**、每臂 5.33px（16px 下能认出形状）。**没有引入任何新颜色，也没有任何字**。
+
+代价（同一次裁决里已写明，也是实测的）：它与启动图标**不同形**，且读不出应用名。
+两套资产**并存**：启动图标仍是 N1，`manifest.json` 的 192/512 仍是 N1。
+
+生成方式（两端各一个生成器，都从同一份只读交付源出发）：
+
+```bash
+CHROME_BIN='C:/Users/wsqsy/AppData/Local/Chromium/Application/chrome.exe' \
+  node web/scripts/build-icons.mjs          # 生成 icons/ 的 svg + png（--check 只核对不写盘）
+CHROME_BIN=... node web/scripts/build-icons.mjs --sheet   # 另出一张观感对照图（近似示意，不是真机）
+node ../android/tools/make-launcher-icon.mjs              # Android 侧的矢量资源（同一份轮廓烙进坐标）
+```
+
+观感对照图落在 `web/tests/artifacts/icons-observation.png`（该目录已 gitignore）：N1 在 192/96/48/32/16
+＋近似遮罩，M1 在 32/16，以及一条模拟标签栏。**它只是证据图，不是规范** —— 图里的遮罩与标签栏都是近似。
+
+三条硬约束（两端同一口径，写在这里免得以后有人「优化」掉）：
+
+1. **必须用轮廓，不得依赖运行时字体**：字形是 `outline.py` 从 Noto Sans SC（OFL）抽出的 `<path>`；
+   两个 svg 里没有 `<text>`、没有 `font-*`，e2e §0i 有断言盯着。
+2. `bg` 满幅；`fg` 落在系统**保证可见**的中心 72 方内。（原型自述的目标是「中心直径 66 圆」，
+   实测 N1 的 accent 角标外角在半径 **33.812** 处、超 **0.812** 单位 —— 那是形态本身不是实现走样，
+   详见 `android/README` 的「图标」一节。）
+3. 图标现在是**独立文件**（不再是内联 `data:` URI）⇒ 7 个图标全在 `sw.js` 的预缓存清单里。
+   e2e §0i 把 `index.html` 的 `<link>`、`manifest.json` 的 `icons`、`sw.js` 的预缓存清单与部署清单
+   互相对一遍，并在首访后**逐项断言 7 个图标都进了本版本 cache**（少一个就会离线掉图）。
+
+**未验证（诚实边界）**：
+
+- **SVG favicon 在老浏览器上不生效** ⇒ PNG 兜底**不是可选**；但「哪些浏览器拿 SVG、哪些拿 PNG」
+  没逐个浏览器实测过。
+- 真实浏览器的标签页/书签渲染没逐个看过；**没在移动浏览器与真机上验证**，PWA 安装流程、
+  iOS 主屏图标、真实启动器遮罩都没实测（本机无设备，且本任务明确不碰模拟器/设备）。
+- **M1 记号是我按「16px 下还能认出形状」自评出来的**，没有经过用户评审 —— 要换形状的话，
+  改 `web/scripts/build-icons.mjs` 里 M1 的参数重跑即可（不用动 N1 的启动图标资产）。
+- `manifest.json` 的 `background_color`/`theme_color` 仍是原来的 `#ffffff`（本次**没改**：那是视觉决定，
+  不是图标落地的事）—— 它与深墨底不一致，已上报。
+
 ## 6. 已验证 / 未验证
 
-### 已验证（`node web/tests/e2e-cdp.mjs`，基座 = 真实产物 19 首，本机无头 Chromium 129，203/203 通过）
+### 已验证（`node web/tests/e2e-cdp.mjs`，基座 = 真实产物 19 首，本机无头 Chromium 129，220/220 通过）
 
 - **视觉令牌逐值对齐（§1d）**：直接读原型 CSS 的 57 项令牌声明与本站 `:root` 计算值逐项比对，
   以及计算值层的底色/正文色/字号/行高/字距/段间距/无阴影/无动画/0.15s 颜色过渡/网格；
@@ -250,6 +314,10 @@ web/
   `content.json`（不动版本）后页面取到的仍是本版本缓存里的内容。
 - **内容单独取、不内联**：延迟 1.2s 下先看到外壳与「正在装载站点…」，JS 起来后显示「正在取内容…」
   且尚未有任何诗行；部署文件里没有任何诗题/正文；壳与内容体积分开报告。
+- **图标接线（§0i，本次图标落地新增）**：`index.html` 的 `<link>（icon/apple-touch-icon）`、`manifest.json`
+  的 `icons`、`sw.js` 的预缓存清单与部署清单互相对账（没互相对账就会出现「声明了但部署目录里没有」
+  或「装了但离线掉图」）；两个 svg 断言无 `<text>`/字体元素；favicon 与启动图标断言**形状不同**（两套资产）；
+  首访后逐项断言 7 个图标都在本版本 cache 里。
 - **独立通道确实删干净**：`indexedDB.databases()` 为空、`localStorage` 为空、代码里没有
   `compareContentVersion/decideUpdate/putStaged/promoteStaged`、SW 里没有「内容不进缓存」的特例。
 - 真离线（CDP 断网 **并 kill 掉本地服务进程**）重载仍可读；「清除站点数据」的两种后果都实测：
@@ -301,14 +369,17 @@ web/
 - 没在移动浏览器 / 真机浏览器上验证；没做 iOS/Safari 兼容验证。
 - 没做多标签页并发切换、长时间挂机、大内容量（几百首以上）的性能验证。
 - 视觉/交互未评审；无障碍只做到语义标签与 `<details>`，对比度未核对。
-- `manifest.json` 不含图标，所以「安装到桌面」的体验**没有**验证，本轮不承诺。
+- **安装体验仍未验证**：`manifest.json` 现在**带上了**图标（192/512/maskable），但「安装到桌面」
+  的真实体验（安装横幅、启动画面底色、桌面图标在真实启动器里的观感）**没有**在真机/移动浏览器上验证过，
+  本轮不承诺；图标观感只做到无头 Chromium 的对照图（见 §5.2 与 `web/tests/artifacts/icons-observation.png`）。
 
 ## 7. 部署到静态托管（Pages）注意点
 
 1. 要发布的文件：`index.html`、`styles.css`、`manifest.json`、`sw.js`、`app/`（四个模块）、
+   `icons/`（启动图标 ＋ 标签页图标，共 7 个文件；见 §5.2）、
    以及 `content.json`（Web 侧**不产出也不读** `content.json.sha256` 边车，见 §8）。`web/fixtures/`、
-   `web/tests/`、`web/scripts/` 不发布（`tests/lib/deploy.mjs` 里有一份清单，e2e 也断言了
-   部署目录里没有测试文件）。
+   `web/tests/`、`web/scripts/` 不发布（`web/tests/lib/deploy.mjs` 里有一份 `DEPLOY_FILES` 清单，e2e 也断言了
+   部署目录里没有测试文件；发布流水线侧的顶层白名单在 `release/lib/artifacts.mjs`，`icons` 已加进去）。
 2. `index.html` 用**哈希路由**，不需要服务器重写规则；刷新深链不会 404。
 3. 内容地址是相对路径（`content.json`），`/repo-name/` 子路径部署也能用。
 4. 缓存控制不用管：资源与内容由 SW 自己缓存；Pages 的响应头不可自定义，本项目也不依赖它。
