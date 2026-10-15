@@ -14,7 +14,8 @@ import dev.sopho.suofei.update.UpdateOutcome
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-enum class Screen { LIBRARY, POEM, UPDATE_SETTINGS }
+/** 四个页面（用户 2026-10-15 定）：目录 / 诗 / 诗歌详情 / 关于（原「更新页」改名）。 */
+enum class Screen { LIBRARY, POEM, POEM_DETAIL, ABOUT }
 
 /** 更新检查的可见状态。每种失败都明确写「旧版保留」。 */
 sealed interface UpdateStatus {
@@ -90,16 +91,30 @@ class AppState(
         screen = Screen.POEM
     }
 
+    /**
+     * 诗歌详情页（第四页）：这一首的考据与来源（底本/来源 + 异文）。
+     * 入口在诗页；它不改变 [selectedPoem] —— 所以详情页的「返回」会回到**那首诗**（不是目录）。
+     */
+    fun openPoemDetail() {
+        if (selectedPoem == null) return
+        screen = Screen.POEM_DETAIL
+    }
+
+    /**
+     * 返回：详情页 → 那首诗；诗页/关于页 → 目录（回目录时会采用等待中的新内容，见 [openLibrary]）。
+     * 深链接场景下 Android 没有独立 URL，但「直开＝从顶部开始」由 `AppRoot` 的列表状态初值保证。
+     */
     fun back() {
         when (screen) {
             Screen.POEM -> openLibrary()
-            Screen.UPDATE_SETTINGS -> openLibrary()
+            Screen.POEM_DETAIL -> screen = Screen.POEM
+            Screen.ABOUT -> openLibrary()
             Screen.LIBRARY -> Unit
         }
     }
 
-    fun openUpdateSettings() {
-        screen = Screen.UPDATE_SETTINGS
+    fun openAbout() {
+        screen = Screen.ABOUT
     }
 
     /** 打开应用时自动调用；也由「检查更新」按钮手动调用。 */

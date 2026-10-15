@@ -268,7 +268,7 @@ class UpdateFlowTest {
         val outcome = ContentUpdater.checkAndUpdate("$base/latest.json", "2026.10.14.1", 1, store)
 
         // 调用方拿到的是一个与其它失败**同类**的 Failed(IO)，而不是异常——
-        // 因此「内容更新」页会照常显示「更新未生效，旧内容保留：<原因>」，不会变成静默什么都没发生。
+        // 因此「关于」页的「状态」行会照常显示「更新未生效，旧内容保留：<原因>」，不会变成静默什么都没发生。
         assertTrue("实际结果：$outcome", outcome is UpdateOutcome.Failed)
         val failed = outcome as UpdateOutcome.Failed
         assertEquals(FailureKind.IO, failed.kind)
