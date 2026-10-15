@@ -3,8 +3,8 @@
 > **这一份是什么**：**讨论原型**——用来让用户对「目录页的层级怎么形成、收起/展开怎么辨认、关于入口放哪」做判断的材料。
 > **它不是**：产品实施、不是发布、**不是已采纳规格**。
 > 两个可打开的文件（自包含单文件，双击即开）：
-> - `items/app-ui/prototypes/q-hub-hierarchy.a.html` —— 候选 A「留白层级」（长图 `q-hub-hierarchy.a.png`）
-> - `items/app-ui/prototypes/q-hub-hierarchy.b.html` —— 候选 B「结构记号」（长图 `q-hub-hierarchy.b.png`）
+> - `items/app-ui/history/round-2026-10-15-hub-hierarchy/q-hub-hierarchy.a.html` —— 候选 A「留白层级」（长图 `q-hub-hierarchy.a.png`）
+> - `items/app-ui/history/round-2026-10-15-hub-hierarchy/q-hub-hierarchy.b.html` —— 候选 B「结构记号」（长图 `q-hub-hierarchy.b.png`）
 >
 > 原型里点组头就能开合（真鼠标事件已实测，见 §11）。
 
