@@ -270,6 +270,8 @@ $ git status --short
 
 **只有这 5 个新增文件**，全在 `items/app-ui/prototypes/` 下；**没有任何已修改（M）的文件** ⇒ 真实内容、`prototype/`、`docs/`、`items/*/item.md`、`android/`、`web/` **一个字都没动**。
 
+（上面那段是**提交前**的原始输出；这 5 个文件随后被提交为 **`67550d4`**，提交后 `git status --short` 是**空的**。）
+
 （提交用 `git commit --only items/app-ui/prototypes/q-hub-hierarchy.*`，因为本仓多条会话共享同一条工作树的 index，裸 `git commit` 会把别人已暂存的文件一起卷走。）
 
 ## 12. 我**没做／没验**的部分（明确说清）
