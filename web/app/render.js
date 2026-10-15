@@ -340,7 +340,10 @@ export function renderPoemPage(doc, id, { onBack } = {}) {
   // 只是不显示。上线实测曾经发现过：Web 把「异文」渲染成 dt/dd（空时还显示「未记录」），
   // 造成两端不一致；e2e 里现在有专门断言盯着这件事（诗页不得出现异文栏位/异文文本）。
   foot.append(h('dt', { text: '底本' }), h('dd', { text: poem.source || '未记录' }));
-  foot.append(h('dt', { text: 'id' }), h('dd', { text: poem.id }));
+  // **诗的 `id` 不上界面**（用户 2026-10-15 拍板，见 `docs/interface-decisions.md`）。
+  // 此前 Web 单方面多出「id」一行，是 P 线实测发现的**跨端不一致**（Android 从未显示它）。
+  // 深链接能力不受影响：地址仍是 `#/p/<id>`，`dataset.poemId` 与路由照旧。
+  // e2e 有反向断言盯着（诗页可见文本不得出现诗的 id）。
   root.append(foot);
   return root;
 }

@@ -711,7 +711,7 @@ async function main() {
     const dl = document.querySelector('[data-test="source-block"]');
     return { labels: [...dl.querySelectorAll('dt')].map(e => e.textContent), text: dl.innerText };
   })()`);
-  eq('底本栏位仍在（与 Android 一致），且只有「底本」与「id」两项', sourceInfo.labels, ['底本', 'id']);
+  eq('底本栏位仍在（与 Android 一致），且只有「底本」一项（诗的 id 不上界面，用户 2026-10-15）', sourceInfo.labels, ['底本']);
   includes('底本/来源的文字照旧显示', sourceInfo.text, p1.source);
   check('没有「异文」栏位（连空占位也没有）',
     !sourceInfo.labels.includes('异文') && !sourceInfo.text.includes('未记录'), dump(sourceInfo.labels));
@@ -729,6 +729,9 @@ async function main() {
     eq(`[${poem.title}] 页面上的「异文」二字只来自底本/来源文字本身`,
       viewText.split('异文').length - 1, poem.source.split('异文').length - 1);
     includes(`[${poem.title}] 底本/来源仍在`, viewText, poem.source);
+    // 用户 2026-10-15 拍板：诗的 id 不上界面（此前 Web 单方面多出「id」一行，跨端不一致）。
+    check(`[${poem.title}] 页面上不出现诗的 id（${poem.id}）`,
+      !viewText.includes(poem.id), dump({ id: poem.id }));
   }
   await hashTo(`#/p/${p1.id}`);
   await waitForPoemView(p1.id);
