@@ -268,7 +268,8 @@ export function renderIndex(doc, { onOpen } = {}) {
     });
     sec.append(h('h2', { class: 'dynasty-group-title' }, [
       h('span', { class: 'dynasty-label', dataset: { test: 'dynasty-label' }, text: g.label }),
-      h('span', { class: 'dynasty-count', text: `${g.poems.length} 首` }),
+      // 计数用等宽 + 方括号（原型里的结构性记号，CSS 用伪元素加括号，不改文本内容）
+      h('span', { class: 'dynasty-count' }, [h('b', { text: String(g.poems.length) }), ' 首']),
     ]));
     const list = h('div', { class: 'poem-list' });
     for (const p of g.poems) list.append(poemRow(p, onOpen));

@@ -1,32 +1,144 @@
-/* 朴素占位样式：本轮不做视觉设计。
-   视觉与交互由原型线（worktree wt/b-bc5853db）评审后统一落到两端，
-   这里只保证结构清楚、正文分行/空行可读、笔记能展开。
-   唯一有「保真」含义的规则是 .line{white-space:pre-wrap}（避免 HTML 折叠行内空白）。 */
+/* 索斐 Web —— 视觉：**静默终端（深墨底）**。
+ *
+ * 令牌与评审通过的原型**同源同名同值**（prototype/css/theme-tech.css，由负责人规范成
+ * docs/design/visual-tokens.md）。变量名刻意沿用原型（--bg/--surface/--text/--poem-lh/…），
+ * 便于与规范逐项对照。
+ *
+ * tests/e2e-cdp.mjs 的 §1d 有一条**令牌逐值对齐**断言：它直接读原型 CSS 里的令牌声明，
+ * 与这里 :root 的**计算值**逐项比对 —— 所以「与规范一致」是可检查的，不是靠人看。
+ * 改值必须两边同步，否则那条断言会红并打出差异。
+ *
+ * 取向（同原型）：深墨底 + 低饱和青灰 + 发丝线 + 等宽数字/标签；科技感只靠结构感表达。
+ * **不用霓虹、不用发光、不做位移动画**，只有 0.15s 颜色过渡（--chip-transition/--row-transition）。
+ * 正文：17px / 行高 2 / 字距 0.045em；段间空行 1.2em（不得为 0）；全无衬线。
+ */
 
 :root {
-  --fg: #1a1a1a;
-  --fg-soft: #555;
-  --fg-faint: #777;
-  --line: #ddd;
-  --bg-soft: #f6f6f6;
-  --accent: #1f4d8f;
+  /* ---------- 与原型逐项同名同值 ---------- */
+  --bg: #0e1315;
+  --bg-sticky: rgba(14, 19, 21, 0.92);
+  --bg-pattern: linear-gradient(to right, rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+  --bg-pattern-opacity: 1;
+
+  --surface: #141b1e;
+  --surface-hover: #182124;
+  --surface-sunken: #111719;
+
+  --text: #dde5e4;
+  --text-dim: #98a8a6;
+  /* 小字/次要信息的淡色。原值 #6d7d7c 对比度 4.34:1 不达 WCAG AA，已提到 #788a88。 */
+  --text-faint: #788a88;
+
+  --line: #233034;
+  --line-strong: #35494d;
+  --accent: #4fb3a5;
+  --accent-strong: #62c6b7;
+  --accent-text: #7fd4c6;
+  --accent-soft: rgba(79, 179, 165, 0.1);
+  --accent-line: rgba(79, 179, 165, 0.38);
+
+  --warn: #c9a24a;
+  --warn-soft: rgba(201, 162, 74, 0.08);
+  --warn-text: #dcc078;
+  --line-warn: rgba(201, 162, 74, 0.34);
+
+  --test-line: rgba(79, 179, 165, 0.36);
+  --test-soft: rgba(79, 179, 165, 0.07);
+  --test-text: #7fd4c6;
+
+  --mark-bg: rgba(79, 179, 165, 0.22);
+  --mark-text: #eaf5f3;
+
+  --radius: 4px;
+  --radius-s: 3px;
+  --radius-pill: 3px;
+  --shadow: none;
+  --chip-transition: color 0.15s ease, border-color 0.15s ease;
+  --row-transition: border-color 0.15s ease, background 0.15s ease;
+
+  --font-body: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-poem: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-title: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-ui: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-note: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-mono: 'Consolas', 'SFMono-Regular', ui-monospace, monospace;
+
+  --font-size: 15px;
+  --lh: 1.75;
+  --ls: 0.005em;
+  --poem-size: 17px;
+  --poem-lh: 2;
+  --poem-ls: 0.045em;
+  --note-size: 13.5px;
+  --note-measure: 36em;
+  --title-size: 1.5rem;
+  --title-weight: 500;
+  --title-ls: 0.1em;
+  --brand-ls: 0.3em;
+  --gname-ls: 0.16em;
+  --ptitle-ls: 0.06em;
+
+  --stanza-gap: 1.2em;
+  --group-gap: 0.6rem;
+  --row-pad: 0.9rem 1.05rem;
+  --pad: 1.25rem;
+  --measure: 660px;
 }
 
-* { box-sizing: border-box; }
+/* ---------- 基础 ---------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
 
 body {
   margin: 0;
-  padding: 0 0 3rem;
-  color: var(--fg);
-  background: #fff;
-  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
-  font-size: 16px;
-  line-height: 1.7;
+  min-height: 100vh;
+  overflow-wrap: break-word;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--font-size);
+  line-height: var(--lh);
+  letter-spacing: var(--ls);
+}
+
+/* 极淡 1px 网格：纯装饰，不参与信息表达 */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image: var(--bg-pattern);
+  opacity: var(--bg-pattern-opacity);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
 }
 
 .visually-hidden {
   position: absolute;
-  width: 1px; height: 1px;
+  width: 1px;
+  height: 1px;
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
@@ -35,157 +147,543 @@ body {
 /* ---------- 顶栏 ---------- */
 
 .site-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.75rem;
   flex-wrap: wrap;
-  padding: 0.75rem 1rem;
+  padding: 0.7rem var(--pad);
+  background: var(--bg-sticky);
   border-bottom: 1px solid var(--line);
 }
 
 .site-title {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--fg);
-  text-decoration: none;
-  letter-spacing: 0.05em;
+  font-family: var(--font-title);
+  font-size: 1.02rem;
+  letter-spacing: var(--brand-ls);
+  color: var(--text);
+  white-space: nowrap;
 }
 
-.search { display: flex; gap: 0.5rem; margin-left: auto; }
+.search {
+  flex: 1 1 12rem;
+  min-width: 9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+}
 
 .search input {
-  padding: 0.35rem 0.6rem;
-  font: inherit;
+  flex: 1;
+  min-width: 4rem;
+  padding: 0.35rem 0.7rem;
   border: 1px solid var(--line);
-  border-radius: 4px;
-  min-width: 12rem;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  font: inherit;
+  font-size: 0.92rem;
+  color: var(--text);
+  outline: none;
 }
 
-.app-version { font-size: 0.75rem; color: var(--fg-faint); }
+.search input::placeholder {
+  color: var(--text-faint);
+}
+
+.app-version {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+/* ---------- 按钮（环形芯片，只有颜色过渡） ---------- */
 
 .btn {
-  font: inherit;
-  padding: 0.35rem 0.75rem;
+  padding: 0.24rem 0.7rem;
   border: 1px solid var(--line);
-  border-radius: 4px;
-  background: #fff;
-  cursor: pointer;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-ui);
+  font-size: 0.76rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+  transition: var(--chip-transition);
 }
-.btn--primary { border-color: var(--accent); color: var(--accent); }
 
-/* ---------- 通知区 ---------- */
+.btn:hover {
+  color: var(--text);
+  border-color: var(--line-strong);
+}
 
-.notices { padding: 0 1rem; }
-.notices:empty { display: none; }
+.btn--primary {
+  color: var(--accent-text);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.btn--primary:hover {
+  color: var(--accent-text);
+  border-color: var(--accent-strong);
+}
+
+/* ---------- 提示条 ---------- */
+
+.notices {
+  position: relative;
+  z-index: 1;
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: 0 var(--pad);
+}
+
+.notices:empty {
+  display: none;
+}
 
 .notice {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   flex-wrap: wrap;
-  margin: 0.75rem 0;
-  padding: 0.6rem 0.8rem;
+  overflow-wrap: anywhere;
+  margin: 0.9rem 0 0;
+  padding: 0.5rem 0.8rem;
   border: 1px solid var(--line);
-  border-left-width: 4px;
-  border-radius: 4px;
-  font-size: 0.9rem;
+  border-left: 3px solid var(--line-strong);
+  border-radius: var(--radius-s);
+  color: var(--text-dim);
+  font-family: var(--font-ui);
+  font-size: 0.74rem;
+  line-height: 1.7;
+  background: var(--surface-sunken);
 }
-.notice--info { border-left-color: var(--accent); background: #f2f6fc; }
-.notice--warn { border-left-color: #b8860b; background: #fdf7e3; }
-.notice--error { border-left-color: #b03030; background: #fcedec; }
+
+.notice strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+/* 信息/更新提示：青（accent） */
+.notice--info {
+  border-color: var(--accent-line);
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.notice--info strong {
+  color: var(--accent-text);
+}
+
+/* 警告与失败：黄（warn）。规范只给了 warn 一套告警色，没有单独的红 —— 失败状态共用它。 */
+.notice--warn,
+.notice--error {
+  border-color: var(--line-warn);
+  border-left-color: var(--warn);
+  background: var(--warn-soft);
+}
+
+.notice--warn strong,
+.notice--error strong {
+  color: var(--warn-text);
+}
+
+/* 测试夹具内容：青的 test 一套（原型里就是用它标「测试」） */
+.notice--fixture {
+  border-color: var(--test-line);
+  border-left-color: var(--test-line);
+  background: var(--test-soft);
+}
+
+.notice--fixture strong {
+  color: var(--test-text);
+}
 
 /* ---------- 视图 ---------- */
 
-.view-host { padding: 1rem; max-width: 46rem; margin: 0 auto; }
-.view-hint { color: var(--fg-faint); font-size: 0.85rem; margin: 1rem 0; }
+.view-host {
+  position: relative;
+  z-index: 1;
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: 1.2rem var(--pad) 3rem;
+}
 
-.dynasty-group { margin: 0 0 2rem; }
+.view-hint {
+  margin: 1.2rem 0;
+  color: var(--text-faint);
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+}
+
+.empty-state {
+  color: var(--text-faint);
+  font-family: var(--font-ui);
+  font-size: 0.84rem;
+}
+
+.view--error .poem-title {
+  color: var(--warn-text);
+}
+
+/* ---------- 目录：分组 ---------- */
+
+.dynasty-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--group-gap);
+  margin: 0 0 1.6rem;
+}
+
 .dynasty-group-title {
   display: flex;
   align-items: baseline;
-  gap: 0.5rem;
-  margin: 0 0 0.5rem;
-  font-size: 1.1rem;
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 0.3rem;
+  gap: 0.8rem;
+  margin: 0;
+  padding: var(--row-pad);
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
 }
-.dynasty-count { font-size: 0.8rem; font-weight: 400; color: var(--fg-faint); }
 
-.poem-list { display: flex; flex-direction: column; }
+/* 组名左侧一条发丝竖线 —— 原型里「静默终端」的结构性标记 */
+.dynasty-label {
+  font-family: var(--font-title);
+  font-size: 1.3rem;
+  letter-spacing: var(--gname-ls);
+  color: var(--text);
+  padding-left: 0.6rem;
+  border-left: 2px solid var(--accent-line);
+}
+
+.dynasty-count {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.dynasty-count b {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--accent-strong);
+}
+
+.dynasty-count b::before {
+  content: '[';
+  color: var(--text-faint);
+  font-size: 0.85em;
+  margin-right: 1px;
+}
+
+.dynasty-count b::after {
+  content: ']';
+  color: var(--text-faint);
+  font-size: 0.85em;
+  margin-left: 1px;
+}
+
+/* ---------- 目录：组内诗目 ---------- */
+
+.poem-list {
+  display: flex;
+  flex-direction: column;
+}
 
 .poem-row {
   display: flex;
   align-items: baseline;
-  gap: 0.75rem;
-  padding: 0.4rem 0.2rem;
-  color: var(--fg);
-  text-decoration: none;
-  border-bottom: 1px solid #f0f0f0;
+  gap: 0.7rem;
+  padding: var(--row-pad);
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+  transition: var(--row-transition);
 }
-.poem-row:hover { background: var(--bg-soft); }
-.poem-row-title { font-size: 1.05rem; }
-.poem-row-author { font-size: 0.85rem; color: var(--fg-soft); }
-.poem-row-dynasty { font-size: 0.75rem; color: var(--fg-faint); min-width: 3rem; }
-.poem-row-notes { margin-left: auto; font-size: 0.75rem; color: var(--accent); }
 
-.empty-state { color: var(--fg-soft); }
+.poem-row:first-child {
+  border-top: 1px solid var(--line);
+}
+
+.poem-row:hover {
+  background: var(--surface-hover);
+}
+
+.poem-row-title {
+  font-family: var(--font-title);
+  font-size: 1.08rem;
+  letter-spacing: var(--ptitle-ls);
+}
+
+.poem-row-author {
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.poem-row-dynasty {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+  color: var(--accent-strong);
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius-pill);
+  padding: 0.05rem 0.4rem;
+  white-space: nowrap;
+}
+
+.poem-row-notes {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  color: var(--accent-strong);
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius-pill);
+  padding: 0.05rem 0.35rem;
+  white-space: nowrap;
+}
 
 /* ---------- 诗页 ---------- */
 
-.back-link { font-size: 0.85rem; color: var(--accent); }
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.9rem;
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  color: var(--text-faint);
+}
 
-.poem-title { font-size: 1.6rem; margin: 0.5rem 0 0.25rem; font-weight: 600; }
-.poem-meta { margin: 0 0 1.5rem; color: var(--fg-soft); font-size: 0.85rem; }
+.back-link:hover {
+  color: var(--accent-strong);
+}
 
-.poem-body { margin: 0 0 2rem; }
+.poem-title {
+  margin: 0;
+  font-family: var(--font-title);
+  font-size: var(--title-size);
+  font-weight: var(--title-weight);
+  letter-spacing: var(--title-ls);
+  line-height: 1.4;
+  color: var(--text);
+}
 
-.stanza { margin: 0; }
-.stanza--not-first { margin-top: 1.4em; }  /* 分段的视觉空行：位置来自 JSON 的 stanzas 分段 */
+/* 「静默终端」下诗题下不加横线（原型 .poem-head 同名规则） */
+.poem-meta {
+  margin: 0.7rem 0 0;
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+
+/* 正文：一个 .stanza 对应契约里的一个 stanzas 元素，段内每一印刷行是独立 .line。
+ * 分行靠 DOM 结构而不是 CSS 折行；空行靠 .stanza 之间的间距 —— 两者都不会被吃掉。
+ * text-align 固定 left：不做两端对齐（避免标点被拉开造成纵向抖动）。 */
+.poem-body {
+  padding: 2.1rem 0 0.6rem;
+  font-family: var(--font-poem);
+  font-size: var(--poem-size);
+  line-height: var(--poem-lh);
+  letter-spacing: var(--poem-ls);
+  text-align: left;
+}
+
+.stanza {
+  margin: 0;
+}
+
+.stanza + .stanza {
+  margin-top: var(--stanza-gap);
+}
 
 .line {
+  display: block;
   margin: 0;
-  /* 保真：行内空白（全角标点前后的空格等）不被 HTML 折叠 */
+  white-space: pre-wrap; /* 保留行内空格，绝不被折叠 */
+  text-indent: 0;
+}
+
+/* ---------- 笔记 ---------- */
+
+.notes {
+  margin-top: 2.6rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.notes-details > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.2rem 0;
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: 0.82rem;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+}
+
+.notes-details > summary:hover {
+  color: var(--accent-strong);
+}
+
+.notes-details > summary::marker {
+  color: var(--text-faint);
+}
+
+.notes-body {
+  padding: 0.6rem 0 0;
+  font-family: var(--font-note);
+  font-size: var(--note-size);
+  line-height: 1.85;
+  color: var(--text-dim);
+  max-width: var(--note-measure);
+}
+
+.notes-body p {
+  margin: 0 0 0.85em;
   white-space: pre-wrap;
 }
 
-.notes {
-  border-top: 1px solid var(--line);
-  padding-top: 0.75rem;
-  margin-bottom: 1.5rem;
+.notes-body p:last-child {
+  margin-bottom: 0;
 }
 
-.notes-details > summary { cursor: pointer; color: var(--accent); }
-.notes-body { margin-top: 0.5rem; }
-.notes-body p { margin: 0.5em 0; white-space: pre-wrap; }
-.notes-body ul { margin: 0.5em 0 0.5em 1.2em; padding: 0; }
-.notes-body li { margin: 0.2em 0; }
-.notes-empty { color: var(--fg-faint); font-size: 0.9rem; }
+.notes-body ul {
+  margin: 0 0 0.9em;
+  padding-left: 1.15rem;
+}
+
+.notes-body li {
+  margin-bottom: 0.35em;
+}
+
+.notes-body strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.notes-empty {
+  margin-top: 0.7rem;
+  padding: 0.9rem 1rem;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-s);
+  background: var(--surface-sunken);
+  font-family: var(--font-ui);
+  font-size: var(--note-size);
+  line-height: 1.8;
+  color: var(--text-faint);
+}
+
+/* ---------- 页脚：底本 / id ---------- */
 
 .source-block {
   display: grid;
   grid-template-columns: 5rem 1fr;
-  gap: 0.2rem 0.75rem;
-  font-size: 0.8rem;
-  color: var(--fg-soft);
-  border-top: 1px dashed var(--line);
-  padding-top: 0.6rem;
+  gap: 0.25rem 0.75rem;
+  margin: 2.2rem 0 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+  font-family: var(--font-ui);
+  font-size: 0.74rem;
+  line-height: 1.85;
+  color: var(--text-faint);
 }
-.source-block dt { color: var(--fg-faint); }
-.source-block dd { margin: 0; }
 
-/* ---------- 状态面板 ---------- */
+.source-block dt {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  color: var(--text-faint);
+}
+
+.source-block dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- 状态面板（页脚） ---------- */
 
 .status {
-  max-width: 46rem;
-  margin: 0 auto;
-  padding: 1rem;
-  border-top: 1px solid var(--line);
-  font-size: 0.8rem;
-  color: var(--fg-soft);
+  position: relative;
+  z-index: 1;
+  max-width: var(--measure);
+  margin: 1.6rem auto 0;
+  padding: 1rem var(--pad) 3rem;
+  font-family: var(--font-ui);
+  font-size: 0.74rem;
+  color: var(--text-dim);
 }
 
-.status-list { display: grid; grid-template-columns: 9rem 1fr; gap: 0.25rem 0.75rem; margin: 0 0 0.75rem; }
-.status-list dt { color: var(--fg-faint); }
-.status-list dd { margin: 0; word-break: break-word; }
-.status-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
-.status-honest { margin: 0; color: var(--fg-faint); }
+.status-list {
+  display: grid;
+  grid-template-columns: 9rem 1fr;
+  gap: 0.3rem 0.75rem;
+  margin: 0 0 0.9rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-sunken);
+  box-shadow: var(--shadow);
+}
+
+.status-list dt {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+
+.status-list dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.status-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.9rem;
+}
+
+.status-honest {
+  margin: 0;
+  color: var(--text-faint);
+  line-height: 1.85;
+}
+
+.status-honest code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
+
+/* ---------- 窄屏 ---------- */
+
+@media (max-width: 420px) {
+  .site-header {
+    gap: 0.5rem;
+  }
+
+  .search {
+    flex: 1 1 100%;
+    min-width: 0;
+    margin-left: 0;
+  }
+
+  .status-list {
+    grid-template-columns: 1fr;
+  }
+
+  .status-list dt {
+    margin-top: 0.35rem;
+  }
+}
