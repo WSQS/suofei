@@ -1,0 +1,892 @@
+{
+  "createdAt": "2026-10-15T07:25:23.983Z",
+  "purpose": "逐屏评审（docs/reviews/ui-review-checklist.md）用的 Web 端实拍材料",
+  "gitHead": "68099e543c069abf467ece70e4a9df044f654483",
+  "webIndexHtmlBlob": "ac706edc186ec0febc5306fc9cd40d74336f7b8f",
+  "chromeBin": "C:/Users/wsqsy/AppData/Local/Chromium/Application/chrome.exe",
+  "appVersion": "0.1.1",
+  "contentVersion": "0.0.0-dev+bd271b49068a",
+  "contentPoems": 19,
+  "contentDynasties": [
+    "han/汉"
+  ],
+  "contentPoemsWithNotes": 0,
+  "contentSha256": "c5257ae86c89375bcb07385fa0fb4b113dfa127c4e388689524a55a7b9246ba0",
+  "contentSource": "dist/content.json（node tools/build-content.mjs 编译自 content/poems/，非 web/fixtures/）",
+  "injectedLatencyMs": 1500,
+  "realFirstVisitTiming": {
+    "measuredBy": "CDP 轮询（间隔 80ms）+ 页面内 performance 条目，同一台机器、无网络节流、临时全新 profile",
+    "shellVisibleMs": 22,
+    "indexVisibleMs": 105,
+    "paint": {
+      "firstContentfulPaint": 30,
+      "responseEnd": 5,
+      "domContentLoaded": 20,
+      "loadEnd": 21,
+      "contentLoadedFromMeta": 33,
+      "contentBytes": 28218
+    }
+  },
+  "platformFonts": {
+    "note": "浏览器**实际用于渲染**的字体（CDP CSS.getPlatformFontsForNode）—— 不是声明的 font stack；B3「全无衬线」的真值",
+    "index": [
+      {
+        "selector": "[data-test=\"index-summary\"]",
+        "fonts": [
+          "Microsoft YaHei UI（15 字形）"
+        ]
+      },
+      {
+        "selector": ".dynasty-label",
+        "fonts": [
+          "Microsoft YaHei UI（1 字形）"
+        ]
+      },
+      {
+        "selector": ".dynasty-count b",
+        "fonts": [
+          "Consolas（4 字形）"
+        ]
+      },
+      {
+        "selector": ".poem-row-title",
+        "fonts": [
+          "Microsoft YaHei UI（5 字形）"
+        ]
+      },
+      {
+        "selector": ".poem-row-author",
+        "fonts": [
+          "Microsoft YaHei UI（2 字形）"
+        ]
+      },
+      {
+        "selector": ".status-honest",
+        "fonts": [
+          "Microsoft YaHei UI（211 字形）"
+        ]
+      },
+      {
+        "selector": "[data-test=\"search-input\"]",
+        "fonts": [
+          "Microsoft YaHei UI（7 字形）"
+        ]
+      }
+    ],
+    "poem": [
+      {
+        "selector": "[data-test=\"poem-title\"]",
+        "fonts": [
+          "Microsoft YaHei UI（5 字形）"
+        ]
+      },
+      {
+        "selector": "[data-test=\"poem-meta\"]",
+        "fonts": [
+          "Microsoft YaHei UI（19 字形）"
+        ]
+      },
+      {
+        "selector": "[data-test=\"poem-line\"]",
+        "fonts": [
+          "Microsoft YaHei UI（12 字形）"
+        ]
+      },
+      {
+        "selector": "[data-test=\"notes-empty\"]",
+        "fonts": [
+          "Microsoft YaHei UI（14 字形）"
+        ]
+      },
+      {
+        "selector": "[data-test=\"source-block\"] dd",
+        "fonts": [
+          "Microsoft YaHei UI（143 字形）"
+        ]
+      }
+    ]
+  },
+  "iconsDirExists": false,
+  "faviconFiles": [],
+  "faviconHrefHead": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'",
+  "faviconMaterial": {
+    "used": "f-favicon-current-inline-glyph.png",
+    "iconsExist": false,
+    "iconsFiles": [],
+    "note": "不是站点截图：脚本生成的对照页（真实图标字节 + 16/32px 原样与 8× 放大）"
+  },
+  "screenshots": [
+    {
+      "file": "a-index-desktop-viewport.png",
+      "scenario": "S1 在线·正常状态（真实内容 1 组 19 首）",
+      "mode": "viewport",
+      "selector": null,
+      "note": "目录默认（1280×860 首屏，2× 密度）",
+      "domRows": 19,
+      "domTitlesHeadTail": [
+        "行行重行行",
+        "明月何皎皎"
+      ],
+      "groupTitles": [
+        "han"
+      ],
+      "groupTitleText": "汉\n19 首",
+      "countText": "19 首",
+      "indexSummary": "19 首诗 · 1 个时代分组",
+      "viewport": "\"1280×860@2x\"",
+      "png": "2560×1720",
+      "bytes": 118805,
+      "bytesHuman": "116 KB",
+      "state": {
+        "url": "http://127.0.0.1:50221/",
+        "appVersion": "0.1.1",
+        "contentVersion": "0.0.0-dev+bd271b49068a",
+        "poems": 19,
+        "loading": false,
+        "error": null,
+        "online": true,
+        "swCache": "pc-resources-0.1.1（/,/index.html,/styles.css,/manifest.json,/content.json,/app/main.js,/app/config.js,/app/content.js,/app/render.js 条目，含 content.json）",
+        "swWaiting": null,
+        "notesDetailsCount": 0,
+        "markCount": 0,
+        "countText": "19 首",
+        "searchSummary": null,
+        "rows": 19,
+        "viewText": "19 首诗 · 1 个时代分组\n\n汉\n19 首\n行行重行行\n佚名\n青青河畔草\n佚名\n青青陵上柏\n佚名\n今日良宴会\n佚名\n西北有高楼\n佚名\n涉江采芙蓉\n佚名\n明月皎夜光\n佚名\n冉冉孤生竹\n佚名\n庭中有奇树\n佚名\n迢迢牵牛星\n佚名\n回车驾言迈\n佚名\n东城高且长\n佚名\n驱车上东门\n佚名\n去者日以疏\n佚名\n生年不满百\n佚名\n凛凛岁云暮\n佚名\n孟冬寒气至\n佚名\n客从远方来\n佚名\n明月何皎皎\n佚名"
+      }
+    },
+    {
+      "file": "a-index-desktop.png",
+      "scenario": "S1 在线·正常状态（真实内容 1 组 19 首）",
+      "mode": "fullpage",
+      "selector": null,
+      "note": "目录默认**整页**（1280 宽；19 首全在，用于 A2/A3 逐行看）",
+      "domRows": 19,
+      "viewport": "\"1280×860@1x\"",
+      "png": "1280×1960",
+      "bytes": 114412,
+      "bytesHuman": "112 KB",
+      "state": {
+        "url": "http://127.0.0.1:50221/",
+        "appVersion": "0.1.1",
+        "contentVersion": "0.0.0-dev+bd271b49068a",
+        "poems": 19,
+        "loading": false,
+        "error": null,
+        "online": true,
+        "swCache": "pc-resources-0.1.1（/,/index.html,/styles.css,/manifest.json,/content.json,/app/main.js,/app/config.js,/app/content.js,/app/render.js 条目，含 content.json）",
+        "swWaiting": null,
+        "notesDetailsCount": 0,
+        "markCount": 0,
+        "countText": "19 首",
+        "searchSummary": null,
+        "rows": 19,
+        "viewText": "19 首诗 · 1 个时代分组\n\n汉\n19 首\n行行重行行\n佚名\n青青河畔草\n佚名\n青青陵上柏\n佚名\n今日良宴会\n佚名\n西北有高楼\n佚名\n涉江采芙蓉\n佚名\n明月皎夜光\n佚名\n冉冉孤生竹\n佚名\n庭中有奇树\n佚名\n迢迢牵牛星\n佚名\n回车驾言迈\n佚名\n东城高且长\n佚名\n驱车上东门\n佚名\n去者日以疏\n佚名\n生年不满百\n佚名\n凛凛岁云暮\n佚名\n孟冬寒气至\n佚名\n客从远方来\n佚名\n明月何皎皎\n佚名"
+      }
+    },
+    {
+      "file": "a-index-narrow-viewport.png",
+      "scenario": "S1 在线·正常状态（真实内容 1 组 19 首）",
+      "mode": "viewport",
+      "selector": null,
+      "note": "目录窄屏 420×900 首屏（G1）",
+      "narrowCheck": {
+        "innerWidth": 420,
+        "docScrollWidth": 420,
+        "horizontalOverflow": false,
+        "groupTitleScrollW": 378,
+        "groupTitleClientW": 378,
+        "groupTitleOverflow": false,
+        "countText": "19 首",
+        "countRect": {
+          "left": 86,
+          "right": 143,
+          "width": 56
+        },
+        "countFullyVisible": true,
+        "countClippedByItself": false,
+        "boldRect": {
+          "left": 86,
+          "right": 123
+        },
+        "countWhiteSpace": "nowrap",
+        "longestTitle": {
+          "t": "行行重行行",
+          "w": 91.59375
+        }
+      },
+      "viewport": "\"420×900@2x\"",
+      "png": "840×1800",
+      "bytes": 101370,
+      "bytesHuman": "99 KB",
+      "state": {
+        "url": "http://127.0.0.1:50221/#/",
+        "appVersion": "0.1.1",
+        "contentVersion": "0.0.0-dev+bd271b49068a",
+        "poems": 19,
+        "loading": false,
+        "error": null,
+        "online": true,
+        "swCache": "pc-resources-0.1.1（/,/index.html,/styles.css,/manifest.json,/content.json,/app/main.js,/app/config.js,/app/content.js,/app/render.js 条目，含 content.json）",
+        "swWaiting": null,
+        "notesDetailsCount": 0,
+        "markCount": 0,
+        "countText": "19 首",
+        "searchSummary": null,
+        "rows": 19,
+        "viewText": "19 首诗 · 1 个时代分组\n\n汉\n19 首\n行行重行行\n佚名\n青青河畔草\n佚名\n青青陵上柏\n佚名\n今日良宴会\n佚名\n西北有高楼\n佚名\n涉江采芙蓉\n佚名\n明月皎夜光\n佚名\n冉冉孤生竹\n佚名\n庭中有奇树\n佚名\n迢迢牵牛星\n佚名\n回车驾言迈\n佚名\n东城高且长\n佚名\n驱车上东门\n佚名\n去者日以疏\n佚名\n生年不满百\n佚名\n凛凛岁云暮\n佚名\n孟冬寒气至\n佚名\n客从远方来\n佚名\n明月何皎皎\n佚名"
+      }
+    },
+    {
+      "file": "a-index-narrow.png",
+      "scenario": "S1 在线·正常状态（真实内容 1 组 19 首）",
+      "mode": "fullpage",
+      "selector": null,
+      "note": "目录窄屏 420 宽**整页**（G1：计数与长题名有没有被裁）",
+      "narrowCheck": {
+        "innerWidth": 420,
+        "docScrollWidth": 420,
+        "horizontalOverflow": false,
+        "groupTitleScrollW": 378,
+        "groupTitleClientW": 378,
+        "groupTitleOverflow": false,
+        "countText": "19 首",
+        "countRect": {
+          "left": 86,
+          "right": 143,
+          "width": 56
+        },
+        "countFullyVisible": true,
+        "countClippedByItself": false,
+        "boldRect": {
+          "left": 86,
+          "right": 123
+        },
+        "countWhiteSpace": "nowrap",
+        "longestTitle": {
+          "t": "行行重行行",
+          "w": 91.59375
+        }
+      },
+      "viewport": "\"420×900@1x\"",
+      "png": "420×2425",
+      "bytes": 103494,
+      "bytesHuman": "101 KB",
+      "state": {
+        "url": "http://127.0.0.1:50221/#/",
+        "appVersion": "0.1.1",
+        "contentVersion": "0.0.0-dev+bd271b49068a",
+        "poems": 19,
+        "loading": false,
+        "error": null,
+        "online": true,
+        "swCache": "pc-resources-0.1.1（/,/index.html,/styles.css,/manifest.json,/content.json,/app/main.js,/app/config.js,/app/content.js,/app/render.js 条目，含 content.json）",
+        "swWaiting": null,
+        "notesDetailsCount": 0,
+        "markCount": 0,
+        "countText": "19 首",
+        "searchSummary": null,
+        "rows": 19,
+        "viewText": "19 首诗 · 1 个时代分组\n\n汉\n19 首\n行行重行行\n佚名\n青青河畔草\n佚名\n青青陵上柏\n佚名\n今日良宴会\n佚名\n西北有高楼\n佚名\n涉江采芙蓉\n佚名\n明月皎夜光\n佚名\n冉冉孤生竹\n佚名\n庭中有奇树\n佚名\n迢迢牵牛星\n佚名\n回车驾言迈\n佚名\n东城高且长\n佚名\n驱车上东门\n佚名\n去者日以疏\n佚名\n生年不满百\n佚名\n凛凛岁云暮\n佚名\n孟冬寒气至\n佚名\n客从远方来\n佚名\n明月何皎皎\n佚名"
+      }
+    },
+    {
+      "file": "b-poem.png",
+      "scenario": "S1 在线·正常状态（真实内容 1 组 19 首）",
+      "mode": "fullpage",
+      "selector": null,
+      "note": "诗页默认（整页；含题图/正文/无笔记/底本）",
+      "poemCheck": {
+        "meta": "汉 · 佚名 · 东汉末 · 五言古诗",
+        "lineCount": 8,
+        "stanzaCount": 1,
+        "sourceLabels": [
+          "底本"
+        ],
+        "notesEmpty": "这首诗还没有笔记（未记录）。",
+        "hasVariantsBlock": false,
+        "mentionsPoemId": false,
+        "titleBorderBottom": "none",
+        "stanzaGap": "normal",
+        "lineHeightPx": "34px",
+        "text": "← 目录\n行行重行行\n\n汉 · 佚名 · 东汉末 · 五言古诗\n\n行行重行行，与君生别离。\n\n相去万余里，各在天一涯。\n\n道路阻且长，会面安可知？\n\n胡马依北风，越鸟巢南枝。\n\n相去日已远，衣带日已缓。\n\n浮云蔽白日，游子不顾反。\n\n思君令人老，岁月忽已晚。\n\n弃捐勿复道，努力加餐饭。\n\n这首诗还没有笔记（未记录）。\n\n底本\n《文选》卷二十九·杂诗上「古诗一十九首」（李善注本）。电子文本：汉典古籍 gj.zdic.net/jibu/1224/34173.html，2026-10-14 访问；以四库全书本《六臣注文选》卷二十九对校。异文校记见 docs/sources/gushi-shijiu-shou.md。"
+      },
+      "viewport": "\"1280×860@1x\"",
+      "png": "1280×1337",
+      "bytes": 111568,
+      "bytesHuman": "109 KB",
+      "state": {
+        "url": "http://127.0.0.1:50221/#/p/gushi-shijiu-shou-01",
+        "appVersion": "0.1.1",
+        "contentVersion": "0.0.0-dev+bd271b49068a",
+        "poems": 19,
+        "loading": false,
+        "error": null,
+        "online": true,
+        "swCache": "pc-resources-0.1.1（/,/index.html,/styles.css,/manifest.json,/content.json,/app/main.js,/app/config.js,/app/content.js,/app/render.js 条目，含 content.json）",
+        "swWaiting": null,
+        "notesDetailsCount": 0,
+        "markCount": 0,
+        "countText": null,
+        "searchSummary": null,
+        "rows": 0,
+        "viewText": "← 目录\n行行重行行\n\n汉 · 佚名 · 东汉末 · 五言古诗\n\n行行重行行，与君生别离。\n\n相去万余里，各在天一涯。\n\n道路阻且长，会面安可知？\n\n胡马依北风，越鸟巢南枝。\n\n相去日已远，衣带日已缓。\n\n浮云蔽白日，游子不顾反。\n\n思君令人老，岁月忽已晚。\n\n弃捐勿复道，努力加餐饭。\n\n这首诗还没有笔记（未记录）。\n\n底本\n《文选》卷二十九·杂诗上「古诗一十九首」（李善注本）。电子文本：汉典古籍 gj.zdic.net/jibu/1224/34173.html，2026-10-14 访问；以四库全书本《六臣注文选》卷二十九对校。异文校记见 docs/sources/gushi-shijiu-shou.md。"
+      }
+    },
+    {
+      "file": "b-notes-collapsed.png",
+      "scenario": "S1 在线·正常状态（真实内容 1 组 19 首）",
+      "mode": "element",
+      "selector": "[data-test=\"notes-section\"]",
+      "note": "笔记区默认（真实内容：19 首全是 notes:null → 只有「还没有笔记」这一态）",
+      "poemCheck": {
+        "meta": "汉 · 佚名 · 东汉末 · 五言古诗",
+        "lineCount": 8,
+        "stanzaCount": 1,
+        "sourceLabels": [
+          "底本"
+        ],
+        "notesEmpty": "这首诗还没有笔记（未记录）。",
+        "hasVariantsBlock": false,
+        "mentionsPoemId": false,
+        "titleBorderBottom": "none",
+        "stanzaGap": "normal",
+        "lineHeightPx": "34px",
+        "text": "← 目录\n行行重行行\n\n汉 · 佚名 · 东汉末 · 五言古诗\n\n行行重行行，与君生别离。\n\n相去万余里，各在天一涯。\n\n道路阻且长，会面安可知？\n\n胡马依北风，越鸟巢南枝。\n\n相去日已远，衣带日已缓。\n\n浮云蔽白日，游子不顾反。\n\n思君令人老，岁月忽已晚。\n\n弃捐勿复道，努力加餐饭。\n\n这首诗还没有笔记（未记录）。\n\n底本\n《文选》卷二十九·杂诗上「古诗一十九首」（李善注本）。电子文本：汉典古籍 gj.zdic.net/jibu/1224/34173.html，2026-10-14 访问；以四库全书本《六臣注文选》卷二十九对校。异文校记见 docs/sources/gushi-shijiu-shou.md。"
+      },
+      "viewport": "\"1280×860@2x\"",
+      "png": "1352×280",
+      "bytes": 14680,
+      "bytesHuman": "14 KB",
+      "state": {
+        "url": "http://127.0.0.1:50221/#/p/gushi-shijiu-shou-01",
+        "appVersion": "0.1.1",
+        "contentVersion": "0.0.0-dev+bd271b49068a",
+        "poems": 19,
+        "loading": false,
+        "error": null,
+        "online": true,
+        "swCache": "pc-resources-0.1.1（/,/index.html,/styles.css,/manifest.json,/content.json,/app/main.js,/app/config.js,/app/content.js,/app/render.js 条目，含 content.json）",
+        "swWaiting": null,
+        "notesDetailsCount": 0,
+        "markCount": 0,
+        "countText": null,
+        "searchSummary": null,
+        "rows": 0,
+        "viewText": "← 目录\n行行重行行\n\n汉 · 佚名 · 东汉末 · 五言古诗\n\n行行重行行，与君生别离。\n\n相去万余里，各在天一涯。\n\n道路阻且长，会面安可知？\n\n胡马依北风，越鸟巢南枝。\n\n相去日已远，衣带日已缓。\n\n浮云蔽白日，游子不顾反。\n\n思君令人老，岁月忽已晚。\n\n弃捐勿复道，努力加餐饭。\n\n这首诗还没有笔记（未记录）。\n\n底本\n《文选》卷二十九·杂诗上「古诗一十九首」（李善注本）。电子文本：汉典古籍 gj.zdic.net/jibu/1224/34173.html，2026-10-14 访问；以四库全书本《六臣注文选》卷二十九对校。异文校记见 docs/sources/gushi-shijiu-shou.md。"
+      }
+    },
+    {
+      "file": "b-poem-foot-source.png",
+      "scenario": "S1 在线·正常状态（真实内容 1 组 19 首）",
+      "mode": "element",
+      "selector": "[data-test=\"source-block\"]",
+      "note": "诗页页脚只有「底本」（B5）",
+      "viewport": "\"1280×860@2x\"",
+      "png": "1352×278",
+      "bytes": 46586,
+      "bytesHuman": "45 KB",
+      "state": {
+        "url": "http://127.0.0.1:50221/#/p/gushi-shijiu-shou-01",
+        "appVersion": "0.1.1",
+        "contentVersion": "0.0.0-dev+bd271b49068a",
+        "poems": 19,
+        "loading": false,
+        "error": null,
+        "online": true,
+        "swCache": "pc-resources-0.1.1（/,/index.html,/styles.css,/manifest.json,/content.json,/app/main.js,/app/config.js,/app/content.js,/app/render.js 条目，含 content.json）",
+        "swWaiting": null,
+        "notesDetailsCount": 0,
+        "markCount": 0,
+        "countText": null,
+        "searchSummary": null,
+        "rows": 0,
+        "viewText": "← 目录\n行行重行行\n\n汉 · 佚名 · 东汉末 · 五言古诗\n\n行行重行行，与君生别离。\n\n相去万余里，各在天一涯。\n\n道路阻且长，会面安可知？\n\n胡马依北风，越鸟巢南枝。\n\n相去日已远，衣带日已缓。\n\n浮云蔽白日，游子不顾反。\n\n思君令人老，岁月忽已晚。\n\n弃捐勿复道，努力加餐饭。\n\n这首诗还没有笔记（未记录）。\n\n底本\n《文选》卷二十九·杂诗上「古诗一十九首」（李善注本）。电子文本：汉典古籍 gj.zdic.net/jibu/1224/34173.html，2026-10-14 访问；以四库全书本《六臣注文选》卷二十九对校。异文校记见 docs/sources/gushi-shijiu-shou.md。"
+      }
+    },
+    {
+      "file": "_raw-b-deeplink.png",
+      "scenario": "S1 在线·正常状态（真实内容 1 组 19 首）",
+      "mode": "viewport",
+      "selector": null,
+      "note": "深链接直开的真实视口截图（无头截图不含地址栏 → 合成说明条里给出抓图瞬间的 location.href）",
+      "deeplinkCheck": {
+        "hash": "#/p/gushi-shijiu-shou-01",
+        "href": "http://127.0.0.1:50221/#/p/gushi-shijiu-shou-01",
+        "poemId": "gushi-shijiu-shou-01",
+        "title": "行行重行行",
+        "hashHasTitle": false
+      },
+      "viewport": "\"1280×860@2x\"",
+      "png": "2560×1720",
+      "bytes": 191963,
+      "bytesHuman": "187 KB",
+      "state": {
+        "url": "http://127.0.0.1:50221/#/p/gushi-shijiu-shou-01",
+        "appVersion": "0.1.1",
+        "contentVersion": "0.0.0-dev+bd271b49068a",
+        "poems": 19,
+        "loading": false,
+        "error": null,
+        "online": true,
+        "swCache": "pc-resources-0.1.1（/,/index.html,/styles.css,/manifest.json,/content.json,/app/main.js,/app/config.js,/app/content.js,/app/render.js 条目，含 content.json）",
+        "swWaiting": null,
+        "notesDetailsCount": 0,
+        "markCount": 0,
+        "countText": null,
+        "searchSummary": null,
+        "rows": 0,
+        "viewText": "← 目录\n行行重行行\n\n汉 · 佚名 · 东汉末 · 五言古诗\n\n行行重行行，与君生别离。\n\n相去万余里，各在天一涯。\n\n道路阻且长，会面安可知？\n\n胡马依北风，越鸟巢南枝。\n\n相去日已远，衣带日已缓。\n\n浮云蔽白日，游子不顾反。\n\n思君令人老，岁月忽已晚。\n\n弃捐勿复道，努力加餐饭。\n\n这首诗还没有笔记（未记录）。\n\n底本\n《文选》卷二十九·杂诗上「古诗一十九首」（李善注本）。电子文本：汉典古籍 gj.zdic.net/jibu/1224/34173.html，2026-10-14 访问；以四库全书本《六臣注文选》卷二十九对校。异文校记见 docs/sources/gushi-shijiu-shou.md。"
+      }
+    },
+    {
+      "file": "c-search-empty.png",
+      "scenario": "S1 在线·正常状态（真实内容 1 组 19 首）",
+      "mode": "viewport",
+      "selector": null,
+      "note": "搜索·空输入（照实：没有单独的「请输入」提示，就是目录默认页）",
+      "searchEmpty": {
+        "viewIsIndex": true,
+        "hasHint": false,
+        "placeholder": "搜索诗名或作者",
+        "summary": "19 首诗 · 1 个时代分组"
+      },
+      "viewport": "\"1280×860@2x\"",
+      "png": "2560×1720",
+      "bytes": 118805,
+      "bytesHuman": "116 KB",
+      "state": {
+        "url": "http://127.0.0.1:50221/#/",
+        "appVersion": "0.1.1",
+        "contentVersion": "0.0.0-dev+bd271b49068a",
+        "poems": 19,
+        "loading": false,
+        "error": null,
+        "online": true,
+        "swCache": "pc-resources-0.1.1（/,/index.html,/styles.css,/manifest.json,/content.json,/app/main.js,/app/config.js,/app/content.js,/app/render.js 条目，含 content.json）",
+        "swWaiting": null,
+        "notesDetailsCount": 0,
+        "markCount": 0,
+        "countText": "19 首",
+        "searchSummary": null,
+        "rows": 19,
+        "viewText": "19 首诗 · 1 个时代分组\n\n汉\n19 首\n行行重行行\n佚名\n青青河畔草\n佚名\n青青陵上柏\n佚名\n今日良宴会\n佚名\n西北有高楼\n佚名\n涉江采芙蓉\n佚名\n明月皎夜光\n佚名\n冉冉孤生竹\n佚名\n庭中有奇树\n佚名\n迢迢牵牛星\n佚名\n回车驾言迈\n佚名\n东城高且长\n佚名\n驱车上东门\n佚名\n去者日以疏\n佚名\n生年不满百\n佚名\n凛凛岁云暮\n佚名\n孟冬寒气至\n佚名\n客从远方来\n佚名\n明月何皎皎\n佚名"
+      }
+    },
+    {
+      "file": "c-search-results.png",
+      "scenario": "S1 在线·正常状态（真实内容 1 组 19 首）",
+      "mode": "viewport",
+      "selector": null,
+      "note": "搜索·有结果（明月；命中高亮如实拍——见 manifest 的 markElements）",
+      "searchHit": {
+        "summary": "搜索「明月」：2 条",
+        "rows": [
+          {
+            "title": "明月皎夜光",
+            "author": "佚名",
+            "dynasty": "汉",
+            "marks": 0,
+            "html": "<span class=\"poem-row-dynasty\">汉</span><span class=\"poem-row-title\">明月皎夜光</span><span class=\"poem-row-author\">佚名</span>"
+          },
+          {
+            "title": "明月何皎皎",
+            "author": "佚名",
+            "dynasty": "汉",
+            "marks": 0,
+            "html": "<span class=\"poem-row-dynasty\">汉</span><span class=\"poem-row-title\">明月何皎皎</span><span class=\"poem-row-author\">佚名</span>"
+          }
+        ],
+        "highlightScan": {
+          "markElements": 0,
+          "elementsWithMarkBg": 0
+        },
+        "url": "http://127.0.0.1:50221/#/"
+      },
+      "viewport": "\"1280×860@2x\"",
+      "png": "2560×1720",
+      "bytes": 273693,
+      "bytesHuman": "267 KB",
+      "state": {
+        "url": "http://127.0.0.1:50221/#/",
+        "appVersion": "0.1.1",
+        "contentVersion": "0.0.0-dev+bd271b49068a",
+        "poems": 19,
+        "loading": false,
+        "error": null,
+        "online": true,
+        "swCache": "pc-resources-0.1.1（/,/index.html,/styles.css,/manifest.json,/content.json,/app/main.js,/app/config.js,/app/content.js,/app/render.js 条目，含 content.json）",
+        "swWaiting": null,
+        "notesDetailsCount": 0,
+        "markCount": 0,
+        "countText": null,
+        "searchSummary": "搜索「明月」：2 条",
+        "rows": 2,
+        "viewText": "搜索「明月」：2 条\n\n汉\n明月皎夜光\n佚名\n汉\n明月何皎皎\n佚名"
+      }
+    },
+    {
+      "file": "c-search-none.png",
+      "scenario": "S1 在线·正常状态（真实内容 1 组 19 首）",
+      "mode": "viewport",
+      "selector": null,
+      "note": "搜索·无结果（如实说没有匹配）",
+      "searchNone": {
+        "summary": "搜索「这首诗不存在」：0 条",
+        "empty": "没有匹配的诗名或作者。",
+        "rows": 0
+      },
+      "viewport": "\"1280×860@2x\"",
+      "png": "2560×1720",
+      "bytes": 270068,
+      "bytesHuman": "264 KB",
+      "state": {
+        "url": "http://127.0.0.1:50221/#/",
+        "appVersion": "0.1.1",
+        "contentVersion": "0.0.0-dev+bd271b49068a",
+        "poems": 19,
+        "loading": false,
+        "error": null,
+        "online": true,
+        "swCache": "pc-resources-0.1.1（/,/index.html,/styles.css,/manifest.json,/content.json,/app/main.js,/app/config.js,/app/content.js,/app/render.js 条目，含 content.json）",
+        "swWaiting": null,
+        "notesDetailsCount": 0,
+        "markCount": 0,
+        "countText": null,
+        "searchSummary": "搜索「这首诗不存在」：0 条",
+        "rows": 0,
+        "viewText": "搜索「这首诗不存在」：0 条\n\n没有匹配的诗名或作者。"
+      }
+    },
+    {
+      "file": "e-storage-honest-note.png",
+      "scenario": "S1 在线·正常状态（真实内容 1 组 19 首）",
+      "mode": "element",
+      "selector": "[data-test=\"honest-storage-note\"]",
+      "note": "页脚「诚实说明」原文（E4）",
+      "viewport": "\"1280×860@2x\"",
+      "png": "1320×256",
+      "bytes": 86058,
+      "bytesHuman": "84 KB",
+      "state": {
+        "url": "http://127.0.0.1:50221/#/",
+        "appVersion": "0.1.1",
+        "contentVersion": "0.0.0-dev+bd271b49068a",
+        "poems": 19,
+        "loading": false,
+        "error": null,
+        "online": true,
+        "swCache": "pc-resources-0.1.1（/,/index.html,/styles.css,/manifest.json,/content.json,/app/main.js,/app/config.js,/app/content.js,/app/render.js 条目，含 content.json）",
+        "swWaiting": null,
+        "notesDetailsCount": 0,
+        "markCount": 0,
+        "countText": "19 首",
+        "searchSummary": null,
+        "rows": 19,
+        "viewText": "19 首诗 · 1 个时代分组\n\n汉\n19 首\n行行重行行\n佚名\n青青河畔草\n佚名\n青青陵上柏\n佚名\n今日良宴会\n佚名\n西北有高楼\n佚名\n涉江采芙蓉\n佚名\n明月皎夜光\n佚名\n冉冉孤生竹\n佚名\n庭中有奇树\n佚名\n迢迢牵牛星\n佚名\n回车驾言迈\n佚名\n东城高且长\n佚名\n驱车上东门\n佚名\n去者日以疏\n佚名\n生年不满百\n佚名\n凛凛岁云暮\n佚名\n孟冬寒气至\n佚名\n客从远方来\n佚名\n明月何皎皎\n佚名"
+      }
+    },
+    {
+      "file": "_raw-e-first-visit.png",
+      "scenario": "S2 首次访问（无 SW/无缓存的新 origin）",
+      "mode": "viewport",
+      "selector": null,
+      "note": "首访瞬间（CDP 注入 1500ms 延迟，否则拍不到）",
+      "injectedLatencyMs": 1500,
+      "loadingState": {
+        "title": "索斐",
+        "loadingText": "正在取内容…（外壳已经到达，内容单独取）",
+        "rows": 0,
+        "hasDoc": false,
+        "loading": true,
+        "cacheText": "Service Worker 未注册"
+      },
+      "realTiming": {
+        "measuredBy": "CDP 轮询（间隔 80ms）+ 页面内 performance 条目，同一台机器、无网络节流、临时全新 profile",
+        "shellVisibleMs": 22,
+        "indexVisibleMs": 105,
+        "paint": {
+          "firstContentfulPaint": 30,
+          "responseEnd": 5,
+          "domContentLoaded": 20,
+          "loadEnd": 21,
+          "contentLoadedFromMeta": 33,
+          "contentBytes": 28218
+        }
+      },
+      "viewport": "\"1280×860@2x\"",
+      "png": "2560×1720",
+      "bytes": 191405,
+      "bytesHuman": "187 KB",
+      "state": {
+        "url": "http://127.0.0.1:50255/",
+        "appVersion": "0.1.1",
+        "contentVersion": null,
+        "poems": 0,
+        "loading": true,
+        "error": null,
+        "online": true,
+        "swCache": null,
+        "swWaiting": null,
+        "notesDetailsCount": 0,
+        "markCount": 0,
+        "countText": null,
+        "searchSummary": null,
+        "rows": 0,
+        "viewText": "正在取内容…（外壳已经到达，内容单独取）"
+      }
+    },
+    {
+      "file": "e-offline.png",
+      "scenario": "S2 首次访问（无 SW/无缓存的新 origin）",
+      "mode": "fullpage",
+      "selector": null,
+      "note": "离线（已缓存 → 断网 + 静态服务已关 → 重载仍可读）",
+      "offlineCheck": {
+        "online": false,
+        "poems": 19,
+        "contentVersion": "0.0.0-dev+bd271b49068a",
+        "controlled": true,
+        "shellStatus": 200,
+        "uncachedStatus": 504,
+        "statusNetwork": "浏览器报告：离线",
+        "rows": 19
+      },
+      "viewport": "\"1280×860@1x\"",
+      "png": "1280×1960",
+      "bytes": 114357,
+      "bytesHuman": "112 KB",
+      "state": {
+        "url": "http://127.0.0.1:50255/",
+        "appVersion": "0.1.1",
+        "contentVersion": "0.0.0-dev+bd271b49068a",
+        "poems": 19,
+        "loading": false,
+        "error": null,
+        "online": false,
+        "swCache": "pc-resources-0.1.1（/content.json,/,/index.html,/styles.css,/manifest.json,/app/content.js,/app/render.js,/app/main.js,/app/config.js 条目，含 content.json）",
+        "swWaiting": null,
+        "notesDetailsCount": 0,
+        "markCount": 0,
+        "countText": "19 首",
+        "searchSummary": null,
+        "rows": 19,
+        "viewText": "19 首诗 · 1 个时代分组\n\n汉\n19 首\n行行重行行\n佚名\n青青河畔草\n佚名\n青青陵上柏\n佚名\n今日良宴会\n佚名\n西北有高楼\n佚名\n涉江采芙蓉\n佚名\n明月皎夜光\n佚名\n冉冉孤生竹\n佚名\n庭中有奇树\n佚名\n迢迢牵牛星\n佚名\n回车驾言迈\n佚名\n东城高且长\n佚名\n驱车上东门\n佚名\n去者日以疏\n佚名\n生年不满百\n佚名\n凛凛岁云暮\n佚名\n孟冬寒气至\n佚名\n客从远方来\n佚名\n明月何皎皎\n佚名"
+      }
+    },
+    {
+      "file": "e-content-failed.png",
+      "scenario": "S3 内容取失败（部署里缺 content.json）",
+      "mode": "fullpage",
+      "selector": null,
+      "note": "内容取失败（HTTP 404：这次部署里没有 content.json）—— 如实报错 + 重试入口",
+      "failCheck": {
+        "errorText": "取内容失败：服务器返回 HTTP 404 Not Found（可能是这次部署里没有 content.json，也可能是离线且本站缓存里缺了它）",
+        "errorHint": "可能是这次部署里没有 content.json（路径不对），也可能是离线且本站缓存里缺了它（例如刚清除过站点数据）。",
+        "shellStillThere": "索斐",
+        "retryButton": "重试取内容",
+        "httpProbe": 404
+      },
+      "viewport": "\"1280×860@1x\"",
+      "png": "1280×860",
+      "bytes": 70728,
+      "bytesHuman": "69 KB",
+      "state": {
+        "url": "http://127.0.0.1:59261/",
+        "appVersion": "0.1.1",
+        "contentVersion": null,
+        "poems": 0,
+        "loading": false,
+        "error": "http：取内容失败：服务器返回 HTTP 404 Not Found（可能是这次部署里没有 content.json，也可能是离线且本站缓存里缺了它）",
+        "online": true,
+        "swCache": null,
+        "swWaiting": null,
+        "notesDetailsCount": 0,
+        "markCount": 0,
+        "countText": null,
+        "searchSummary": null,
+        "rows": 0,
+        "viewText": "内容没能取到\n\n取内容失败：服务器返回 HTTP 404 Not Found（可能是这次部署里没有 content.json，也可能是离线且本站缓存里缺了它）\n\n可能是这次部署里没有 content.json（路径不对），也可能是离线且本站缓存里缺了它（例如刚清除过站点数据）。\n\n重试取内容"
+      }
+    },
+    {
+      "file": "e-content-failed-then-retry.png",
+      "scenario": "S3 内容取失败（部署里缺 content.json）",
+      "mode": "viewport",
+      "selector": null,
+      "note": "把内容补回部署后点「重试取内容」→ 真的恢复",
+      "recovered": {
+        "poems": 19,
+        "error": null,
+        "viewIsIndex": true
+      },
+      "viewport": "\"1280×860@2x\"",
+      "png": "2560×1720",
+      "bytes": 118805,
+      "bytesHuman": "116 KB",
+      "state": {
+        "url": "http://127.0.0.1:59261/",
+        "appVersion": "0.1.1",
+        "contentVersion": "0.0.0-dev+bd271b49068a",
+        "poems": 19,
+        "loading": false,
+        "error": null,
+        "online": true,
+        "swCache": null,
+        "swWaiting": null,
+        "notesDetailsCount": 0,
+        "markCount": 0,
+        "countText": "19 首",
+        "searchSummary": null,
+        "rows": 19,
+        "viewText": "19 首诗 · 1 个时代分组\n\n汉\n19 首\n行行重行行\n佚名\n青青河畔草\n佚名\n青青陵上柏\n佚名\n今日良宴会\n佚名\n西北有高楼\n佚名\n涉江采芙蓉\n佚名\n明月皎夜光\n佚名\n冉冉孤生竹\n佚名\n庭中有奇树\n佚名\n迢迢牵牛星\n佚名\n回车驾言迈\n佚名\n东城高且长\n佚名\n驱车上东门\n佚名\n去者日以疏\n佚名\n生年不满百\n佚名\n凛凛岁云暮\n佚名\n孟冬寒气至\n佚名\n客从远方来\n佚名\n明月何皎皎\n佚名"
+      }
+    },
+    {
+      "file": "e-cleared.png",
+      "scenario": "S4 清掉站点数据（清 cache + 注销 SW）",
+      "mode": "viewport",
+      "selector": null,
+      "note": "清掉站点数据 + 断网 + 服务已关 → 离线副本确实没了（只剩浏览器错误页）",
+      "beforeClear": {
+        "caches": 1,
+        "controlled": true
+      },
+      "afterClear": {
+        "caches": 0,
+        "registration": false
+      },
+      "clearedState": {
+        "url": "chrome-error://chromewebdata/",
+        "hasApp": false,
+        "bodyText": "No internet\n\nTry:\n\nChecking the network cables, modem, and router\nReconnecting to Wi-Fi\nRunning Windows Network Diagnostics\nERR_INTERNET_DISCONNECTED"
+      },
+      "viewport": "\"1280×860@2x\"",
+      "png": "2560×1720",
+      "bytes": 48883,
+      "bytesHuman": "48 KB",
+      "state": {
+        "url": "chrome-error://chromewebdata/",
+        "appVersion": null,
+        "contentVersion": null,
+        "poems": null,
+        "loading": null,
+        "error": null,
+        "online": null,
+        "swCache": null,
+        "swWaiting": null,
+        "notesDetailsCount": 0,
+        "markCount": 0,
+        "countText": null,
+        "searchSummary": null,
+        "rows": 0,
+        "viewText": "No internet\n\nTry:\n\nChecking the network cables, modem, and router\nReconnecting to Wi-Fi\nRunning Windows Network Diagnostics\nERR_INTERNET_DISCONNECTED"
+      }
+    },
+    {
+      "file": "_raw-b-notes-expanded-fixture.png",
+      "scenario": "S5 长笔记展开（夹具补充材料，不能用于过账）",
+      "mode": "fullpage",
+      "selector": null,
+      "note": "夹具诗页·笔记已展开（这是**夹具内容**，不是真实内容）",
+      "fixtureCheck": {
+        "fixtureNotice": "测试夹具内容：\n测试部署内容：从真实产物派生（删掉末首、加入一首带空行分段与测试笔记的诗），用于验证两版本成对切换与渲染路径。不是发布内容。",
+        "notesOpen": false
+      },
+      "expandedCheck": {
+        "notesOpen": true,
+        "bodyMaxWidth": "486px",
+        "bodyWidth": 486,
+        "lineHeight": "24.975px",
+        "listItems": 2
+      },
+      "viewport": "\"1280×860@1x\"",
+      "png": "1280×1422",
+      "bytes": 119324,
+      "bytesHuman": "117 KB",
+      "state": {
+        "url": "http://127.0.0.1:59285/#/p/fixture-test-poem-01",
+        "appVersion": "0.1.1",
+        "contentVersion": "2026.10.15.1",
+        "poems": 19,
+        "loading": false,
+        "error": null,
+        "online": true,
+        "swCache": "pc-resources-0.1.1（/content.json,/,/index.html,/styles.css,/manifest.json,/app/content.js,/app/render.js,/app/main.js,/app/config.js 条目，含 content.json）",
+        "swWaiting": null,
+        "notesDetailsCount": 1,
+        "markCount": 0,
+        "countText": null,
+        "searchSummary": null,
+        "rows": 0,
+        "viewText": "← 目录\n测试夹具诗（非诗文）\n\n汉 · 测试作者 · 测试夹具 · 测试夹具\n\n第一段第一行（测试夹具）。\n\n第一段第二行（测试夹具）。\n\n空行之后的一段（测试夹具）。\n\n我的笔记\n\n【测试笔记·不是用户笔记】\n\n用于验证「笔记按需展开」的测试文本。\n\n第一点：列表与段落。\n第二点：换行保留。\n\n这里验证最小 Markdown 子集：粗体与普通文字混排。\n\n这里验证转义：<b>不应被当作标签</b>，应原样显示。\n\n底本\n测试夹具（不是发布内容）"
+      }
+    },
+    {
+      "file": "f-favicon-current-inline-glyph.png",
+      "scenario": "S6 favicon 小尺寸观感",
+      "mode": "fullpage",
+      "selector": null,
+      "note": "favicon 16/32px 观感 —— **现状：index.html 里的内联字标**；F2 要求的无字记号尚未产出，待图标线并入后补拍",
+      "harness": true,
+      "iconsExist": false,
+      "iconsFiles": [],
+      "faviconHrefIsDataUri": true,
+      "viewport": "\"1280×900@1x\"",
+      "png": "1280×900",
+      "bytes": 53767,
+      "bytesHuman": "53 KB",
+      "state": {
+        "url": "file:///C:/Users/wsqsy/AppData/Local/Temp/suofei-ui-review/favicon-harness.html",
+        "appVersion": null,
+        "contentVersion": null,
+        "poems": null,
+        "loading": null,
+        "error": null,
+        "online": null,
+        "swCache": null,
+        "swWaiting": null,
+        "notesDetailsCount": 0,
+        "markCount": 0,
+        "countText": null,
+        "searchSummary": null,
+        "rows": 0,
+        "viewText": "favicon 在小尺寸下的实际观感\n\n⚠ 本图不是站点截图：这个对照页由抓图脚本生成，只把真实图标的字节按 16px / 32px 原样（<img width=16 height=16>）与 8× 最近邻放大画出来，用来回答「16px 下还能不能看清」。\n\n本树里 web/icons/ 存在吗：不存在； 现在站点用的是 index.html 里那条 <link rel=\"icon\">（内联字标）。 评审清单 F2 要求的是「另一套无字极简记号」，它还没产出 —— 所以本图不能代表 F2，只是现状证据。\n\nindex.html 里那条 （内联字标）\n深色底\n16px 实际大小\n32px\n浅色底\n16px 实际大小\n32px\n8× 放大\n最近邻放大（看清 16px 下的像素）\n标签页≈\n索斐\n索斐\n（用 <img> 拼的仿标签，不是浏览器界面截图）"
+      }
+    },
+    {
+      "file": "b-deeplink.png",
+      "scenario": "合成说明条",
+      "mode": "composite",
+      "png": "2664×2316",
+      "bytes": 370473,
+      "bytesHuman": "362 KB",
+      "innerImage": "_raw-b-deeplink.png",
+      "innerImageCssWidth": 1280,
+      "note": "说明条由脚本生成；图内下半部分是被原样嵌入的真实截图（另存为 _raw-*.png，未被改动）"
+    },
+    {
+      "file": "e-first-visit.png",
+      "scenario": "合成说明条",
+      "mode": "composite",
+      "png": "2664×2310",
+      "bytes": 372762,
+      "bytesHuman": "364 KB",
+      "innerImage": "_raw-e-first-visit.png",
+      "innerImageCssWidth": 1280,
+      "note": "说明条由脚本生成；图内下半部分是被原样嵌入的真实截图（另存为 _raw-*.png，未被改动）"
+    },
+    {
+      "file": "b-notes-expanded--fixture-supplement.png",
+      "scenario": "合成说明条",
+      "mode": "composite",
+      "png": "2664×3380",
+      "bytes": 725508,
+      "bytesHuman": "709 KB",
+      "innerImage": "_raw-b-notes-expanded-fixture.png",
+      "innerImageCssWidth": 1280,
+      "note": "说明条由脚本生成；图内下半部分是被原样嵌入的真实截图（另存为 _raw-*.png，未被改动）"
+    }
+  ],
+  "pageErrors": []
+}
