@@ -194,6 +194,6 @@ if (process.argv.includes('--render')) {
     execFileSync(chrome, ['--headless=new', '--disable-gpu', '--hide-scrollbars', `--screenshot=${wp(png)}`,
       `--window-size=${w},${h}`, '--virtual-time-budget=4000', 'file:///' + wp(html)], { stdio: 'inherit' });
   shot(path.join(OUT_DIR, 'round2-fonts.html'), path.join(OUT_DIR, 'round2-fonts.png'), 1240, 2300);
-  shot(path.join(OUT_DIR, 'round2-brackets.html'), path.join(OUT_DIR, 'round2-brackets.png'), 1240, 800);
+  shot(path.join(OUT_DIR, 'round2-brackets.html'), path.join(OUT_DIR, 'round2-brackets.png'), 1240, 1180);
   console.log('已渲染 → prototype/icons/out/round2-*.png');
 }
