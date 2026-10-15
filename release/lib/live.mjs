@@ -171,6 +171,18 @@ function prepareE2ERoot({ outDir, distFile }) {
   const contract = path.join(REPO_ROOT, 'docs/design/content-contract.md');
   if (!exists(contract)) throw new Error(`e2e 需要契约原文：${display(contract)} 不存在`);
   writeFileEnsured(path.join(root, 'docs/design/content-contract.md'), fs.readFileSync(contract));
+
+  // ★ 测试输入（**不是发布产物**）：两端「视觉令牌逐值一致」的门要读仓库里的唯一来源。
+  //   · Web e2e 直接读**评审通过的原型 CSS**（`prototype/css/theme-tech.css`）做逐项比对；
+  //   · 规范文档 `docs/design/visual-tokens.md` 是跨端权威（Android 的 VisualTokensConsistencyTest 也读它）。
+  // 为什么必须在**镜像根**里也放一份：e2e 把镜像根当仓库根用（`resolve(repoRoot, …)`），
+  // 而 `findE2ERepoReads` 的接缝预检要求「它读的路径在镜像里必须存在」——缺了就要红。
+  // 这两个文件**不进任何发布产物**（站点白名单里没有它们）；这里只是把仓库里的唯一来源搬给测试读。
+  for (const rel of ['prototype/css/theme-tech.css', 'docs/design/visual-tokens.md']) {
+    const src = path.join(REPO_ROOT, rel);
+    if (!exists(src)) throw new Error(`测试要读的仓库文件不存在：${display(src)}`);
+    writeFileEnsured(path.join(root, rel), fs.readFileSync(src));
+  }
   copyTree(path.join(REPO_ROOT, 'tools'), path.join(root, 'tools'), {
     filter: (from) => path.basename(from) !== 'node_modules',
   });
