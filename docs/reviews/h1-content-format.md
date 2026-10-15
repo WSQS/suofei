@@ -157,6 +157,44 @@ title: "驱车上东门"
 3. **集合级字段上提的硬判据＝产物逐字节不变**：重构完成后 `dist/content.json` **除 `contentVersion`/`generatedAt` 外必须逐字节不变**（可做成门）——源文件组织改了而产物稳如磐石，才说明这次重构没夹带行为变化。
 4. **一条容易漏的成本（若选文本字段）**：详情节含标题/列表/粗体/引文 ⇒ **两端都要具备最小 Markdown 渲染能力**。现状：Web 的笔记渲染**已有**最小子集；**Android 把笔记当纯文本渲染** ⇒ 这是**两端渲染能力**的新增工作（主要是 Android）。
 
+## 九、产物字段审核：现状 vs「改完之后」（2026-10-15，用户要求「直接看改完之后的字段」）
+
+### 现状（实测 `dist/content.json`）
+
+| 层 | 键 |
+|---|---|
+| 顶层（5） | `formatVersion`、`contentVersion`、`generatedAt`、`dynasties`、`poems` |
+| 诗对象（13） | `id`、`title`、`author`、`dynastyKey`、`dynastyLabel`、`dynastyOrder`、`era`、`genre`、`source`、`orderInSource`、`variants`、`stanzas`、`notes` |
+| `variants[]` 项（2） | `text`、`note` |
+| `dynasties[]`（3） | `key`、`label`、`order` |
+
+**谁在读它（grep 实测）**：Android 读 `notes/title/stanzas/author/variants/id/dynastyKey/source/genre/era/dynastyLabel`；Web 读 `id/variants/stanzas/notes/author/title/dynastyKey/source/dynastyOrder/genre/era/dynastyLabel/orderInSource`。
+⇒ ⚠️ **更正我先前的说法**：我早先说「没有任何客户端读 `variants`」，**那不准确**——两端**都解析并校验**它（Web `content.js` 逐项报错；Android `ContentParser.parseVariants`），只是**都不渲染在诗页上**。所以“换形状”的真实影响面比我说的大一点：解析代码也要跟着改。
+
+### 一个关键事实：详情页**已经落地**，而且用的就是现有字段
+
+`9475e92`＋`2b43414`（2026-10-15）已把四页落地两端。详情页的实现是：
+- **底本**：直接渲染 `poem.source`；
+- **异文**：**逐条渲染 `variants[].text` ＋ `variants[].note`**（有序列表）；
+- 两端都注明：**「上游正在重审数据组织方式（IF-48）⇒ 只在这一处集中渲染，形状若变只改这一个函数」**。
+
+⇒ 所以“底本与来源 ＋ 异文 24 条 ＋ 同书不同本（它本就是一条 variant）”**已经全部在现有字段集上跑起来了，零格式变更**。
+**真正缺的只有一件：`分段依据`**（它今天不在产物里，只在 `docs/sources/` 散文里）。
+
+### 「改完之后」的三种装法（就看字段本身）
+
+| | 字段变化 | 两端要改的代码 | 与刚做好的实现的关系 |
+|---|---|---|---|
+| **①文本字段** | 诗对象 **＋`detail`（string）**；为了避免两处真相，`variants` **很可能要一并移除** ⇒ 净变化 ≈ ±1 | 详情页从「按结构渲染列表」**改成「渲染一段 Markdown」**；两端要**最小 Markdown 渲染**（Android 新做） | **要重写刚做好的那一个函数** |
+| **②结构化字段** | 保留 `variants`／`source`，**只加 1 个**（如 `segmentation`）；若考虑到“分段依据每首相同”，也可做成**全局字段**（顶层 ＋1、诗对象不动） | 详情页**加一块**；解析加一条 | **最连续**（改动量最小） |
+| **③寄生** | **不变** | 两端要按约定去**解析 `source` 里的一句话** | 不推荐（形状扭曲） |
+
+### 你要审的核心其实只有一个问题
+
+**为了「分段依据」要不要加字段？**
+- **不要** ⇒ 字段集不变，详情页**已经能跑**（今天就能用）——代价是那句“依底本不分段”只存在于仓库；
+- **要** ⇒ 加一处字段（②两种位置之一）；**无论①还是②都要升一次 `formatVersion=2`**；差别只在“以后增改考据还要不要再升”。
+
 ## 诚实边界
 
 - 本文件只做**描述**：所有数字都是我此刻对 19 个文件实测的；所有引文都是原文照抄。
