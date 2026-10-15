@@ -24,32 +24,11 @@ class UnknownAuthorsSourceTest {
     private companion object {
         const val RELATIVE_SOURCE = "schema/unknown-authors.json"
 
-        /**
-         * 从 cwd 逐级向上找唯一来源（Gradle 单测的 cwd 可能是 `android/`，也可能是模块目录 `android/app`），
-         * 都不存在就抛断言失败并把尝试过的绝对路径全列出来。
-         */
-        fun locateSource(): File {
-            val cwd = System.getProperty("user.dir")
-            var dir: File? = File(cwd).absoluteFile
-            val tried = mutableListOf<String>()
-            var up = 0
-            while (dir != null && up <= 6) {
-                val candidate = File(dir, RELATIVE_SOURCE)
-                tried += candidate.absolutePath
-                if (candidate.isFile) return candidate
-                dir = dir.parentFile
-                up++
-            }
-            throw AssertionError(
-                buildString {
-                    appendLine("读不到唯一来源 $RELATIVE_SOURCE —— 这道门无法验证，按失败处理（不跳过）。")
-                    appendLine("  cwd = $cwd")
-                    appendLine("  已尝试过这些路径：")
-                    tried.forEach { appendLine("    $it") }
-                    appendLine("  修法：确认仓库根下有 $RELATIVE_SOURCE（清单的唯一来源），不要在本测试里放副本。")
-                },
-            )
-        }
+        const val HINT =
+            "修法：确认仓库根下有 schema/unknown-authors.json（清单的唯一来源），不要在本测试里放副本。"
+
+        /** 从 cwd 逐级向上找唯一来源（cwd 实测是模块目录 `android/app`，不是 `android/`）。 */
+        fun locateSource(): File = TestRepoFiles.repoFile(RELATIVE_SOURCE, HINT)
     }
 
     @Test
