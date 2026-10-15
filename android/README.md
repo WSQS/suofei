@@ -6,6 +6,12 @@ Kotlin + Jetpack Compose 的 Android 端骨架，含**最小可运行阅读实�
 
 > 应用展示名「索斐」、`applicationId = dev.sopho.suofei` 由用户 2026-10-14 拍板（发布后不可改）。
 
+> ⚠ **跨组搜索已移除**（用户 2026-10-15 决定：**第一版不做搜索**，原话「我不认为这是必须的」）：
+> 本端原有的目录页「搜索」入口、独立搜索屏、`Content.search()`、命中高亮与相关单测**已删除**
+> （不是隐藏，留着将来也不会有入口）。留痕见 [`../docs/interface-decisions.md`](../docs/interface-decisions.md)
+> 的 **IF-46**。视觉令牌 `mark-bg`/`mark-text` 与结果行字号等仍留在 `ui/Theme.kt`，但**已无任何界面使用者**
+> —— 它们只为与规范 §2 的「颜色一一对应」门保持一致（规范侧条目待负责人删除）。
+
 ## 1. 构建与打包（本机实测命令）
 
 ```bash
@@ -15,7 +21,7 @@ cd android
 #   JAVA_HOME=C:\Users\wsqsy\.jdks\ms-17.0.17
 ./gradlew assembleDebug          # 产物：android/app/build/outputs/apk/debug/app-debug.apk
 
-./gradlew testDebugUnitTest      # 76 个 JVM 单测（无需设备/模拟器）
+./gradlew testDebugUnitTest      # 81 个 JVM 单测（无需设备/模拟器）
 ```
 
 - 本机 `gradle` 不在 PATH，用 wrapper（`gradlew` + `gradle/wrapper/`，发行版已缓存在 `~/.gradle/wrapper/dists`，不需要联网下载）。
@@ -46,7 +52,7 @@ cd android
 | JDK | **17**（`ms-17.0.17`） | `JAVA_HOME` 实测；AGP 8.13 要求 JDK 17 |
 | JSON | Android 平台自带 `org.json` | 运行时不引第三方 JSON 库；JVM 单测用 `org.json:json:20240303` 提供实现 |
 
-验证结果：`clean assembleDebug` 与 `testDebugUnitTest` 复测通过（`--rerun-tasks` 下 43 个任务全部实际执行、非缓存，BUILD SUCCESSFUL）；**76 例全绿**（2026-10-15；含视觉令牌门与结构记号门，以及换更新源时新增的 `UpdateEndpointTest` 4 例）。
+验证结果：`clean assembleDebug` 与 `testDebugUnitTest` 复测通过（`--rerun-tasks` 下 44 个任务：43 个实际执行、1 个最新，BUILD SUCCESSFUL）；**81 例全绿**（2026-10-15；含视觉令牌门与结构记号门，以及换更新源时新增的 `UpdateEndpointTest` 4 例）。
 
 > ⚠️ **`assembleRelease` 在本机会以「缺少正式签名环境变量，fail-closed」直接失败**——这是发布线的设计（见 §8），不是编译错误；本地开发/验收一律用 `assembleDebug`。
 `aapt2 dump badging` 实测：`package: name='dev.sopho.suofei' versionCode='1' versionName='0.1.0'`、`minSdkVersion:'26'`、`targetSdkVersion:'36'`、`application-label:'索斐'`、`uses-permission: android.permission.INTERNET`。
@@ -101,7 +107,7 @@ android/
 │   ├── assets/content/content.json          # APK 内置内容（＝ dist/content.json，真实 19 首）
 │   ├── java/dev/sopho/suofei/
 │   │   ├── MainActivity.kt                  # 装配：store + repository + AppState，打开时自动检查更新
-│   │   ├── data/ContentModel…（Domain.kt）  # 内容领域模型 + 分组/排序/搜索规则
+│   │   ├── data/ContentModel…（Domain.kt）  # 内容领域模型 + 分组/排序规则
 │   │   ├── data/ContentParser.kt            # content.json 解析与契约校验（失败即抛错）
 │   │   ├── data/Json.kt                     # org.json 薄封装（缺键/类型错 → 明确异常）
 │   │   ├── data/ContentVersion.kt           # contentVersion 比较
@@ -110,7 +116,7 @@ android/
 │   │   ├── update/UpdateProtocol.kt         # ⚠️ 接口区：远端地址 + 清单字段与解析
 │   │   ├── update/ContentUpdater.kt         # 检查 → 下载 → 校验 → 移交 Store 切换
 │   │   ├── ui/Theme.kt                     # ⚠️ 视觉令牌唯一集中处（值＝visual-tokens.md）+ Material3 主题
-│   │   ├── ui/StructuralMarks.kt           # 规范 §4.1 结构记号：组名竖线 / `[n] 首` / 时代小标签 / 命中高亮
+│   │   ├── ui/StructuralMarks.kt           # 规范 §4.1 结构记号：组名竖线 / `[n] 首`
 │   │   ├── ui/PoemHead.kt                  # 诗页题头（§4.1-3：不画下划线，该文件不得出现分割线）
 │   │   ├── ui/UpdateStatusText.kt          # 更新状态文案（纯函数，可单测）
 │   │   └── ui/{AppState,Screens}.kt         # 界面状态与四个页面
@@ -118,7 +124,7 @@ android/
 │   └── res/drawable/ic_launcher_{background,foreground,monochrome}.xml   # 自适应图标三层（矢量）
 │   └── res/mipmap-anydpi-v26/ic_launcher{,_round}.xml                    # 自适应图标入口（API 26+）
 ├── tools/make-launcher-icon.mjs             # 从只读交付源生成上面五个资源（内置自检，见 §6.4）
-└── app/src/test/java/dev/sopho/suofei/      # 80 个 JVM 单测（含更新流程、视觉令牌门、更新源地址门、图标门）```
+└── app/src/test/java/dev/sopho/suofei/      # 81 个 JVM 单测（含更新流程、视觉令牌门、更新源地址门、图标门）```
 
 ### 5.1 设备上的运行时存储层（用户 2026-10-14 决定：只留当前）
 
@@ -161,7 +167,7 @@ filesDir/content/                       # 应用私有目录，卸载即清空
 | 门 | 断言 |
 |---|---|
 | `VisualTokensConsistencyTest` | 读规范文件**逐项**比对：§2 颜色（22 个键一一对应，多一个少一个都报出来）、§3 字体与排版、§4 间距/圆角/无阴影/0.15s、§4.1 三样记号；另有源码守卫：ui 里不得出现 `Modifier.shadow(`、缩放/位移动画、渐变，`elevation` 只能 0.dp，`PoemHead.kt` 不得含分割线/边框 |
-| `StructuralMarksTest` | `groupCountText(3) == "[3] 首"`、括号段带 `text-faint` 与 0.85em、命中高亮用 `mark-bg`/`mark-text` |
+| `StructuralMarksTest` | `groupCountText(3) == "[3] 首"`、括号段带 `text-faint` 与 0.85em |
 | `UpdateStatusTextTest` | 每种更新状态都给出非空文案；空 message 也有兜底（见 §7） |
 
 **变异验证**（证明门不是空过）：临时把 `bg` 改成 `#0e1316`、`poem-lh` 改成 1.5、括号字号改成 0.8em，三条断言各自报红并点名：
@@ -175,7 +181,7 @@ structural: 括号字号（规范 0.85em） expected:<0.85> but was:<0.8>
 ### 6.3 规范未覆盖 / 无法逐值对齐的地方（如实列出）
 
 先对齐规范 §4.2「与原型的有意差异」（负责人 2026-10-15 补，用户可否决）——与本端实现一致的三条：
-① 搜索用**文字按钮**（本端顶栏就是「搜索」文字按钮，不画放大镜）；② 笔记头**不加** `n-badge` 夹具徽标（本端不画）；
+① 搜索**已按 2026-10-15 决定整体移除**（连入口带搜索屏一起删了，所以「文字按钮 vs 放大镜」这条有意差异已失效）；② 笔记头**不加** `n-badge` 夹具徽标（本端不画）；
 ③ 状态色只有两档 accent/warn、**不新增红/error 令牌**——本端 M3 的 `error` 就映射到 `warn`、`errorContainer`=`warn-soft`。
 规范 §4.2 的第 4 条（目录页结构）与下面第 8 项是同一件事，**仍待台账确认**。
 
@@ -276,13 +282,13 @@ mono 单色且与 fg 同形、**两端轮廓逐点一致**），但它**不渲�
 
 ## 9. 已验证 / 未验证
 
-**已验证**：`clean assembleDebug` 通过；APK 内 assets 存在且字节一致；**80 个 JVM 单测通过**（含更新流程的成功/失败/不兼容/损坏路径、「升级后只剩当前一个快照、旧版本目录确被删除」、「写指针失败 ⇒ 存储层明确 `Refused(IO)`、调用方拿到同类 `Failed(IO)`、不留孤儿目录、生效版本不变」、**视觉令牌与规范逐项一致**、**三样结构记号**、**更新状态文案非空**、**更新源 URL 逐字断言**）；APK 包名、展示名、SDK 版本、权限、签名证书实测。图标落地后（2026-10-15）新增 **`LauncherIconTest` 8 例**：清单连线 / 三层齐全 / 108 画布 / 不依赖字体 / fg 在保证可见区内 / bg 满幅且与窗口底色同值 / mono 单色且与 fg 同形 / **与 Web 侧同一份轮廓逐点一致**（详见 §6.4；它不渲染、不看像素）。另有一道契约一致性门 `UnknownAuthorsSourceTest`：断言匿名作者清单与唯一来源 `schema/unknown-authors.json` 逐项一致（读不到文件即失败并列出尝试过的路径，不跳过；测试自身不持副本）。
+**已验证**：`clean assembleDebug` 通过；APK 内 assets 存在且字节一致；**81 个 JVM 单测通过**（含更新流程的成功/失败/不兼容/损坏路径、「升级后只剩当前一个快照、旧版本目录确被删除」、「写指针失败 ⇒ 存储层明确 `Refused(IO)`、调用方拿到同类 `Failed(IO)`、不留孤儿目录、生效版本不变」、**视觉令牌与规范逐项一致**、**三样结构记号**、**更新状态文案非空**、**更新源 URL 逐字断言**）；APK 包名、展示名、SDK 版本、权限、签名证书实测。图标落地后（2026-10-15）新增 **`LauncherIconTest` 8 例**：清单连线 / 三层齐全 / 108 画布 / 不依赖字体 / fg 在保证可见区内 / bg 满幅且与窗口底色同值 / mono 单色且与 fg 同形 / **与 Web 侧同一份轮廓逐点一致**（详见 §6.4；它不渲染、不看像素）。另有一道契约一致性门 `UnknownAuthorsSourceTest`：断言匿名作者清单与唯一来源 `schema/unknown-authors.json` 逐项一致（读不到文件即失败并列出尝试过的路径，不跳过；测试自身不持副本）。
 **未验证**：**强光/长时间阅读疲劳**未验（用户 2026-10-15 已决定不做物理真机验收 ⇒ 这一条以「已知并接受、未验证」记录）；
 **图标没在任何真机/启动器上看过**（真实遮罩形状随厂商变、`<monochrome>` 的实际观感取决于系统「主题图标」开关；
 `LauncherIconTest` 只做静态断言、不渲染、不看像素）——见 §6.4；未在真机/弱网上验更新流程；
 未在设备上验证「删掉上一个快照」对用户路径无影响（它无界面入口，预期无影响）。
 
-**已在模拟器上验过（2026-10-15，口径＝模拟器）**：深色主题与三样结构记号的**实际观感**、目录/诗页/笔记折叠与展开、搜索三态、
+**已在模拟器上验过（2026-10-15，口径＝模拟器）**：深色主题与三样结构记号的**实际观感**、目录/诗页/笔记折叠与展开、搜索三态（当时的确验过；该功能已按用户 2026-10-15 决定移除，见文首）、
 更新页状态行；**更新检查的成功路径（真实站点 HTTPS：下载 → sha256 校验 → 切换生效）与失败路径（断网：旧内容保留）都实测通过**
 （记录见 `docs/status.md` 与 `docs/reviews/ui-review/materials-android/`）。
 

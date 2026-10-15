@@ -14,7 +14,7 @@ import dev.sopho.suofei.update.UpdateOutcome
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-enum class Screen { LIBRARY, SEARCH, POEM, UPDATE_SETTINGS }
+enum class Screen { LIBRARY, POEM, UPDATE_SETTINGS }
 
 /** 更新检查的可见状态。每种失败都明确写「旧版保留」。 */
 sealed interface UpdateStatus {
@@ -40,8 +40,6 @@ class AppState(
 
     var screen: Screen by mutableStateOf(Screen.LIBRARY)
         private set
-
-    var query: String by mutableStateOf("")
 
     var selectedPoem: Poem? by mutableStateOf(null)
         private set
@@ -72,7 +70,7 @@ class AppState(
     }
 
     fun openLibrary() {
-        // 回到目录时才采用等待中的新内容：阅读页（或搜索结果的诗页）不会在阅读中被换掉。
+        // 回到目录时才采用等待中的新内容：阅读页不会在阅读中被换掉。
         val pending = pendingVersion
         if (pending != null) {
             loaded = try {
@@ -87,10 +85,6 @@ class AppState(
         screen = Screen.LIBRARY
     }
 
-    fun openSearch() {
-        screen = Screen.SEARCH
-    }
-
     fun openPoem(poem: Poem) {
         selectedPoem = poem
         screen = Screen.POEM
@@ -99,7 +93,7 @@ class AppState(
     fun back() {
         when (screen) {
             Screen.POEM -> openLibrary()
-            Screen.SEARCH, Screen.UPDATE_SETTINGS -> openLibrary()
+            Screen.UPDATE_SETTINGS -> openLibrary()
             Screen.LIBRARY -> Unit
         }
     }

@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -20,9 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -34,17 +30,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.sopho.suofei.data.Content
 import dev.sopho.suofei.data.Poem
 
 /**
- * 界面结构（v1）：时代分组目录 / 跨组搜索 / 正文分行分节 / 笔记按需展开。
+ * 界面结构（v1）：时代分组目录 / 正文分行分节 / 笔记按需展开。
  *
  * 视觉＝「静默终端」（用户 2026-10-14 选定）：**所有颜色/字号/间距都取自 [PoetryTokens]**
  * （唯一来源 `docs/design/visual-tokens.md`），本文件不写任何硬编码色值或字号。
@@ -63,7 +57,6 @@ fun AppRoot(state: AppState, onCheckUpdate: () -> Unit) {
                     when (state.screen) {
                         // 品牌名用规范的字距（0.3em）
                         Screen.LIBRARY -> Text("索斐", style = PoetryTextStyles.brand)
-                        Screen.SEARCH -> Text("搜索", style = PoetryTextStyles.brand)
                         Screen.POEM -> Text(state.selectedPoem?.title ?: "诗", style = PoetryTextStyles.ui)
                         Screen.UPDATE_SETTINGS -> Text("内容更新", style = PoetryTextStyles.ui)
                     }
@@ -76,9 +69,6 @@ fun AppRoot(state: AppState, onCheckUpdate: () -> Unit) {
                 actions = {
                     when (state.screen) {
                         Screen.LIBRARY -> {
-                            TextButton(onClick = { state.openSearch() }, colors = textActionColors()) {
-                                Text("搜索")
-                            }
                             TextButton(onClick = { state.openUpdateSettings() }, colors = textActionColors()) {
                                 Text("更新")
                             }
@@ -126,13 +116,6 @@ fun AppRoot(state: AppState, onCheckUpdate: () -> Unit) {
                 Screen.LIBRARY -> LibraryScreen(
                     content = content,
                     pendingVersion = state.pendingVersion,
-                    onPick = { state.openPoem(it) },
-                )
-
-                Screen.SEARCH -> SearchScreen(
-                    content = content,
-                    query = state.query,
-                    onQueryChange = { state.query = it },
                     onPick = { state.openPoem(it) },
                 )
 
@@ -235,93 +218,6 @@ private fun PoemRow(poem: Poem, onPick: (Poem) -> Unit) {
         ) {
             Text(poem.title, style = PoetryTextStyles.listTitle, modifier = Modifier.weight(1f))
             Text(poem.author, style = PoetryTextStyles.listAuthor)
-        }
-    }
-}
-
-@Composable
-private fun SearchScreen(
-    content: Content,
-    query: String,
-    onQueryChange: (String) -> Unit,
-    onPick: (Poem) -> Unit,
-) {
-    val results = remember(query, content) { content.search(query) }
-    Column(
-        Modifier
-            .fillMaxSize()
-            .padding(horizontal = PoetryTokens.rem(PoetryTokens.PAD_REM)),
-    ) {
-        OutlinedTextField(
-            value = query,
-            onValueChange = onQueryChange,
-            label = { Text("搜索诗名或作者（跨时代）", style = PoetryTextStyles.resultSub) },
-            singleLine = true,
-            textStyle = PoetryTextStyles.ui.copy(
-                fontSize = PoetryTokens.remToDpValue(PoetryTokens.SEARCH_INPUT_REM).sp,
-            ),
-            shape = RoundedCornerShape(PoetryTokens.RADIUS_PILL_DP.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = PoetryTokens.accent,
-                unfocusedBorderColor = PoetryTokens.line,
-                focusedTextColor = PoetryTokens.text,
-                unfocusedTextColor = PoetryTokens.text,
-                focusedLabelColor = PoetryTokens.accentText,
-                unfocusedLabelColor = PoetryTokens.textFaint,
-                cursorColor = PoetryTokens.accent,
-                focusedContainerColor = Color.Transparent,
-                unfocusedContainerColor = Color.Transparent,
-            ),
-            modifier = Modifier.fillMaxWidth().padding(top = PoetryTokens.rem(0.5f)),
-        )
-        when {
-            query.isBlank() -> Text(
-                "输入诗名或作者即可跨组搜索。",
-                style = PoetryTextStyles.blank,
-                modifier = Modifier.padding(vertical = PoetryTokens.rem(PoetryTokens.BLANK_PAD_VERTICAL_REM)),
-            )
-
-            results.isEmpty() -> Text(
-                "无匹配结果。",
-                style = PoetryTextStyles.blank,
-                modifier = Modifier.padding(vertical = PoetryTokens.rem(PoetryTokens.BLANK_PAD_VERTICAL_REM)),
-            )
-
-            else -> LazyColumn(
-                // 结果区是凹陷区（规范 §2 的 surface-sunken）
-                Modifier
-                    .fillMaxSize()
-                    .padding(top = PoetryTokens.rem(PoetryTokens.GROUP_GAP_REM))
-                    .background(PoetryTokens.surfaceSunken),
-            ) {
-                items(results, key = { it.id }) { poem ->
-                    Column(Modifier.fillMaxWidth()) {
-                        HairLine()
-                        Column(
-                            Modifier
-                                .fillMaxWidth()
-                                .clickable { onPick(poem) }
-                                .padding(rowPadding()),
-                        ) {
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(
-                                    PoetryTokens.rem(PoetryTokens.RESULT_ROW_GAP_REM),
-                                ),
-                            ) {
-                                Text(
-                                    highlightMatches(poem.title, query),
-                                    style = PoetryTextStyles.resultTitle,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                DynastyChip(poem.dynastyLabel)
-                            }
-                            Spacer(Modifier.height(PoetryTokens.rem(PoetryTokens.RESULT_LINE_GAP_REM)))
-                            Text(highlightMatches(poem.author, query), style = PoetryTextStyles.resultSub)
-                        }
-                    }
-                }
-            }
         }
     }
 }

@@ -1,7 +1,6 @@
 package dev.sopho.suofei.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
@@ -12,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -29,7 +27,7 @@ import androidx.compose.ui.unit.dp
  *
  * 这三样不是装饰细节，而是「静默终端」表达结构感的方式；漏掉它们，目录页/诗页会与用户评审
  * 通过的那一版长得不一样。所以它们集中在**一个文件**里，值由 `VisualTokensConsistencyTest`
- * 从规范文件逐项比对，行为（`[3] 首` 的形状、命中高亮的色）由 `StructuralMarksTest` 断言。
+ * 从规范文件逐项比对，行为（`[3] 首` 的形状）由 `StructuralMarksTest` 断言。
  */
 
 /** §4.1-1 组名左沿一条发丝竖线：2dp 宽、色＝`accent-line`. */
@@ -77,48 +75,6 @@ fun rowPadding(): PaddingValues = PaddingValues(
     horizontal = PoetryTokens.rem(PoetryTokens.ROW_PAD_HORIZONTAL_REM),
     vertical = PoetryTokens.rem(PoetryTokens.ROW_PAD_VERTICAL_REM),
 )
-
-/** 搜索结果里的时代小标签（原型 `.resultrow .r-dyn`：accent-strong 文字 + accent-line 边框 + pill 圆角）. */
-@Composable
-fun DynastyChip(label: String) {
-    Box(
-        Modifier
-            .border(
-                width = PoetryTokens.HAIRLINE_DP.dp,
-                color = PoetryTokens.accentLine,
-                shape = RoundedCornerShape(PoetryTokens.RADIUS_PILL_DP.dp),
-            )
-            .padding(
-                horizontal = PoetryTokens.rem(PoetryTokens.RESULT_CHIP_PAD_HORIZONTAL_REM),
-                vertical = PoetryTokens.rem(PoetryTokens.RESULT_CHIP_PAD_VERTICAL_REM),
-            ),
-    ) {
-        Text(label, style = PoetryTextStyles.resultChip)
-    }
-}
-
-/**
- * 搜索命中高亮（原型 `mark { background: var(--mark-bg); color: var(--mark-text) }`）。
- * 纯函数，便于单测断言命中段真的带上了 `mark-bg`/`mark-text`。
- */
-fun highlightMatches(text: String, query: String): AnnotatedString {
-    val q = query.trim()
-    if (q.isEmpty()) return AnnotatedString(text)
-    val style = SpanStyle(color = PoetryTokens.markText, background = PoetryTokens.markBg)
-    return buildAnnotatedString {
-        var index = 0
-        while (true) {
-            val hit = text.indexOf(q, startIndex = index, ignoreCase = true)
-            if (hit < 0) {
-                append(text.substring(index))
-                break
-            }
-            append(text.substring(index, hit))
-            withStyle(style) { append(text.substring(hit, hit + q.length)) }
-            index = hit + q.length
-        }
-    }
-}
 
 /**
  * 组名行：`[竖线] 组名 ………… [n] 首`（§4.1-1 + §4.1-2）。
