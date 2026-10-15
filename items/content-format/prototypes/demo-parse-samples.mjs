@@ -8,8 +8,12 @@
 //   - 输出的 JSON 是**样例**，**不是正式 `dist/content.json`**，也不参与发布。
 //
 // 自检口径（按用户 2026-10-15 的纠正）：
-//   对**每个**样例断言「切出的正文行 == 详情切分点之前的非空行，**逐行相等**」，
-//   并**分开报每个文件的行数**；不使用「总数相等」或「详情里的字句不出现在正文里」这类子串断言。
+//   ① 逐诗逐行：对**每个**样例断言「切出的**非空**正文行 == 详情切分点之前的非空行，**逐行相等**」，
+//      并**分开报每个文件的行数**；不使用「总数相等」或「详情里的字句不出现在正文里」这类子串断言。
+//   ② 分段保真：**空行＝段边界**必须被保留 —— 断言「段数＝期望段数、每段行数与期望一致」。
+//      真实 9 份样例都是**单段**；`samples/fixture-multi-stanza-*.md` 是**人为插入空行**的格式夹具（3/3/2）。
+//   ③ 宁可响、不许静默：详情解析遇到「不匹配的列表行 / 未识别的小标题」要**计数并告警**，
+//      有告警时进程**非零退出**（避免把「静默丢内容」当通过）。
 //
 // 用法：node items/content-format/prototypes/demo-parse-samples.mjs
 
@@ -19,6 +23,9 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SAMPLES_DIR = path.join(HERE, 'samples');
+
+// 详情解析的静默遗漏告警：收集起来最后打印，有任何一条就非零退出。
+const PARSE_WARNINGS = [];
 
 // 《行行重行行》的真实 8 行（期望值；来源：content/poems/gushi-shijiu-shou-01.md）。
 const EXPECTED_POETRY = [
@@ -71,6 +78,11 @@ function parseFrontMatter(fmLines, file) {
       i++;
       continue;
     }
+    if (/^[ \t]*#/.test(line)) {
+      // 整行注释（契约允许；夹具文件用它标注「这是夹具」）
+      i++;
+      continue;
+    }
     const m = /^([A-Za-z][A-Za-z0-9_-]*):(?:[ \t]+(.*))?$/.exec(line);
     if (!m) throw new Error(`${file}: 不认识的 front matter 行：${JSON.stringify(line)}`);
     const key = m[1];
@@ -118,7 +130,8 @@ function parseFrontMatter(fmLines, file) {
 }
 
 // 正文切成「诗行」与命名小节。切分点：**恰好** `## ` 开头的行（`###` 不匹配）。
-// 诗行 = 第一个 `## ` 标题之前的**非空行**；其后按小节名取用（顺序自由）。
+// 诗行区 = 第一个 `## ` 标题之前的行，**空行保留**（空行是分段信息，不能被吃掉）；
+// 其后按小节名取用（顺序自由）。
 function splitBodySections(bodyLines) {
   const poem = [];
   const sections = [];
@@ -132,7 +145,7 @@ function splitBodySections(bodyLines) {
       continue;
     }
     if (cur === null) {
-      if (line.trim() !== '') poem.push(line);
+      poem.push(line); // 保留空行
     } else {
       cur.lines.push(line);
     }
@@ -161,24 +174,37 @@ function buildStanzas(poemLines) {
 }
 
 // 从「## 详情」里把异文与分段依据**解析回结构化字段**（候选 C 的编译器要做的这一步）。
-function parseDetailStructured(detailLines) {
+// ⚠️ 宁可响、不许静默：不匹配的列表行、未识别的小标题、未归属小节的非空行，全部记入 warnings。
+//    本演示**只覆盖约定写法**；正式实现必须有「未知内容如何处置」的错误策略。
+function parseDetailStructured(detailLines, file) {
   const variants = [];
   let segmentation = null;
+  const warnings = [];
   let mode = null;
-  for (const line of detailLines ?? []) {
+  const lines = detailLines ?? [];
+  for (let idx = 0; idx < lines.length; idx++) {
+    const line = (lines[idx] ?? '').replace(/[ \t]+$/, '');
+    if (line.trim() === '') continue;
     const h = /^###\s+(.+?)\s*$/.exec(line);
     if (h) {
-      mode = h[1].trim();
+      const name = h[1].trim();
+      if (name !== '异文' && name !== '分段依据') {
+        warnings.push(`${file}: 未识别的小标题「### ${name}」→ 其下内容不会被解析（静默遗漏风险）`);
+      }
+      mode = name;
       continue;
     }
     if (mode === '异文') {
       const m = /^-\s+\*\*(.+?)\*\*\s*——\s*(.*)$/.exec(line.trim());
       if (m) variants.push({ text: m[1], note: m[2] });
+      else warnings.push(`${file}: 「### 异文」下的行不符合约定（- **行** —— 说明），未被解析：${JSON.stringify(line)}`);
     } else if (mode === '分段依据') {
-      if (line.trim() !== '') segmentation = (segmentation === null ? '' : segmentation + ' ') + line.trim();
+      segmentation = (segmentation === null ? '' : segmentation + ' ') + line.trim();
+    } else {
+      warnings.push(`${file}: 「## 详情」里出现未归属到小节的非空行，未被解析：${JSON.stringify(line)}`);
     }
   }
-  return { variants, segmentation };
+  return { variants, segmentation, warnings };
 }
 
 function dynastyOf(label) {
@@ -246,7 +272,8 @@ function buildCandidateC(name, collectionName) {
   const merged = { ...injected, ...ownFm }; // 诗文件同名键**覆盖**集合值
 
   const sec = splitBodySections(body);
-  const parsed = parseDetailStructured(sec.section('详情'));
+  const parsed = parseDetailStructured(sec.section('详情'), name);
+  PARSE_WARNINGS.push(...parsed.warnings);
   return {
     ...basePoem(merged, sec.poem),
     variants: parsed.variants,
@@ -267,38 +294,56 @@ const CANDIDATES = {
   },
 };
 
-// ---- 逐诗逐行自检 ----
+// ---- 逐诗逐行＋分段自检 ----
 const ALL_SAMPLE_FILES = fs
   .readdirSync(SAMPLES_DIR)
   .filter((f) => f.endsWith('.md') && !f.startsWith('c-collection-'))
   .sort();
 
-console.log('='.repeat(78));
-console.log('逐诗逐行自检（正文切分不污染）—— 演示用，不是编译器');
-console.log('口径：切出的正文行 必须与「详情切分点之前的非空行」**逐行相等**；');
-console.log('      逐文件报行数（不只报总数）；另断言诗行中不以 `#` 开头。');
-console.log('='.repeat(78));
-console.log('文件'.padEnd(30) + '诗行数  逐行相等  详情节  笔记节  以#开头的诗行');
+// 分段期望：真实 19 首是**单段**；多段夹具是**人为**插入空行的 3 段（3/3/2）。
+const STANZA_EXPECT = {
+  'fixture-multi-stanza-a.md': [3, 3, 2],
+  'fixture-multi-stanza-b.md': [3, 3, 2],
+  'fixture-multi-stanza-c.md': [3, 3, 2],
+};
+const stanzaExpectOf = (file) => STANZA_EXPECT[file] ?? [EXPECTED_POETRY.length];
+
+console.log('='.repeat(100));
+console.log('逐诗逐行 ＋ 分段自检（正文切分不污染）—— 演示用，不是编译器');
+console.log('口径：① 切出的**非空**正文行 必须与「详情切分点之前的非空行」**逐行相等**；');
+console.log('      ② **空行＝段边界**必须被保留：段数与每段行数都要与期望一致；');
+console.log('      ③ 逐文件报行数与分段（不只报总数）；④ 诗行中不以 `#` 开头。');
+console.log('说明：9 份真实样例都是**单段**；`fixture-multi-stanza-*.md` 是**人为插入空行**的格式夹具。');
+console.log('='.repeat(100));
+console.log('文件'.padEnd(30) + '诗行数 段数 每段行数    逐行相等 分段相等 详情 笔记 #开头');
 let allOk = true;
 for (const file of ALL_SAMPLE_FILES) {
   const { body } = splitFrontMatter(readSampleLines(file), file);
   const sec = splitBodySections(body);
-  const poem = sec.poem;
-  const equal = poem.length === EXPECTED_POETRY.length && poem.every((l, i) => l === EXPECTED_POETRY[i]);
-  const hashLines = poem.filter((l) => /^#/.test(l)).length;
-  const ok = equal && hashLines === 0;
-  allOk = allOk && ok;
+  const poemRaw = sec.poem; // 含空行（分段信息）
+  const poemLines = poemRaw.filter((l) => l.trim() !== ''); // 非空诗行
+  const stanzas = buildStanzas(poemRaw); // 分段由空行恢复
+  const expectStanzas = stanzaExpectOf(file);
+  const equal =
+    poemLines.length === EXPECTED_POETRY.length && poemLines.every((l, i) => l === EXPECTED_POETRY[i]);
+  const stanzasOk =
+    stanzas.length === expectStanzas.length && stanzas.every((s, i) => s.length === expectStanzas[i]);
+  const hashLines = poemLines.filter((l) => /^#/.test(l)).length;
+  allOk = allOk && equal && stanzasOk && hashLines === 0;
   console.log(
     file.padEnd(30) +
-      String(poem.length).padEnd(8) +
-      (equal ? '是' : '否←失败').padEnd(10) +
-      (sec.sectionNames.includes('详情') ? '有' : '无').padEnd(8) +
-      (sec.sectionNames.includes('笔记') ? '有' : '无').padEnd(8) +
+      String(poemLines.length).padEnd(7) +
+      String(stanzas.length).padEnd(5) +
+      `[${stanzas.map((s) => s.length).join('/')}]`.padEnd(11) +
+      (equal ? '是' : '否←失败').padEnd(9) +
+      (stanzasOk ? '是' : `否←期望[${expectStanzas.join('/')}]`).padEnd(9) +
+      (sec.sectionNames.includes('详情') ? '有' : '无').padEnd(5) +
+      (sec.sectionNames.includes('笔记') ? '有' : '无').padEnd(5) +
       hashLines,
   );
 }
-console.log('-'.repeat(78));
-console.log(`逐诗逐行自检：${allOk ? '全部通过' : '存在失败'}（期望每首正文恰为真实 8 行、逐行相等）`);
+console.log('-'.repeat(100));
+console.log(`逐诗逐行＋分段自检：${allOk ? '全部通过' : '存在失败'}（真实 8 行逐行相等；多段夹具 3/3/2 被保留）`);
 console.log('');
 
 // ---- 每候选一坨样例 JSON ----
@@ -320,4 +365,34 @@ for (const key of ['A', 'B', 'C']) {
     }`,
   );
   console.log('');
+}
+
+// ---- 详情解析的静默遗漏告警：有则打印并**非零退出** ----
+console.log('='.repeat(100));
+if (PARSE_WARNINGS.length > 0) {
+  console.log(`⚠️ 详情解析告警 ${PARSE_WARNINGS.length} 条（不匹配/未识别的内容 —— 静默遗漏风险）`);
+  for (const w of PARSE_WARNINGS) console.log('  - ' + w);
+  console.log('⇒ 有告警：进程非零退出（宁可响，不许静默）。');
+  process.exitCode = 1;
+} else {
+  console.log('详情解析告警：0 条（本批样例都只用约定写法：`### 异文` 下的 `- **行** —— 说明`）。');
+  console.log('⚠️ 本演示**只覆盖约定写法**；正式实现必须有「未知内容如何处置」的错误策略，');
+  console.log('   在那种策略定下之前**不做正式实现**（不能静默丢内容）。');
+}
+
+// ---- 告警路径自证：喂一段故意写坏的详情，证明「未识别/不匹配」会被抓出来（不静默） ----
+const BAD_DETAIL = [
+  '### 异文',
+  '- 游子不顾返：底本作「反」。', // 不符合约定模板（缺 ** 与 ——）
+  '底本作「反」。（散行，未归属模板）', // 未匹配的续行
+  '### 校本', // 未识别的小标题
+  '- 某本作 X',
+];
+const badWarnings = parseDetailStructured(BAD_DETAIL, '<故意写坏的详情>').warnings;
+console.log('='.repeat(100));
+console.log(`告警路径自证：给一段故意写坏的详情，抓到 ${badWarnings.length} 条告警（>0 即证明不静默）：`);
+for (const w of badWarnings) console.log('  - ' + w);
+if (badWarnings.length === 0) {
+  console.log('⇒ 失败：故意写坏却零告警。');
+  process.exitCode = 1;
 }
