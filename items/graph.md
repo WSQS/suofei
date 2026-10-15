@@ -44,7 +44,7 @@
 - `tools/check-doc-tables.mjs` · **只看得见「看起来像表、其实不是表」一类形状**（2026-10-15 已补两条窄判据并当场抓到一个真缺陷）⇒ **它绿 ≠ 文档没问题** ~related~ 全部文档
 
 ### 相关但不阻塞
-- `content-format` 若真改字段集 ⇒ **`formatVersion` 升 2、断一次内容热更（不可逆）** ~related~ `release-line` —— 不塞进同一次发布
+- `content-format` **只有当候选确实改了「正式产物字段集」时**才 ⇒ **`formatVersion` 升（不可逆）** ~related~ `release-line`（**源格式变化本身不要求升**；升级后老 APK 拒收新内容、退回内置，但**装新的同签名 APK 是普通覆盖安装、无需卸载重装**）
 - `app-ui` · **候选实现**（四页、`#/p/<id>/detail`、`#/about`、详情页显示 24 条异文）~related~ `release-line` —— 它**不是**已采纳范围；线上仍是「有搜索、诗页显示底本来源」的 `0.1.1` 形态
 - `content-and-sources` · 异文 ~related~ `app-ui` —— 已采纳的仍是「**异文只存档、不上界面**」（2026-10-14）；「上详情页」只存在于候选实现里
 
