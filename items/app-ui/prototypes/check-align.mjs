@@ -8,15 +8,19 @@
  *   prototype/css/theme-tech.css（**只读**），用来逐项比对页面内嵌的令牌快照。
  *
  * 【这一页要回答的问题】记号与组名怎么对齐才不显得「没对齐」？
- *   五个块（4 聚焦 + 1 夹具）**只在这三条 CSS 上不同**（其余一切相同——检查脚本 [8][9] 就是守这条）：
- *     ① b1 悬挂＋固定缝 0.4rem（--seam-a，草案值）     ② b2 悬挂＋槽内居中（槽宽 1.2rem，--slot-b，草案值）
- *     ③ b3 不悬挂（对照）                              ④ b4 悬挂＋竖直居中（水平同 b1）
+ *   六个块（5 聚焦——其中 ② 两个档——＋ 1 夹具）**只在这几条 CSS 上不同**（其余一切相同——检查脚本 [8][9] 就是守这条）：
+ *     ① b1 悬挂＋固定缝 0.4rem（--seam-a，草案值）  ② b2 悬挂＋槽内居中（槽 2rem，--slot-b，草案值）
+ *     ②-2 b2-2 悬挂＋槽内居中（槽 1.6rem，--slot-b-alt，草案值；与 ② 只差槽宽）
+ *     ③ b3 不悬挂（对照）                          ④ b4 悬挂＋竖直居中（水平同 b1）
  *     ⑤ b5 ＝ b1 的排布 × 3 组夹具（夹具块）
  *   口径：悬挂＝记号的槽**从块左沿（0）量起**、组名左沿＝槽右沿；不悬挂＝记号落在**块左内沿**（--edge-x）上。
- *   四块共同：题名左沿 ＝ 组名左沿（缩进 0）、作者紧随题名（不右对齐）、「关于」在顶部、首态全收起。
+ *   六块共同：题名左沿 ＝ 组名左沿（缩进 0）、作者紧随题名（不右对齐）、「关于」在顶部、首态全收起。
+ *   ⚠ 更正记录：② 的槽宽上一版是 1.2rem（19.2px），比记号自身的排版宽（21.13px）**还窄** ⇒ 当时实测缝为负
+ *     （居中后右沿越过组名左沿 0.97px、实心笔画只剩 1.16px，看图是贴住）。本轮已按负责人决定改为 **2rem**，
+ *     并另出 **1.6rem** 一档；本脚本现在断言的是更正后的数字（两个槽宽都 > 记号宽 ⇒ 缝为正、记号完全落在槽内）。
  *
  * 断言清单（失败任一即 exit 1），在 **430 宽（规格里的移动口径，DPR 2）** 下跑一遍：
- *  [1] 首态：五个块的**所有组头** `aria-expanded="false"`，且组内诗目**一项都不可见**
+ *  [1] 首态：六个块的**所有组头** `aria-expanded="false"`，且组内诗目**一项都不可见**
  *      —— 即「首次（无既有状态）全部收起，单组也收起」。
  *  [2] 组头节点是 `<button type="button">` 且带 `aria-expanded` 与 `aria-controls`（不是 div 冒充可点元素）。
  *  [3] 「关于」入口在**顶部**（每块恰好 1 个，其 top < 第一个组头 top）；块里除「关于」与诗目以外
@@ -34,11 +38,12 @@
  *  [8] **四块的记号几何**：逐块打印 **记号左沿／右沿（版面盒）· 槽宽 · 缝（版面盒／实心笔画两种口径）·
  *      组名左沿 · 题名左沿 · 右内沿**，并按各块自己的口径断言：
  *        b1 缝 ＝ 0.4rem（6.4px，±0.5）且记号左沿 ＝ 块左沿（0）；
- *        b2 槽宽 ＝ 1.2rem（19.2px，±0.5）、记号在槽内居中（|记号中心 − 槽中心| ≤ 0.5）、
- *           缝（版面盒口径）＝ 槽宽 − 记号宽（负数 ⇒ 记号右沿越过组名左沿，如实打印）；
+ *        b2 槽宽 ＝ 2rem（32px，±0.5）、b2-2 槽宽 ＝ 1.6rem（25.6px，±0.5），两块都要求：记号在槽内居中
+ *           （|记号中心 − 槽中心| ≤ 0.5）、**记号完全落在槽内**、缝 ＝ （槽宽 − 记号宽）/2 > 0；
+ *        b2 与 b2-2 的缝差 ＝ 两块槽宽差的一半（±0.3）（即两块只差槽宽）；
  *        b3 记号左沿 ＝ 块左内沿（--edge-x＝16.8px，±0.5）且组名左沿 ＝ 记号右沿 ＋ 0.35rem（±1）；
- *        b4 的水平几何与 b1 **完全一致**（±0.5px）。
- *  [9] **竖直关系**：b4 的「记号版面盒中心 − 组名版面盒中心」= 0（±0.5px）；b1/b2/b3/b5 是基线对齐、
+ *        b4 的水平几何与 b1 **完全一致**（±0.5px）；b5 与 b1 相同。
+ *  [9] **竖直关系**：b4 的「记号版面盒中心 − 组名版面盒中心」= 0（±0.5px）；b1/b2/b2-2/b3/b5 是基线对齐、
  *      同一个差 > 1.5px ⇒ ④ 与 ① 的差别确实在竖直方向，而不在水平方向（水平那一条由 [8] 守）。
  *      另用 canvas 的字体盒基线把同一件事在**实心笔画**上再量一遍：④ 把记号抬高 2.5px、
  *      「记号笔画中心 − 组名笔画中心」从 ① 的 3.5px 收到 ④ 的 1.0px。
@@ -54,7 +59,7 @@
  *      且快照里不许有「声明了却没用」的令牌。页内只做**报告**：记录的 git 短 sha、当前 HEAD、
  *      theme-tech.css 是否有未提交改动。
  *  [13] **宽屏 1180**：无横向溢出，且每个块仍是 430 CSS px 宽（宽屏排布本身不在本轮表达）。
- *  [14] **一张 430 宽的图**：`q-hub-align.430.png`，860 px 宽（430 CSS px × DPR 2），五个块纵向排列。
+ *  [14] **一张 430 宽的图**：`q-hub-align.430.png`，860 px 宽（430 CSS px × DPR 2），六个块纵向排列。
  *
  * 这张 **430 宽 PNG**（860 px 宽 @DPR 2）怎么拍（**这一步会重写图片，见下面的副作用**）：
  *   1. 先在**普通页面**上跑完上面全部断言（不动页面）；
@@ -101,9 +106,11 @@ const W = 430;                                       // 规格：真实 430 CSS 
 const DPR = 2;                                       // 图：860 px 宽
 const EDGE_X = 16.8;                                 // 草案值 --edge-x: 1.05rem ⇒ 16.8px（块的左右内沿）
 const SEAM_A = 6.4;                                  // 草案值 --seam-a: 0.4rem  ⇒ 6.4px（块 ① 的固定缝）
-const SLOT_B = 19.2;                                 // 草案值 --slot-b: 1.2rem  ⇒ 19.2px（块 ② 的槽宽）
+const SLOT_B = 32;                                   // 草案值 --slot-b: 2rem ⇒ 32px（块 ② 的槽宽；**已由 1.2rem 更正而来**）
+const SLOT_B_ALT = 25.6;                             // 草案值 --slot-b-alt: 1.6rem ⇒ 25.6px（块 ②-2 的槽宽）
+const MARK_ADVANCE = 21.13;                          // 记号（等宽 0.8rem 的 [+]）的排版宽（实测；canvas advance 21.11）
 const INLINE_GAP = 5.6;                              // 草案值 --inline-gap: 0.35rem ⇒ 5.6px（块 ③ 的段内间距）
-const BLOCKS = ['b1', 'b2', 'b3', 'b4', 'b5'];       // 4 聚焦块 + 1 夹具块
+const BLOCKS = ['b1', 'b2', 'b2-2', 'b3', 'b4', 'b5'];   // 5 聚焦块（② 两个档） + 1 夹具块
 const FX = 'b5';                                     // 夹具块
 
 // ── 找 Chromium：CHROME_BIN 优先，否则 %LOCALAPPDATA%\Chromium\Application\chrome.exe
@@ -391,7 +398,7 @@ async function run() {
 
   log(`\n═══════════ ${PAGE}（430 宽 · DPR ${DPR}）：4 个聚焦块 ＋ 1 个夹具块 ═══════════`);
   const list = await insts();
-  check('页面里恰好 5 个块（4 聚焦 ＋ 1 夹具），inst 顺序 b1…b5',
+  check('页面里恰好 6 个块（5 聚焦，其中 ② 两个档 ＋ 1 夹具），inst 顺序 b1…b5',
     JSON.stringify(list) === JSON.stringify(BLOCKS), JSON.stringify(list));
 
   // ---- [1] 首态全收起 ----
@@ -426,7 +433,7 @@ async function run() {
              相对左沿: Math.round((ar.left - hr.left)*10)/10, 其它链接: extra.map(function(x){ return x.textContent; }), 禁用词: banned };
   }))`));
   check('「关于」入口：每个块恰好 1 个、在顶部（在第一个组头之上）',
-    about.length === 5 && about.every((h) => h.n === 1 && h.text === '关于' && h.above === true),
+    about.length === 6 && about.every((h) => h.n === 1 && h.text === '关于' && h.above === true),
     about.map((h) => `${h.inst}:${h.n}个/${h.above ? '在组头之上' : '不在组头之上'}(${h.dy}px)`).join(' '));
   check('块里没有别的入口链接（不夹带应用名／搜索／状态位／版本号）',
     about.every((h) => h.其它链接.length === 0 && h.禁用词.length === 0),
@@ -442,7 +449,7 @@ async function run() {
     ov.maxRight <= W + 0.5 && ov.minLeft >= -0.5,
     `maxRight=${ov.maxRight}(${ov.maxEl}) minLeft=${ov.minLeft}(${ov.minEl})`);
   check('五个块宽度恰好 430 CSS px',
-    ov.hubs.length === 5 && ov.hubs.every((h) => h.w === W),
+    ov.hubs.length === 6 && ov.hubs.every((h) => h.w === W),
     ov.hubs.map((h) => h.inst + ':' + h.w).join(' '));
 
   // ---- [4] 真实鼠标：整组头四个位置 ----
@@ -485,27 +492,39 @@ async function run() {
     fs.map((h) => h.group + '=' + h.expanded).join(' '));
 
   // ---- [8] 四块记号几何（收起态测得，避免展开影响布局）----
-  log('\n[8] 四块 + 夹具块的记号几何（版面盒口径；块左沿＝0，右内沿＝430 − 1.05rem ＝ 413.2）');
+  log('\n[8] 六块的记号几何（块左沿＝0，右内沿＝430 − 1.05rem ＝ 413.2）');
+  log('      ⚠ 「缝(按盒)」在 ②/②-2 里恒为 0——那两块记号的**盒宽被槽宽限定**，盒右沿就是槽右沿、也就是组名左沿；');
+  log('        那两块要读的缝是「缝(按文字范围)」（= (槽宽 − 记号排版宽) / 2）。');
   const geom = {};
   const paints = {};                                  // canvas 量的实心笔画结果（[9][10] 共用，只量一次）
   const inkOf = async (i) => (paints[i] = paints[i] || await paint(i));
   for (const inst of list) {    const g = await blockGeom(inst);
     geom[inst] = g;
     log(`      ${inst}（${g.block}／记号${g.mark}${g.valign === 'center' ? '／竖直居中' : '／基线'}）`
-      + ` 记号[${g.markBox.l}…${g.markBox.r}] 槽宽=${g.nameBox.l} 缝(版)=${g.seamBox} 缝(文字范围)=${g.seamText}`
+      + ` 记号盒[${g.markBox.l}…${g.markBox.r}] 记号文字范围[${g.markTextRange.l}…${g.markTextRange.r}]（宽 ${g.markTextRange.w}）`
+      + ` 槽宽=${g.nameBox.l} 缝(按文字范围)=${g.seamText} 缝(按盒)=${g.seamBox}`
       + ` 组名左沿=${g.nameBox.l} 数量右沿=${g.countBox.r} 记号盒高=${g.markBox.h} 组名盒高=${g.nameBox.h} Δ中心=${g.dcyBox}`);
   }
   check('块 ①（悬挂＋固定缝 0.4rem）：缝 ＝ 6.4px（±0.5），且记号左沿 ＝ 块左沿（0，±0.5）',
     near(geom.b1.seamBox, SEAM_A, 0.5) && near(geom.b1.markBox.l, 0, 0.5),
     `缝=${geom.b1.seamBox} 记号左沿=${geom.b1.markBox.l} 记号[${geom.b1.markBox.l}…${geom.b1.markBox.r}] 组名左沿=${geom.b1.nameBox.l}`);
-  check('块 ②（悬挂＋槽内居中）：槽宽 ＝ 1.2rem（19.2px，±0.5），记号在槽内居中（|记号中心 − 槽中心| ≤ 0.5）',
-    near(geom.b2.nameBox.l, SLOT_B, 0.5) &&
-    near((geom.b2.markTextRange.l + geom.b2.markTextRange.r) / 2, geom.b2.nameBox.l / 2, 0.5),
-    `槽宽=${geom.b2.nameBox.l} 记号文字范围[${geom.b2.markTextRange.l}…${geom.b2.markTextRange.r}] 中心=${r1((geom.b2.markTextRange.l + geom.b2.markTextRange.r) / 2)} 槽中心=${r1(geom.b2.nameBox.l / 2)}`);
-  check('块 ②：槽宽与记号文字宽之差如实打印（记号文字范围比槽宽 ⇒ 缝为负即右沿越过组名左沿）',
-    geom.b2.markTextRange.w > geom.b2.nameBox.l && geom.b2.seamText < 0 &&
-    near(geom.b2.seamText, geom.b2.nameBox.l / 2 - geom.b2.markTextRange.w / 2, 0.2),
-    `槽宽=${geom.b2.nameBox.l} 记号文字宽=${geom.b2.markTextRange.w} 缝(文字范围)=${geom.b2.seamText}（块 ① 的缝是 ${geom.b1.seamBox}）`);
+  // 块 ② 与 ②-2：悬挂＋槽内居中。两块只差槽宽，都要求「槽宽 > 记号的排版宽 ⇒ 缝为正、记号完全落在槽内」。
+  const centered = (i, slot) =>
+    near(geom[i].nameBox.l, slot, 0.5) &&
+    near((geom[i].markTextRange.l + geom[i].markTextRange.r) / 2, slot / 2, 0.5) &&
+    near(geom[i].markTextRange.w, MARK_ADVANCE, 0.3) &&
+    geom[i].markTextRange.l >= -0.5 && geom[i].markTextRange.r <= slot + 0.5 &&
+    near(geom[i].seamText, (slot - MARK_ADVANCE) / 2, 0.4) && geom[i].seamText > 0;
+  check('块 ②（悬挂＋槽内居中）槽宽 ＝ 2rem（32px，±0.5）：记号在槽内居中（|记号中心 − 槽中心| ≤ 0.5）、记号完全落在槽内、缝为正',
+    centered('b2', SLOT_B),
+    `槽宽=${geom.b2.nameBox.l} 记号文字范围[${geom.b2.markTextRange.l}…${geom.b2.markTextRange.r}]（宽 ${geom.b2.markTextRange.w}）中心=${r1((geom.b2.markTextRange.l + geom.b2.markTextRange.r) / 2)} 槽中心=${r1(geom.b2.nameBox.l / 2)} 缝=${geom.b2.seamText}`);
+  check('块 ②-2（悬挂＋槽内居中，另一档）槽宽 ＝ 1.6rem（25.6px，±0.5）：同样居中、记号完全落在槽内、缝为正',
+    centered('b2-2', SLOT_B_ALT),
+    `槽宽=${geom['b2-2'].nameBox.l} 记号文字范围[${geom['b2-2'].markTextRange.l}…${geom['b2-2'].markTextRange.r}] 中心=${r1((geom['b2-2'].markTextRange.l + geom['b2-2'].markTextRange.r) / 2)} 槽中心=${r1(geom['b2-2'].nameBox.l / 2)} 缝=${geom['b2-2'].seamText}`);
+  check('② 与 ②-2 只差槽宽：两块的缝都为正且 ②（2rem）> ②-2（1.6rem），差＝两块槽宽差的一半（±0.3）',
+    geom.b2.seamText > geom['b2-2'].seamText &&
+    near(geom.b2.seamText - geom['b2-2'].seamText, (SLOT_B - SLOT_B_ALT) / 2, 0.3),
+    `② 缝=${geom.b2.seamText}（槽 ${geom.b2.nameBox.l}）②-2 缝=${geom['b2-2'].seamText}（槽 ${geom['b2-2'].nameBox.l}）差=${r1(geom.b2.seamText - geom['b2-2'].seamText)}`);
   check('块 ③（不悬挂对照）：记号左沿 ＝ 块左内沿 16.8px（±0.5）、组名左沿 ＝ 记号右沿 ＋ 0.35rem（±1）',
     near(geom.b3.markBox.l, EDGE_X, 0.5) && near(geom.b3.nameBox.l - geom.b3.markBox.r, INLINE_GAP, 1),
     `记号左沿=${geom.b3.markBox.l} 记号右沿=${geom.b3.markBox.r} 组名左沿=${geom.b3.nameBox.l} 段内间距=${r1(geom.b3.nameBox.l - geom.b3.markBox.r)}`);
@@ -517,21 +536,22 @@ async function run() {
     near(geom.b5.markBox.l, geom.b1.markBox.l, 0.5) && near(geom.b5.seamBox, geom.b1.seamBox, 0.5) &&
     near(geom.b5.nameBox.l, geom.b1.nameBox.l, 0.5),
     `⑤ 记号[${geom.b5.markBox.l}…${geom.b5.markBox.r}] 缝=${geom.b5.seamBox} 组名左沿=${geom.b5.nameBox.l}`);
-  check('五块的数量都右对齐到块的右内沿（413.2px，±1）',
+  check('六块的数量都右对齐到块的右内沿（413.2px，±1）',
     list.every((i) => near(geom[i].countBox.r, W - EDGE_X, 1)),
     list.map((i) => i + ':' + geom[i].countBox.r).join(' '));
-  check('四块的槽宽（＝组名左沿）互不相同：① ④ ⑤ 是同一套（27.5）· ② 19.2 · ③ 43.5 ⇒ 图上有可比的三个位置',
+  check('六块的槽宽（＝组名左沿）分三套：① ④ ⑤ ＝ 27.5（记号宽＋0.4rem）· ②-2 ＝ 25.6（1.6rem，中间）· ② ＝ 32（2rem）· ③ ＝ 43.5（不悬挂）',
     near(geom.b1.nameBox.l, geom.b4.nameBox.l, 0.5) && near(geom.b4.nameBox.l, geom.b5.nameBox.l, 0.5) &&
-    !near(geom.b2.nameBox.l, geom.b1.nameBox.l, 1) && !near(geom.b3.nameBox.l, geom.b1.nameBox.l, 1),
-    `组名左沿：①${geom.b1.nameBox.l} ②${geom.b2.nameBox.l} ③${geom.b3.nameBox.l} ④${geom.b4.nameBox.l} ⑤${geom.b5.nameBox.l}`);
+    near(geom['b2-2'].nameBox.l, SLOT_B_ALT, 0.5) && near(geom.b2.nameBox.l, SLOT_B, 0.5) &&
+    !near(geom.b2.nameBox.l, geom['b2-2'].nameBox.l, 1) && !near(geom.b3.nameBox.l, geom.b1.nameBox.l, 1),
+    `组名左沿：①${geom.b1.nameBox.l} ②${geom.b2.nameBox.l} ②-2${geom['b2-2'].nameBox.l} ③${geom.b3.nameBox.l} ④${geom.b4.nameBox.l} ⑤${geom.b5.nameBox.l}`);
 
   // ---- [9] 竖直关系 ----
   log('\n[9] 竖直关系（版面盒中心差 Δ ＝ 记号盒中心 − 组名盒中心）');
   check('块 ④：Δ ＝ 0（±0.5px）⇒ 记号在竖直方向与组名居中',
     near(geom.b4.dcyBox, 0, 0.5), `④ Δ=${geom.b4.dcyBox}（记号盒高 ${geom.b4.markBox.h}、组名盒高 ${geom.b4.nameBox.h}）`);
-  check('块 ① ② ③ ⑤：基线对齐 ⇒ Δ > 1.5px（与 ④ 显著不同，说明 ④ 改的确实是竖直方向）',
-    ['b1', 'b2', 'b3', 'b5'].every((i) => geom[i].dcyBox > 1.5),
-    ['b1', 'b2', 'b3', 'b5'].map((i) => i + ':Δ=' + geom[i].dcyBox).join(' ') + ` ④:Δ=${geom.b4.dcyBox}`);
+  check('块 ① ② ②-2 ③ ⑤：基线对齐 ⇒ Δ > 1.5px（与 ④ 显著不同，说明 ④ 改的确实是竖直方向）',
+    ['b1', 'b2', 'b2-2', 'b3', 'b5'].every((i) => geom[i].dcyBox > 1.5),
+    ['b1', 'b2', 'b2-2', 'b3', 'b5'].map((i) => i + ':Δ=' + geom[i].dcyBox).join(' ') + ` ④:Δ=${geom.b4.dcyBox}`);
   check('块 ① 与 ④ 的组名排版盒的上下位置相同（top ±0.5）⇒ ④ 只动了记号、没有把组名挤上或挤下',
     near(geom.b1.nameBox.top, geom.b4.nameBox.top, 0.5),
     `①组名盒top=${geom.b1.nameBox.top} ④组名盒top=${geom.b4.nameBox.top}（盒高都是 ${geom.b1.nameBox.h}）`);
@@ -544,12 +564,12 @@ async function run() {
   await ensureOpen('b4', 0, false);
   // 竖直偏移在**实心笔画**上也是一样的（不只是版面盒）：① 是基线对齐、④ 把记号整体抬高 2.5px
   const inks = {};
-  for (const i of ['b1', 'b2', 'b3', 'b4', 'b5']) inks[i] = await inkOf(i);
+  for (const i of ['b1', 'b2', 'b2-2', 'b3', 'b4', 'b5']) inks[i] = await inkOf(i);
   log(`      实心笔画竖直：① 记号相对组名基线=${inks.b1.relBaseline}px、笔画中心差=${inks.b1.paintedCenterDiff}px；`
     + `④ 记号相对组名基线=${inks.b4.relBaseline}px、笔画中心差=${inks.b4.paintedCenterDiff}px`);
-  check('块 ① ② ③ ⑤：记号与组名基线对齐（相对基线偏移 ＝ 0，±0.5px；由 canvas 的字体盒基线算出，不是只看盒中心）',
-    ['b1', 'b2', 'b3', 'b5'].every((i) => near(inks[i].relBaseline, 0, 0.5)),
-    ['b1', 'b2', 'b3', 'b5'].map((i) => i + ':' + inks[i].relBaseline).join(' '));
+  check('块 ① ② ②-2 ③ ⑤：记号与组名基线对齐（相对基线偏移 ＝ 0，±0.5px；由 canvas 的字体盒基线算出，不是只看盒中心）',
+    ['b1', 'b2', 'b2-2', 'b3', 'b5'].every((i) => near(inks[i].relBaseline, 0, 0.5)),
+    ['b1', 'b2', 'b2-2', 'b3', 'b5'].map((i) => i + ':' + inks[i].relBaseline).join(' '));
   check('块 ④：记号相对组名基线被抬高 2.5px（＝盒中心差），与「不抬高」的 ① 差 2.5px（±0.5）',
     near(inks.b4.relBaseline, -2.5, 0.5) && near(inks.b4.relBaseline - inks.b1.relBaseline, -2.5, 0.5),
     `④=${inks.b4.relBaseline} ①=${inks.b1.relBaseline} 差=${r1(inks.b4.relBaseline - inks.b1.relBaseline)}`);
@@ -688,7 +708,7 @@ async function run() {
       clip: { x: 0, y: frame.y, width: W, height: frame.h, scale: 1 },
     });
     writeFileSync(png, Buffer.from(shot.data, 'base64'));
-    check('截图块区宽度 ＝ 430 CSS px（五块纵向排列；图在文件系统里的像素宽 ＝ 430 × DPR 2 ＝ 860）',
+    check('截图块区宽度 ＝ 430 CSS px（六块纵向排列；图在文件系统里的像素宽 ＝ 430 × DPR 2 ＝ 860）',
       frame.w === W && statSync(png).size > 0,
       `${png} 块区 CSS ${frame.w}x${frame.h} @DPR ${DPR} → 像素 ${W * DPR}x${frame.h * DPR} → 文件 ${statSync(png).size} 字节`);
   }
@@ -701,7 +721,7 @@ async function run() {
   await sleep(300);
   const o = await overflowScan();
   check('1180：无横向溢出，且每个块仍是 430 CSS px 宽',
-    o.innerWidth === 1180 && o.docScrollWidth === 1180 && o.hubs.length === 5 && o.hubs.every((h) => h.w === W),
+    o.innerWidth === 1180 && o.docScrollWidth === 1180 && o.hubs.length === 6 && o.hubs.every((h) => h.w === W),
     `innerWidth=${o.innerWidth} scrollWidth=${o.docScrollWidth} 块宽=${o.hubs.map((h) => h.w).join(',')} 块左沿=${o.hubs.map((h) => h.left).join(',')}`);
 
   ws.close();
