@@ -59,6 +59,16 @@
 | `shadow` | `none` |
 | 动效 | 仅 `color/border-color/background` 的 `0.15s ease`；**不做位移/缩放/发光动画** |
 
+## 4.1 结构记号（**这套视觉的可见部分，两端都要有**）
+
+⚠️ 本节是**补漏**（对话侧 2026-10-15 逐项比对时发现，我初版漏了）：原型 `theme-tech.css` 末尾有三条 tech 专属规则，它们**不是装饰细节**，而是这套方向「结构感」的表达方式——**漏掉它们，目录页/诗页会与用户认可的那一版长得不一样**（`prototype/screenshots/desktop-hub-tech.png` 里可直接看到前两样）。
+
+| # | 记号 | 原型实现 | 两端怎么落 |
+|---|---|---|---|
+| 1 | **组名左沿一条发丝竖线** | `.grouprow .gname { padding-left: .6rem; border-left: 2px solid var(--accent-line) }` | Web：CSS 同写；Android：组名左侧 `2.dp` 竖条（色＝`accent-line`）+ 左内边距 |
+| 2 | **计数写成 `[3] 首`**（方括号是这套视觉的记号） | `.gcount b::before { content:'[' }` / `::after { content:']' }`；括号色 `--text-faint`、字号 `0.85em`、内外各 `1px` | Web：CSS 同写；Android：计数文本拼成 `[3] 首`，括号段用 faint 色 |
+| 3 | **诗页题头不画下划线** | `.poem-head { border-bottom: none; padding-bottom: 0 }` | 两端都不加那条分隔线 |
+
 ## 5. 两端映射（怎么落到各自机制）
 
 | 令牌类 | Web（`web/styles.css`） | Android（Compose `MaterialTheme`） |
@@ -73,5 +83,7 @@
 ## 6. 与其它决策的关系
 
 - **单主题**（用户已定）：只有这一套颜色，**不做浅色备选、不做切换开关、不做偏好持久化**。
-- **异文不上界面**：`.poem-foot` 只保留「底本」与（Web 的）`id`；**不得渲染 `variants`**。
+- **异文不上界面**：`.poem-foot` **不得渲染 `variants`**；保留「底本/来源」。
+  **Web 是否额外显示诗 `id` 属未决**（在 `docs/status.md` 未决清单里），本规范**不替它下断言**。
+- **笔记里的引文块（`>`）**：原型用的是 `--test-*` 那组（那组本是测试夹具用色）。产品侧若出现引文，建议用 `--surface-sunken` 作底 + `--accent-line` 作左边线（观感等价）——**这是负责人补的等价取法，用户可否决**；`--test-*` 三个令牌保持「仅测试夹具使用」，不进产品谱。
 - 真机/强光下长时间阅读的疲劳**仍未验证**，且因为单主题**没有退路**——这是已知风险，不由本次实现消除。
