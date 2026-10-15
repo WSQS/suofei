@@ -11,10 +11,17 @@ import org.json.JSONObject
 object UpdateEndpoint {
 
     /**
-     * 占位常量：真实的发布地址尚未确定（公开发布需用户单独确认，本阶段不做）。
-     * 改成真实地址时只改这两行；`example.invalid` 是保留域名，保证占位期不会误连到真站点。
+     * 更新源＝**真实站点**（2026-10-15 由占位地址换成它；用户拍板推进更新源，并要并进本次发布）。
+     *
+     * 换的判据：站点侧 `content/latest.json` 与 `content/<版本>/content.json` **已在发布白名单里**
+     * （都是发布脚本的产物，不必为此新增产物），站点已上线且强制 https。
+     * 走到位后的 URL＝`https://wsqs.github.io/suofei/content/latest.json` —— `UpdateEndpointTest`
+     * 把它**逐字**断言（写死是故意的：它就是本次发布的接口值），地址改错一位即报红点名。
+     * 旧占位值 `https://example.invalid/suofei`（`.invalid` 是保留域名，占位期保证不会误连真站点）已不再使用。
+     *
+     * 换域名/换路径时只改这两行。
      */
-    const val BASE_URL: String = "https://example.invalid/suofei"
+    const val BASE_URL: String = "https://wsqs.github.io/suofei"
     const val MANIFEST_PATH: String = "content/latest.json"
 
     /** 检查更新的入口 URL：`{BASE_URL}/{MANIFEST_PATH}`。 */

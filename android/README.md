@@ -15,7 +15,7 @@ cd android
 #   JAVA_HOME=C:\Users\wsqsy\.jdks\ms-17.0.17
 ./gradlew assembleDebug          # 产物：android/app/build/outputs/apk/debug/app-debug.apk
 
-./gradlew testDebugUnitTest      # 72 个 JVM 单测（无需设备/模拟器）
+./gradlew testDebugUnitTest      # 76 个 JVM 单测（无需设备/模拟器）
 ```
 
 - 本机 `gradle` 不在 PATH，用 wrapper（`gradlew` + `gradle/wrapper/`，发行版已缓存在 `~/.gradle/wrapper/dists`，不需要联网下载）。
@@ -46,7 +46,7 @@ cd android
 | JDK | **17**（`ms-17.0.17`） | `JAVA_HOME` 实测；AGP 8.13 要求 JDK 17 |
 | JSON | Android 平台自带 `org.json` | 运行时不引第三方 JSON 库；JVM 单测用 `org.json:json:20240303` 提供实现 |
 
-验证结果：`clean assembleDebug` 与 `testDebugUnitTest` 复测通过（`--rerun-tasks` 下 43 个任务全部实际执行、非缓存，BUILD SUCCESSFUL）；**72 例全绿**（2026-10-15 复测，含视觉令牌门与结构记号门）。
+验证结果：`clean assembleDebug` 与 `testDebugUnitTest` 复测通过（`--rerun-tasks` 下 43 个任务全部实际执行、非缓存，BUILD SUCCESSFUL）；**76 例全绿**（2026-10-15；含视觉令牌门与结构记号门，以及换更新源时新增的 `UpdateEndpointTest` 4 例）。
 
 > ⚠️ **`assembleRelease` 在本机会以「缺少正式签名环境变量，fail-closed」直接失败**——这是发布线的设计（见 §8），不是编译错误；本地开发/验收一律用 `assembleDebug`。
 `aapt2 dump badging` 实测：`package: name='dev.sopho.suofei' versionCode='1' versionName='0.1.0'`、`minSdkVersion:'26'`、`targetSdkVersion:'36'`、`application-label:'索斐'`、`uses-permission: android.permission.INTERNET`。
@@ -115,7 +115,7 @@ android/
 │   │   ├── ui/UpdateStatusText.kt          # 更新状态文案（纯函数，可单测）
 │   │   └── ui/{AppState,Screens}.kt         # 界面状态与四个页面
 │   └── res/values/{strings,themes}.xml      # app_name = 索斐；窗口底色 #0e1315
-└── app/src/test/java/dev/sopho/suofei/      # 72 个 JVM 单测（含本机 HTTP 端到端更新流程与视觉令牌门）
+└── app/src/test/java/dev/sopho/suofei/      # 76 个 JVM 单测（含本机 HTTP 端到端更新流程与视觉令牌门）
 ```
 
 ### 5.1 设备上的运行时存储层（用户 2026-10-14 决定：只留当前）
@@ -188,7 +188,7 @@ structural: 括号字号（规范 0.85em） expected:<0.85> but was:<0.8>
 9. **更新页在原型里没有对照片** ⇒ 用同一套令牌排版（小标题 0.82rem 次要色、正文 15sp、说明 0.78rem 更淡色）。
 10. 真机/强光下长时间阅读疲劳**未验证**，且单主题**没有退路**——规范 §6 已声明为已知风险。
 
-## 7. 更新页两处修正（2026-10-15）
+## 7. 更新页与更新源（2026-10-15）
 
 **(a) 过期文案已改**：原来写「当前内置内容为占位夹具，非校对文本」。内置内容从 2026-10-14 起就是本次发布的**真实**编译产物（与 `dist/content.json` 字节一致），再那么写会让用户以为读到的是测试数据。
 现在写：「内置内容＝本次发布的完整内容（随 APK 打包，首次断网即可读）；每首诗的底本与来源见诗页底部」——
@@ -208,6 +208,13 @@ structural: 括号字号（规范 0.85em） expected:<0.85> but was:<0.8>
 
 仍需要负责人这边提供：那次 dump 的**原始 XML 片段**（或该行截图）以及「点击检查更新后过了多久」，才能定论。
 
+**(c) 更新源不再是占位地址，那行文案同步改（用户 2026-10-15 拍板推进更新源）**：原来写「更新源（占位地址，见代码常量）」，现在只写「更新源」——地址照常显示在它下一行（`UpdateEndpoint.displayUrl()`），不再说「占位」。
+
+- 换的是 `update/UpdateProtocol.kt` 的 `UpdateEndpoint.BASE_URL`：占位 `https://example.invalid/suofei` → **真实站点** `https://wsqs.github.io/suofei`（GitHub Pages，强制 https）。走到位后的 URL＝`https://wsqs.github.io/suofei/content/latest.json`。**换的判据**：站点侧 `content/latest.json` 与 `content/<版本>/content.json` **已在发布白名单里**（发布脚本的产物，不必为此新增产物），且站点已上线。
+- 判据有断言：新增 `UpdateEndpointTest`，把该 URL **逐字写死**（写死是故意的——它就是本次发布的接口值），地址改错一位即报红点名；顺带钉住「清单里的相对 `url` 按清单所在目录解析」这条语义（真实站点产出的清单给的正是相对路径）。
+- **只读探测（2026-10-15，本机 HTTP 请求，不是应用内验收）**：`https://wsqs.github.io/suofei/content/latest.json` → `HTTP 200`；再按清单里的**相对** `url`（`<版本>/content.json`）解析后请求 → `HTTP 200`、字节数与 sha256 **与清单逐字一致** ⇒ **这条地址链在 HTTP 层是通的**（清单里的版本号与 `minAppVersionCode` 随每次发布变化，故不写进本文）。
+- ⚠️ **诚实边界**：地址与协议正确 ≠ 联网验收通过。**尚未在真实站点上验证「取到更高版本 → 下载 → 校验 → 切换」**（那需要在远端故意造一个更高版本的清单与快照），这条归负责人在模拟器上做。另外，指向真实站点后**应用每次打开都会请求 GitHub Pages**——多了一条外部依赖与一条用户可见的网络行为（无网/失败按既有实现如实降级，有单测覆盖）。
+
 ## 8. 签名（重要）
 
 - 当前 APK 用 **debug 签名**（`apksigner verify --print-certs` 实测 `CN=Android Debug, O=Android, C=US`）。
@@ -216,6 +223,6 @@ structural: 括号字号（规范 0.85em） expected:<0.85> but was:<0.8>
 
 ## 9. 已验证 / 未验证
 
-**已验证**：`clean assembleDebug` 通过；APK 内 assets 存在且字节一致；**72 个 JVM 单测通过**（含更新流程的成功/失败/不兼容/损坏路径、「升级后只剩当前一个快照、旧版本目录确被删除」、「写指针失败 ⇒ 存储层明确 `Refused(IO)`、调用方拿到同类 `Failed(IO)`、不留孤儿目录、生效版本不变」、**视觉令牌与规范逐项一致**、**三样结构记号**、**更新状态文案非空**）；APK 包名、展示名、SDK 版本、权限、签名证书实测。另有一道契约一致性门 `UnknownAuthorsSourceTest`：断言匿名作者清单与唯一来源 `schema/unknown-authors.json` 逐项一致（读不到文件即失败并列出尝试过的路径，不跳过；测试自身不持副本）。
+**已验证**：`clean assembleDebug` 通过；APK 内 assets 存在且字节一致；**76 个 JVM 单测通过**（含更新流程的成功/失败/不兼容/损坏路径、「升级后只剩当前一个快照、旧版本目录确被删除」、「写指针失败 ⇒ 存储层明确 `Refused(IO)`、调用方拿到同类 `Failed(IO)`、不留孤儿目录、生效版本不变」、**视觉令牌与规范逐项一致**、**三样结构记号**、**更新状态文案非空**、**更新源 URL 逐字断言**）；APK 包名、展示名、SDK 版本、权限、签名证书实测。另有一道契约一致性门 `UnknownAuthorsSourceTest`：断言匿名作者清单与唯一来源 `schema/unknown-authors.json` 逐项一致（读不到文件即失败并列出尝试过的路径，不跳过；测试自身不持副本）。
 
-**未验证**：未在真机或模拟器上运行（本轮不操作 adb 与任何设备）⇒ **深色主题的实际观感、字体渲染、强光下的可读性、三样结构记号看上去对不对，都没在设备上观察过**（值一致有单测，观感要你截图看）；未对真实发布源（HTTPS/真实 CDN）跑过更新；未做断网/弱网/应用升级的真机验证；未在设备上验证「删掉上一个快照」对用户路径无影响（它无界面入口，预期无影响）；**release 变体本地不可构建**（按设计在签名检查处 fail-closed，我没有做任何绕过）；更新页「状态行渲染为空」**成因仍未查清**（见 §7(b)）。
+**未验证**：未在真机或模拟器上运行（本轮不操作 adb 与任何设备）⇒ **深色主题的实际观感、字体渲染、强光下的可读性、三样结构记号看上去对不对，都没在设备上观察过**（值一致有单测，观感要你截图看）；**更新源地址已指向真实站点（`https://wsqs.github.io/suofei`，HTTPS），但没有在它上面跑通「取到更高版本 → 下载 → 校验 → 切换」这条成功路径**（需要在远端故意造一个更高版本；本端能证明的只有地址与协议正确）；未做断网/弱网/应用升级的真机验证；未在设备上验证「删掉上一个快照」对用户路径无影响（它无界面入口，预期无影响）；**release 变体本地不可构建**（按设计在签名检查处 fail-closed，我没有做任何绕过）；更新页「状态行渲染为空」**成因仍未查清**（见 §7(b)）。

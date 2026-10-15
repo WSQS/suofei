@@ -26,9 +26,11 @@ class UpdateManifestParserTest {
 
     @Test
     fun optionalFieldsMayBeAbsent() {
+        // 这里只**解析**、不联网；用真实站点形状的绝对地址覆盖「清单里给绝对地址」这条分支
+        // （以前写的是占位域名 example.invalid，2026-10-15 更新源换成真实站点后一并更新）。
         val json = """
             {"formatVersion":1,"contentVersion":"2026.10.14.2",
-             "url":"https://example.invalid/x.json","sha256":"${"b".repeat(64)}"}
+             "url":"https://wsqs.github.io/suofei/content/2099.1.1.1/content.json","sha256":"${"b".repeat(64)}"}
         """.trimIndent()
         val m = UpdateManifestParser.parse(json)
         assertEquals(null, m.size)
