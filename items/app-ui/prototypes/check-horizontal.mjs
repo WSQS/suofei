@@ -7,6 +7,10 @@
  *   它不跑 web/ 与 android/ 的任何测试，也不读产品实现。唯一额外读的文件是
  *   prototype/css/theme-tech.css（**只读**），用来逐项比对页面内嵌的令牌快照。
  *
+ * 【缩进参照系】三页都：**诗目左沿 ＝ 组名左沿 + 相对量**（基线 +1.6rem、页 2 选项 A +0.8rem、选项 B +0）——
+ *   组名左沿由页面脚本实测写回（--name-x）。更早的一版把缩进**从块左沿量**，于是诗目落在组名左侧、
+ *   **层级方向是反的**；本版已更正（断言 [9] 就是守这条：三块的差值必须等于 1.6rem/0.8rem/0 且都 ≥ 0）。
+ *
  * 断言清单（失败任一即 exit 1），三页在 **430 宽（规格里的移动口径，DPR 2）** 下各跑一遍：
  *  [1] 首态：三页每个块的**所有组头** `aria-expanded="false"`，且组内诗目**一项都不可见**
  *      —— 即「首次（无既有状态）全部收起，单组也收起」。
@@ -29,7 +33,10 @@
  *  [9] **页级维度实测**（每页只测它自己那一维度，数字全部打印出来）：
  *      head 页：基线「记号紧贴组名之前」且数量右对齐到右内沿；选项 A 记号在组名左沿之外（悬挂）
  *               且数量仍右对齐；选项 B 数量紧跟组名之后（不右对齐）。
- *      body 页：三块题名左沿 = 1.6rem(25.6) / 0.8rem(12.8) / **组名首字**（±1px）。
+ *               另验：**诗目缩进跟着组名左沿走**（悬挂块把组名左移后，题名的绝对左沿跟着变小、相对量不变）。
+ *      body 页：诗目缩进**相对「组名左沿」量**（不是相对块左沿）⇒ 三块的（题名左沿 − 组名左沿）
+ *               = 1.6rem(25.6px) / 0.8rem(12.8px) / 0（与组名首字对齐），±1px；且三者都 ≥ 0
+ *               —— 即**同一方向**：诗目永远在组名右侧或与之对齐（层级方向不会反）。
  *      title 页：基线作者右对齐成列且长题名折行时仍固定在右列；选项 A 作者紧随题名（短线距）；
  *                选项 B 作者在题名**下一行**（作者 top ≥ 题名 bottom）。
  *  [10] **令牌快照逐项比对**：页面里 `TOKEN-SNAPSHOT-BEGIN/END` 之间的每个令牌，与
@@ -243,6 +250,7 @@ async function run() {
     var t = li.querySelector('[data-test="ptitle"]'), a = li.querySelector('[data-test="pauthor"]');
     var rt = t.getBoundingClientRect(), ra = a.getBoundingClientRect(), rl = li.getBoundingClientRect(), rh = hub.getBoundingClientRect();
     return JSON.stringify({ inst: hub.dataset.inst, rel: hub.dataset.rel, title: t.textContent, author: a.textContent,
+      name_left: hub.querySelector('[data-test="gname"]').getBoundingClientRect().left - rh.left,
       t_left: rt.left - rh.left, t_right: rt.right - rh.left, t_h: rt.height, t_bottom: rt.bottom,
       a_left: ra.left - rh.left, a_right: ra.right - rh.left, a_top: ra.top, a_bottom: ra.bottom,
       row_left: rl.left - rh.left, row_right: rl.right - rh.left,
@@ -458,25 +466,41 @@ async function run() {
         `缝=${r1(bB.countLeft - bB.nameRight)}px 数量[${r1(bB.countLeft)}…${r1(bB.countRight)}] 右内沿=${r1(430 - EDGE_X)}`);
       check('选项 B：组名位置与基线一致（本选项只动数量）',
         near(bB.nameLeft, b1.nameLeft, 0.5), `B=${r1(bB.nameLeft)} 基线=${r1(b1.nameLeft)}`);
+      // 诗目缩进＝组名左沿 + 相对量 ⇒ 同一相对量、绝对值跟着组名走
+      await ensureOpen('b1', 0, true);
+      await ensureOpen('b2', 0, true);
+      const d1 = await rowInfo('[data-inst="b1"] .glist .poemrow:first-child');
+      const dA = await rowInfo('[data-inst="b2"] .glist .poemrow:first-child');
+      log(`      缩进参照系：b1 题名左沿=${r1(d1.t_left)} 组名左沿=${r1(d1.name_left)} 差=${r1(d1.t_left - d1.name_left)}；b2（悬挂）题名左沿=${r1(dA.t_left)} 组名左沿=${r1(dA.name_left)} 差=${r1(dA.t_left - dA.name_left)}`);
+      check('页 1：诗目缩进跟着组名左沿走（两块的「题名左沿 − 组名左沿」都是 1.6rem＝25.6px，绝对值随组名变）',
+        near(d1.t_left - d1.name_left, 25.6, 1) && near(dA.t_left - dA.name_left, 25.6, 1) && dA.t_left < d1.t_left - 5,
+        `b1 差=${r1(d1.t_left - d1.name_left)} b2 差=${r1(dA.t_left - dA.name_left)}；b1 题名=${r1(d1.t_left)} b2 题名=${r1(dA.t_left)}`);
     }
     if (page === 'body') {
       const rows = {};
       const names = {};
+      const deltas = {};
       for (const inst of list) {
         await ensureOpen(inst, 0, true);
         const w = await rowInfo(`[data-inst="${inst}"] .glist .poemrow:first-child`);
         const g = await headGeom(inst, 0);
         rows[inst] = w.t_left;
-        names[inst] = g.nameLeft;
-        log(`      ${inst} 题名左沿=${r1(w.t_left)}px（块左沿=0；= ${r1(w.t_left / 16)}rem）  组名首字左沿=${r1(g.nameLeft)}px  右内沿=${r1(430 - EDGE_X)}`);
+        names[inst] = w.name_left;
+        deltas[inst] = w.t_left - w.name_left;
+        log(`      ${inst} 题名左沿=${r1(w.t_left)}px  组名左沿=${r1(w.name_left)}px（头几何=${r1(g.nameLeft)}）  缩进差=${r1(deltas[inst])}px = ${r1(deltas[inst] / 16)}rem  右内沿=${r1(430 - EDGE_X)}`);
       }
-      check('基线：题名左沿 = 1.6rem（草案值 25.6px）', near(rows.b1, 25.6, 1), `实测 ${r1(rows.b1)}px`);
-      check('选项 A：题名左沿 = 0.8rem（草案值 12.8px）', near(rows.b2, 12.8, 1), `实测 ${r1(rows.b2)}px`);
-      check('选项 B：题名左沿 = 组名首字左沿（±1px）',
-        near(rows.b3, names.b3, 1), `题名=${r1(rows.b3)}px 组名首字=${r1(names.b3)}px`);
-      check('三条左沿互不相同（1.6rem ≠ 0.8rem ≠ 组名首字）',
-        !near(rows.b1, rows.b2, 1) && !near(rows.b2, rows.b3, 1) && !near(rows.b1, rows.b3, 1),
-        `${r1(rows.b1)} / ${r1(rows.b2)} / ${r1(rows.b3)}`);
+      check('基线：题名左沿 = 组名左沿 + 1.6rem（草案值 25.6px）',
+        near(deltas.b1, 25.6, 1), `差=${r1(deltas.b1)}px（题名 ${r1(rows.b1)} − 组名左沿 ${r1(names.b1)}）`);
+      check('选项 A：题名左沿 = 组名左沿 + 0.8rem（草案值 12.8px）',
+        near(deltas.b2, 12.8, 1), `差=${r1(deltas.b2)}px（题名 ${r1(rows.b2)}）`);
+      check('选项 B：题名左沿 = 组名左沿 + 0（与组名首字对齐，±1px）',
+        near(deltas.b3, 0, 1), `差=${r1(deltas.b3)}px（题名 ${r1(rows.b3)} = 组名左沿 ${r1(names.b3)}）`);
+      check('夹具块用基线：题名左沿 = 组名左沿 + 1.6rem',
+        near(deltas.b4, 25.6, 1), `差=${r1(deltas.b4)}px`);
+      check('三个量同一方向、且互不相同（0 / 0.8rem / 1.6rem）：三块的诗目都在组名右侧或与之对齐（差 ≥ 0）',
+        Object.values(deltas).every((d) => d >= -0.5) &&
+        !near(deltas.b1, deltas.b2, 1) && !near(deltas.b2, deltas.b3, 1) && !near(deltas.b1, deltas.b3, 1),
+        `差：b1=${r1(deltas.b1)} b2=${r1(deltas.b2)} b3=${r1(deltas.b3)} b4=${r1(deltas.b4)}（都 ≥ 0 ⇒ 没有一块把诗目放到组名左侧）`);
     }
     if (page === 'title') {
       for (const inst of ['b1', 'b2', 'b3']) await ensureOpen(inst, 0, true);
@@ -499,9 +523,9 @@ async function run() {
         near(short2.a_left - short2.t_right, 5.4, 2), `缝=${r1(short2.a_left - short2.t_right)}px`);
       const long2 = await rowInfo('[data-inst="b2"] .poemrow[data-fx="1"]');
       log(`      选项A b2（长题名）：题名[${r1(long2.t_left)}…${r1(long2.t_right)}] 折行高=${r1(long2.t_h)} 作者[${r1(long2.a_left)}…${r1(long2.a_right)}] 行右沿=${r1(long2.row_right)} 行内横向滚动=${long2.hscroll}`);
-      check('选项 A：长题名折行时作者仍不出行、不越过行的左沿、行内无滚动',
-        long2.t_h > 30 && long2.a_left >= long2.row_left + 25.6 - 0.5 && long2.a_right <= long2.row_right + 0.5 && !long2.hscroll,
-        `题名折行高=${r1(long2.t_h)} 作者左=${r1(long2.a_left)} 行左沿=${r1(long2.row_left)} 行右沿=${r1(long2.row_right)} 作者=${long2.author}`);
+      check('选项 A：长题名折行时作者仍不出行、不越过诗行文字的起点（组名左沿）、行内无滚动',
+        long2.t_h > 30 && long2.a_left >= long2.name_left - 0.5 && long2.a_right <= long2.row_right + 0.5 && !long2.hscroll,
+        `题名折行高=${r1(long2.t_h)} 作者左=${r1(long2.a_left)} 组名左沿=${r1(long2.name_left)} 行右沿=${r1(long2.row_right)} 作者=${long2.author}`);
       check('选项 B：作者另起一行（短题名与长题名行都是 作者顶 ≥ 题名底）',
         short3.a_top >= short3.t_bottom - 1 && long3.a_top >= long3.t_bottom - 1,
         `短：${r1(short3.a_top - short3.t_bottom)}px 长：${r1(long3.a_top - long3.t_bottom)}px（≥0 即在下一行）`);

@@ -53,8 +53,9 @@
   --block-w: 430px;        /* 验收宽度：真实 430 CSS px（移动口径），不是草案、是任务书给的口径 */
   --edge-x: 1.05rem;       /* 草案值：块的左右内沿（取令牌 --row-pad 的横向分量，使组头右沿与诗行右沿同一条线） */
   --mark-slot: 1.7rem;     /* 草案值：悬挂记号的槽宽（页 1 选项 A 用；= 记号宽 + 两侧余量） */
-  --indent-base: 1.6rem;   /* 草案值：页 2 基线题名缩进（任务书给的草案值） */
-  --indent: var(--indent-base);  /* 每个块可覆盖 */
+  --name-x: 0px;           /* 【参照系】组名左沿相对块左沿的实测偏移，由页面脚本量出后写回（随组头排布走） */
+  --indent-base: 1.6rem;   /* 草案值：诗目缩进基线 = 组名左沿 + 1.6rem（任务书给的草案值） */
+  --indent-add: var(--indent-base);  /* 每个块可覆盖：诗目左沿 = 组名左沿 + --indent-add（0rem 即与组名首字对齐） */
 }
 /* == DRAFT-VALUES-END == */
 
@@ -255,7 +256,7 @@ html[data-shot="1"] .glist > .poemrow:nth-child(n+4) { display: none; }
   align-items: baseline;
   gap: 0.6rem;
   padding: var(--row-pad);
-  padding-left: var(--indent);
+  padding-left: calc(var(--name-x) + var(--indent-add));   /* 诗目缩进：相对**组名左沿**量（不是相对块左沿） */
   padding-right: var(--edge-x);
   text-decoration: none;
   transition: var(--row-transition);
@@ -289,7 +290,7 @@ html[data-shot="1"] .glist > .poemrow:nth-child(n+4) { display: none; }
       <li><code>[+]/[−]</code> 方括号开合记号<b>只表达状态</b>，是<b>探索记号</b>（不算已采纳、也没有令牌）。</li>
       <li>行为（三页一致）：首次进入<b>全部收起</b>（单组也收起）· <b>整个组头可点</b>（组名／空白／数量／记号任一处）· 各组<b>独立</b>展开（<b>可同时展开两组</b>，不是手风琴）。</li>
     </ul>
-    <p>这一页只改<b>题名与作者的关系</b>。组头内部（页 1）与诗目左沿（页 2）本页<b>不动</b>，都用基线（组头 <code>[+] 汉</code>＋数量右对齐；诗目缩进 1.6rem 草案值）。</p>
+    <p>这一页只改<b>题名与作者的关系</b>。组头内部（页 1）与诗目左沿（页 2）本页<b>不动</b>，都用基线（组头 <code>[+] 汉</code>＋数量右对齐；诗目缩进＝<b>组名左沿 + 1.6rem</b> 草案值）。</p>
     <p>每块的<b>第 1 行</b>是一条<b>夹具长题名</b>（虚线框标出）：只看折行／换行与作者列的行为，<b>它不是诗、不计入 <code>[19] 首</code>、不改真实诗</b>。真实 19 首的题名都是 5 字，本机没有真实长题名，所以只能用夹具行看折行。</p>
     <p>虚线框是<b>夹具行的标注</b>，不属于应用页面，也不是新的卡片方案。</p>
     <p><b>块宽＝真实 430 CSS px</b>（四处对齐都按这个宽度渲染）；<b>真实内容（汉·19 首）与多组夹具分开</b>，夹具块有醒目标注。</p>
@@ -387,7 +388,7 @@ html[data-shot="1"] .glist > .poemrow:nth-child(n+4) { display: none; }
     root.dataset.block = spec.block;
     root.dataset.head = spec.head;
     root.dataset.rel = spec.rel;
-    if (spec.indent) root.style.setProperty('--indent', spec.indent);
+    if (spec.add) root.style.setProperty('--indent-add', spec.add);
 
     // 顶部只此一项入口：「关于」
     var top = el('div', 'topline');
@@ -484,7 +485,8 @@ html[data-shot="1"] .glist > .poemrow:nth-child(n+4) { display: none; }
     return root;
   }
 
-  // 量出「组名首字相对块左沿」的偏移，写回 --name-x（页 2 选项 B：题名左沿对齐到组名首字）
+  // 量出「组名左沿相对块左沿」的偏移，写回 --name-x —— 这是诗目缩进的**参照系**（所有页面都用它，
+  // 所以组头排布一变，缩进就跟着组名走）
   function measureNameX(hub) {
     var name = hub.querySelector('[data-test="gname"]');
     if (!name) return;
@@ -500,7 +502,7 @@ html[data-shot="1"] .glist > .poemrow:nth-child(n+4) { display: none; }
       "block": "baseline",
       "head": "baseline",
       "rel": "right",
-      "indent": "var(--indent-base)",
+      "add": "var(--indent-base)",
       "groups": "real",
       "fxRowFirst": true,
       "open": []
@@ -510,7 +512,7 @@ html[data-shot="1"] .glist > .poemrow:nth-child(n+4) { display: none; }
       "block": "optA",
       "head": "baseline",
       "rel": "follow",
-      "indent": "var(--indent-base)",
+      "add": "var(--indent-base)",
       "groups": "real",
       "fxRowFirst": true,
       "open": []
@@ -520,7 +522,7 @@ html[data-shot="1"] .glist > .poemrow:nth-child(n+4) { display: none; }
       "block": "optB",
       "head": "baseline",
       "rel": "line",
-      "indent": "var(--indent-base)",
+      "add": "var(--indent-base)",
       "groups": "real",
       "fxRowFirst": true,
       "open": []
@@ -530,7 +532,7 @@ html[data-shot="1"] .glist > .poemrow:nth-child(n+4) { display: none; }
       "block": "fx",
       "head": "baseline",
       "rel": "right",
-      "indent": "var(--indent-base)",
+      "add": "var(--indent-base)",
       "groups": "fixture",
       "fxRowFirst": false,
       "open": []
