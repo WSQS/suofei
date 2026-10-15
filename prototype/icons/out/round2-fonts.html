@@ -3,7 +3,7 @@
   h1{font-size:19px;font-weight:500;letter-spacing:.14em;margin:0 0 4px}
   .sub{color:#98a8a6;font-size:12px;line-height:1.7;margin:0 0 18px}
   code{font-family:'Consolas','SFMono-Regular',ui-monospace,monospace;color:#7fd4c6}
-  table{border-collapse:separate;border-spacing:0 10px}
+  table{border-collapse:separate;border-spacing:0 12px}
   td,th{vertical-align:middle;padding-right:18px;text-align:left}
   th{color:#98a8a6;font-size:11px;font-weight:400;letter-spacing:.1em;text-align:center;padding-bottom:4px}
   .meta{width:430px}.meta b{display:block;font-size:13.5px;font-weight:500}
@@ -14,11 +14,13 @@
   .icon{position:relative;overflow:hidden;flex:none;box-shadow:0 0 0 1px #233034}
   .icon .layer{position:absolute;inset:0}.icon svg{display:block;width:100%;height:100%}
   .cell{text-align:center}
-  .chk{font-family:'Consolas','SFMono-Regular',ui-monospace,monospace;font-size:10.5px;color:#788a88;text-align:left;white-space:pre;line-height:1.5}
+  .chk{font-family:'Consolas','SFMono-Regular',ui-monospace,monospace;font-size:10.5px;color:#788a88;text-align:left;white-space:pre;line-height:1.55}
 </style></head><body>
   <h1>索斐 · 图标第二轮：①「索」用哪个字体</h1>
-  <p class="sub">同一画布（108×108）、同一尺寸、同一位置，只有字体不同（字重统一 500）。右侧 <code>自检</code> 列是页面里实测的<b>字体可用性</b>(<code>document.fonts.check</code>) 与<b>字宽</b>(px)——<b>如果两行数值一样、图也长得一样，说明那个字体名没生效、退回了默认</b>，不要被看起来的结果骗到。<br>
-  <b>真正的分野在 <code>矢量?</code> 一列</b>：图标不能依赖运行时字体（Android 上没有微软雅黑），所以字形要么转<b>矢量轮廓</b>（那就必须用可自由使用的字体＝OFL），要么<b>烘成位图</b>。专有字体不是不能用，而是「转矢量轮廓」风险高（近似复制字形软件），稳妥做法是出位图 mipmap。</p>
+  <p class="sub">同一画布（108×108）、同一尺寸、同一位置，只有字体不同（字重统一 500）。形态先固定为 A（字 + accent 下划线）。<br>
+  <code>自检</code> 列是页面内实测的两样：<b>①</b> <code>document.fonts.check</code> 能否找到该字体；<b>②</b> 把「索」画到 canvas 上取像素算出的 <b>字形指纹</b> —— <b>两行指纹相同 = 两者渲染成了同一个形状，说明有个字体名没生效、悄悄退回了默认字体</b>（这种「看起来有区别/没区别」的误判要挡住）。<br>
+  （顺带：CJK 字形的宽度恒等于字号（em 方块），所以「量字宽」在本表里没有区分力，我不用它。）<br>
+  <b>真正的分野在 <code>可矢量</code> 一列</b>：图标不能依赖运行时字体（Android 上没有微软雅黑），所以字形要么转<b>矢量轮廓</b>（那就必须用可自由使用的字体＝OFL），要么<b>烘成位图</b>。专有字体不是不能用，而是「抽轮廓转矢量」风险高（近似复制字形软件），稳妥做法是出位图 mipmap。</p>
   <table>
     <tr><th class="meta"></th><th>192px 圆形</th><th>96px</th><th>48px</th><th>48px squircle</th><th class="chk">自检</th></tr>
     <tr>
@@ -183,7 +185,7 @@
   </div></td>
       <td class="chk" data-font="STKaiti"></td>
     </tr><tr>
-      <td class="meta"><b>华文宋体 STSong</b><span class="lic warn">授权：专有（华文） ｜ 可矢量：⚠️ 不建议（请出位图）</span><i>印刷宋体；横细竖粗，**48px 下横画最容易整条消失**（可看最后一列）</i></td>
+      <td class="meta"><b>华文宋体 STSong</b><span class="lic warn">授权：专有（华文） ｜ 可矢量：⚠️ 不建议（请出位图）</span><i>印刷宋体；横细竖粗，**48px 下横画最容易整条消失**（看最后一列）</i></td>
       <td class="cell">
   <div class="icon" style="width:192px;height:192px;border-radius:50%">
     <div class="layer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="512" height="512"><rect width="108" height="108" fill="#0e1315"/></svg></div>
@@ -208,16 +210,26 @@
     </tr>
   </table>
   <script>
-    // 页面内自检：可用性 + 字宽（写进页面，截图里能直接看到证据）
+    // 页面内自检：① 可用性 ② 字形指纹（canvas 像素哈希）—— 指纹相同 ⇒ 至少有一个退回了默认字体
+    const seen = new Map();
     for (const td of document.querySelectorAll('td.chk')) {
       const fam = td.dataset.font;
       const ok = document.fonts.check("500 40px '" + fam + "'");
-      const s = document.createElement('span');
-      s.style.cssText = "position:absolute;visibility:hidden;font:500 40px '" + fam + "'";
-      s.textContent = '索';
-      document.body.appendChild(s);
-      const w = Math.round(s.getBoundingClientRect().width * 100) / 100;
-      td.textContent = (ok ? 'check: ✓ 可用' : 'check: ✗ 未找到') + '\n字宽: ' + w + 'px';
+      const cv = document.createElement('canvas');
+      cv.width = cv.height = 64;
+      const cx = cv.getContext('2d', { willReadFrequently: true });
+      cx.fillStyle = '#000'; cx.fillRect(0, 0, 64, 64);
+      cx.fillStyle = '#fff';
+      cx.font = "500 40px '" + fam + "'";
+      cx.textAlign = 'center'; cx.textBaseline = 'middle';
+      cx.fillText('索', 32, 32);
+      const d = cx.getImageData(0, 0, 64, 64).data;
+      let h = 2166136261;
+      for (let i = 0; i < d.length; i += 4) { h ^= d[i]; h = Math.imul(h, 16777619); }
+      const fp = (h >>> 0).toString(16).padStart(8, '0');
+      const dup = seen.get(fp);
+      if (!dup) seen.set(fp, fam);
+      td.textContent = (ok ? 'check  ✓' : 'check  ✗') + '\n指纹  ' + fp + (dup ? '\n⚠️ 与「' + dup + '」渲染完全相同' : '');
     }
   </script>
 </body></html>

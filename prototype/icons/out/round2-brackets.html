@@ -4,43 +4,46 @@
   .sub{color:#98a8a6;font-size:12px;line-height:1.7;margin:0 0 18px}
   code{font-family:'Consolas','SFMono-Regular',ui-monospace,monospace;color:#7fd4c6}
   table{border-collapse:separate;border-spacing:0 12px}
-  td,th{vertical-align:middle;padding-right:20px;text-align:left}
+  td,th{vertical-align:middle;padding-right:18px;text-align:left}
   th{color:#98a8a6;font-size:11px;font-weight:400;letter-spacing:.1em;text-align:center;padding-bottom:4px}
   .meta{width:430px}.meta b{display:block;font-size:13.5px;font-weight:500}
   .meta span{display:block;font-size:11px;line-height:1.6;color:#98a8a6;margin-top:2px}
   .meta i{display:block;font-size:11px;line-height:1.6;color:#788a88;font-style:normal;margin-top:2px}
+  .lic{font-family:'Consolas','SFMono-Regular',ui-monospace,monospace;font-size:10.5px}
+  .yes{color:#7fd4c6}.warn{color:#dcc078}
   .icon{position:relative;overflow:hidden;flex:none;box-shadow:0 0 0 1px #233034}
   .icon .layer{position:absolute;inset:0}.icon svg{display:block;width:100%;height:100%}
   .cell{text-align:center}
+  .chk{font-family:'Consolas','SFMono-Regular',ui-monospace,monospace;font-size:10.5px;color:#788a88;text-align:left;white-space:pre;line-height:1.55}
 </style></head><body>
   <h1>索斐 · 图标第二轮：② 把 C 最糊的那处修掉</h1>
-  <p class="sub">第一轮的 C 借用了字体里的 <code>[</code> <code>]</code> 字形，三个字符并排就顶到安全区上限，48px 下糊成一团。这一轮把括号改成<b>自绘发丝线</b>（这套视觉本来就是「发丝线＋结构感」），并给三种排布。<b>字一律用 <code>Noto Sans SC</code></b>（OFL，可安全转矢量）。重点看 <b>48px</b> 那两列。</p>
+  <p class="sub">第一轮的 C 借用字体里的 <code>[</code> <code>]</code> 字形，三个字符并排就顶到安全区上限，48px 下糊成一团。这一轮把括号改成<b>自绘发丝线</b>（这套视觉本来就是「发丝线＋结构感」），并给三种排布。<b>字一律用 <code>Noto Sans SC</code></b>（OFL，可安全转矢量）。重点看 <b>48px</b> 那两列。</p>
   <table>
     <tr><th class="meta"></th><th>192px 圆形</th><th>48px</th><th>48px squircle</th><th>192px 单色层</th></tr>
     <tr>
-      <td class="meta"><b>C0 · 字体括号（第一轮原样）</b><span>做法：借字体里的 `[` `]`</span><i>代价与风险：三个字符并排 ⇒ 顶到安全区、48px 糊（这是要修的那处）</i></td>
+      <td class="meta"><b>C0 · 字体括号（第一轮原样）</b><span>做法：借字体里的 `[` `]`</span><i>代价与风险：三个字符并排 ⇒ 顶到安全区、48px 糊（这就是要修的那处）</i></td>
       <td class="cell">
   <div class="icon" style="width:192px;height:192px;border-radius:50%">
     <div class="layer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="512" height="512"><rect width="108" height="108" fill="#0e1315"/></svg></div>
-    <div class="layer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="512" height="512"><text x="37" y="54" font-family="undefined" font-size="34" font-weight="500" fill="#788a88" text-anchor="middle" dominant-baseline="central">[</text><text x="54" y="54" font-family="'Noto Sans SC'" font-size="32" font-weight="500" fill="#dde5e4" text-anchor="middle" dominant-baseline="central">索</text><text x="71" y="54" font-family="undefined" font-size="34" font-weight="500" fill="#788a88" text-anchor="middle" dominant-baseline="central">]</text></svg></div>
+    <div class="layer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="512" height="512"><text x="37" y="54" font-family="'Noto Sans SC'" font-size="34" font-weight="500" fill="#788a88" text-anchor="middle" dominant-baseline="central">[</text><text x="54" y="54" font-family="'Noto Sans SC'" font-size="32" font-weight="500" fill="#dde5e4" text-anchor="middle" dominant-baseline="central">索</text><text x="71" y="54" font-family="'Noto Sans SC'" font-size="34" font-weight="500" fill="#788a88" text-anchor="middle" dominant-baseline="central">]</text></svg></div>
   </div></td>
       <td class="cell">
   <div class="icon" style="width:48px;height:48px;border-radius:50%">
     <div class="layer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="512" height="512"><rect width="108" height="108" fill="#0e1315"/></svg></div>
-    <div class="layer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="512" height="512"><text x="37" y="54" font-family="undefined" font-size="34" font-weight="500" fill="#788a88" text-anchor="middle" dominant-baseline="central">[</text><text x="54" y="54" font-family="'Noto Sans SC'" font-size="32" font-weight="500" fill="#dde5e4" text-anchor="middle" dominant-baseline="central">索</text><text x="71" y="54" font-family="undefined" font-size="34" font-weight="500" fill="#788a88" text-anchor="middle" dominant-baseline="central">]</text></svg></div>
+    <div class="layer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="512" height="512"><text x="37" y="54" font-family="'Noto Sans SC'" font-size="34" font-weight="500" fill="#788a88" text-anchor="middle" dominant-baseline="central">[</text><text x="54" y="54" font-family="'Noto Sans SC'" font-size="32" font-weight="500" fill="#dde5e4" text-anchor="middle" dominant-baseline="central">索</text><text x="71" y="54" font-family="'Noto Sans SC'" font-size="34" font-weight="500" fill="#788a88" text-anchor="middle" dominant-baseline="central">]</text></svg></div>
   </div></td>
       <td class="cell">
   <div class="icon" style="width:48px;height:48px;border-radius:30%">
     <div class="layer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="512" height="512"><rect width="108" height="108" fill="#0e1315"/></svg></div>
-    <div class="layer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="512" height="512"><text x="37" y="54" font-family="undefined" font-size="34" font-weight="500" fill="#788a88" text-anchor="middle" dominant-baseline="central">[</text><text x="54" y="54" font-family="'Noto Sans SC'" font-size="32" font-weight="500" fill="#dde5e4" text-anchor="middle" dominant-baseline="central">索</text><text x="71" y="54" font-family="undefined" font-size="34" font-weight="500" fill="#788a88" text-anchor="middle" dominant-baseline="central">]</text></svg></div>
+    <div class="layer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="512" height="512"><text x="37" y="54" font-family="'Noto Sans SC'" font-size="34" font-weight="500" fill="#788a88" text-anchor="middle" dominant-baseline="central">[</text><text x="54" y="54" font-family="'Noto Sans SC'" font-size="32" font-weight="500" fill="#dde5e4" text-anchor="middle" dominant-baseline="central">索</text><text x="71" y="54" font-family="'Noto Sans SC'" font-size="34" font-weight="500" fill="#788a88" text-anchor="middle" dominant-baseline="central">]</text></svg></div>
   </div></td>
       <td class="cell">
   <div class="icon" style="width:192px;height:192px;border-radius:50%">
     <div class="layer"></div>
-    <div class="layer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="512" height="512"><rect width="108" height="108" fill="#141b1e"/><text x="37" y="54" font-family="undefined" font-size="34" font-weight="500" fill="#ffffff" text-anchor="middle" dominant-baseline="central">[</text><text x="54" y="54" font-family="'Noto Sans SC'" font-size="32" font-weight="500" fill="#ffffff" text-anchor="middle" dominant-baseline="central">索</text><text x="71" y="54" font-family="undefined" font-size="34" font-weight="500" fill="#ffffff" text-anchor="middle" dominant-baseline="central">]</text></svg></div>
+    <div class="layer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="512" height="512"><rect width="108" height="108" fill="#141b1e"/><text x="37" y="54" font-family="'Noto Sans SC'" font-size="34" font-weight="500" fill="#ffffff" text-anchor="middle" dominant-baseline="central">[</text><text x="54" y="54" font-family="'Noto Sans SC'" font-size="32" font-weight="500" fill="#ffffff" text-anchor="middle" dominant-baseline="central">索</text><text x="71" y="54" font-family="'Noto Sans SC'" font-size="34" font-weight="500" fill="#ffffff" text-anchor="middle" dominant-baseline="central">]</text></svg></div>
   </div></td>
     </tr><tr>
-      <td class="meta"><b>C1 · 发丝方括号（横排）</b><span>做法：自绘：左右各一条 2.5px 竖线 + 上下各一条短横线，角部断开（方括号观感）</span><i>代价与风险：线更细 ⇒ 小尺寸不糊；但「不是字体里的括号」，形状由我们定</i></td>
+      <td class="meta"><b>C1 · 发丝方括号（横排）</b><span>做法：自绘：左右各一条 2.5px 竖线 + 四段短横，角部断开（方括号观感）</span><i>代价与风险：线更细 ⇒ 小尺寸不糊；但「不是字体里的括号」，形状由我们定</i></td>
       <td class="cell">
   <div class="icon" style="width:192px;height:192px;border-radius:50%">
     <div class="layer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="512" height="512"><rect width="108" height="108" fill="#0e1315"/></svg></div>
