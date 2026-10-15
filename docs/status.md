@@ -51,7 +51,7 @@
 | 组内排序＝《文选》原次序（source） | 编译期排序 | C 的 order-strategy 测试；Android「数组次序==`orderInSource` 1..19」；Web e2e「目录次序==产物次序」 | **符合** |
 | 产物只发布 `orderInSource`（不发音次键） | 编译器 | schema/interface 测试（无 `SortKey` 字段） | **符合** |
 | **异文不上界面** | Android 不显示；Web 已修并**已并入主线** | Android 无此 UI；Web e2e **反向断言**（诗页不得出现 `variants[].text`） | ✅ **符合（`v0.1.1` 起）**——修复已随 `0.1.1` 上线；负责人核过线上 `app/render.js`：`variants` **只出现在注释里**（「不要为空时补一个…」），没有渲染它的代码 |
-| 单主题（不做切换开关/不做偏好持久化） | 两端确实没有开关 | — | **符合**（但深色本身未落地，见上） |
+| 单主题（不做切换开关/不做偏好持久化） | 两端确实没有开关 | — | **符合**（深色已于 `v0.1.1` 落地两端，见上） |
 | `formatVersion` 判据＝**「字段集一变就升」（B）**（用户 2026-10-15 定；代价＝每变一次断一次内容热更、**不可逆**，用户明确接受） | **门已落地**：`tools/check-fieldset.mjs` ＋ `schema/format-version.json`（冻结 formatVersion 1 的键路径与指纹）；口径＝**产物 JSON 的键路径** | `tests/format-version.test.mjs`（4 例：记录一致/记录健康/口径覆盖/门非空过）；**端到端证伪**：让编译器真给产物加一个键 ⇒ **7 例红**（含本门） | **符合** |
 | Web 内容更新交给 SW（删掉独立通道） | `web/sw.js`＋删掉 store/staged | E 的 e2e（真发 7 版/成对切换/旧 cache 删除/离线），**CI 上也真跑 151/151** | **符合** |
 | Android 保留远端小纸条清单 | `UpdateProtocol` | Android 单测（`UpdateFlowTest`/`UpdateManifestParserTest`） | **符合** |
