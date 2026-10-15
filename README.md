@@ -23,7 +23,7 @@
 | `items/<项>/item.md`（理解／采纳版本锚／开放区域） | **[items/](items/)** —— 各项就在那里 |
 | `current-version.md`（现在能跑的版本） | **[docs/status.md](docs/status.md)** 的「当前可运行版本」一节（不另立第二份） |
 | 代码与公开契约 | **留在原处**（`content/`、`tools/`、`schema/`、`android/`、`web/`、`release/`）——工作面**不搬迁代码库**，项里只放**链接** |
-| 原型（`prototypes/`、`history/`） | `prototype/` **留在原处**（⚠ Web e2e 与发布就绪门会读 `prototype/css/theme-tech.css`，它是**活输入**）；项里的 `prototypes/` 放**指针与「它没表达什么」**，`history/` 放**被取代的原型与理解** |
+| 原型（`prototypes/`、`history/`） | **每轮用完后整轮归档**：说明／HTML／PNG／自检脚本一起 `git mv` 到 `items/<项>/history/<round-id>/`（**独立命名、不覆盖旧材料**；**搬前先处理依赖**——例：自检脚本按**自身目录**解析文件，那就整轮一起搬，别只搬图）；`prototype/` **留在原处**（⚠ Web e2e 与发布就绪门会读 `prototype/css/theme-tech.css`，它是**活输入**）；项里的 `prototypes/` 放**指针与「它没表达什么」**，`history/` 放**被取代的原型与理解** |
 
 **谁决定什么**：**用户**拍板产品与视觉方向（留痕 `docs/interface-decisions.md`、`docs/review-gates.md`）；**对话型会话**持有理解／采纳版本锚／开放区域，并负责把问题问到用户；**调度型会话**（负责人）负责**依赖边、派活、验收、整合与发布**（分工表见 [docs/status.md](docs/status.md)）。
 
