@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="tech">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>目录页「展开记号 ↔ 组名 对齐」聚焦讨论原型</title>
+<style>
+/* 令牌快照（内嵌副本，不是新权威）
+ *   来源：prototype/css/theme-tech.css（只读，未改动）
+ *   仓库提交：ca066a6（git rev-parse --short HEAD；该文件最后一次改动是 257de5a，在此提交上无改动）
+ *   权威仍是 docs/design/visual-tokens.md（§2 颜色 / §3 排版 / §4 间距形状 / §4.1 结构记号）。
+ *   这里只是为「自包含单文件」而复制的一份快照，值逐字照抄、未做微调；
+ *   只列本页实际用到的令牌 —— 本页有意不用 --surface 这类卡片相关项（不画卡片）。
+ */
+/* == TOKEN-SNAPSHOT-BEGIN == */
+:root {
+  --bg: #0e1315;
+  --bg-pattern: linear-gradient(to right, rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+  --bg-pattern-opacity: 1;
+  --surface-hover: #182124;
+  --text: #dde5e4;
+  --text-dim: #98a8a6;
+  --text-faint: #788a88;
+  --line: #233034;
+  --accent-line: rgba(79, 179, 165, 0.38);
+  --warn-soft: rgba(201, 162, 74, 0.08);
+  --warn-text: #dcc078;
+  --line-warn: rgba(201, 162, 74, 0.34);
+  --test-line: rgba(79, 179, 165, 0.36);
+  --test-soft: rgba(79, 179, 165, 0.07);
+  --test-text: #7fd4c6;
+  --radius-s: 3px;
+  --row-transition: border-color 0.15s ease, background 0.15s ease;
+  --font-body: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-mono: 'Consolas', 'SFMono-Regular', ui-monospace, monospace;
+  --font-size: 15px;
+  --lh: 1.75;
+  --ls: 0.005em;
+  --gname-ls: 0.16em;
+  --ptitle-ls: 0.06em;
+  --group-gap: 0.6rem;
+  --row-pad: 0.9rem 1.05rem;
+}
+/* == TOKEN-SNAPSHOT-END == */
+
+/* ── 草案值（**不在** docs/design/visual-tokens.md 里；本原型为「对齐关系」临时取的数）──
+ *   规范里没有这些值，所以它们**不是**规范值，只是这一轮讨论用的草案；
+ *   只列**本页实际用到**的：块宽 430 是任务书给的验收口径（不算草案），其余是草案值。
+ */
+/* == DRAFT-VALUES-BEGIN == */
+:root {
+  --block-w: 430px;          /* 验收宽度：真实 430 CSS px（移动口径），不是草案、是任务书给的口径 */
+  --edge-x: 1.05rem;         /* 草案值：块的左右内沿（取令牌 --row-pad 的横向分量；「关于」与诗行右沿都落在它上面） */
+  --seam-a: 0.4rem;          /* 草案值：块 ① 的固定缝（记号右沿 → 组名左沿）＝ 6.4px */
+  --slot-b: 1.2rem;          /* 草案值：块 ② 的槽宽（记号在槽内水平居中）＝ 19.2px */
+  --inline-gap: 0.35rem;     /* 草案值：块 ③（不悬挂）记号与组名之间的段内间距＝ 5.6px */
+  --name-x: 0px;             /* 【参照系】组名左沿相对块左沿的实测偏移，由页面脚本量出后写回（每块各不相同） */
+}
+/* == DRAFT-VALUES-END == */
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--font-size);
+  line-height: var(--lh);
+  letter-spacing: var(--ls);
+}
+/* 极淡网格：纯装饰（同 prototype/base.css 的做法） */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image: var(--bg-pattern);
+  opacity: var(--bg-pattern-opacity);
+}
+body > * { position: relative; z-index: 1; }
+a { color: inherit; }
+:focus-visible { outline: 1px solid var(--accent-line); outline-offset: 2px; }
+
+/* ── 原型脚手架（不是被评审的设计）────────────────────────────── */
+.wrap { max-width: 720px; margin: 0 auto; padding: 1.5rem 0 3rem; }
+.ptag {
+  display: inline-block;
+  margin: 0 0 0.9rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px dashed var(--test-line);
+  background: var(--test-soft);
+  color: var(--test-text);
+  border-radius: var(--radius-s);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+}
+.phead { padding: 0 12px; }
+.phead h1 { font-size: 1.1rem; font-weight: 500; letter-spacing: 0.06em; margin: 0 0 0.9rem; line-height: 1.6; }
+.phead p, .phead li { color: var(--text-dim); margin: 0.5rem 0; }
+.phead b { color: var(--text); font-weight: 500; }
+.phead ul { padding-left: 1.1rem; margin: 0.5rem 0; }
+.phead code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  padding: 0 0.25rem;
+}
+.pnote { border-left: 2px solid var(--test-line); padding-left: 0.7rem; }
+.psection { margin-top: 2rem; }
+.psection > h2 {
+  font-size: 0.95rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  margin: 0 0 0.35rem;
+  padding: 0 12px 0.5rem;
+  border-bottom: 1px solid var(--line);
+}
+.psection > .sub { color: var(--text-dim); font-size: 0.85rem; margin: 0.5rem 0 1rem; padding: 0 12px; }
+
+/* 块区：宽固定 430（真实移动口径），块内不加左右内边距 ⇒ 每个块恰好 430 CSS px 宽 */
+.shotframe { width: var(--block-w); max-width: 100%; margin: 0 auto; }
+.rack { width: var(--block-w); max-width: 100%; }
+.inst {
+  border-top: 1px dashed var(--test-line);
+  border-bottom: 1px dashed var(--test-line);
+  padding: 0.75rem 0;
+  margin: 0 0 0.6rem;
+}
+.inst > .icap {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  line-height: 1.55;
+  letter-spacing: 0.05em;
+  color: var(--test-text);
+  padding: 0 12px;
+  margin-bottom: 0.6rem;
+}
+.inst > .icap em { display: block; color: var(--text-dim); font-style: normal; }
+.fxban {
+  background: var(--warn-soft);
+  border: 1px solid var(--line-warn);
+  color: var(--warn-text);
+  border-radius: var(--radius-s);
+  padding: 0.5rem 0.65rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  margin: 0 12px 0.6rem;
+}
+.shotbanner {
+  display: none;
+  background: var(--test-soft);
+  border: 1px dashed var(--test-line);
+  color: var(--test-text);
+  border-radius: var(--radius-s);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  line-height: 1.6;
+  letter-spacing: 0.03em;
+  padding: 0.6rem 0.7rem;
+  margin: 0 12px 0.8rem;
+}
+html[data-shot="1"] .shotbanner { display: block; }
+/* 看图模式（#shot）：每个展开的组只截到前 3 行 —— 只为让图不过长；页面正常打开时不含这条规则 */
+.shotnote {
+  display: none;
+  list-style: none;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  color: var(--test-text);
+  padding: 0.45rem var(--edge-x) 0.5rem var(--edge-x);
+  border-bottom: 1px dashed var(--test-line);
+}
+html[data-shot="1"] .shotnote { display: block; }
+html[data-shot="1"] .glist > .poemrow:nth-child(n+4) { display: none; }
+
+/* ── 目录页：不画卡片，组头与页底同色；层级靠留白/缩进与发丝线 ──────────
+ * 信息只有：组名＋数量、诗题＋作者（作者紧随题名、不右对齐）；顶部只有「关于」这一个入口。
+ */
+.hub { background: transparent; }
+.hub .topline {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.7rem var(--edge-x) 0.7rem;
+  border-bottom: 1px solid var(--line);
+}
+.hub .aboutlink {
+  color: var(--text-dim);
+  text-decoration: none;
+  font-size: 0.86rem;
+  letter-spacing: 0.06em;
+  transition: var(--row-transition);
+}
+.hub .aboutlink:hover { color: var(--text); }
+.hub .grp { margin-top: var(--group-gap); }
+.hub .ghead {
+  display: flex;
+  align-items: baseline;
+  width: 100%;
+  margin: 0;
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  padding: 0.85rem var(--edge-x) 0.7rem;
+  cursor: pointer;
+}
+/* [−] / [+] 只表达状态。它的**方向**已由用户局部选定（＝方括号、悬挂在组名左沿之外，2026-10-15）；
+ *   本轮探索的是它与组名的**对齐关系**；它当前没有令牌，无令牌也能画。
+ *   本页四块记号的字号/字距统一（等宽 0.8rem、**不设字距**：0.04em 的字距会给记号右沿多加 1.5px 空白，
+ *   量「缝」时会把空白算进去、数字失真），只有对齐关系不同。 */
+.hub .gmark {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0;
+  color: var(--text-faint);
+  transition: var(--row-transition);
+}
+.hub .gname { font-size: 1.05rem; letter-spacing: var(--gname-ls); margin-left: 0; }
+.hub .gcount {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--text-faint);
+}
+/* §4.1 记号②：计数写成 [19] 首（方括号 faint 色、0.85em、内外各 1px） */
+.hub .gcount b::before { content: '['; color: var(--text-faint); font-size: 0.85em; margin-right: 1px; }
+.hub .gcount b::after { content: ']'; color: var(--text-faint); font-size: 0.85em; margin-left: 1px; }
+.hub .ghead:hover .gmark, .hub .ghead:hover .gcount { color: var(--text-dim); }
+
+/* ── 本页四个聚焦块的差别只在这三条上（其余一切相同）──────────────
+ * 口径（写清，免得误读）：
+ *   悬挂  = 记号的槽**从块左沿（0）量起**，槽右沿＝组名左沿 ⇒ 记号落在内容左内沿（--edge-x）**之外**；
+ *   不悬挂 = 记号落在**块左内沿上**（与「关于」同一条竖线），组名被记号自然推开（块 ③ 的对照）。
+ *   两种口径下诗目一律「题名左沿 = 组名左沿」（缩进 0，由 --name-x 写回实现）。
+ * ① ④ 悬挂 + 固定缝：槽宽 = 记号自身宽度 + --seam-a（所以缝恒为 --seam-a）。
+ */
+.hub[data-mark="hang-gap"] .ghead { padding-left: 0; }
+.hub[data-mark="hang-gap"] .gmark { margin-right: var(--seam-a); }
+/* ② 悬挂 + 槽内居中：槽宽恒为 --slot-b，记号在槽内水平居中（缝＝槽宽与记号宽度之差的一半）。
+ *   用 flex 居中（而不是 text-align:center）：槽比记号窄时 text-align 会退化成起点对齐，居中就没被表达出来；
+ *   flex 的居中在溢出时仍然对称地把记号居中，这一块才是真的「槽内居中」（代价是记号会向槽外两侧溢出）。 */
+.hub[data-mark="hang-center"] .ghead { padding-left: 0; }
+.hub[data-mark="hang-center"] .gmark { width: var(--slot-b); margin-right: 0; display: flex; justify-content: center; }
+/* ③ 不悬挂（对照）：记号在块左内沿上、与组名同一段，段内间距 --inline-gap。 */
+.hub[data-mark="inline"] .ghead { padding-left: var(--edge-x); }
+.hub[data-mark="inline"] .gmark { margin-right: var(--inline-gap); }
+/* ④ 悬挂 + 竖直居中：水平与块 ① 完全相同，只把记号在竖直方向与组名首字居中（不是基线对齐）。 */
+.hub[data-valign="center"] .ghead { align-items: center; }
+
+/* 组头底部发丝线；诗目行贴同一套内沿，题名左沿 = 组名左沿（缩进 0） */
+.hub .glist { list-style: none; margin: 0; padding: 0; }
+.hub .poemrow { border-bottom: 1px solid var(--line); }
+.hub .poemrow.fxrow { outline: 1px dashed var(--test-line); outline-offset: -2px; }
+.hub .plink {
+  display: block;
+  padding: var(--row-pad);
+  padding-left: var(--name-x);
+  padding-right: var(--edge-x);
+  text-decoration: none;
+  transition: var(--row-transition);
+}
+.hub .plink:hover { background: var(--surface-hover); }
+.hub .ptitle { letter-spacing: var(--ptitle-ls); overflow-wrap: anywhere; }
+/* 作者：紧随题名、不右对齐（题名折行时作者跟在题名文字之后） */
+.hub .pauthor { font-size: 0.8rem; color: var(--text-faint); margin-left: 0.45em; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="phead">
+    <p class="ptag">讨论原型 · 不是产品实施 · 不是发布 · 不是已采纳规格</p>
+    <h1>目录页「展开记号 ↔ 组名 <b>对齐关系</b>」聚焦讨论原型 —— 4 个聚焦块 ＋ 1 个布局夹具块</h1>
+    <p>这一页只回答<b>一个问题</b>：<b>记号与组名怎么对齐才不显得「没对齐」？</b>四个聚焦块<b>并列</b>、不排序、不衬托，<b>没有推荐项</b>；<b>选某一块 ≠ 采纳整页规格</b>。</p>
+    <p><b>本页固定不变（不在这里重问）：</b></p>
+    <ul>
+      <li>展开记号＝方括号 <code>[+]</code>／<code>[−]</code>：<b>方向已由用户局部选定</b>；它<b>只表达状态</b>，<b>当前没有对应令牌</b>，<b>无令牌也不妨碍表达</b>。</li>
+      <li>记号<b>悬挂在组名左沿之外</b>（这个方向已选；本页只调它与组名的对齐关系）。</li>
+      <li><b>诗目：题名与组名首字同一条竖线（缩进 0）</b>——四块都照这条做，块的差别不在缩进上。</li>
+      <li><b>作者：紧随题名、不右对齐。</b></li>
+      <li><b>「关于」在顶部</b>；<b>不画卡片</b>（组头与页底同色，层级靠留白与发丝线）；深墨底那套令牌。</li>
+      <li>信息只有：<b>组名＋数量</b>、<b>诗题＋作者</b>。🚫 不出现：搜索／应用名／笔记标记／题名预览／状态位／版本号。</li>
+      <li>四块的<b>记号字号与字距统一</b>（等宽 0.8rem、不设字距）—— 这样量出来的「缝」才是真实可见的缝，不是字距的空白。</li>
+    </ul>
+    <p><b>四个聚焦块各变什么</b>（其余一切相同）：① 悬挂＋<b>固定缝 0.4rem</b>（草案值）· ② 悬挂＋<b>槽内居中</b>（槽宽 1.2rem，草案值）· ③ <b>不悬挂</b>（对照，不是推荐）· ④ 悬挂＋<b>竖直居中</b>（水平与 ① 完全相同，只改竖直关系）· ⑤ 用 ① 的排布 × 3 个组的<b>布局夹具</b>。</p>
+    <p><b>本页对「悬挂／不悬挂」的实现口径</b>（写清，免得误读）：<b>悬挂</b>＝记号的槽<b>从块左沿（0）量起</b>、<b>组名左沿 = 槽右沿</b>，所以记号落在内容左内沿（<code>--edge-x</code>＝16.8px）<b>之外</b>；<b>不悬挂</b>＝记号落在<b>块左内沿上</b>（与「关于」同一条竖线）、组名被记号自然推开（块 ③ 的对照）。两种口径下诗目都是「题名左沿 = 组名左沿」。</p>
+    <p>间距数字：<b>块宽 430 CSS px</b>（任务书给的验收口径，不是草案）；<code>--edge-x 1.05rem</code>（沿用令牌 <code>--row-pad</code> 的横向分量）、<code>--seam-a 0.4rem</code>、<code>--slot-b 1.2rem</code>、<code>--inline-gap 0.35rem</code> 是<b>草案值</b>（规范里没有这些值）。四块的实测数字由自检脚本打印，也写在本页同目录的 <code>q-hub-align.md</code> 里。</p>
+    <p>行为（四块＋夹具块一致）：首次进入<b>全部收起</b>（单组也收起）· <b>整个组头可点</b>（组名／空白／数量／记号任一处）· 各组<b>独立</b>展开（<b>可同时展开两组</b>，不是手风琴）。每块都可点，都能看到<b>收起与展开两种状态</b>。</p>
+    <p class="pnote">⚠ 这一页上的说明文字 —— 含本段、下面每个块的标题、以及夹具横幅 —— <b>是原型的说明/夹具标注，不属于应用页面，也不是新的卡片方案。</b></p>
+  </div>
+  <section class="psection" id="blocks">
+    <h2>【本轮的 4 个聚焦块 ＋ 1 个布局夹具块】① 悬挂＋固定缝 ② 悬挂＋槽内居中 ③ 不悬挂（对照） ④ 悬挂＋竖直居中 ⑤ 夹具</h2>
+    <p class="sub">五块各自独立、都在真实 430 CSS px 宽下渲染，都可点（首态全收起）。① ② ③ ④ 用<b>真实内容</b>（汉·19 首），⑤ 用<b>多组夹具</b>。</p>
+    <div class="shotframe" data-shotframe>
+      <div class="shotbanner"><b>目录页「展开记号 ↔ 组名 对齐关系」聚焦讨论原型</b>（4 个聚焦块 ＋ 1 个布局夹具块）。<br><b>本图＝这 5 个块（每个恰好 430 CSS px 宽）纵向排列。</b>本图是在页面加载后<b>用真实鼠标点开各组</b>再拍的（页面加载时是全收起；块标题里写的 <b>[+]</b> 是收起态的字形，图里已点开、所以记号显示为 <b>[−]</b>）。<br><b>⚠ 为了让图不过长，每个展开的组在本图里只截到前 3 行</b>（页面上是完整的 19 首／夹具组是完整的 5~7 行）。<br>青/黄色文字是原型的说明与夹具标注，<b>不属于应用页面，也不是新的卡片方案</b>；页面正常打开不含这条横幅。</div>
+      <div class="rack">
+    <div class="inst" data-block="b1">
+      <div class="icap">① 悬挂 ＋ <b>固定缝 0.4rem</b>（草案值）：记号在组名左沿之外的槽里，<b>记号右沿到组名左沿留 0.4rem（＝6.4px）</b>的缝<em>槽宽＝记号自身宽度＋缝；实测数字（记号左右沿／槽宽／缝／组名左沿／题名左沿）由自检脚本逐块打印。</em></div>
+      <div data-mount="b1"></div>
+    </div>
+    <div class="inst" data-block="b2">
+      <div class="icap">② 悬挂 ＋ <b>槽内居中</b>：槽宽 <b>1.2rem</b>（草案值，＝19.2px），记号在槽内<b>水平居中</b><em>槽宽与记号宽度都由自检脚本量出后打印（这一块的缝不是固定的，是槽宽与记号宽度之差分到两侧的结果）。</em></div>
+      <div data-mount="b2"></div>
+    </div>
+    <div class="inst" data-block="b3">
+      <div class="icap">③ <b>不悬挂</b>（对照，<b>不是推荐</b>）：记号与组名<b>同一段、共享左沿</b>——记号落在块左内沿（16.8px）上，组名被记号自然推开<em>这一块是给「悬挂」一个可比的对照；它同样满足「题名与组名首字同一竖线」。</em></div>
+      <div data-mount="b3"></div>
+    </div>
+    <div class="inst" data-block="b4">
+      <div class="icap">④ 悬挂 ＋ <b>竖直居中</b>：水平与块 ① 完全相同，只把记号在<b>竖直方向与组名首字居中</b>（不是基线对齐）<em>把「上下也对齐」这件事显形：① 与 ④ 的水平数字应当完全一样，差别只在竖直方向。</em></div>
+      <div data-mount="b4"></div>
+    </div>
+    <div class="inst" data-block="b5">
+      <div class="fxban">仅布局夹具：不是内容、不代表真实数据、不改真实诗<br>（这条横幅本身也是原型的说明/夹具标注，<b>不属于应用页面，也不是新的卡片方案</b>。）</div>
+      <div class="icap">⑤ 布局夹具：<b>块 ① 的排布</b> × 3 个组 · 可同时展开两组<em>本块每组第一条是故意写长的夹具题名（用来看长题名折行时左沿是否仍与组名首字对齐）。</em></div>
+      <div data-mount="b5"></div>
+    </div>
+      </div>
+    </div>
+  </section>
+</div>
+<script>
+(function () {
+  'use strict';
+  // 真实内容：1 组 19 首（题名与作者取自 android/app/src/main/assets/content/content.json，只读取出，未改动）
+  var REAL_GROUPS = [{ key: 'han', label: '汉', poems: [
+    { id: 'gushi-shijiu-shou-01', title: '行行重行行', author: '佚名' },
+    { id: 'gushi-shijiu-shou-02', title: '青青河畔草', author: '佚名' },
+    { id: 'gushi-shijiu-shou-03', title: '青青陵上柏', author: '佚名' },
+    { id: 'gushi-shijiu-shou-04', title: '今日良宴会', author: '佚名' },
+    { id: 'gushi-shijiu-shou-05', title: '西北有高楼', author: '佚名' },
+    { id: 'gushi-shijiu-shou-06', title: '涉江采芙蓉', author: '佚名' },
+    { id: 'gushi-shijiu-shou-07', title: '明月皎夜光', author: '佚名' },
+    { id: 'gushi-shijiu-shou-08', title: '冉冉孤生竹', author: '佚名' },
+    { id: 'gushi-shijiu-shou-09', title: '庭中有奇树', author: '佚名' },
+    { id: 'gushi-shijiu-shou-10', title: '迢迢牵牛星', author: '佚名' },
+    { id: 'gushi-shijiu-shou-11', title: '回车驾言迈', author: '佚名' },
+    { id: 'gushi-shijiu-shou-12', title: '东城高且长', author: '佚名' },
+    { id: 'gushi-shijiu-shou-13', title: '驱车上东门', author: '佚名' },
+    { id: 'gushi-shijiu-shou-14', title: '去者日以疏', author: '佚名' },
+    { id: 'gushi-shijiu-shou-15', title: '生年不满百', author: '佚名' },
+    { id: 'gushi-shijiu-shou-16', title: '凛凛岁云暮', author: '佚名' },
+    { id: 'gushi-shijiu-shou-17', title: '孟冬寒气至', author: '佚名' },
+    { id: 'gushi-shijiu-shou-18', title: '客从远方来', author: '佚名' },
+    { id: 'gushi-shijiu-shou-19', title: '明月何皎皎', author: '佚名' }
+  ] }];
+  // 夹具数据：只存在于本原型脚本里，不是内容、不改真实诗（页内有醒目标注）。
+  var FX_LONG_A = '夹具长题名一·这一条故意写得很长用来看折行时左沿是否仍与组名首字对齐·再加一截确认它真的折到第二行';
+  var FX_LONG_B = '夹具长题名二·这一条故意写得很长用来看折行时左沿是否仍与组名首字对齐·再加一截确认它真的折到第二行';
+  var FX_LONG_C = '夹具长题名三·这一条故意写得很长用来看折行时左沿是否仍与组名首字对齐·再加一截确认它真的折到第二行';
+  function fx(id, title, author) { return { id: id, title: title, author: author }; }
+  var FX_GROUPS = [
+    { key: 'fx-1', label: '夹具·先秦', poems: [fx('fx-一-0', FX_LONG_A, '夹具作者甲'),
+      fx('fx-一-1', '夹具题名一01', '夹具作者甲'), fx('fx-一-2', '夹具题名一02', '夹具作者甲'),
+      fx('fx-一-3', '夹具题名一03', '夹具作者甲'), fx('fx-一-4', '夹具题名一04', '夹具作者甲'),
+      fx('fx-一-5', '夹具题名一05', '夹具作者甲'), fx('fx-一-6', '夹具题名一06', '夹具作者甲')] },
+    { key: 'fx-2', label: '夹具·汉', poems: [fx('fx-二-0', FX_LONG_B, '夹具作者乙乙'),
+      fx('fx-二-1', '夹具题名二01', '夹具作者乙乙'), fx('fx-二-2', '夹具题名二02', '夹具作者乙乙'),
+      fx('fx-二-3', '夹具题名二03', '夹具作者乙乙'), fx('fx-二-4', '夹具题名二04', '夹具作者乙乙'),
+      fx('fx-二-5', '夹具题名二05', '夹具作者乙乙')] },
+    { key: 'fx-3', label: '夹具·魏晋', poems: [fx('fx-三-0', FX_LONG_C, '夹具作者丙丙丙'),
+      fx('fx-三-1', '夹具题名三01', '夹具作者丙丙丙'), fx('fx-三-2', '夹具题名三02', '夹具作者丙丙丙'),
+      fx('fx-三-3', '夹具题名三03', '夹具作者丙丙丙'), fx('fx-三-4', '夹具题名三04', '夹具作者丙丙丙')] }
+  ];
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined && text !== null) e.textContent = text;
+    return e;
+  }
+
+  // 首态：默认全部收起（规格：首次／无既有状态时全部收起，单组也收起）
+  function createHub(spec) {
+    var open = {};
+    (spec.open || []).forEach(function (k) { open[k] = true; });
+    var root = el('div', 'hub');
+    root.dataset.test = 'hub';
+    root.dataset.inst = spec.inst;
+    root.dataset.block = spec.block;
+    root.dataset.mark = spec.mark;
+    root.dataset.valign = spec.valign;
+
+    // 顶部只此一项入口：「关于」
+    var top = el('div', 'topline');
+    var about = el('a', 'aboutlink', '关于');
+    about.dataset.test = 'about';
+    about.href = '#/about';
+    top.appendChild(about);
+    root.appendChild(top);
+
+    var groups = spec.groups === 'fixture' ? FX_GROUPS : REAL_GROUPS;
+    var rows = [];
+
+    for (var gi = 0; gi < groups.length; gi++) {
+      (function (gi) {
+        var g = groups[gi];
+        var listId = spec.inst + '-list-' + gi;
+        var sec = el('section', 'grp');
+        sec.dataset.group = g.key;
+
+        var head = el('button', 'ghead');
+        head.type = 'button';
+        head.dataset.test = 'ghead';
+        head.dataset.group = g.key;
+        head.setAttribute('aria-controls', listId);
+
+        var mark = el('span', 'gmark', '[+]');
+        mark.dataset.test = 'gmark';
+        mark.setAttribute('aria-hidden', 'true'); // 状态已由 aria-expanded 表达，字形不重复播报
+        var name = el('span', 'gname', g.label);
+        name.dataset.test = 'gname';
+        // 数量写成 [19] 首：方括号由 CSS 内容生成（§4.1 记号②）
+        var count = el('span', 'gcount');
+        count.dataset.test = 'gcount';
+        count.appendChild(el('b', null, String(g.poems.length)));
+        count.appendChild(document.createTextNode(' 首'));
+        head.appendChild(mark);
+        head.appendChild(name);
+        head.appendChild(count);
+
+        var list = el('ul', 'glist');
+        list.id = listId;
+        list.dataset.test = 'glist';
+
+        var poems = g.poems.slice();
+        for (var pi = 0; pi < poems.length; pi++) {
+          var p = poems[pi];
+          var li = el('li', 'poemrow' + (pi === 0 && spec.groups === 'fixture' ? ' fxrow' : ''));
+          li.dataset.test = 'prow';
+          if (pi === 0 && spec.groups === 'fixture') li.dataset.fx = '1';
+          var a = el('a', 'plink');
+          a.href = '#/p/' + p.id;   // 诗页在本原型里未实现（点了只改 hash）
+          var t = el('span', 'ptitle', p.title);
+          t.dataset.test = 'ptitle';
+          var au = el('span', 'pauthor', p.author);
+          au.dataset.test = 'pauthor';
+          a.appendChild(t);
+          a.appendChild(au);
+          li.appendChild(a);
+          list.appendChild(li);
+          // 看图模式用的截断标注（正常打开时不显示；见 CSS 里的 html[data-shot="1"]）
+          if (pi === 2 && poems.length > 3) {
+            var note = el('li', 'shotnote', '…（本图只截到前 3 行；本组真实 ' + g.poems.length + ' 行，页面上是完整的）');
+            list.appendChild(note);
+          }
+        }
+        list.hidden = !open[g.key];
+
+        var body = el('div', 'gbody');
+        body.appendChild(head);
+        body.appendChild(list);
+        sec.appendChild(body);
+        root.appendChild(sec);
+        rows.push({ key: g.key, head: head, list: list, mark: mark });
+
+        head.addEventListener('click', function () {
+          open[g.key] = !open[g.key];
+          apply();
+        });
+      })(gi);
+    }
+
+    function apply() {
+      for (var i = 0; i < rows.length; i++) {
+        var r = rows[i];
+        var isOpen = !!open[r.key];
+        r.head.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        r.list.hidden = !isOpen;
+        r.mark.textContent = isOpen ? '[\u2212]' : '[+]';
+      }
+    }
+    apply();
+    return root;
+  }
+
+  // 量出「组名左沿相对块左沿」的偏移，写回 --name-x —— 诗目缩进的**参照系**（缩进 0 ⇒ 题名左沿 = 组名左沿）
+  function measureNameX(hub) {
+    var name = hub.querySelector('[data-test="gname"]');
+    if (!name) return;
+    var dx = name.getBoundingClientRect().left - hub.getBoundingClientRect().left;
+    hub.style.setProperty('--name-x', dx.toFixed(2) + 'px');
+  }
+
+  var CFG = {
+    "page": "align",
+    "blocks": [
+      { "inst": "b1", "block": "hang-gap", "mark": "hang-gap", "valign": "baseline", "groups": "real", "open": [] },
+      { "inst": "b2", "block": "hang-center", "mark": "hang-center", "valign": "baseline", "groups": "real", "open": [] },
+      { "inst": "b3", "block": "inline", "mark": "inline", "valign": "baseline", "groups": "real", "open": [] },
+      { "inst": "b4", "block": "hang-gap-center", "mark": "hang-gap", "valign": "center", "groups": "real", "open": [] },
+      { "inst": "b5", "block": "fx", "mark": "hang-gap", "valign": "baseline", "groups": "fixture", "open": [] }
+    ]
+  };
+
+  function mountAll() {
+    var mounts = document.querySelectorAll('[data-mount]');
+    for (var i = 0; i < mounts.length; i++) {
+      var host = mounts[i];
+      var spec = null;
+      for (var j = 0; j < CFG.blocks.length; j++) if (CFG.blocks[j].inst === host.dataset.mount) spec = CFG.blocks[j];
+      if (!spec) continue;
+      var hub = createHub(spec);
+      host.appendChild(hub);
+      measureNameX(hub);
+    }
+  }
+
+  // 看图模式：#shot（只影响「截图用的截断标注」与横幅，不改变排布，也不改变首态）
+  if (location.hash === '#shot') document.documentElement.dataset.shot = '1';
+
+  mountAll();
+  function remeasureAll() {
+    var hubs = document.querySelectorAll('[data-test="hub"]');
+    for (var i = 0; i < hubs.length; i++) measureNameX(hubs[i]);
+  }
+  window.addEventListener('load', remeasureAll);
+  window.addEventListener('resize', remeasureAll);
+})();
+</script>
+</body>
+</html>
