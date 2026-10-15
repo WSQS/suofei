@@ -11,6 +11,7 @@
 | **第二轮 ①：「索」用哪个字体**（8 个候选字体 + 自检） | `out/round2-fonts.png` |
 | **第二轮 ②：把 C 最糊的那处修掉**（括号改自绘发丝线） | `out/round2-brackets.png` |
 | **第三轮：字体已定后的四个形态（可落地矢量）** | `out/round3-forms.png` |
+| **第四轮：A/C 各一个基线 ＋ 五个新形态（含 favicon 32/16）** | `out/round4-forms.png` |
 | 单个方向放大 | `out/preview-a-single-glyph.png`、`-b-hairline-lines.png`、`-c-bracket-glyph.png`、`-d-count-19.png` |
 | 交互页（可以自己缩窗口看尺寸变化） | 在仓库根起服务后开 `prototype/icons/out/round1-sheet.html` |
 | 交给实现方的矢量源 | `svg/<方向>-{bg,fg,mono}.svg` |
