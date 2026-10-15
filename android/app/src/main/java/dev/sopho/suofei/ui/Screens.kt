@@ -412,7 +412,10 @@ private fun UpdateScreen(state: AppState, onCheckUpdate: () -> Unit) {
         Text(state.contentVersionLine(), style = PoetryTextStyles.ui)
         Spacer(Modifier.height(PoetryTokens.rem(0.75f)))
 
-        Text("更新源（占位地址，见代码常量）", style = PoetryTextStyles.notesTitle)
+        // 这行原来写「更新源（占位地址，见代码常量）」——2026-10-15 更新源已换成**真实站点**
+        // （`update/UpdateProtocol.kt` 的 `BASE_URL`），再写「占位」就跟事实不符了。现在只说「更新源」，
+        // 真实地址由下一行照常显示出来；这里不写数字/版本，免得随发布过期。
+        Text("更新源", style = PoetryTextStyles.notesTitle)
         Text(state.manifestUrlForDisplay, style = PoetryTextStyles.meta)
         Spacer(Modifier.height(PoetryTokens.rem(0.75f)))
 

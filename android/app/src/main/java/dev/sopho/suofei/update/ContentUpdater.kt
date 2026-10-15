@@ -163,7 +163,9 @@ object ContentUpdater {
 
     private class SizeMismatchException(message: String) : IOException(message)
 
-    private fun resolveUrl(base: String, candidate: String): String {
+    /** 清单里的 `url` 相对**清单文件所在目录**解析（清单自己给绝对地址时原样用）。`internal` 只为
+     *  让 `UpdateEndpointTest` 能钉住「相对路径」这条语义（真实站点产出的清单给的正是相对路径）。 */
+    internal fun resolveUrl(base: String, candidate: String): String {
         if (candidate.startsWith("http://") || candidate.startsWith("https://")) return candidate
         // 相对路径按 BASE_URL 解析（清单里允许写相对路径，便于换域名）。
         return try {
