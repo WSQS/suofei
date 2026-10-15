@@ -4,23 +4,28 @@
 
 （仓库目录名 `PoetryCollection` 是工程名；应用展示名是**索斐**，Android 包名 `dev.sopho.suofei`。）
 
-## 当前状态
+## 当前状态（**这里不写数字**）
 
-**尚未发布任何版本**——没有公开的 APK、没有上线的网站。
+**已发布**：`v0.1.1+content-2026.10.16.20`——签名 APK（GitHub Release）＋ 线上站点（GitHub Pages），CI 真发布全绿。
+**当前可运行版本、交付分类（符合／偏离／未验证）、以及每道门的最新数字，只有一处**：
 
-本机（负责人 + 若干并行工作线）已完成：内容核对与来源记录、两端实现、离线与更新机制、发布流水线与就绪检查，全部有实测证据：
+→ **[docs/status.md](docs/status.md)**
 
-| 门 | 现状 |
+> 本 README 不再手写会过期的测试数与发布状态——它曾经写着「**尚未发布任何版本**」「Android 单测 55 项／Web e2e 151 项」「未做：签名/Release/Pages」，全都被事实推翻了。数字放一处，改一处。
+
+## 工程工作台（**本项目对 skill 默认形状的映射——声明一次**）
+
+工作面的默认形状见 `engineering-workflow` 技能的 `references/work-surface.md`。本项目**已经以别的方式组织**，所以按技能要求在这里声明映射，**不搬家**：
+
+| 默认形状 | 本项目实际位置 |
 |---|---|
-| 内容编译与校验 | 83 项测试通过；产物 schema 校验通过 |
-| 内置内容一致性 | 通过（`dist/content.json` == Android 内置 == Web 内容，字节一致） |
-| Android 单元测试 | 55 项通过（含「内置产物能被真解析」这类门） |
-| Web 端到端 | 151 项通过（真发 7 个版本、真无头浏览器、真离线、失败保旧版） |
-| 发布就绪检查 | 0 红（含两项真跑门），但**只在本地演练口径** |
+| `items/graph.md`（项与依赖边） | **[items/graph.md](items/graph.md)** |
+| `items/<项>/item.md`（理解／采纳版本锚／开放区域） | **[items/](items/)** —— 各项就在那里 |
+| `current-version.md`（现在能跑的版本） | **[docs/status.md](docs/status.md)** 的「当前可运行版本」一节（不另立第二份） |
+| 代码与公开契约 | **留在原处**（`content/`、`tools/`、`schema/`、`android/`、`web/`、`release/`）——工作面**不搬迁代码库**，项里只放**链接** |
+| 原型（`prototypes/`、`history/`） | `prototype/` **留在原处**（⚠ Web e2e 与发布就绪门会读 `prototype/css/theme-tech.css`，它是**活输入**）；项里的 `prototypes/` 放**指针与「它没表达什么」**，`history/` 放**被取代的原型与理解** |
 
-**未做**：真机/模拟器验收、固定签名、公开仓库的 Release、Pages 上线。
-
-状态与待办只有一处：**[docs/status.md](docs/status.md)**（不另立台账）。
+**谁决定什么**：**用户**拍板产品与视觉方向（留痕 `docs/interface-decisions.md`、`docs/review-gates.md`）；**对话型会话**持有理解／采纳版本锚／开放区域，并负责把问题问到用户；**调度型会话**（负责人）负责**依赖边、派活、验收、整合与发布**（分工表见 [docs/status.md](docs/status.md)）。
 
 ## 内容
 

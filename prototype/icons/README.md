@@ -7,14 +7,14 @@
 
 | 想看什么 | 打开 |
 |---|---|
-| **第一轮：四个方向总览** | `out/round1-sheet.png` |
-| **第二轮 ①：「索」用哪个字体**（8 个候选字体 + 自检） | `out/round2-fonts.png` |
-| **第二轮 ②：把 C 最糊的那处修掉**（括号改自绘发丝线） | `out/round2-brackets.png` |
-| **第三轮：字体已定后的四个形态（可落地矢量）** | `out/round3-forms.png` |
+| **第一轮：四个方向总览** | `items/app-icon/history/round1-sheet.png`（已移入历史） |
+| **第二轮 ①：「索」用哪个字体**（8 个候选字体 + 自检） | `items/app-icon/history/round2-fonts.png`（已移入历史） |
+| **第二轮 ②：把 C 最糊的那处修掉**（括号改自绘发丝线） | `items/app-icon/history/round2-brackets.png`（已移入历史） |
+| **第三轮：字体已定后的四个形态（可落地矢量）** | `items/app-icon/history/round3-forms.png`（已移入历史） |
 | **第四轮：A/C 各一个基线 ＋ 五个新形态（含 favicon 32/16）** | `out/round4-forms.png` |
-| 单个方向放大 | `out/preview-a-single-glyph.png`、`-b-hairline-lines.png`、`-c-bracket-glyph.png`、`-d-count-19.png` |
-| 交互页（可以自己缩窗口看尺寸变化） | 在仓库根起服务后开 `prototype/icons/out/round1-sheet.html` |
-| 交给实现方的矢量源 | `svg/<方向>-{bg,fg,mono}.svg` |
+| 单个方向放大 | 已移入历史：`items/app-icon/history/preview-a-single-glyph.png`、`-b-hairline-lines.png`、`-c-bracket-glyph.png`、`-d-count-19.png` |
+| 交互页（可以自己缩窗口看尺寸变化） | 在仓库根起服务后开 `items/app-icon/history/round1-sheet.html` |
+| 交给实现方的矢量源（**已采纳的那一份，留在原地**） | `svg/r4-N1-{bg,fg,mono}.svg`；其余方向的矢量已移到 `items/app-icon/history/` |
 
 复现（本机 Chromium 在 `%LOCALAPPDATA%\Chromium\Application\chrome.exe`，**不设它会假红**）：
 
@@ -117,7 +117,7 @@ Windows 上排出来的是 Microsoft YaHei UI，**Android 上根本不会有这�
 第三轮做三件事：
 
 1. **字形抽成矢量轮廓**：`outline.py`（`uv run --with fonttools python prototype/icons/outline.py …`）把「索」从 `NotoSansSC-VF.ttf` 里取出轮廓，并**在取轮廓前先实例化到 `wght=500`**（使矢量产物与预览图上看到的字重一致，不靠系统去合成）。
-   产物：`svg/final-{A,C1,C2,C3}-{bg,fg,mono}.svg` ——**全部断言不含 `<text>`**（脚本里是硬断言，不是口号：`build3.mjs` 一旦发现产物含 `<text>` 就抛错）。这是硬要求：Android 上没有微软雅黑，字形必须自己带走。
+   产物：`items/app-icon/history/final-{A,C1,C2,C3}-{bg,fg,mono}.svg`（已移入历史） ——**全部断言不含 `<text>`**（脚本里是硬断言，不是口号：`build3.mjs` 一旦发现产物含 `<text>` 就抛错）。这是硬要求：Android 上没有微软雅黑，字形必须自己带走。
 2. **四个形态**：A / C1 / C2 / C3（B 与 D 已按用户意见淘汰），每行给 4 种尺寸 × 3 种遮罩 + mono 单色层。
 3. **两条自检**：
    - **「文字渲染 vs 矢量轮廓」并排叠看**（看有无重影）。⚠️ **实测确实有轻微重影**：因为两者居中的定义不同——文字渲染（`dominant-baseline:central`）相当于按 **em 框**居中，而我们的轮廓按**墨迹框**居中，在 42px 下约差 **5px（≈canvas 的 4.6%）**。**交付以轮廓版为准**（它是按墨迹居中，视觉上更居中），第一/二轮预览里的字因而比交付版略偏下一点——这是解释，不是差异。

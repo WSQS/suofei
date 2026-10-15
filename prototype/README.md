@@ -47,9 +47,11 @@ cd <仓库根> && npx serve                    # 然后打开 http://127.0.0.1:3
 |---|---|---|
 | **A 宣纸**（`theme-paper`） | 暖米底、宋体正文＋楷体诗题、细线、直角、几乎无阴影。界面尽量退到纸的后面 | 观感偏「旧」；UI 文字（计数、标签、搜索结果）也跟着收敛，信息密度最低；暖底 + 衬线在小字号下不如无衬线清楚 |
 | **B 清爽**（`theme-clean`） | 白底、系统无衬线、卡片与柔和阴影、蓝色强调、圆角 | 气质偏「应用」不偏「书」；正文与 UI 同族无衬线，长诗呼吸感弱于 A；阴影/圆角用多了会抢注意力 |
+> ⚠ **〔2026-10-15 就地标注〕A 宣纸与 B 清爽**已被取代（用户 2026-10-15 选定 **C 静默终端**）⇒ 这两个主题的 CSS 与它们的截图已移到 [`../items/app-ui/history/`](../items/app-ui/history/)（**保留、标注**）。**原型页现在只提供 C 一个方向**（切换芯片也只剩它）。
+
 | **C 静默终端**（`theme-tech`） | 深墨底 + 低饱和青灰、发丝线、等宽数字与 `[n]` 计数、极淡网格。**不用霓虹、不用发光、不加动效** | 三个里最不像「书」；深底长文更累眼；异文小字这类印刷习惯在深底上更弱。留作横向对照项 |
 
-我倾向 **A 宣纸** 作为「读诗」的主方向：它把视觉权重放在正文（衬线、行距 2.05、字距 5%）上，
+**〔历史记录〕** 当时我倾向 **A 宣纸** 作为「读诗」的主方向（下面这段保留原样、供回溯；**用户 2026-10-15 选了 C 静默终端**）：：它把视觉权重放在正文（衬线、行距 2.05、字距 5%）上，
 诗题用楷体与正文拉开层次，界面元素（组、计数、按钮）都退成细线，读的时候几乎没有东西在跟正文抢注意力。
 B 的长处是「应用界面」那部分（分组计数、搜索结果、将来的更新提示）最清楚，如果要走 B，
 建议把正文区单独调成衬线（相当于「B 的骨架 + A 的正文」），这是我更想听用户拍板的地方。
@@ -79,12 +81,12 @@ C 的科技感是靠**结构**（发丝线、等宽计数）而不是靠**光**�
 
 | 文件 | 内容 |
 |---|---|
-| `mobile-hub-paper/clean/tech.png` | 430×932@2x 首屏，三个方向 |
-| `mobile-poem-paper/clean/tech.png` | 430×932@2x 诗页（《短歌行》，多段＋无笔记） |
-| `full-poem-paper/clean/tech.png` | 整页长图：完整分行/分节、空笔记状态、异文、来源 |
-| `full-note-collapsed-paper.png` / `full-note-expanded-paper.png` | 同一条长测试笔记的折叠态 / 展开态 |
-| `mobile-group-paper.png` | 组内诗目（汉 3 首，佚名排最后） |
-| `mobile-search-paper.png` | 跨组搜索「佚名」的结果 |
+| `mobile-hub-tech.png` | 430×932@2x 首屏（**另两个方向的同名图在 `items/app-ui/history/`**） |
+| `mobile-poem-tech.png` | 430×932@2x 诗页（《短歌行》，多段＋无笔记；另两方向在 history/） |
+| `full-poem-tech.png` | 整页长图：完整分行/分节、空笔记状态、异文、来源（另两方向在 history/） |
+| `full-note-collapsed-paper.png` / `full-note-expanded-paper.png` | 同一条长测试笔记的折叠态 / 展开态（**已移入 `items/app-ui/history/`**） |
+| `mobile-group-paper.png` | 组内诗目（汉 3 首，佚名排最后）（**已移入 `items/app-ui/history/`**） |
+| `mobile-search-paper.png` | 跨组搜索「佚名」的结果（**已移入 `items/app-ui/history/`**；注意：**产品侧搜索已按 2026-10-15 决定移除**，原型的搜索只是原型行为） |
 | `desktop-hub-*.png` / `desktop-poem-*.png` | 1280×860@2x，Web 端宽度下的观感 |
 | `verify-01-file-protocol.png` | file://（双击）路径：回退 fixture 且可用 |
 | `verify-02-http-fallback.png` | http 下没有 `../dist/content.json` 时回退 fixture |

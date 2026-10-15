@@ -5,14 +5,15 @@
  *   - 分组只显示有内容的组，组内先按作者、再按诗名排序，佚名/未详作者排最后（显式规则）；
  *   - 正文分行/分节/空行由 DOM 结构保证（每印刷行一个元素、每段一个容器），不靠 CSS 折行；
  *   - 笔记默认折叠，没有笔记时显示真实的「空」状态；
- *   - 三个视觉方向共用这一份逻辑，只切 data-theme。
+ *   - 这一份逻辑与 `css/base.css` 共用，主题只切 data-theme。**另两个方向（宣纸/清爽）已随用户
+ *     2026-10-15 拍板被取代**，其 CSS 与截图移到 `items/app-ui/history/`（保留、标注）。
  */
 'use strict';
 
 (function () {
+  // 只留已采纳的方向（静默终端）。另两个已移到 items/app-ui/history/ —— 这里不能再列出来，
+  // 否则主题芯片会切到一个**没有样式表**的方向（那是断链，不是历史）。
   var THEMES = [
-    { id: 'paper', label: '宣纸' },
-    { id: 'clean', label: '清爽' },
     { id: 'tech', label: '静默终端' },
   ];
   var pinyin = new Intl.Collator('zh-Hans-CN-u-co-pinyin');
