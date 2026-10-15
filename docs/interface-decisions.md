@@ -86,7 +86,7 @@
 | IF-11 | 应用展示名 | **索斐** | **已定**（2026-10-14） |
 | IF-12 | Android 包名 `applicationId` | **`dev.sopho.suofei`** | **已定**（2026-10-14） |
 | IF-13 | GitHub 仓库名与 Pages 地址 | **已定并已执行（2026-10-14）**：仓库 `https://github.com/WSQS/suofei`（**公开**）；Pages `https://wsqs.github.io/suofei/`（build_type=workflow、强制 https，**尚未部署内容**）。以后改仓库名/地址会断链 | **已定** |
-| IF-14 | 固定签名方案 | **已定（2026-10-14）：正式密钥放 GitHub Actions secrets**。密钥与口令在仓库之外（`~/.suofei/`），四项 secrets 已写入（只有名字公开）；**本机签名链路已实测**（`assembleRelease` 成功、`apksigner` 证书 `CN=Suofei` 而非 debug；无变量时 fail-closed）。**密钥丢失＝已装用户永远无法覆盖升级 ⇒ 必须离线备份**（用户侧待确认） | **已定** |
+| IF-14 | 固定签名方案 | **已定（2026-10-14）：正式密钥放 GitHub Actions secrets**。密钥与口令在仓库之外（`~/.suofei/`），四项 secrets 已写入（只有名字公开）；**本机签名链路已实测**（`assembleRelease` 成功、`apksigner` 证书 `CN=Suofei` 而非 debug；无变量时 fail-closed）。**密钥丢失＝已装用户永远无法覆盖升级 ⇒ 必须离线备份**（用户侧待确认）。**2026-10-15 更正一处容易让人读错的说法**：四项 secrets 里 `SUOFEI_KEYSTORE` 就是密钥本体的 base64（`.github/workflows/release.yml:93，100` 解码到 runner 临时目录）⇒ **密钥在 GitHub 上已有一份加密副本**，「密钥只在本机」这个说法**不准确**。但它**不等于**离线备份：① secrets **只写不可读**（网页/API 取不回值），要取回必须**另写一个 workflow 把解码结果当 artifact 上传**（日志会被掩码）⇒ **能恢复，但依赖 GitHub 账号 + 一次 CI 运行**；② 它与仓库同生共死（删仓库/失账号访问＝副本一起没），与源码同属一次事故的风险域；③ 覆盖 secret 不可逆。**结论修正**：异地副本已存在（而不是没有）⇒ 风险已**降低**，但「不依赖第三方账号」那个性质仍未具备（用户 2026-10-15 补充的事实） | **已定** |
 
 ## 第九批：视觉与主题（用户已定）
 
