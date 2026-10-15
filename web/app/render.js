@@ -238,15 +238,50 @@ export function renderPoemBody(poem) {
   return body;
 }
 
+/** 搜索命中高亮：与 Android 的 `highlightMatches()` **同语义**（大小写不敏感的子串），
+ *  颜色只取令牌 `--mark-bg` / `--mark-text`。
+ *  为什么补它：这两个令牌此前**只声明、没人用**，于是 Android 有高亮、Web 没有 —— 属「声明了却没接线」的偏离
+ *  （2026-10-15 逐屏材料里实测到 `<mark>` 数为 0 才发现）。e2e 现在有断言盯着。 */
+function highlightMatches(text, query) {
+  const q = String(query ?? '').trim();
+  if (!q) return [document.createTextNode(text)];
+  const nodes = [];
+  const lower = text.toLowerCase();
+  const lq = q.toLowerCase();
+  let i = 0;
+  for (;;) {
+    const at = lower.indexOf(lq, i);
+    if (at < 0) {
+      nodes.push(document.createTextNode(text.slice(i)));
+      break;
+    }
+    if (at > i) nodes.push(document.createTextNode(text.slice(i, at)));
+    nodes.push(h('mark', {
+      class: 'search-hit',
+      dataset: { test: 'search-hit' },
+      text: text.slice(at, at + q.length),
+    }));
+    i = at + q.length;
+  }
+  return nodes;
+}
+
 function poemRow(poem, onOpen, opts = {}) {
+  // 有查询时按查询高亮（与 Android 一致）；没有查询时走原来的纯文本路径，行为不变。
+  const title = h('span', { class: 'poem-row-title' });
+  const author = h('span', { class: 'poem-row-author' });
+  if (opts.query) {
+    for (const node of highlightMatches(poem.title, opts.query)) title.append(node);
+    for (const node of highlightMatches(poem.author, opts.query)) author.append(node);
+  } else {
+    title.textContent = poem.title;
+    author.textContent = poem.author;
+  }
   const link = h('a', {
     class: 'poem-row',
     href: ROUTES.poem(poem.id),
     dataset: { test: 'poem-row', poemId: poem.id },
-  }, [
-    h('span', { class: 'poem-row-title', text: poem.title }),
-    h('span', { class: 'poem-row-author', text: poem.author }),
-  ]);
+  }, [title, author]);
   if (opts.showDynasty) {
     link.prepend(h('span', { class: 'poem-row-dynasty', text: poem.dynastyLabel }));
   }
@@ -291,7 +326,7 @@ export function renderSearchResults(doc, query, { onOpen } = {}) {
     return root;
   }
   const list = h('div', { class: 'poem-list' });
-  for (const p of hits) list.append(poemRow(p, onOpen, { showDynasty: true }));
+  for (const p of hits) list.append(poemRow(p, onOpen, { showDynasty: true, query }));
   root.append(list);
   return root;
 }

@@ -5,8 +5,8 @@
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#ffffff",
+  "background_color": "#0e1315",
+  "theme_color": "#0e1315",
   "description": "索斐：个人诗歌阅读（离线可读）。",
   "icons": [
     {

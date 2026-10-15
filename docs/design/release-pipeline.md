@@ -78,7 +78,7 @@ v<应用资源版本>+content-<内容版本>       例如  v0.2.0+content-2026.1
 | `release-manifest.json` | 本次发布的机器可读记录 | 审计、就绪检查输入之一、**下一版的基线**（内容版本 + APP_VERSION） | 人 / 流水线（**不进站点**） |
 | `.work/` | 构建中间态：`android/`（只读副本）、`e2e/`（真跑门镜像根）、`logs/` | 只在构建/检查期用 | 无（可整个删） |
 
-**部署白名单**（精确比对，多一个就红）：顶层只允许 `index.html`、`styles.css`、`manifest.json`、`sw.js`、`app/`、`content.json`、`content/`；`fixtures/`、`tests/`、`scripts/`、`node_modules/`、`README.md`、`.gitignore`、`package.json`、**`content.json.sha256`** **绝不发布**。必需项：顶层白名单 ∪ `content.json`，**并与 E 线的 `web/tests/lib/deploy.mjs: DEPLOY_FILES` 求并**（它改了发布集我自动跟上，不另写一份清单）。
+**部署白名单**（精确比对，多一个就红）：顶层只允许 `index.html`、`styles.css`、`manifest.json`、`sw.js`、`app/`、`icons/`、`content.json`、`content/`；`fixtures/`、`tests/`、`scripts/`、`node_modules/`、`README.md`、`.gitignore`、`package.json`、**`content.json.sha256`** **绝不发布**。必需项：顶层白名单 ∪ `content.json`，**并与 E 线的 `web/tests/lib/deploy.mjs: DEPLOY_FILES` 求并**（它改了发布集我自动跟上，不另写一份清单）。
 
 ## 5. 同源：一份字节，怎么保证不是「各建一次」
 

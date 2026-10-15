@@ -427,6 +427,15 @@ button {
   white-space: nowrap;
 }
 
+/* 搜索命中高亮：颜色只取令牌（§2 的 --mark-bg / --mark-text）。
+   2026-10-15 之前这两个令牌**只声明、没有任何规则或代码用它**——Android 有高亮、Web 没有，
+   属「声明了却没接线」的偏离（逐屏材料实测 `<mark>` 0 个发现的）。 */
+.search-hit {
+  background: var(--mark-bg);
+  color: var(--mark-text);
+  border-radius: 2px;
+}
+
 .poem-row-dynasty {
   font-family: var(--font-mono);
   font-size: 0.66rem;

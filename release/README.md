@@ -55,7 +55,7 @@ node release/build-release.mjs --tag 'v0.2.0+content-2026.10.16.5' --android-var
 | 路径 | 是什么 | 谁用 |
 |---|---|---|
 | `dist/content.json` | **唯一一次编译**的规范产物（单行压缩 JSON，`--minify`；**不产边车**） | 留档；其它几处都是它的字节复制 |
-| `web/` | **站点根**（整目录部署）：`index.html`、`styles.css`、`manifest.json`、`sw.js`、`app/` | 浏览器 |
+| `web/` | **站点根**（整目录部署）：`index.html`、`styles.css`、`manifest.json`、`sw.js`、`app/`、`icons/`（启动图标与 favicon；N1 字标＋无字极简记号 M1） | 浏览器 |
 | `web/content.json` | ＝`dist/content.json`（字节复制）；**必需**（契约 §4：内容单独取，不内联） | Web 端（SW 与壳同批缓存） |
 | `web/content/latest.json` + `web/content/<版本>/content.json` | 远端小纸条清单（含 `sha256` 字段）+ 快照 | Android 端 |
 | `apk/suofei-<内容版本>-debug.apk` | 内置同版内容的 APK（**debug 签名**） | 手动安装；正式 Release 前必须换固定签名 |

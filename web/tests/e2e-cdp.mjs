@@ -759,6 +759,32 @@ async function main() {
   await waitForIndex();
   await setQuery('佚名');                          // 搜索不进地址栏（用户拍板）
   check('目录里搜索会显示结果', await evaluate(`Boolean(document.querySelector('[data-test="view-search"]'))`));
+  // 命中高亮：令牌 `--mark-bg` / `--mark-text` 以前**只声明、没人用**（Android 有、Web 没有）——
+  // 2026-10-15 逐屏材料实测 `<mark>` 数为 0 才发现。这里把它变成可断言的。
+  const markInfo = await evaluate(`(() => {
+    const hit = document.querySelector('[data-test="search-hit"]');
+    const root = getComputedStyle(document.documentElement);
+    const norm = (s) => String(s).replace(/\\s+/g, '');
+    // 令牌可能写成 #rrggbb，而计算值总是 rgb()/rgba() —— 两边都过一遍探针元素，再比。
+    const asColor = (v) => {
+      const el = document.createElement('span');
+      el.style.color = v;
+      document.body.appendChild(el);
+      const out = getComputedStyle(el).color;
+      el.remove();
+      return norm(out);
+    };
+    return {
+      count: document.querySelectorAll('[data-test="search-hit"]').length,
+      bg: hit ? norm(getComputedStyle(hit).backgroundColor) : null,
+      fg: hit ? norm(getComputedStyle(hit).color) : null,
+      tokenBg: asColor(root.getPropertyValue('--mark-bg')),
+      tokenFg: asColor(root.getPropertyValue('--mark-text')),
+    };
+  })()`);
+  check('搜索命中高亮真的画出来了（与 Android 同语义）', markInfo.count > 0, dump(markInfo));
+  eq('命中高亮的底色 = 令牌 --mark-bg（不是自造色）', markInfo.bg, markInfo.tokenBg);
+  eq('命中高亮的字色 = 令牌 --mark-text', markInfo.fg, markInfo.tokenFg);
   eq('搜索时地址栏不变、没有搜索参数',
     [await evaluate('location.hash'), (await evaluate('location.href')).includes('?q=')], ['#/', false]);
   await setQuery('');

@@ -290,7 +290,7 @@ function renderStatus() {
   els.status.append(h('p', { class: 'status-honest', dataset: { test: 'honest-storage-note' },
     text: '诚实说明：首次访问需要网络；此后外壳与内容一起由 Service Worker 存在本站缓存里，'
       + '用户「清除站点数据」或浏览器回收存储都可能让它丢失，离线副本不承诺永久保存。'
-      + '本站**不会自动刷新**：发现新版本只给提示，长时间不点刷新就会一直停在旧版本；'
+      + '本站「不会自动刷新」：发现新版本只给提示，长时间不点刷新就会一直停在旧版本；'
       + '点提示里的「刷新」（或在诗页时先回目录）才会整套换成新版本。'
       + 'Service Worker 只在 https 或 localhost 下可用（file:// 打开无法离线）。' }));
 }
