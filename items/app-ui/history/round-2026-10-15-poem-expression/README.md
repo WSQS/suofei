@@ -50,7 +50,12 @@
 - **诗页水平对齐轮**：`items/app-ui/prototypes/q-poem-align.*`（本轮结论之上，只探索水平关系）。
 - **跨页宽度自适应轮**（`ui-responsive`）：等各页水平关系定后再做。
 
-## 复跑（当前路径下）
+## 搬迁时处理的依赖（2026-10-15）
+
+- 脚本原把**仓库根**写成 `join(OUT, "..", "..", "..")` ⇒ 整轮搬进 `history/` 后**指到 `items/`**、跑不起来（实测 `ENOENT … items/content/poems/…`）。已改为**从脚本所在目录向上查找 `prototype/css/theme-tech.css`** 定位仓库根。
+- 搬迁后**复跑：失败断言 0**。
+
+## 复跑（归档后仍可复跑）
 
 ```bash
 CHROME_BIN=<本机 Chromium 路径> node items/app-ui/history/round-2026-10-15-poem-expression/check-poem.mjs
