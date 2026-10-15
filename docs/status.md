@@ -46,12 +46,12 @@
 |---|---|---|---|
 | 应用名＝索斐 | `android` app_name、Web 标题与 manifest | Web e2e 断言标题；`apk-identity` 门 | **符合** |
 | 包名 `dev.sopho.suofei` | `applicationId` / namespace | `apk-identity` 门 | **符合** |
-| **视觉＝静默终端（深墨底）** | Web：`web/styles.css`（E，**已并入主线**）；Android：D 进行中 | Web：e2e **令牌逐值断言**（与原型 57 项）＋§4.1 结构记号 3 条＋无阴影/无关键帧；截图 `web/tests/artifacts/theme-tech-*.png`；**负责人复跑 203/203** | ⚠ **偏离→收敛中**（线上首版仍是占位浅色；Web 修复**就绪未发布**） |
+| **视觉＝静默终端（深墨底）** | **两端均已落地并并入主线**：Web `web/styles.css`；Android `ui/Theme.kt`（令牌集中一处）＋`StructuralMarks.kt`＋`PoemHead.kt` | Web：e2e 令牌逐值断言（与原型 57 项）＋§4.1 三样记号＋截图；Android：`VisualTokensConsistencyTest`（**读 `visual-tokens.md` 逐项比对，规范读不到即失败**）＋`StructuralMarksTest`；**负责人复跑 Web 203/203、Android 72/72** | ⚠ **偏离→收敛中**（线上首版仍是占位浅色；两端修复**就绪未发布**；**Android 观感待我在模拟器上截图核**） |
 | 组内排序＝《文选》原次序（source） | 编译期排序 | C 的 order-strategy 测试；Android「数组次序==`orderInSource` 1..19」；Web e2e「目录次序==产物次序」 | **符合** |
 | 产物只发布 `orderInSource`（不发音次键） | 编译器 | schema/interface 测试（无 `SortKey` 字段） | **符合** |
 | **异文不上界面** | Android 不显示；Web 已修并**已并入主线** | Android 无此 UI；Web e2e **反向断言**（诗页不得出现 `variants[].text`） | ⚠ **偏离**（线上首版仍显示；**修复未发布**） |
 | 单主题（不做切换开关/不做偏好持久化） | 两端确实没有开关 | — | **符合**（但深色本身未落地，见上） |
-| `formatVersion` 判据＝**「字段集一变就升」（B）**（用户 2026-10-15 定；代价＝每变一次断一次内容热更、**不可逆**，用户明确接受） | 本次收敛不改字段集 ⇒ 保持 `1`；**自动门尚未实现** | 契约测试 | **决定已定 · 门未落地**（单向门：老客户端会**拒收**更高 `formatVersion` 的内容） |
+| `formatVersion` 判据＝**「字段集一变就升」（B）**（用户 2026-10-15 定；代价＝每变一次断一次内容热更、**不可逆**，用户明确接受） | **门已落地**：`tools/check-fieldset.mjs` ＋ `schema/format-version.json`（冻结 formatVersion 1 的键路径与指纹）；口径＝**产物 JSON 的键路径** | `tests/format-version.test.mjs`（4 例：记录一致/记录健康/口径覆盖/门非空过）；**端到端证伪**：让编译器真给产物加一个键 ⇒ **7 例红**（含本门） | **符合** |
 | Web 内容更新交给 SW（删掉独立通道） | `web/sw.js`＋删掉 store/staged | E 的 e2e（真发 7 版/成对切换/旧 cache 删除/离线），**CI 上也真跑 151/151** | **符合** |
 | Android 保留远端小纸条清单 | `UpdateProtocol` | Android 单测（`UpdateFlowTest`/`UpdateManifestParserTest`） | **符合** |
 | URL 形态＝哈希路由、搜索不进 URL | `web/app/config.js` | e2e 断言（深链接直开＝该诗、搜索时地址不变、无搜索参数） | **符合** |
@@ -91,7 +91,9 @@
 
 ## 下一步
 
-**收敛修复（进行中，本会话）**：合并 D/E 两端视觉落地 → 修 Android 更新页两处 → **只打一个新 tag**（把「视觉落地 + 更新页修正 + 去异文栏」一次发出去，Release 与 Pages 同步更新）→ 线上核验（深色可见、无「异文」栏、深链接可开）。
+**收敛修复（进行中，本会话）**：两端视觉**已落地并入主线** → Android 更新页**文案已改**、**「状态行渲染为空」仍未查清**（已加 `testTag("update-status")` 与「每状态文案非空」断言；待我在模拟器上重新 dump 定论）→ **只打一个新 tag**（「视觉落地 + 更新页修正 + 去异文栏」一次发出，Release 与 Pages 同步）→ 线上核验（深色可见、无「异文」栏、深链接可开）。
+
+**等用户（均已由对话侧问出）**：图标方向（第二轮原型 `bd14ebc`：字体候选＋括号改自绘发丝线）、目录页结构 `q-8f6028a5`、Web 诗页是否显示 `id` `q-1f0a16c3`。
 
 **同时等用户**（对话型会话已问，本会话不重复问）：
 - **应用图标（A8）**：用户 2026-10-15 已答「**借本次收敛 tag 一起做**」＋「先给几轮原型，逐步迭代」⇒ 第一轮 4 个方向在 `prototype/icons/`（对话侧）。它**挡在 tag 前面**：方向定了我**另开新会话**落到**两端**（Android 启动图标＋自适应＋mono 层；Web favicon＋manifest 图标）；⚠ 硬约束：A/C/D 三方向用的是**字**，落进 Android **必须转成路径**（不能依赖运行时的系统字体），详见该目录 README。
@@ -115,6 +117,7 @@
 - **Android D**（`android/`）：`./gradlew assembleDebug` 我这边复跑通过；**单测 49 例全绿**（原 45 + 我加的 4 条回归）；`aapt2 dump badging` 实测包名 `dev.sopho.suofei`、应用名「索斐」、minSdk 26 / targetSdk 36。
   - **内置内容已换成真产物**：APK 内 `assets/content/content.json` 与 `dist/content.json` **字节一致**（压缩后 18206 字节），19 首、首＝行行重行行、末＝明月何皎皎。占位夹具与 `FIXTURE-README.md` 已删。
   - 诚实边界：**从未在真机/模拟器上运行过**（本轮禁止 adb/模拟器操作）；更新源是占位地址（`https://example.invalid/...`），只在本地 HTTP 上验证过成功与各失败路径。
+- **Android 视觉（D，第二轮，已并入主线）**：令牌集中在 `ui/Theme.kt`（界面文件**零硬编码色值**），§4.1 三样结构记号在 `StructuralMarks.kt`/`PoemHead.kt`；更新页过期文案已改（**故意不写数字**，免得随发布过期）；单测 **72/72**（我复跑）；变异验证：改坏颜色/行高/括号字号 ⇒ 对应断言各自报红点名。诚实边界见 `android/README.md` §6.3（10 条）；**深色观感、字体渲染、强光可读性均未在设备上观察**（值一致有单测，观感待我截图核）。
 - **Web 视觉（E，第二轮，已并入主线）**：`web/styles.css` 重写为静默终端（令牌与原型 **57 项逐值一致**＋§4.1 三样结构记号＋无阴影/无关键帧/仅 0.15s 颜色过渡）；`node web/tests/e2e-cdp.mjs` **203/203**（我复跑，合并后**再复跑一次**）；4 张原型口径截图 `web/tests/artifacts/theme-tech-*.png`。诚实边界见 `web/README.md` §5.1（计算值取整 0.028→0.027 用数值容差、字体回退不保证跨机同形、伪元素文字不进 `innerText`）。
 - **Web E**（`web/`，第一轮）：静态、零依赖、无构建步骤；e2e 我复跑 **167/167**（用真的无键产物）；两套缓存分离（资源 Cache `pc-resources-<APP_VERSION>` / 内容 IndexedDB）；离线用「CDP offline + 真杀掉本地服务」双重模拟。
   诚实边界：未部署真实 Pages、未在移动浏览器验证、`manifest.json` 故意无图标。
