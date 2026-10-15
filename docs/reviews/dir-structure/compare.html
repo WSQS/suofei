@@ -1,0 +1,18 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><style>
+  body{margin:0;background:#0e1315;color:#dde5e4;font-family:'Microsoft YaHei UI','Microsoft YaHei',sans-serif;padding:24px 28px}
+  h1{font-size:19px;font-weight:500;letter-spacing:.14em;margin:0 0 4px}
+  .sub{color:#98a8a6;font-size:12px;line-height:1.7;margin:0 0 18px}
+  .row{display:flex;gap:22px;align-items:flex-start}
+  figure{margin:0;width:460px}
+  figcaption{font-size:12px;line-height:1.6;color:#dde5e4;margin-bottom:8px}
+  figcaption b{font-weight:500}figcaption span{display:block;color:#98a8a6;font-size:11px}
+  img{display:block;width:100%;border:1px solid #233034;border-radius:6px;background:#0a0e10}
+</style></head><body>
+  <h1>索斐 · 目录页结构：原型 vs 实现</h1>
+  <p class="sub">同一台无头 Chromium、同一视口（420×2600、2× 密度；<b>把手机屏拉长到一屏看完整个目录</b>——所以它不是真机上的一屏，只是为了让整页可比较）。要看字请直接开这三张整页图。Android 端截图暂缺（需要负责人那台模拟器），但其实现结构与此处的 Web 一致（组头＋内联列表）。</p>
+  <div class="row">
+    <figure><figcaption><b>① 原型 · 目录</b><span>组卡片 ＋ 组内前 3 首题名预览 ＋ 每张卡可点进</span><img src="proto-index.png"></figure>
+    <figure><figcaption><b>② 原型 · 点进后的二级页</b><span>组页（hash 里是 /g/han）里才是完整诗列表</span><img src="proto-group.png"></figure>
+    <figure><figcaption><b>③ 实现（Web）· 目录</b><span>组头 ＋ 19 首全部内联展开，没有二级页</span><img src="web-index.png"></figure>
+  </div>
+</body></html>

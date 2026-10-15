@@ -22,7 +22,10 @@ import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(HERE, '..', '..');
+// 注意上三级：本文件在 <root>/docs/reviews/dir-structure/ 下。
+// 这里踩过一次：只上两级（'..','..'）会得到 <root>/docs，于是 spawn 服务时报
+// “Cannot find module …/docs/prototype/tools/serve.mjs”，报错却长得像服务起不来。
+const ROOT = path.resolve(HERE, '..', '..', '..');
 const CHROME = process.env.CHROME_BIN;
 if (!CHROME) { console.error('需要 CHROME_BIN'); process.exit(1); }
 
