@@ -36,8 +36,11 @@ export const SUPPORTED_FORMAT_VERSION = 1;
 
 // ---------- Web 部署目录：什么该进、什么绝不能进 ----------
 
-/** 白名单：这几个顶层条目从 web/ 复制到部署目录（`app` 是整棵子树）。 */
-export const DEPLOY_ALLOWLIST = ['index.html', 'styles.css', 'manifest.json', 'sw.js', 'app'];
+/** 白名单：这几个顶层条目从 web/ 复制到部署目录（`app` 是整棵子树）。
+ *  `icons`：2026-10-15 落地应用图标后新增（启动图标 N1 ＋ 标签页图标另用一套无字极简记号）。
+ *  它是**新的顶层目录**，按本文件的规矩必须显式加进来 —— 不加它，部署目录会缺图标文件，
+ *  而 SW 的预缓存清单里有这些路径 ⇒ install 会直接失败（离线掉图）。 */
+export const DEPLOY_ALLOWLIST = ['index.html', 'styles.css', 'manifest.json', 'sw.js', 'app', 'icons'];
 
 /** 流水线自己生成、允许出现在部署目录里的顶层条目。 */
 export const DEPLOY_GENERATED = [WEB_CONTENT_NAME, ANDROID_SNAPSHOT_DIR_REL_IN_WEB];

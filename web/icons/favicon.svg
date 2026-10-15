@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="32" height="32" role="img" aria-label="索斐">
+<!--
+  索斐 · 浏览器标签页图标（极简记号 M1，用户 2026-10-15 裁决 `q-1c1e7876`：favicon 另用一套极简记号）。
+  形状：把 N1 那条右下 accent 发丝补成一个「角标」—— 右下一条横臂 + 右侧一条竖臂（方角 L），
+        厚 12、每臂长 36（画布 108）。**无字**：这是一枚记号，不是缩小的启动图标。
+  为什么：N1 在 16/32px 下糊成一团（prototype/icons/out/round4-forms.png 最后两列）；
+        发丝本身只有 2.5 单位厚，16px 下必然消失，所以这里加粗到 16px 下约 1.8px。
+  颜色只用现有令牌：bg=#0e1315、accent=#4fb3a5。没有引入新颜色。
+  ⚠️ 与启动图标（N1）**不同形** —— 这是该裁决明写的代价。
+  由 `node web/scripts/build-icons.mjs` 生成，手工改会被覆盖。
+-->
+  <rect width="108" height="108" fill="#0e1315"/>
+  <path d="M 44 68 H 68 V 44 H 80 V 80 H 44 Z" fill="#4fb3a5"/>
+</svg>
