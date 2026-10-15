@@ -19,7 +19,7 @@
 git status --short                      # 必须为空
 npm test                                # 83/83
 node tools/check-bundled-content.mjs    # 内置内容 == 内容源
-node tools/check-doc-tables.mjs         # 台账列数
+node tools/check-doc-tables.mjs         # 台账表格结构（列数 / 孤立表行 / 表被截断）
 cd android && ./gradlew testDebugUnitTest -PextraMavenMirror=…   # 55/55
 node web/tests/e2e-cdp.mjs              # 151/151
 cd .. && node release/build-release.mjs --tag 'v<应用版本>+content-<内容版本>'
