@@ -3,7 +3,7 @@ package dev.sopho.suofei.ui
 import dev.sopho.suofei.update.FailureKind
 
 /**
- * 更新页「状态」那一行的文案。
+ * 「关于」页（原「更新页」改名）里「状态」那一行的文案。
  *
  * 抽成**纯函数**有两个原因：
  * 1. 可以 JVM 单测逐状态断言「文案非空」（`UpdateStatusTextTest`）—— 模拟器验收曾报「状态行渲染为空」，

@@ -392,20 +392,34 @@ button {
   white-space: nowrap;
 }
 
-/* 跨组搜索已按用户 2026-10-15 的决定移除（第一版不做搜索）。
-   这里不再有 `.search`（输入框）与 `.search-hit`（命中高亮）等规则；
-   `--mark-bg` / `--mark-text` 两个令牌留在 :root 里只为与原型/规范逐项对齐（e2e §1d 会逐值比对）。 */
+/* 用户 2026-10-15 定：目录行**不再有「有笔记」标记**（两端都无）⇒ 原来的 `.poem-row-notes`
+   规则已删（不留一条没人用的样式）。反同断言在 e2e §4e。 */
 
-.poem-row-notes {
-  margin-left: auto;
-  font-family: var(--font-mono);
-  font-size: 0.6rem;
-  letter-spacing: 0.1em;
-  color: var(--accent-strong);
-  border: 1px solid var(--accent-line);
-  border-radius: var(--radius-pill);
-  padding: 0.05rem 0.35rem;
+/* ---------- 目录：顶部一行（摘要 + 「关于」入口） ---------- */
+
+.index-bar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.index-bar .view-hint {
+  margin: 0.4rem 0 1rem;
+}
+
+.about-link {
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
   white-space: nowrap;
+  transition: var(--chip-transition);
+}
+
+.about-link:hover {
+  color: var(--accent-strong);
 }
 
 /* ---------- 诗页 ---------- */
@@ -624,6 +638,93 @@ button {
   font-size: 0.85em;
 }
 
+/* ---------- 诗歌详情页（第四页，用户 2026-10-15 定） ---------- */
+
+.detail-entry {
+  margin: 2rem 0 0;
+}
+
+.variants {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.variants-title {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 0.82rem;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+}
+
+.variant-list {
+  margin: 0.9rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.variant {
+  margin-bottom: 0.9rem;
+}
+
+.variant:last-child {
+  margin-bottom: 0;
+}
+
+.variant-text {
+  margin: 0;
+  font-family: var(--font-poem);
+  font-size: var(--poem-size);
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.variant-note {
+  margin: 0.25rem 0 0;
+  font-family: var(--font-note);
+  font-size: var(--note-size);
+  line-height: 1.8;
+  color: var(--text-faint);
+  max-width: var(--note-measure);
+}
+
+.variants-empty {
+  margin: 0.9rem 0 0;
+  font-family: var(--font-ui);
+  font-size: var(--note-size);
+  color: var(--text-faint);
+}
+
+/* ---------- 「关于」页（原「更新页」改名，两端同一批字段） ---------- */
+
+.about-fields {
+  display: grid;
+  grid-template-columns: 8rem 1fr;
+  gap: 0.4rem 0.9rem;
+  margin: 1.4rem 0 0;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-sunken);
+  box-shadow: var(--shadow);
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  line-height: 1.85;
+  color: var(--text-dim);
+}
+
+.about-fields dt {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+
+.about-fields dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 /* ---------- 窄屏 ---------- */
 
 @media (max-width: 420px) {
@@ -632,6 +733,10 @@ button {
   }
 
   .status-list {
+    grid-template-columns: 1fr;
+  }
+
+  .about-fields {
     grid-template-columns: 1fr;
   }
 

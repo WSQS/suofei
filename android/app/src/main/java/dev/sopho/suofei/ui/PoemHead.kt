@@ -10,7 +10,7 @@ import androidx.compose.ui.Modifier
 import dev.sopho.suofei.data.Poem
 
 /**
- * 诗页题头：诗题 / 作者行 / 元信息行（时代·体裁）。
+ * 诗页题头：诗题 ／ 题下那一行（**时代 · 作者 · 年代 · 体裁**，见 [poemMetaLine]）。
  *
  * ⚠️ **规范 §4.1-3：题头不画下划线**（原型 `theme-tech.css`：`.poem-head { border-bottom: none;
  * padding-bottom: 0 }`，覆盖了 `base.css` 里那条 `border-bottom`）。所以**这个文件里不允许出现
@@ -22,11 +22,7 @@ fun PoemHead(poem: Poem, modifier: Modifier = Modifier) {
     Column(modifier) {
         Text(poem.title, style = PoetryTextStyles.poemTitle)
         Spacer(Modifier.height(PoetryTokens.rem(0.35f)))
-        Text(poem.author, style = PoetryTextStyles.author)
-        Spacer(Modifier.height(PoetryTokens.rem(0.2f)))
-        Text(
-            listOfNotNull(poem.dynastyLabel, poem.era, poem.genre).joinToString(" · "),
-            style = PoetryTextStyles.meta,
-        )
+        // 题下只有一行：**时代 · 作者 · 年代 · 体裁**（与 Web 同一口径与顺序；用户 2026-10-15 的页面清单）。
+        Text(poemMetaLine(poem), style = PoetryTextStyles.meta)
     }
 }

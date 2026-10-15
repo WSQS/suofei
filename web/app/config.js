@@ -17,6 +17,32 @@
 /** 站点/应用展示名（用户 2026-10-14 拍板：索斐）。 */
 export const APP_NAME = '索斐';
 
+/**
+ * 「关于」页的共享字段集（用户 2026-10-15 定：页面集合＝目录／诗／诗歌详情／关于）。
+ *
+ * **唯一来源＝`web/about-fields.json`**（机器可读，两端同一批字段；跨端一致性靠它）。
+ * 这里写一份**运行时副本**（静态站点运行期读不到那个文件）——两边**逐字一致**，
+ * 由 e2e 读文件比对（不一致就报红并打出两边内容）；Android 端同样对着那个文件比（`AboutFields`）。
+ * 字段的**值**是平台相关的（Web 的版本号是站点资源版本，Android 的是 APK 版本；
+ * 「诚实的限制」也各写各的平台限制），本副本只钉「同一批字段」。
+ */
+export const ABOUT = {
+  appName: '索斐',
+  tagline: '个人诗歌阅读（离线可读）。',
+  fields: ['应用名', '一句话说明', '应用版本', '内容版本与来源', '诚实的限制'],
+};
+
+/**
+ * Web 端的「诚实限制」原文（**沿用已有文案，不新写**）。
+ * 同一份字符串同时给页脚状态面板与「关于」页用 —— 两处不许各写一段，免得日后只改一处。
+ */
+export const HONEST_STORAGE_NOTE =
+  '诚实说明：首次访问需要网络；此后外壳与内容一起由 Service Worker 存在本站缓存里，'
+  + '用户「清除站点数据」或浏览器回收存储都可能让它丢失，离线副本不承诺永久保存。'
+  + '本站「不会自动刷新」：发现新版本只给提示，长时间不点刷新就会一直停在旧版本；'
+  + '点提示里的「刷新」（或在诗页时先回目录）才会整套换成新版本。'
+  + 'Service Worker 只在 https 或 localhost 下可用（file:// 打开无法离线）。';
+
 /** 站点（应用资源）版本：唯一的版本键，站点缓存与更新生命周期都跟着它走。
  *  发布新站点（含新内容）时递增它。 */
 export const APP_VERSION = '0.1.1';
@@ -44,5 +70,14 @@ export const LOCAL_STORAGE_KEYS = {};
 export const ROUTES = {
   index: '#/',
   poem: (id) => `#/p/${encodeURIComponent(id)}`,
-  poemPattern: /^\/p\/(.+)$/,
+  /** 诗歌详情页（第四页，用户 2026-10-15 定，见 `docs/interface-decisions.md` IF-47）。
+   *  **分层语义**：`#/p/<id>/detail` ＝ 这首诗的详情（考据与来源），深链接可直达。 */
+  detail: (id) => `#/p/${encodeURIComponent(id)}/detail`,
+  /** 「关于」页（原「更新页」改名；两端都有、内容一致，只有 Android 多一块「更新」）。 */
+  about: '#/about',
+  /** 诗页：id 里不含 `/`（否则会与详情页的 `/detail` 后缀相撞）——所以模式里排除 `/`。 */
+  poemPattern: /^\/p\/([^/]+)$/,
+  /** 详情页：必须**先**于 poemPattern 匹配，否则 `/p/<id>/detail` 会被当成 id 为 `<id>/detail`。 */
+  detailPattern: /^\/p\/([^/]+)\/detail$/,
+  aboutPattern: /^\/about$/,
 };

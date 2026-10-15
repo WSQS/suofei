@@ -1,0 +1,12 @@
+{
+  "_comment": "「关于」页的共享字段集 —— 这里是唯一来源（跨端一致性用）。两端各有一份运行时副本（Web: app/config.js 的 ABOUT；Android: ui/ScreenContent.kt 的 AboutFields），由各自的测试读本文件逐项比对：Web e2e 比 config.ABOUT、Android 单测比 AboutFields。字段的**值**是平台相关的（Web 的版本号是站点资源版本、Android 的是 APK 版本；限制也各写各的），这里只钉「同一批字段」。",
+  "appName": "索斐",
+  "tagline": "个人诗歌阅读（离线可读）。",
+  "fields": [
+    "应用名",
+    "一句话说明",
+    "应用版本",
+    "内容版本与来源",
+    "诚实的限制"
+  ]
+}

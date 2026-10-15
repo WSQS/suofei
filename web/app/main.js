@@ -11,9 +11,9 @@
 import {
   ContentError, SUPPORTED_FORMAT_VERSION, loadContent,
 } from './content.js';
-import { APP_VERSION, ROUTES, resourceCacheName } from './config.js';
+import { APP_VERSION, HONEST_STORAGE_NOTE, ROUTES, resourceCacheName } from './config.js';
 import {
-  productOrderStatus, renderIndex, renderPoemPage,
+  productOrderStatus, renderAboutPage, renderDetailPage, renderIndex, renderPoemPage,
 } from './render.js';
 
 const els = {
@@ -100,27 +100,67 @@ function setNotice(kind, text, action = null) {
 
 // ---------------------------------------------------------------- 路由
 
-function parseHash() {
-  const hash = location.hash.replace(/^#/, '');
-  const m = ROUTES.poemPattern.exec(hash);
-  if (m) return { kind: 'poem', id: decodeURIComponent(m[1]) };
+/**
+ * 目录的临时滚动位置（用户 2026-10-15 定 `IF-45`）：
+ *   从诗页返回目录时落回刚才的位置；**深链接直开目录仍从顶部**。
+ * 做法：离开目录前把 `scrollY` 记下来并置 `restore`；再回到目录时恢复一次。
+ * 新开文档（深链接/刷新）时 `restore` 初值为 false ⇒ 从顶部开始。
+ */
+const indexScroll = { y: 0, restore: false };
+
+function parseHashString(hash) {
+  const bare = String(hash).replace(/^#/, '');
+  // 详情页必须**先**匹配：否则 `/p/<id>/detail` 会被 poemPattern 当成 id 为 `<id>/detail`。
+  const d = ROUTES.detailPattern.exec(bare);
+  if (d) return { kind: 'detail', id: decodeURIComponent(d[1]) };
+  const p = ROUTES.poemPattern.exec(bare);
+  if (p) return { kind: 'poem', id: decodeURIComponent(p[1]) };
+  if (ROUTES.aboutPattern.test(bare)) return { kind: 'about', id: null };
   return { kind: 'index', id: null };
 }
 
+function parseHash() {
+  return parseHashString(location.hash);
+}
+
+/** 离开目录前记下位置（只有「从目录去非目录」才记，一直待在目录里不动它）。 */
+function captureLeavingIndex(nextHash) {
+  if (state.view.kind !== 'index') return;
+  if (parseHashString(nextHash).kind !== 'index') {
+    indexScroll.y = window.scrollY || 0;
+    indexScroll.restore = true;
+  }
+}
+
+/** 视图切完后调：目录按需恢复位置；非目录页从顶部开始（不要带着上一页的滚动量）。 */
+function afterViewChange() {
+  if (state.view.kind === 'index') {
+    if (!indexScroll.restore) return;
+    indexScroll.restore = false;
+    const y = indexScroll.y;
+    // 等新目录完成布局再滚，否则位置会被上一次的布局带偏。
+    requestAnimationFrame(() => window.scrollTo(0, y));
+    return;
+  }
+  window.scrollTo(0, 0);
+}
+
 function navigate(hash) {
+  captureLeavingIndex(hash);
   if (location.hash === hash) {
-    state.view = parseHash();
+    state.view = parseHashString(hash);
     render();
+    afterViewChange();
   } else {
-    location.hash = hash;
+    location.hash = hash;   // hashchange 会负责 render + afterViewChange
   }
   maybeApplyUpdateOnIndex();
 }
 
-/** 回到目录（不是诗页）时，若已有待生效的新版本，就切换（刷新）。 */
+/** 回到目录（不是诗页/详情页）时，若已有待生效的新版本，就切换（刷新）。 */
 function maybeApplyUpdateOnIndex() {
   if (!state.update.available || state.update.applying) return;
-  if (state.view.kind === 'poem') return; // 还在阅读：不打断
+  if (state.view.kind !== 'index') return; // 还在阅读（诗页/详情/关于）：不打断
   applyUpdate('回到目录后自动生效');
 }
 
@@ -152,9 +192,23 @@ function renderView() {
 
   const onOpen = (id) => navigate(ROUTES.poem(id));
   if (state.view.kind === 'poem') {
-    els.view.append(renderPoemPage(state.doc, state.view.id, { onBack: () => navigate(ROUTES.index) }));
+    els.view.append(renderPoemPage(state.doc, state.view.id, {
+      onBack: () => navigate(ROUTES.index),
+      onDetail: () => navigate(ROUTES.detail(state.view.id)),
+    }));
+  } else if (state.view.kind === 'detail') {
+    // 详情页的「返回」落到**那首诗**（不是目录）；深链接直开也一样（用户 2026-10-15 定）。
+    els.view.append(renderDetailPage(state.doc, state.view.id, {
+      onBack: () => navigate(ROUTES.poem(state.view.id)),
+    }));
+  } else if (state.view.kind === 'about') {
+    els.view.append(renderAboutPage({
+      appVersion: APP_VERSION,
+      doc: state.doc,
+      onBack: () => navigate(ROUTES.index),
+    }));
   } else {
-    els.view.append(renderIndex(state.doc, { onOpen }));
+    els.view.append(renderIndex(state.doc, { onOpen, onAbout: () => navigate(ROUTES.about) }));
   }
 }
 
@@ -283,11 +337,7 @@ function renderStatus() {
   els.status.append(actions);
 
   els.status.append(h('p', { class: 'status-honest', dataset: { test: 'honest-storage-note' },
-    text: '诚实说明：首次访问需要网络；此后外壳与内容一起由 Service Worker 存在本站缓存里，'
-      + '用户「清除站点数据」或浏览器回收存储都可能让它丢失，离线副本不承诺永久保存。'
-      + '本站「不会自动刷新」：发现新版本只给提示，长时间不点刷新就会一直停在旧版本；'
-      + '点提示里的「刷新」（或在诗页时先回目录）才会整套换成新版本。'
-      + 'Service Worker 只在 https 或 localhost 下可用（file:// 打开无法离线）。' }));
+    text: HONEST_STORAGE_NOTE }));
 }
 
 function renderChrome() {
@@ -509,8 +559,12 @@ async function boot() {
 // ---------------------------------------------------------------- 事件
 
 window.addEventListener('hashchange', () => {
+  // hashchange 可能来自站内点击，也可能来自地址栏直改 / 浏览器前进后退。
+  // 此刻 state.view 仍是**旧**视图 —— 正好用来判断「是不是刚离开目录」。
+  captureLeavingIndex(location.hash);
   state.view = parseHash();
   render();
+  afterViewChange();
   maybeApplyUpdateOnIndex();
 });
 window.addEventListener('online', () => { state.online = true; renderChrome(); });

@@ -27,7 +27,7 @@ import { fileURLToPath } from 'node:url';
 import {
   SUPPORTED_FORMAT_VERSION, checkCompatibility, validateContent,
 } from '../app/content.js';
-import { APP_VERSION, CONTENT_URL, resourceCacheName } from '../app/config.js';
+import { ABOUT, APP_VERSION, CONTENT_URL, HONEST_STORAGE_NOTE, ROUTES, resourceCacheName } from '../app/config.js';
 import {
   comparePoems, groupPoems, hasProductOrder, isUnknownAuthor, productOrderStatus, UNKNOWN_AUTHORS,
 } from '../app/render.js';
@@ -239,6 +239,18 @@ const waitForPoemView = (id) => waitFor(
   { label: `诗页 ${id}` },
 );
 const waitForErrorView = () => waitFor(`Boolean(document.querySelector('[data-test="view-error"]'))`, { label: '失败状态' });
+const waitForAboutView = () => waitFor(`Boolean(document.querySelector('[data-test="view-about"]'))`, { label: '关于页' });
+
+/** 切到某首诗的详情页并把表达式在那个页面上求值（省得每处都写一遍 hashTo + waitFor）。 */
+async function evaluateOnDetail(id, expression) {
+  await hashTo(`#/p/${id}/detail`);
+  await waitFor(
+    `Boolean(document.querySelector('[data-test="view-detail"]'))`
+    + ` && document.querySelector('[data-test="view-detail"]').dataset.poemId === ${JSON.stringify(id)}`,
+    { label: `详情页就位（${id}）` },
+  );
+  return evaluate(expression);
+}
 
 /** 文档标识：确认「确实换了一个新文档」，避免在新旧文档之间读错 DOM。 */
 const docToken = () => evaluate('window.__app ? performance.timeOrigin : null').catch(() => null);
@@ -374,10 +386,10 @@ function unitTests(baseDoc, variants) {
   check('结构不合法的内容被拒（并给出可读条目）', bad.ok === false && bad.errors.length >= 2, bad.errors.join(' / '));
   check('非对象内容被拒', validateContent('nope').ok === false);
 
-  // variants：**只解析与校验、不渲染**（用户决定：异文只存档、不上界面；Android 同此）。
-  // 校验仍然生效，而界面上不该出现它 —— 反向断言在 §1c。
+  // variants：解析 + 结构校验照旧；渲染位置在 2026-10-15 变了 ——
+  //    诗页**不得**出现（反向断言在 §1c）；**详情页必须逐条出现**（正断言在 §1c-2）。
   const withVariants = baseDoc.poems.filter((p) => (p.variants ?? []).length > 0);
-  check('真实产物里确实带着异文（字段仍在产物里，只是不显示）', withVariants.length > 0,
+  check('真实产物里确实带着异文（只校验解析；渲染位置见 §1c / §1c-2）', withVariants.length > 0,
     `${withVariants.length} 首有异文，共 ${withVariants.reduce((a, p) => a + p.variants.length, 0)} 条`);
   const badVariants = structuredClone(baseDoc);
   badVariants.poems[0].variants = [{ text: '' }, 'nope'];
@@ -463,6 +475,18 @@ function unitTests(baseDoc, variants) {
     check(`fixtures/${name} 通过结构校验`, v.ok, v.errors.join(' / ') || 'ok');
     check(`fixtures/${name} 带上「夹具」标记（不会被当成发布内容）`, doc.placeholder === true, `placeholder=${doc.placeholder}`);
   }
+
+  section('0g-2 路由形态：目录 / 诗 / 详情 + 关于（第四页）');
+  eq('诗页路由', ROUTES.poem('abc/def'), '#/p/abc%2Fdef');
+  eq('详情页路由', ROUTES.detail('abc'), '#/p/abc/detail');
+  eq('关于页路由', ROUTES.about, '#/about');
+  eq('诗页模式抓到的 id（id 不含 /）', ROUTES.poemPattern.exec('/p/abc')?.[1], 'abc');
+  // 关键：详情页模式必须**先**匹配，否则 /p/<id>/detail 会被诗页模式当成 id 为 `<id>/detail`。
+  check('详情页模式匹配 /p/<id>/detail', ROUTES.detailPattern.test('/p/abc/detail'));
+  check('诗页模式不如详情页模式下得早（否则就吃错 id）',
+    !ROUTES.poemPattern.test('/p/abc/detail'), dump(ROUTES.poemPattern.exec('/p/abc/detail')));
+  eq('详情页模式抓到的 id', ROUTES.detailPattern.exec('/p/abc/detail')?.[1], 'abc');
+  check('/about 不匹配诗页模式', !ROUTES.poemPattern.test('/about'));
 }
 
 /** 「内容必须单独取、不许内联」的自证 + 体积报告。 */
@@ -747,9 +771,8 @@ async function main() {
 
 
   // ------------------------------------------------ 1c 诗页渲染（真实内容）
-  section('1c 诗页渲染：正文分行/分节与「底本」照旧；**异文不上界面**（用户决定，Android 同此）');
+  section('1c 诗页渲染：正文分行/分节；**底本/来源已搬去详情页**；**异文不上诗页**（用户 2026-10-15）');
   const p1 = baseDoc.poems[0];                                             // 行行重行行：8 行、3 条异文
-  const p9 = baseDoc.poems.find((x) => x.id === 'gushi-shijiu-shou-09');    // 其九：含「此物何足贵」
   await hashTo(`#/p/${p1.id}`);
   await waitForPoemView(p1.id);
   eq('逐行文本与 JSON 完全一致',
@@ -765,39 +788,175 @@ async function main() {
     [p1.dynastyLabel, p1.author, p1.era, p1.genre].filter(Boolean).join(' · '));
   check('notes: null → 如实空状态，不伪造笔记', await evaluate(`Boolean(document.querySelector('[data-test="notes-empty"]'))`));
 
-  const sourceInfo = await evaluate(`(() => {
-    const dl = document.querySelector('[data-test="source-block"]');
-    return { labels: [...dl.querySelectorAll('dt')].map(e => e.textContent), text: dl.innerText };
-  })()`);
-  eq('底本栏位仍在（与 Android 一致），且只有「底本」一项（诗的 id 不上界面，用户 2026-10-15）', sourceInfo.labels, ['底本']);
-  includes('底本/来源的文字照旧显示', sourceInfo.text, p1.source);
-  check('没有「异文」栏位（连空占位也没有）',
-    !sourceInfo.labels.includes('异文') && !sourceInfo.text.includes('未记录'), dump(sourceInfo.labels));
+  // 用户 2026-10-15 定：诗页**不要底本与来源**，它已搬到诗歌详情页。
+  const poemHasSource = await evaluate(`Boolean(document.querySelector('[data-test="view-poem"] [data-test="source-block"]'))`);
+  check('诗页不再有底本/来源块（已搬到详情页）', poemHasSource === false);
+  check('诗页上没有「底本」字样',
+    !(await evaluate(`document.querySelector('[data-test="view-poem"]').innerText`)).includes('底本'));
+  check('诗页有「详情」入口（指向这一首的考据与来源）',
+    await evaluate(`Boolean(document.querySelector('[data-test="poem-detail-link"]'))`));
+  eq('「详情」入口的地址是 `#/p/<id>/detail`',
+    await evaluate(`document.querySelector('[data-test="poem-detail-link"]').getAttribute('href')`), `#/p/${p1.id}/detail`);
 
-  // 关键反向断言：诗页不得出现异文文本（上线实测就是这条没覆盖到）
-  for (const poem of [p1, p9]) {
+  // 关键反向断言：诗页不得出现异文文本（上线实测就是这条没覆盖到）。
+  // 这里对**每一首有异文的诗**都跑一遍（13 首；不是抽查），并加元素级断言：
+  // 诗页上不许有详情页那套 variant 元素（即使文本恰好与底本重合，也不利用子串蒙过）。
+  const poemsWithVariants = baseDoc.poems.filter((p) => (p.variants ?? []).length > 0);
+  for (const poem of poemsWithVariants) {
     await hashTo(`#/p/${poem.id}`);
     await waitForPoemView(poem.id);
-    const viewText = await evaluate(`document.querySelector('[data-test="view"]').innerText`);
+    const viewText = await evaluate(`document.querySelector('[data-test="view-poem"]').innerText`);
     const variantTexts = (poem.variants ?? []).map((v) => v.text);
-    check(`[${poem.title}] 页面上没有任何 variants[].text（${variantTexts.join('、')}）`,
+    check(`[${poem.title}] 诗页上没有 variant 元素（${poem.variants.length} 条）`,
+      await evaluate(`document.querySelectorAll('[data-test="view-poem"] [data-test="detail-variant"]').length`) === 0);
+    check(`[${poem.title}] 诗页页面上没有任何 variants[].text（${variantTexts.join('、')}）`,
       variantTexts.every((t) => !viewText.includes(t)), dump(variantTexts));
-    // 「异文」二字：底本/来源文字里本来就带「异文校记见…」（Android 也一样显示它），
-    // 所以这里精确断言「出现次数 == 来源文字里的次数」，即没有额外的异文栏位文字。
-    eq(`[${poem.title}] 页面上的「异文」二字只来自底本/来源文字本身`,
-      viewText.split('异文').length - 1, poem.source.split('异文').length - 1);
-    includes(`[${poem.title}] 底本/来源仍在`, viewText, poem.source);
+    check(`[${poem.title}] 诗页不出现底本/来源原文`,
+      !viewText.includes(poem.source), dump([poem.source]));
     // 用户 2026-10-15 拍板：诗的 id 不上界面（此前 Web 单方面多出「id」一行，跨端不一致）。
     check(`[${poem.title}] 页面上不出现诗的 id（${poem.id}）`,
       !viewText.includes(poem.id), dump({ id: poem.id }));
   }
   await hashTo(`#/p/${p1.id}`);
   await waitForPoemView(p1.id);
-  await pushDump('诗页（真实内容；异文不上界面）');
+  await pushDump('诗页（真实内容；底本/来源与异文都不在这页）');
   await screenshot('03-poem-no-variants.png');
+
+  // ------------------------------------------------ 1c-2 诗歌详情页（第四页）
+  section('1c-2 诗歌详情页：底本与来源 + **每一条** variants[].text（逐条、按序比对 24 条／13 首）');
+  eq('产物事实：带异文的诗 13 首、共 24 条',
+    [poemsWithVariants.length, poemsWithVariants.reduce((a, p) => a + p.variants.length, 0)], [13, 24]);
+  let seenVariants = 0;
+  for (const poem of poemsWithVariants) {
+    await hashTo(`#/p/${poem.id}/detail`);
+    await waitFor(
+      `Boolean(document.querySelector('[data-test="view-detail"]'))`
+      + ` && document.querySelector('[data-test="view-detail"]').dataset.poemId === ${JSON.stringify(poem.id)}`,
+      { label: `详情页就位（${poem.title}）` },
+    );
+    eq(`[${poem.title}] 详情页渲染的异文文本 == 产物 variants[].text（逐条、按序）`,
+      await evaluate(`[...document.querySelectorAll('[data-test="detail-variant-text"]')].map(e => e.textContent)`),
+      poem.variants.map((v) => v.text));
+    eq(`[${poem.title}] 每条异文的 note 也照产物渲染（逐条、按序）`,
+      await evaluate(`[...document.querySelectorAll('[data-test="detail-variant-note"]')].map(e => e.textContent)`),
+      poem.variants.map((v) => v.note || '（未记录）'));
+    eq(`[${poem.title}] 详情页的底本与来源 == 产物 poem.source`,
+      await evaluate(`document.querySelector('[data-test="detail-source"]').textContent`), poem.source || '未记录');
+    eq(`[${poem.title}] 详情页异文条目数 == 产物条数`,
+      await evaluate(`document.querySelectorAll('[data-test="detail-variant"]').length`), poem.variants.length);
+    seenVariants += await evaluate(`document.querySelectorAll('[data-test="detail-variant"]').length`);
+  }
+  eq('逐个详情页累加出来的**渲染**条数 == 产物里的 24 条（不是「页面不为空」、也不是照产物数组重数一遍）', seenVariants, 24);
+
+  // 行为：详情页的「返回」落到**那首诗**（不是目录）；深链接直开也一样（用户 2026-10-15 定）。
+  await hashTo(`#/p/${p1.id}/detail`);
+  await waitFor(`Boolean(document.querySelector('[data-test="view-detail"]'))`, { label: '详情页' });
+  eq('详情页地址是 #/p/<id>/detail', await evaluate('location.hash'), `#/p/${p1.id}/detail`);
+  eq('详情页「返回」指向那首诗', await evaluate(`document.querySelector('[data-test="back-to-poem"]').getAttribute('href')`), `#/p/${p1.id}`);
+  await evaluate(`document.querySelector('[data-test="back-to-poem"]').click(); true`);
+  await waitForPoemView(p1.id);
+  eq('从详情页返回 == 那首诗（不是目录）',
+    await evaluate(`document.querySelector('[data-test="view-poem"]').dataset.poemId`), p1.id);
+  // 真·新开一个文档直开详情页（深链接）：仍落到那一首的详情，返回也回那首诗
+  const deepDetail = baseDoc.poems[7];
+  await openFresh(`${BASE}#/p/${deepDetail.id}/detail`);
+  await waitFor(`Boolean(document.querySelector('[data-test="view-detail"]'))`, { label: '深链接直开详情页' });
+  eq('深链接直开详情页 == 那一首的详情（按稳定 id 定位）',
+    await evaluate(`document.querySelector('[data-test="view-detail"]').dataset.poemId`), deepDetail.id);
+  await evaluate(`document.querySelector('[data-test="back-to-poem"]').click(); true`);
+  await waitForPoemView(deepDetail.id);
+  eq('深链接直开详情页后返回 == 那首诗',
+    await evaluate(`document.querySelector('[data-test="view-poem"]').dataset.poemId`), deepDetail.id);
+
+  // 没有异文的诗：详情页仍有底本/来源，异文处如实说明（不编内容）
+  const noVariantPoem = baseDoc.poems.find((p) => (p.variants ?? []).length === 0);
+  await hashTo(`#/p/${noVariantPoem.id}/detail`);
+  await waitFor(`Boolean(document.querySelector('[data-test="view-detail"]'))`, { label: '无异议诗的详情页' });
+  check(`[${noVariantPoem.title}] 没有异文时如实说明`,
+    await evaluate(`Boolean(document.querySelector('[data-test="detail-variants-empty"]'))`));
+  eq(`[${noVariantPoem.title}] 没有异文时条目数为 0`,
+    await evaluate(`document.querySelectorAll('[data-test="detail-variant"]').length`), 0);
+  eq(`[${noVariantPoem.title}] 底本与来源仍在详情页`,
+    await evaluate(`document.querySelector('[data-test="detail-source"]').textContent`), noVariantPoem.source || '未记录');
+  await pushDump('诗歌详情页（第 1 首）');
+  await hashTo(`#/p/${p1.id}/detail`);
+  await waitFor(`Boolean(document.querySelector('[data-test="view-detail"]'))`, { label: '详情页（截图）' });
+  await screenshot('03b-poem-detail.png');
+
   // 回到目录：让后面的小节从已知状态开始（以前因为停在诗页 hash 上、reload 后等目录超时过）。
   await hashTo('#/');
   await waitForIndex();
+
+  // ------------------------------------------------ 1c-3 「关于」页（第四页之一）
+  section('1c-3 「关于」页：与 Android 同一批字段（唯一来源 web/about-fields.json）+ 目录入口 + 返回');
+  // 唯一来源是**机器可读的文件**：这里既比 config.ABOUT 与它逐字一致，也比页面上的字段都在
+  // （字段的**值**平台相关，不跨端比字面）。Android 端对着同一个文件比（`AboutFields`）。
+  const aboutSpec = JSON.parse(readFileSync(resolve(repoRoot, 'web', 'about-fields.json'), 'utf8'));
+  eq('config.ABOUT 与唯一来源 web/about-fields.json 逐字一致',
+    ABOUT, { appName: aboutSpec.appName, tagline: aboutSpec.tagline, fields: aboutSpec.fields });
+  check('目录页有「关于」入口', await evaluate(`Boolean(document.querySelector('[data-test="about-link"]'))`));
+  eq('「关于」入口的地址是 #/about',
+    await evaluate(`document.querySelector('[data-test="about-link"]').getAttribute('href')`), '#/about');
+  await evaluate(`document.querySelector('[data-test="about-link"]').click(); true`);
+  await waitForAboutView();
+  const aboutInfo = await evaluate(`(() => {
+    const dl = document.querySelector('[data-test="about-fields"]');
+    return {
+      labels: [...dl.querySelectorAll('dt')].map(e => e.textContent),
+      appName: document.querySelector('[data-test="about-app-name"]')?.textContent,
+      tagline: document.querySelector('[data-test="about-tagline"]')?.textContent,
+      appVersion: document.querySelector('[data-test="about-app-version"]')?.textContent,
+      contentVersion: document.querySelector('[data-test="about-content-version"]')?.textContent,
+      limits: document.querySelector('[data-test="about-honest-limits"]')?.textContent,
+    };
+  })()`);
+  eq('关于页的字段标签 == 唯一来源里的同一批字段', aboutInfo.labels, aboutSpec.fields);
+  eq('应用名', aboutInfo.appName, aboutSpec.appName);
+  eq('一句话说明', aboutInfo.tagline, aboutSpec.tagline);
+  includes('应用版本 = 站点资源版本', aboutInfo.appVersion, APP_VERSION);
+  includes('内容版本与来源写明内容版本', aboutInfo.contentVersion, baseDoc.contentVersion);
+  includes('内容版本与来源写明来源是本次站点部署', aboutInfo.contentVersion, '本次站点部署');
+  eq('诚实的限制与页脚那份是同一段原文（不新写）', aboutInfo.limits, HONEST_STORAGE_NOTE);
+  check('关于页没有「更新」块（Web 的更新交给 SW；Android 在那页里多一块）',
+    !(await evaluate(`Boolean(document.querySelector('[data-test="view-about"] [data-test="check-site-update"]'))`)));
+  eq('关于页「返回」指向目录',
+    await evaluate(`document.querySelector('[data-test="about-back-to-index"]').getAttribute('href')`), '#/');
+  await evaluate(`document.querySelector('[data-test="about-back-to-index"]').click(); true`);
+  await waitForIndex();
+  await openFresh(`${BASE}#/about`);
+  await waitForAboutView();
+  eq('深链接直开 #/about 就是关于页', await evaluate('location.hash'), '#/about');
+  await evaluate(`document.querySelector('[data-test="about-back-to-index"]').click(); true`);
+  await waitForIndex();
+  await pushDump('关于页');
+  await hashTo('#/about');
+  await waitForAboutView();
+  await screenshot('03c-about.png');
+
+  // ------------------------------------------------ 1c-4 IF-45：返回目录恢复原位置
+  section('1c-4 IF-45：从诗页返回目录恢复原滚动位置；深链接直开目录仍从顶部');
+  await hashTo('#/');
+  await waitForIndex();
+  const scrolledY = await evaluate(`(() => {
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    window.scrollTo(0, Math.min(400, Math.max(0, max)));
+    return window.scrollY;
+  })()`);
+  check('目录可滚动（scrollY > 0）', scrolledY > 0, `scrollY=${scrolledY}`);
+  check('真实内容目录里没有「有笔记」字样（用户 2026-10-15：两端都不要这个标记）',
+    !(await evaluate(`document.querySelector('[data-test="view-index"]').innerText`)).includes('有笔记'));
+  const scrollTarget = baseDoc.poems[6];
+  await evaluate(`document.querySelector('[data-test="poem-row"][data-poem-id=${JSON.stringify(scrollTarget.id)}]').click(); true`);
+  await waitForPoemView(scrollTarget.id);
+  eq('进入诗页后从顶部开始（不带目录的滚动量）', await evaluate('window.scrollY'), 0);
+  await evaluate(`document.querySelector('[data-test="back-to-index"]').click(); true`);
+  await waitForIndex();
+  await waitFor(`Math.abs(window.scrollY - ${scrolledY}) <= 2`, { label: '返回目录后恢复原位置', timeout: 5000 });
+  const restoredY = await evaluate('window.scrollY');
+  check('返回目录恢复了原来的滚动位置', Math.abs(restoredY - scrolledY) <= 2, `scrollY=${restoredY}（期望 ≈${scrolledY}）`);
+  await openFresh(`${BASE}#/`);
+  await waitForIndex();
+  eq('深链接直开目录仍从顶部（IF-45 的另一半）', await evaluate('window.scrollY'), 0);
 
   // ------------------------------------------------ 1d 视觉令牌逐值对齐（静默终端）
   section('1d 视觉令牌逐值对齐（静默终端；不靠人看，逐项比对）');
@@ -851,8 +1010,6 @@ async function main() {
       stanzaGap: stanzas.length > 1 ? parseFloat(cs(stanzas[1]).marginTop) : null,
       titleBorderBottom: cs(document.querySelector('[data-test="poem-title"]')).borderBottomStyle,
       metaBorderBottom: cs(document.querySelector('[data-test="poem-meta"]')).borderBottomStyle,
-      sourceFont: cs(document.querySelector('[data-test="source-block"] dd')).fontSize,
-      sourceLineHeight: parseFloat(cs(document.querySelector('[data-test="source-block"] dd')).lineHeight),
     };
   })()`);
   eq('页面底色 = --bg（#0e1315）', poemVis.bodyBg, 'rgb(14, 19, 21)');
@@ -879,7 +1036,11 @@ async function main() {
   check('真实产物 19 首都是单节，所以段间空行的**元素级**断言在 §4e（夹具诗）上做',
     baseDoc.poems.every((p) => p.stanzas.length === 1),
     `最大节数=${Math.max(...baseDoc.poems.map((p) => p.stanzas.length))}`);
-  eq('底本小字与原型 .poem-foot 一致（0.74rem → 11.84px）', poemVis.sourceFont, '11.84px');
+  eq('底本小字与原型 .poem-foot 一致（0.74rem → 11.84px）',
+    (await evaluateOnDetail(p1.id, `(() => ({ font: getComputedStyle(document.querySelector('[data-test="detail-source"]')).fontSize, lineHeight: parseFloat(getComputedStyle(document.querySelector('[data-test="detail-source"]')).lineHeight) }))()`)).font,
+    '11.84px');
+  check('底本小字行高 = 1.85 × 11.84px（与 .source-block 一致）',
+    Math.abs((await evaluateOnDetail(p1.id, `parseFloat(getComputedStyle(document.querySelector('[data-test="detail-source"]')).lineHeight)`)) - 11.84 * 1.85) < 0.2);
 
   await hashTo('#/');
   await waitForIndex();
@@ -1122,9 +1283,17 @@ async function main() {
   section('4e 新版本里的渲染路径：空行分段 + 笔记按需展开（夹具诗）');
   await hashTo('#/');
   await waitForIndex();
+  const fixturePoem = variants.fixtureContent.doc.poems.find((p) => p.id === 'fixture-test-poem-01');
+  // 目录行「有笔记」标记已按用户 2026-10-15 的决定删掉（两端都无）。
+  // 这一版内容里确实有一首带笔记（下面是牙齿），所以「目录文本里没有「有笔记」」不是空断言。
+  check('夹具诗确实带笔记（下面那条反向断言才有牙齿）', Boolean(fixturePoem.notes));
+  check('目录文本里没有「有笔记」字样（即便这一版内容里有带笔记的诗）',
+    !(await evaluate(`document.querySelector('[data-test="view-index"]').innerText`)).includes('有笔记'));
+  check('目录页此时确实列出了那首带笔记的夹具诗（否则上面一条会空洞地通过）',
+    (await evaluate(`[...document.querySelectorAll('[data-test="poem-row"]')].map(r => r.dataset.poemId)`))
+      .includes('fixture-test-poem-01'));
   await evaluate(`document.querySelector('[data-test="poem-row"][data-poem-id="fixture-test-poem-01"]').click()`);
   await waitForPoemView('fixture-test-poem-01');
-  const fixturePoem = variants.fixtureContent.doc.poems.find((p) => p.id === 'fixture-test-poem-01');
   eq('分节数量与 JSON 一致（空行表达的分段）', await evaluate(`document.querySelectorAll('[data-test="stanza"]').length`), fixturePoem.stanzas.length);
   eq('每节的行数', await evaluate(`[...document.querySelectorAll('[data-test="stanza"]')].map(s => s.querySelectorAll('[data-test="poem-line"]').length)`), fixturePoem.stanzas.map((x) => x.length));
   const gapPx = await evaluate(`parseFloat(getComputedStyle(document.querySelectorAll('[data-test="stanza"]')[1]).marginTop)`);

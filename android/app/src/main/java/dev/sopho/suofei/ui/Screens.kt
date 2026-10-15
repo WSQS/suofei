@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,7 +14,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -38,7 +41,15 @@ import dev.sopho.suofei.data.Content
 import dev.sopho.suofei.data.Poem
 
 /**
- * 界面结构（v1）：时代分组目录 / 正文分行分节 / 笔记按需展开。
+ * 界面结构：**四个页面**（用户 2026-10-15 定）——目录 / 诗 / **诗歌详情** / **关于**（原「更新页」改名）。
+ *
+ * 每页的信息清单（用户 2026-10-15）落在本文件：
+ *  - **目录**（[LibraryScreen]）　应用名（顶栏「索斐」）、组头（组名＋`[n] 首`＋左沿竖线，**保持卡片**）、
+ *    诗行（题名＋作者）、**「关于」入口**（顶栏）——**没有**搜索入口、**没有**「有笔记」标记、**没有**折叠（IF-44 本版不做）；
+ *  - **诗**（[PoemScreen]）　题名、`时代 · 作者 · 年代 · 体裁`、正文（依底本分行、段间空行）、笔记区（折叠；无笔记如实）、
+ *    「详情」入口——**没有**底本与来源（搬去详情页）；
+ *  - **诗歌详情**（[PoemDetailScreen]）　底本与来源 ＋ 异文（每条 `variants[].text` ＋ 其 note）；
+ *  - **关于**（[AboutScreen]）　应用名/一句话说明/应用版本/内容版本与来源/诚实的限制 ＋ **Android 额外的「更新」块**。
  *
  * 视觉＝「静默终端」（用户 2026-10-14 选定）：**所有颜色/字号/间距都取自 [PoetryTokens]**
  * （唯一来源 `docs/design/visual-tokens.md`），本文件不写任何硬编码色值或字号。
@@ -49,6 +60,12 @@ import dev.sopho.suofei.data.Poem
 fun AppRoot(state: AppState, onCheckUpdate: () -> Unit) {
     val content: Content? = state.loaded?.content
 
+    // IF-45：目录的滚动位置**提升到这一层**（跨屏切换时保留）——LibraryScreen 离开组合后，
+    // 这个状态仍活在这里 ⇒ 从诗页返回目录时落回原位置。
+    // 「深链接直开目录从顶部」在 Android 上没有 URL 概念，对应的是「新开应用」：那时它是 0，
+    // 所以天然从顶部开始（不是靠额外判断）。
+    val libraryListState = rememberLazyListState()
+
     Scaffold(
         containerColor = PoetryTokens.bg,
         topBar = {
@@ -58,7 +75,8 @@ fun AppRoot(state: AppState, onCheckUpdate: () -> Unit) {
                         // 品牌名用规范的字距（0.3em）
                         Screen.LIBRARY -> Text("索斐", style = PoetryTextStyles.brand)
                         Screen.POEM -> Text(state.selectedPoem?.title ?: "诗", style = PoetryTextStyles.ui)
-                        Screen.UPDATE_SETTINGS -> Text("内容更新", style = PoetryTextStyles.ui)
+                        Screen.POEM_DETAIL -> Text("诗歌详情", style = PoetryTextStyles.ui)
+                        Screen.ABOUT -> Text("关于", style = PoetryTextStyles.ui)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -68,10 +86,9 @@ fun AppRoot(state: AppState, onCheckUpdate: () -> Unit) {
                 ),
                 actions = {
                     when (state.screen) {
-                        Screen.LIBRARY -> {
-                            TextButton(onClick = { state.openUpdateSettings() }, colors = textActionColors()) {
-                                Text("更新")
-                            }
+                        // 目录页的「关于」入口（用户 2026-10-15：目录要有它）
+                        Screen.LIBRARY -> TextButton(onClick = { state.openAbout() }, colors = textActionColors()) {
+                            Text("关于")
                         }
 
                         else -> TextButton(onClick = { state.back() }, colors = textActionColors()) {
@@ -116,12 +133,15 @@ fun AppRoot(state: AppState, onCheckUpdate: () -> Unit) {
                 Screen.LIBRARY -> LibraryScreen(
                     content = content,
                     pendingVersion = state.pendingVersion,
+                    listState = libraryListState,
                     onPick = { state.openPoem(it) },
                 )
 
-                Screen.POEM -> state.selectedPoem?.let { PoemScreen(it) }
+                Screen.POEM -> state.selectedPoem?.let { PoemScreen(it, onDetail = { state.openPoemDetail() }) }
 
-                Screen.UPDATE_SETTINGS -> UpdateScreen(state, onCheckUpdate)
+                Screen.POEM_DETAIL -> state.selectedPoem?.let { PoemDetailScreen(it) }
+
+                Screen.ABOUT -> AboutScreen(state, onCheckUpdate)
             }
         }
     }
@@ -151,9 +171,15 @@ private fun VersionFooter(state: AppState) {
 }
 
 @Composable
-private fun LibraryScreen(content: Content, pendingVersion: String?, onPick: (Poem) -> Unit) {
+private fun LibraryScreen(
+    content: Content,
+    pendingVersion: String?,
+    listState: LazyListState,
+    onPick: (Poem) -> Unit,
+) {
     LazyColumn(
-        Modifier
+        state = listState,
+        modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = PoetryTokens.rem(PoetryTokens.PAD_REM)),
         verticalArrangement = Arrangement.spacedBy(PoetryTokens.rem(PoetryTokens.GROUP_GAP_REM)),
@@ -184,6 +210,7 @@ private fun LibraryScreen(content: Content, pendingVersion: String?, onPick: (Po
         content.groups.forEach { group ->
             item(key = "dynasty-${group.dynasty.key}") {
                 // 组头＝一张卡片（原型 .grouprow）：1px line 边框 + radius + surface 底 + row-pad
+                // ⚠ 本版**不做折叠**（IF-44 的四个细节还没定）：保持静态卡片，不顺手加交互。
                 Box(
                     Modifier
                         .fillMaxWidth()
@@ -204,7 +231,8 @@ private fun LibraryScreen(content: Content, pendingVersion: String?, onPick: (Po
     }
 }
 
-/** 诗行：原型 `.poemrow` 是**平铺行**（不是卡片）—— 上下发丝线 + `row-pad`. */
+/** 诗行：原型 `.poemrow` 是**平铺行**（不是卡片）—— 上下发丝线 + `row-pad`.
+ *  ⚠ 用户 2026-10-15：目录行**不要「有笔记」标记**（与 Web 同）——所以这里只有题名＋作者。 */
 @Composable
 private fun PoemRow(poem: Poem, onPick: (Poem) -> Unit) {
     Column(Modifier.fillMaxWidth()) {
@@ -222,8 +250,11 @@ private fun PoemRow(poem: Poem, onPick: (Poem) -> Unit) {
     }
 }
 
+/** 诗页：题名 / `时代 · 作者 · 年代 · 体裁` / 正文 / 笔记（折叠；无笔记如实）/ 「详情」入口。
+ *  ⚠ 用户 2026-10-15：诗页**不要底本与来源**（它已搬去 [PoemDetailScreen]），
+ *  也**不得**出现任何 `variants[].text`（反向断言在 `ScreenInventoryTest`）。 */
 @Composable
-private fun PoemScreen(poem: Poem) {
+private fun PoemScreen(poem: Poem, onDetail: () -> Unit) {
     var notesExpanded by remember(poem.id) { mutableStateOf(false) }
     Column(
         Modifier
@@ -254,7 +285,7 @@ private fun PoemScreen(poem: Poem) {
             TextButton(
                 onClick = { notesExpanded = !notesExpanded },
                 colors = textActionColors(),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
+                contentPadding = PaddingValues(0.dp),
             ) {
                 Text(if (notesExpanded) "收起笔记" else "笔记", style = PoetryTextStyles.notesToggle)
             }
@@ -284,14 +315,74 @@ private fun PoemScreen(poem: Poem) {
             }
         }
 
+        // 「详情」入口（第四页＝诗歌详情，用户 2026-10-15 定）。这里原来放的是底本/来源，已搬走。
         Spacer(Modifier.height(PoetryTokens.rem(2f)))
-        Text("底本/来源：${poem.source}", style = PoetryTextStyles.meta)
+        TextButton(
+            onClick = onDetail,
+            colors = textActionColors(),
+            contentPadding = PaddingValues(0.dp),
+        ) {
+            Text("这一首的考据与来源 →", style = PoetryTextStyles.notesToggle)
+        }
         Spacer(Modifier.height(PoetryTokens.rem(3f)))
     }
 }
 
+/**
+ * 诗歌详情页（第四页）：这一首的考据与来源。
+ *  ① 底本与来源（原来诗页那一块，搬到这里）
+ *  ② 异文：产物里**每一条** `variants[].text` ＋ 它的 note，用有序列表呈现
+ *     （⚠ 上游正在重审数据组织方式 IF-48，含 variants 字段形状 ⇒ 这里**只此一处**集中渲染）
+ * 行为：「返回」由顶层 [AppRoot] 的「返回」按钮处理，落在**那首诗**（`AppState.back()`）。
+ */
 @Composable
-private fun UpdateScreen(state: AppState, onCheckUpdate: () -> Unit) {
+private fun PoemDetailScreen(poem: Poem) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = PoetryTokens.rem(PoetryTokens.PAD_REM)),
+    ) {
+        Spacer(Modifier.height(PoetryTokens.rem(0.6f)))
+        Text(poem.title, style = PoetryTextStyles.poemTitle)
+        Spacer(Modifier.height(PoetryTokens.rem(0.35f)))
+        Text("这一首的考据与来源", style = PoetryTextStyles.notesTitle)
+
+        // ① 底本与来源
+        Spacer(Modifier.height(PoetryTokens.rem(1.2f)))
+        Text("底本与来源", style = PoetryTextStyles.notesTitle)
+        Spacer(Modifier.height(PoetryTokens.rem(0.3f)))
+        Text(poem.source, style = PoetryTextStyles.meta)
+
+        // ② 异文
+        Spacer(Modifier.height(PoetryTokens.rem(1.6f)))
+        HairLine()
+        Column(Modifier.padding(top = PoetryTokens.rem(0.8f))) {
+            Text("异文", style = PoetryTextStyles.notesTitle)
+            if (poem.variants.isEmpty()) {
+                // 没有异文＝真实状态，如实说明（不编内容）。
+                Spacer(Modifier.height(PoetryTokens.rem(0.6f)))
+                Text("这首诗在产物里没有记录异文。", style = PoetryTextStyles.faint)
+            } else {
+                poem.variants.forEachIndexed { index, variant ->
+                    Spacer(Modifier.height(PoetryTokens.rem(0.9f)))
+                    Text("${index + 1}. ${variant.text}", style = PoetryTextStyles.poem)
+                    Spacer(Modifier.height(PoetryTokens.rem(0.2f)))
+                    Text(variant.note, style = PoetryTextStyles.meta)
+                }
+            }
+        }
+        Spacer(Modifier.height(PoetryTokens.rem(3f)))
+    }
+}
+
+/**
+ * 「关于」页（原「更新页」改名，用户 2026-10-15 定）：**两端同一批字段**（`web/about-fields.json`）。
+ * 字段值平台相关（这里是 APK 版本 / Android 的限制）；Web 的更新交给 SW，所以只有本端有下面那块「更新」。
+ * 「诚实的限制」沿用已有文案原文（见 [ABOUT_LIMITS_ANDROID]），不新写。
+ */
+@Composable
+private fun AboutScreen(state: AppState, onCheckUpdate: () -> Unit) {
     Column(
         Modifier
             .fillMaxSize()
@@ -300,45 +391,53 @@ private fun UpdateScreen(state: AppState, onCheckUpdate: () -> Unit) {
     ) {
         Spacer(Modifier.height(PoetryTokens.rem(0.6f)))
 
-        Text("应用版本", style = PoetryTextStyles.notesTitle)
+        // ── 与 Web 同一批字段 ──────────────────────────────────────────
+        Text(AboutFields.LABELS[0], style = PoetryTextStyles.notesTitle)
+        Text(AboutFields.APP_NAME, style = PoetryTextStyles.ui)
+        Spacer(Modifier.height(PoetryTokens.rem(0.75f)))
+
+        Text(AboutFields.LABELS[1], style = PoetryTextStyles.notesTitle)
+        Text(AboutFields.TAGLINE, style = PoetryTextStyles.ui)
+        Spacer(Modifier.height(PoetryTokens.rem(0.75f)))
+
+        Text(AboutFields.LABELS[2], style = PoetryTextStyles.notesTitle)
         Text("${state.appVersionName}（versionCode ${state.appVersionCode}）", style = PoetryTextStyles.ui)
         Spacer(Modifier.height(PoetryTokens.rem(0.75f)))
 
-        Text("生效内容版本", style = PoetryTextStyles.notesTitle)
+        Text(AboutFields.LABELS[3], style = PoetryTextStyles.notesTitle)
         Text(state.contentVersionLine(), style = PoetryTextStyles.ui)
         Spacer(Modifier.height(PoetryTokens.rem(0.75f)))
 
-        // 这行原来写「更新源（占位地址，见代码常量）」——2026-10-15 更新源已换成**真实站点**
-        // （`update/UpdateProtocol.kt` 的 `BASE_URL`），再写「占位」就跟事实不符了。现在只说「更新源」，
-        // 真实地址由下一行照常显示出来；这里不写数字/版本，免得随发布过期。
-        Text("更新源", style = PoetryTextStyles.notesTitle)
-        Text(state.manifestUrlForDisplay, style = PoetryTextStyles.meta)
-        Spacer(Modifier.height(PoetryTokens.rem(0.75f)))
+        Text(AboutFields.LABELS[4], style = PoetryTextStyles.notesTitle)
+        Text(ABOUT_LIMITS_ANDROID, style = PoetryTextStyles.meta)
+        Spacer(Modifier.height(PoetryTokens.rem(1.4f)))
 
-        Text("状态", style = PoetryTextStyles.notesTitle)
-        Text(
-            updateStatusText(state.updateStatus),
-            style = PoetryTextStyles.ui,
-            modifier = Modifier.testTag("update-status"),
-        )
-        Spacer(Modifier.height(PoetryTokens.rem(1f)))
-        TextButton(
-            onClick = onCheckUpdate,
-            enabled = state.updateStatus !is UpdateStatus.Checking,
-            colors = textActionColors(),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
-        ) {
-            Text("检查更新")
+        // ── Android 额外一块「更新」（Web 的更新交给 SW，那端没有这一块）──
+        HairLine()
+        Column(Modifier.padding(top = PoetryTokens.rem(0.8f))) {
+            // 这行原来写「更新源（占位地址，见代码常量）」——2026-10-15 更新源已换成**真实站点**
+            // （`update/UpdateProtocol.kt` 的 `BASE_URL`），再写「占位」就跟事实不符了。现在只说「更新源」，
+            // 真实地址由下一行照常显示出来；这里不写数字/版本，免得随发布过期。
+            Text("更新源", style = PoetryTextStyles.notesTitle)
+            Text(state.manifestUrlForDisplay, style = PoetryTextStyles.meta)
+            Spacer(Modifier.height(PoetryTokens.rem(0.75f)))
+
+            Text("状态", style = PoetryTextStyles.notesTitle)
+            Text(
+                updateStatusText(state.updateStatus),
+                style = PoetryTextStyles.ui,
+                modifier = Modifier.testTag("update-status"),
+            )
+            Spacer(Modifier.height(PoetryTokens.rem(1f)))
+            TextButton(
+                onClick = onCheckUpdate,
+                enabled = state.updateStatus !is UpdateStatus.Checking,
+                colors = textActionColors(),
+                contentPadding = PaddingValues(0.dp),
+            ) {
+                Text("检查更新")
+            }
         }
-        Spacer(Modifier.height(PoetryTokens.rem(0.5f)))
-        Text(
-            // 这句话以前写的是「当前内置内容为占位夹具，非校对文本」—— 2026-10-14 起内置内容已经
-            // 就是本次发布的**真实**编译产物（与 dist/content.json 字节一致，19 首/24 条异文），
-            // 再那么写会让用户以为读到的是测试数据。所以改成按事实陈述，且不写具体数字（数字会过期）。
-            "说明：更新只替换内容数据，不安装新 APK；应用代码升级只提示下载（本版未实现下载 APK）。\n" +
-                "内置内容＝本次发布的完整内容（随 APK 打包，首次断网即可读）；每首诗的底本与来源见诗页底部。",
-            style = PoetryTextStyles.meta,
-        )
         Spacer(Modifier.height(PoetryTokens.rem(2f)))
     }
 }

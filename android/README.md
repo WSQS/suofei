@@ -12,6 +12,12 @@ Kotlin + Jetpack Compose 的 Android 端骨架，含**最小可运行阅读实�
 > 的 **IF-46**。视觉令牌 `mark-bg`/`mark-text` 与结果行字号等仍留在 `ui/Theme.kt`，但**已无任何界面使用者**
 > —— 它们只为与规范 §2 的「颜色一一对应」门保持一致（规范侧条目待负责人删除）。
 
+> **页面集合＝四个（用户 2026-10-15）**：**目录 / 诗 / 诗歌详情（新增第四页）/ 关于（原「更新页」改名）**。
+> 本端落地：目录页不再有「有笔记」标记（与 Web 同）、诗页不再有底本与来源（搬去详情页）、
+> 详情页放「这一首的考据与来源」（底本/来源 ＋ **产物里每条 `variants[].text` 与其 note**）、
+> 关于页两端同一批字段（唯一来源 `web/about-fields.json`）＋ **Android 多一块「更新」**。
+> 每页的信息清单见 §5.2，断言见 §9。行为口径：详情页返回→**那首诗**，诗页/关于页返回→目录。
+
 ## 1. 构建与打包（本机实测命令）
 
 ```bash
@@ -118,13 +124,30 @@ android/
 │   │   ├── ui/Theme.kt                     # ⚠️ 视觉令牌唯一集中处（值＝visual-tokens.md）+ Material3 主题
 │   │   ├── ui/StructuralMarks.kt           # 规范 §4.1 结构记号：组名竖线 / `[n] 首`
 │   │   ├── ui/PoemHead.kt                  # 诗页题头（§4.1-3：不画下划线，该文件不得出现分割线）
-│   │   ├── ui/UpdateStatusText.kt          # 更新状态文案（纯函数，可单测）
+│   │   ├── ui/UpdateStatusText.kt          # 关于页「状态」行文案（纯函数，可单测）
+│   │   ├── ui/ScreenContent.kt             # 各页纯内容（题下那行 / 关于页共享字段）+ 关于页限制原文
 │   │   └── ui/{AppState,Screens}.kt         # 界面状态与四个页面
 │   └── res/values/{strings,themes}.xml      # app_name = 索斐；窗口底色 #0e1315
 │   └── res/drawable/ic_launcher_{background,foreground,monochrome}.xml   # 自适应图标三层（矢量）
 │   └── res/mipmap-anydpi-v26/ic_launcher{,_round}.xml                    # 自适应图标入口（API 26+）
 ├── tools/make-launcher-icon.mjs             # 从只读交付源生成上面五个资源（内置自检，见 §6.4）
-└── app/src/test/java/dev/sopho/suofei/      # 81 个 JVM 单测（含更新流程、视觉令牌门、更新源地址门、图标门）```
+└── app/src/test/java/dev/sopho/suofei/      # 97 个 JVM 单测（含更新流程、视觉令牌门、更新源地址门、图标门、四页导航/清单门）```
+
+### 5.2 四个页面与各页信息清单（用户 2026-10-15）
+
+| 页 | 在代码里放了什么 | 明确**不放** | 守着它的断言 |
+|---|---|---|---|
+| **目录** `Screen.LIBRARY` / `LibraryScreen` | 应用名（顶栏「索斐」）、组头卡片（组名＋`[n] 首`＋左沿 2dp 竖线，**保持静态**）、诗行（题名＋作者）、**「关于」入口**（顶栏）、底部版本页脚 | 搜索入口、「有笔记」标记、组内题名预览、**组可折叠（IF-44 本版不做）** | `ScreenInventoryTest`（目录无「有笔记」、组头无 `clickable`、有「关于」入口） |
+| **诗** `Screen.POEM` / `PoemScreen` | 题名、`时代 · 作者 · 年代 · 体裁`（`poemMetaLine`，与 Web 同一句）、正文（依底本分行、段间空行 1.2em）、笔记区（折叠；无笔记如实「（无笔记）」）、**「详情」入口**、顶部「返回」、页脚 | **底本与来源**（搬去详情页）、**任何 `variants[].text`** | `ScreenInventoryTest`（`PoemScreen` 不引用 `variants`/`poem.source`、有 `onDetail`）；`PoemDetailContentTest` |
+| **诗歌详情** `Screen.POEM_DETAIL` / `PoemDetailScreen` | 诗题、「这一首的考据与来源」、**底本与来源**（`poem.source`）、**异文**（`poem.variants` 逐条：`n.` ＋ `variant.text` ＋ `variant.note`；无则如实说明） | —— | `ScreenInventoryTest`（引用 `poem.source`、`poem.variants`、`variant.text`、`variant.note`、**遍历全部** `variants.forEach…`）；`PoemDetailContentTest`（产物 **24 条/13 首**、每条 text/note 非空、6 首无异议） |
+| **关于** `Screen.ABOUT` / `AboutScreen` | 应用名、一句话说明、应用版本（versionName/code）、内容版本与来源、诚实的限制（`ABOUT_LIMITS_ANDROID`）；**Android 额外一块「更新」**：更新源地址、状态文案、检查更新按钮 | —— | `AboutFieldsTest`（`AboutFields` 与 `web/about-fields.json` 逐项一致；`AboutScreen` 渲染每个字段与更新块）；`ScreenInventoryTest` |
+
+行为规则（同一族，已一起写断言）：**详情页返回＝那首诗**（`AppState.back()` 在 `POEM_DETAIL` 只改 `screen`、不动 `selectedPoem`）；**诗页/关于页返回＝目录**（`openLibrary()`）；
+**从诗页回目录恢复原滚动位置（IF-45）**：`AppRoot` 用 `rememberLazyListState()` 把列表状态**提升到跨屏的那一层**，`LibraryScreen` 离开组合后再回来时用同一个 state ⇒ 位置保留；
+新开应用时它的初值是 0 ⇒ 「直开目录从顶部」自然成立。见 `AppStateNavigationTest`（四条转移）。
+
+> ⚠ **诚实边界**：Android 侧没有跑模拟器/Compose UI 测试（本任务不碰设备），所以上表右侧是**源码级门 + 纯逻辑/内容级门**，
+> 不是渲染验证。它们能挡住「接线断了 / 诗页又把异文画回来 / 详情页只画第一条」这类回归，**不能**代替观感验收。
 
 ### 5.1 设备上的运行时存储层（用户 2026-10-14 决定：只留当前）
 
@@ -193,7 +216,7 @@ structural: 括号字号（规范 0.85em） expected:<0.85> but was:<0.8>
 6. **动效 0.15s**：本版界面没有需要颜色过渡的状态（笔记是显/隐），令牌已就位、暂无动画使用。
 7. **组名字重**：规范与原型都没给 ⇒ 用默认 400（此前代码自设 SemiBold，已按「不得自行调整」去掉）。
 8. **结构形态差异（不是令牌值）**：原型首页是「组卡片（含计数+预览）→ 进组看行列表」；Android 是一页平铺（组头卡片 + 该组诗行）——因为 `CONTEXT.md` 要求「组内直接列标题＋作者、不强制作者页」。观感对比时会看到这个差别。
-9. **更新页在原型里没有对照片** ⇒ 用同一套令牌排版（小标题 0.82rem 次要色、正文 15sp、说明 0.78rem 更淡色）。
+9. **关于页在原型里没有对照片** ⇒ 用同一套令牌排版（小标题 0.82rem 次要色、正文 15sp、说明 0.78rem 更淡色）；**诗歌详情页**同理（异文用正文排版 `poem`、note 用 `meta`，都在既有令牌里，不新增令牌）。
 10. 真机/强光下长时间阅读疲劳**未验证**，且单主题**没有退路**——规范 §6 已声明为已知风险。
 
 ### 6.4 应用图标（启动器图标 N1，用户 2026-10-15 选定）
@@ -248,10 +271,12 @@ fg 到中心 (54,54) 的最远点：字形 24.971、角标 33.812 ⇒ 取大者 
 （清单连线、三层齐全、108 画布、无字体依赖、fg 在保证可见区内、bg 满幅且与窗口底色同值、
 mono 单色且与 fg 同形、**两端轮廓逐点一致**），但它**不渲染、不看像素**。
 
-## 7. 更新页与更新源（2026-10-15）
+## 7. 「关于」页（原更新页）与更新源（2026-10-15）
 **(a) 过期文案已改**：原来写「当前内置内容为占位夹具，非校对文本」。内置内容从 2026-10-14 起就是本次发布的**真实**编译产物（与 `dist/content.json` 字节一致），再那么写会让用户以为读到的是测试数据。
-现在写：「内置内容＝本次发布的完整内容（随 APK 打包，首次断网即可读）；每首诗的底本与来源见诗页底部」——
+现在写（`ScreenContent.kt` 的 `ABOUT_LIMITS_ANDROID`）：「内置内容＝本次发布的完整内容（随 APK 打包，首次断网即可读）；每首诗的底本与来源见**诗歌详情页**」——
 **不写具体数字**（数字会过期）。代码里留了注释说明为何不再提「夹具」。
+> ⚠ 2026-10-15 页面集合落地时，这句里「见诗页底部」改成了「见诗歌详情页」：底本与来源已搬到新增的诗歌详情页（`IF-47`），
+> 照旧写「诗页底部」就成了假话。这是**一处事实更正**，不是重写文案。
 
 **(b) 「状态」行渲染为空的待查项**：模拟器验收记录里写着「原始 UI XML：`状态` → `''` → 按钮」，但代码里六个状态分支都有非空文案。
 我做的事实核查：
@@ -282,7 +307,12 @@ mono 单色且与 fg 同形、**两端轮廓逐点一致**），但它**不渲�
 
 ## 9. 已验证 / 未验证
 
-**已验证**：`clean assembleDebug` 通过；APK 内 assets 存在且字节一致；**81 个 JVM 单测通过**（含更新流程的成功/失败/不兼容/损坏路径、「升级后只剩当前一个快照、旧版本目录确被删除」、「写指针失败 ⇒ 存储层明确 `Refused(IO)`、调用方拿到同类 `Failed(IO)`、不留孤儿目录、生效版本不变」、**视觉令牌与规范逐项一致**、**三样结构记号**、**更新状态文案非空**、**更新源 URL 逐字断言**）；APK 包名、展示名、SDK 版本、权限、签名证书实测。图标落地后（2026-10-15）新增 **`LauncherIconTest` 8 例**：清单连线 / 三层齐全 / 108 画布 / 不依赖字体 / fg 在保证可见区内 / bg 满幅且与窗口底色同值 / mono 单色且与 fg 同形 / **与 Web 侧同一份轮廓逐点一致**（详见 §6.4；它不渲染、不看像素）。另有一道契约一致性门 `UnknownAuthorsSourceTest`：断言匿名作者清单与唯一来源 `schema/unknown-authors.json` 逐项一致（读不到文件即失败并列出尝试过的路径，不跳过；测试自身不持副本）。
+**已验证**：`clean testDebugUnitTest assembleDebug` 通过；APK 内 assets 存在且字节一致；**97 个 JVM 单测通过**（含更新流程的成功/失败/不兼容/损坏路径、「升级后只剩当前一个快照、旧版本目录确被删除」、「写指针失败 ⇒ 存储层明确 `Refused(IO)`、调用方拿到同类 `Failed(IO)`、不留孤儿目录、生效版本不变」、**视觉令牌与规范逐项一致**、**三样结构记号**、**更新状态文案非空**、**更新源 URL 逐字断言**）；APK 包名、展示名、SDK 版本、权限、签名证书实测。图标落地后（2026-10-15）新增 **`LauncherIconTest` 8 例**：清单连线 / 三层齐全 / 108 画布 / 不依赖字体 / fg 在保证可见区内 / bg 满幅且与窗口底色同值 / mono 单色且与 fg 同形 / **与 Web 侧同一份轮廓逐点一致**（详见 §6.4；它不渲染、不看像素）。另有一道契约一致性门 `UnknownAuthorsSourceTest`：断言匿名作者清单与唯一来源 `schema/unknown-authors.json` 逐项一致（读不到文件即失败并列出尝试过的路径，不跳过；测试自身不持副本）。
+
+**页面集合落地（2026-10-15，新增 16 例）**：`AppStateNavigationTest`（4）——四页转移，含「详情页返回→那首诗」「关于页返回→目录」「详情页不改变选中的诗」；
+`ScreenInventoryTest`（6）——四页存在且 `UpdateScreen` 已消失、**诗页不引用 `variants`/`poem.source`**、诗页有详情入口、详情页渲染 source/variants/variant.text/variant.note 且**遍历全部**、目录无「有笔记」/组头无 `clickable`/有「关于」入口、关于页带共享字段＋更新块；
+`PoemDetailContentTest`（3）——内置产物 **24 条/13 首**、每条 text/note 非空、6 首无异议；`AboutFieldsTest`（3）——`AboutFields` 与唯一来源 `web/about-fields.json` 逐项一致、关于页渲染每个字段。
+**证伪实测**：给诗页加一句 `Text(poem.variants…)` ⇒ `poemScreen_showsNoVariantsAndNoSource` 报红「诗页不得出现异文（variants）」；把详情页改成只取 `variants.first()` ⇒ `poemDetailScreen_rendersSourceAndEveryVariantField` 报红「详情页要遍历全部异文（variants.forEach…），不是只取第一条」（均已还原）。
 **未验证**：**强光/长时间阅读疲劳**未验（用户 2026-10-15 已决定不做物理真机验收 ⇒ 这一条以「已知并接受、未验证」记录）；
 **图标没在任何真机/启动器上看过**（真实遮罩形状随厂商变、`<monochrome>` 的实际观感取决于系统「主题图标」开关；
 `LauncherIconTest` 只做静态断言、不渲染、不看像素）——见 §6.4；未在真机/弱网上验更新流程；
