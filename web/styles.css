@@ -135,15 +135,6 @@ button {
   cursor: pointer;
 }
 
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-}
-
 /* ---------- 顶栏 ---------- */
 
 .site-header {
@@ -165,32 +156,6 @@ button {
   letter-spacing: var(--brand-ls);
   color: var(--text);
   white-space: nowrap;
-}
-
-.search {
-  flex: 1 1 12rem;
-  min-width: 9rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-left: auto;
-}
-
-.search input {
-  flex: 1;
-  min-width: 4rem;
-  padding: 0.35rem 0.7rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-pill);
-  background: var(--surface);
-  font: inherit;
-  font-size: 0.92rem;
-  color: var(--text);
-  outline: none;
-}
-
-.search input::placeholder {
-  color: var(--text-faint);
 }
 
 .app-version {
@@ -427,25 +392,9 @@ button {
   white-space: nowrap;
 }
 
-/* 搜索命中高亮：颜色只取令牌（§2 的 --mark-bg / --mark-text）。
-   2026-10-15 之前这两个令牌**只声明、没有任何规则或代码用它**——Android 有高亮、Web 没有，
-   属「声明了却没接线」的偏离（逐屏材料实测 `<mark>` 0 个发现的）。 */
-.search-hit {
-  background: var(--mark-bg);
-  color: var(--mark-text);
-  border-radius: 2px;
-}
-
-.poem-row-dynasty {
-  font-family: var(--font-mono);
-  font-size: 0.66rem;
-  letter-spacing: 0.08em;
-  color: var(--accent-strong);
-  border: 1px solid var(--accent-line);
-  border-radius: var(--radius-pill);
-  padding: 0.05rem 0.4rem;
-  white-space: nowrap;
-}
+/* 跨组搜索已按用户 2026-10-15 的决定移除（第一版不做搜索）。
+   这里不再有 `.search`（输入框）与 `.search-hit`（命中高亮）等规则；
+   `--mark-bg` / `--mark-text` 两个令牌留在 :root 里只为与原型/规范逐项对齐（e2e §1d 会逐值比对）。 */
 
 .poem-row-notes {
   margin-left: auto;
@@ -680,12 +629,6 @@ button {
 @media (max-width: 420px) {
   .site-header {
     gap: 0.5rem;
-  }
-
-  .search {
-    flex: 1 1 100%;
-    min-width: 0;
-    margin-left: 0;
   }
 
   .status-list {

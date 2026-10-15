@@ -8,6 +8,14 @@
 > **视觉＝静默终端（深墨底）**，与评审通过的原型同源：`styles.css` 的令牌与
 > `prototype/css/theme-tech.css` **同名同值**（57 项），并由 e2e **逐值断言**（见 §5）。
 > 单主题（用户已定）：不做浅色备选、不做主题开关、不做偏好持久化。
+>
+> ⚠ **跨组搜索已移除**（用户 2026-10-15 决定：**第一版不做搜索**，原话「我不认为这是必须的」）：
+> 目录页的搜索输入框与「搜索」按钮、`render.js` 的 `searchPoems`/`renderSearchResults`/
+> `highlightMatches`（命中高亮）、`main.js` 的 `state.query` 与搜索监听器、`styles.css` 的
+> `.search`/`.search-hit` 等规则与搜索断言**已删除**（不是隐藏）。留痕见
+> [`../docs/interface-decisions.md`](../docs/interface-decisions.md) 的 **IF-46**。
+> 令牌 `--mark-bg`/`--mark-text` 仍留在 `:root`，但**已无任何规则使用者** —— 只为与原型/规范
+> 逐项对齐（e2e §1d 逐值比对），规范侧条目待负责人删除。
 
 ## 1. 怎么看效果（确切命令）
 
@@ -58,7 +66,7 @@ web/
   sw.js                 ★ Service Worker：站点的唯一缓存与更新通道（壳 + 内容一起缓存）
   app/config.js         ★ 所有对外接口常量集中在这里（见 §8）
   app/content.js        内容装载：单独取 + 结构校验 + 格式版本兼容检查（不做更新决策）
-  app/render.js         纯渲染：分组目录 / 搜索 / 诗页（分行、分节、笔记）
+  app/render.js         纯渲染：分组目录 / 诗页（分行、分节、笔记）
   app/main.js           入口：先渲染外壳 → 单独取内容 → 渲染；站点更新提示与切换
   scripts/serve.mjs     零依赖静态服务
   scripts/prepare-dev-content.mjs   把一份内容 JSON 放到 web/content.json
@@ -84,8 +92,8 @@ web/
 
 所以 Web 端的原则是：
 
-1. **产物组内只要有任何一首带了整数 `orderInSource`** ⇒ 认定「产物已经排好了」，目录与搜索结果
-   都**照产物数组次序原样渲染**，不重排；搜索 = 在数组次序上过滤，保持同一相对次序。
+1. **产物组内只要有任何一首带了整数 `orderInSource`** ⇒ 认定「产物已经排好了」，目录
+   **照产物数组次序原样渲染**，不重排。
    分组的次序同样照产物给的 `dynasties` 数组（契约 §2 已按 `order` 升序）。
 2. **一首都没带**（老产物 / 手写 JSON）⇒ 退回本机拼音排序兜底（`app/render.js: comparePoems`）。
 3. `orderInSource` **不是整数**（形状不对）⇒ 按「没带」处理，走兜底，并且**在状态面板里写明**
@@ -229,8 +237,8 @@ web/
   所以这一条没实现、也没有断言。
 - `--test-*` 三个令牌本仓只用于「测试夹具内容」提示条（原型里那组本就是测试用色），产品谱不用它们。
 - **与原型的有意差异**（规范 §4.2 已逐条记录，用户可否决）：
-  ① 搜索框用「搜索」文字按钮、**不画**原型里那个放大镜（那是 `base.css` 三主题共用的纯装饰，
-  不是 tech 方向的结构记号）；② 笔记头**不加** `n-badge`（原型里那是 `--test-*` 色的测试夹具标记，
+  ① **搜索已按 2026-10-15 决定整体移除**（连入口带搜索屏一起删了 —— 所以「搜索框用文字按钮、
+  不画原型那个放大镜」这条有意差异已失效）；② 笔记头**不加** `n-badge`（原型里那是 `--test-*` 色的测试夹具标记，
   给用户自己的笔记打会误导）；③ **状态色只有两档**：信息→`--accent-*`，**警告与失败都用**
   `--warn-*`（不新增 error/红色令牌 —— 评审过的调色板就是这两条通道，且状态面板有明确文字说明
   「失败/警告」，颜色是次要通道）。**这三条是「有意不做」，不是漏了**；要改先看规范 §4.2。
@@ -298,7 +306,7 @@ node ../android/tools/make-launcher-icon.mjs              # Android 侧的矢量
 
 ## 6. 已验证 / 未验证
 
-### 已验证（`node web/tests/e2e-cdp.mjs`，基座 = 真实产物 19 首，本机无头 Chromium 129，220/220 通过）
+### 已验证（`node web/tests/e2e-cdp.mjs`，基座 = 真实产物 19 首，本机无头 Chromium 129，219/219 通过）
 
 - **视觉令牌逐值对齐（§1d）**：直接读原型 CSS 的 57 项令牌声明与本站 `:root` 计算值逐项比对，
   以及计算值层的底色/正文色/字号/行高/字距/段间距/无阴影/无动画/0.15s 颜色过渡/网格；
@@ -407,13 +415,14 @@ node ../android/tools/make-launcher-icon.mjs              # Android 侧的矢量
 | **内容版本 `contentVersion`** | 内容线 C、Android 端（那边仍用它做热更决策） | Web **只展示、不参与决策**（状态面板里注明「仅展示」） | `app/main.js` 的状态面板 |
 | **`content.json.sha256` 边车** | 发布线（去掉产出）、Android 端（那边仍需要远端清单里的 `sha256`） | **Web 侧不产出、也不依赖**（用户 2026-10-14 拍板）。完整性由「同一次部署 + HTTPS + SW 预缓存整体性」承担；没人消费的边车只会让人以为还有一道校验环节 | `web/` 侧已无此项（`config.js` 无 `CHECKSUM_URL`、`prepare-dev-content.mjs` 不再写它）；发布线去掉产出 |
 | **`formatVersion` 支持范围** | 内容线（什么时候递增）、Android 端（同样要判） | 只接受 `=== 1`；不匹配按**部署不一致**处理（内容与壳一起发布才对） | `config.js: SUPPORTED_FORMAT_VERSION` + `app/content.js: checkCompatibility()` |
-| **组内 / 分组次序权威** | Android 端、原型端、B 线设计的阅读次序 | **判定依据 = `orderInSource`**：组内有任何一首带整数 `orderInSource` 就一律照数组次序（目录与搜索都是，分组次序照 `dynasties` 数组）；一首都没带才退回本机拼音兜底 | `app/render.js: hasProductOrder / productOrderStatus / groupPoems / searchPoems` |
-| **可分享 URL 形态** | 用户已分享出去的链接、Android 端「打开链接」、书签 | 哈希路由：目录 `#/`，诗 `#/p/<poemId>`（用契约里的稳定 id）。**搜索不进 URL**（`?q=` 暂不做） | `config.js: ROUTES` + `app/main.js: parseHash()` |
+| **组内 / 分组次序权威** | Android 端、原型端、B 线设计的阅读次序 | **判定依据 = `orderInSource`**：组内有任何一首带整数 `orderInSource` 就一律照数组次序（分组次序照 `dynasties` 数组）；一首都没带才退回本机拼音兜底 | `app/render.js: hasProductOrder / productOrderStatus / groupPoems` |
+| **可分享 URL 形态** | 用户已分享出去的链接、Android 端「打开链接」、书签 | 哈希路由：目录 `#/`，诗 `#/p/<poemId>`（用契约里的稳定 id）。**没有搜索**（第一版不做，完整移除） | `config.js: ROUTES` + `app/main.js: parseHash()` |
 | **本地存储键空间** | — | **完全不用 `localStorage`，也不用 IndexedDB**（离线副本只在 Cache Storage 里） | `config.js: LOCAL_STORAGE_KEYS`（空对象，显式声明） |
 
-最容易后悔的是 **URL 形态**（分享出去收不回）：当前选择「hash + 稳定 id + 搜索不进 URL」，
-好处是 Pages 上不需要重写规则、链接只跟 id 绑定（改标题不失效）；代价是链接里带 `#`，
-且搜索结果页不能直接分享。要换请先说，我按表改一处 + 同步 Android 端。
+最容易后悔的是 **URL 形态**（分享出去收不回）：当前选择「hash + 稳定 id」，
+好处是 Pages 上不需要重写规则、链接只跟 id 绑定（改标题不失效）；代价是链接里带 `#`。
+（搜索已于 2026-10-15 整体移除，所以不再有「搜索结果页能不能分享」这个问题。）
+要换请先说，我按表改一处 + 同步 Android 端。
 
 ## 9. 待协调（需要父会话 / 其他线决定）
 

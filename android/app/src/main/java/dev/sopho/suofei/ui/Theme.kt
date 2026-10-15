@@ -53,7 +53,7 @@ object PoetryTokens {
     /** 行悬停 `surface-hover`。触摸端没有 hover，仅保留令牌以便与规范逐项对齐。 */
     val surfaceHover = Color(0xFF182124)
 
-    /** 凹陷区（搜索结果）`surface-sunken`. */
+    /** 凹陷区 `surface-sunken`. */
     val surfaceSunken = Color(0xFF111719)
 
     /** 正文 `text`. */
@@ -98,10 +98,13 @@ object PoetryTokens {
     /** 提示边框 `line-warn` = rgba(201,162,74,0.34). */
     val lineWarn = Color(0xFFC9A24A).copy(alpha = 0.34f)
 
-    /** 搜索命中底色 `mark-bg` = rgba(79,179,165,0.22). 本端搜索暂不高亮命中，令牌先就位。 */
+    /** 搜索命中底色 `mark-bg` = rgba(79,179,165,0.22)。
+     *  ⚠ 使用者已随「跨组搜索」一并移除（用户 2026-10-15 决定：第一版不做搜索）。
+     *  令牌暂留只为与规范 §2 及 `VisualTokensConsistencyTest` 的「颜色一一对应」门保持一致；
+     *  规范里对应条目由负责人删除后，这里应一并移除。 */
     val markBg = Color(0xFF4FB3A5).copy(alpha = 0.22f)
 
-    /** 搜索命中文字 `mark-text`. */
+    /** 搜索命中文字 `mark-text`。⚠ 使用者已随跨组搜索移除（2026-10-15），暂留只为规范对齐，同上。 */
     val markText = Color(0xFFEAF5F3)
 
     // ── 字体与排版（规范 §3）──────────────────────────────────────────
@@ -176,9 +179,6 @@ object PoetryTokens {
     /** 技术性小字（版本号等）0.76rem（原型 `.gcount`）. */
     const val MONO_REM = 0.76f
 
-    /** 搜索输入 0.92rem（原型 `.search input`）. */
-    const val SEARCH_INPUT_REM = 0.92f
-
     /** 笔记标题 0.82rem / 0.1em（原型 `.notes-head .n-title`）。 */
     const val NOTES_TITLE_REM = 0.82f
     const val NOTES_TITLE_LETTER_SPACING = 0.1f
@@ -186,16 +186,8 @@ object PoetryTokens {
     /** 列表里的作者 0.8rem（原型 `.poemrow .pauthor`, 规范未列）. */
     const val LIST_AUTHOR_REM = 0.8f
 
-    /** 搜索结果诗题 1.05rem（原型 `.resultrow .r-title`）. */
-    const val RESULT_TITLE_REM = 1.05f
-
-    /** 搜索结果里的时代小标签 0.66rem / 0.08em（原型 `.resultrow .r-dyn`：accent-strong + accent-line 边框 + 圆角 pill）. */
-    const val RESULT_CHIP_REM = 0.66f
-    const val RESULT_CHIP_LETTER_SPACING = 0.08f
-    const val RESULT_CHIP_PAD_VERTICAL_REM = 0.05f
-    const val RESULT_CHIP_PAD_HORIZONTAL_REM = 0.4f
-
-    /** 搜索结果次级行 0.74rem（原型 `.resultrow .r-sub`）. */
+    /** 更新提示条等次级行 0.74rem（原型 `.resultrow .r-sub`——原型里那行只在搜索结果用，
+     *  本端改成只用在目录页的「新内容已就绪」提示条上）。 */
     const val RESULT_SUB_REM = 0.74f
 
     /** 空状态 0.84rem（原型 `.blank`），上下各 2.4rem 留白. */
@@ -247,9 +239,6 @@ object PoetryTokens {
     /** 结果行：列间距 0.7rem、两行行距 0.2rem（原型 `.resultrow { gap: 0.2rem 0.7rem }`）. */
     const val RESULT_ROW_GAP_REM = 0.7f
     const val RESULT_LINE_GAP_REM = 0.2f
-
-    /** 搜索命中高亮内边距 0.05em（原型 `mark { padding: 0 0.05em }`）. */
-    const val MARK_PAD_EM = 0.05f
 
     // ── 结构记号（规范 §4.1，两端都要有）────────────────────────────
     /** §4.1-1 组名左沿一条发丝竖线：2px 宽 + 左内边距 .6rem. */
@@ -341,23 +330,7 @@ object PoetryTextStyles {
         color = PoetryTokens.textDim,
     )
 
-    /** 搜索结果诗题：1.05rem / 0.06em. */
-    val resultTitle = TextStyle(
-        fontFamily = PoetryTokens.fontSans,
-        fontSize = PoetryTokens.remToDpValue(PoetryTokens.RESULT_TITLE_REM).sp,
-        letterSpacing = PoetryTokens.LIST_TITLE_LETTER_SPACING.em,
-        color = PoetryTokens.text,
-    )
-
-    /** 搜索结果里的时代小标签：等宽 0.66rem / 0.08em / 强调色. */
-    val resultChip = TextStyle(
-        fontFamily = PoetryTokens.fontMono,
-        fontSize = PoetryTokens.remToDpValue(PoetryTokens.RESULT_CHIP_REM).sp,
-        letterSpacing = PoetryTokens.RESULT_CHIP_LETTER_SPACING.em,
-        color = PoetryTokens.accentStrong,
-    )
-
-    /** 搜索结果次级行：0.74rem / 更淡色. */
+    /** 更新提示条等次级行：0.74rem / 更淡色（原型 `.resultrow .r-sub`；本端只用在目录页提示条）. */
     val resultSub = TextStyle(
         fontFamily = PoetryTokens.fontSans,
         fontSize = PoetryTokens.remToDpValue(PoetryTokens.RESULT_SUB_REM).sp,

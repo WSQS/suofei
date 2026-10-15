@@ -70,16 +70,6 @@ class ContentParserTest {
     }
 
     @Test
-    fun search_matchesTitleAndAuthorAcrossGroups() {
-        val content = ContentParser.parse(assetFile.readText(Charsets.UTF_8))
-        assertEquals(19, content.search("佚名").size)
-        assertEquals(1, content.search("行行重行行").size)
-        assertEquals(listOf("明月皎夜光", "明月何皎皎"), content.search("明月").map { it.title })
-        assertTrue(content.search("不存在的诗").isEmpty())
-        assertTrue(content.search("   ").isEmpty())
-    }
-
-    @Test
     fun variants_areParsedButNeverEnterStanzas() {
         val content = ContentParser.parse(assetFile.readText(Charsets.UTF_8))
         val poem = content.poems.first { it.id == "gushi-shijiu-shou-09" }

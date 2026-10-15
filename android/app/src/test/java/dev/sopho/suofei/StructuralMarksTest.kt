@@ -3,7 +3,6 @@ package dev.sopho.suofei
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.em
 import dev.sopho.suofei.ui.PoetryTokens
-import dev.sopho.suofei.ui.highlightMatches
 import dev.sopho.suofei.ui.groupCountAnnotated
 import dev.sopho.suofei.ui.groupCountText
 import org.junit.Assert.assertEquals
@@ -11,8 +10,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * 结构记号（规范 §4.1）的**行为**断言：`[3] 首` 的形状、括号段的色与字号、
- * 搜索命中高亮用的是 `mark-bg`/`mark-text`。（值本身与规范的比对在 `VisualTokensConsistencyTest`。）
+ * 结构记号（规范 §4.1）的**行为**断言：`[3] 首` 的形状与括号段的色与字号。
+ * （值本身与规范的比对在 `VisualTokensConsistencyTest`。）
+ * 原先还有「搜索命中高亮的色」两条断言——跨组搜索已按用户 2026-10-15 决定移除，遂一并删除。
  */
 class StructuralMarksTest {
 
@@ -44,31 +44,6 @@ class StructuralMarksTest {
         }
         // 数字与「首」不带括号样式（沿用外层等宽次要色）
         assertEquals(" 首", annotated.text.substring(4))
-    }
-
-    @Test
-    fun searchHighlightUsesMarkTokens() {
-        val annotated = highlightMatches("行行重行行", "行行")
-        assertEquals("文本不变", "行行重行行", annotated.text)
-        assertEquals("两处命中", 2, annotated.spanStyles.size)
-        for (span in annotated.spanStyles) {
-            assertEquals("命中底色＝mark-bg", PoetryTokens.markBg, span.item.background)
-            assertEquals("命中文字＝mark-text", PoetryTokens.markText, span.item.color)
-        }
-        // 命中段文字确实是查询词
-        val first = annotated.spanStyles[0]
-        assertEquals("行行", annotated.text.substring(first.start, first.end))
-    }
-
-    @Test
-    fun highlightHandlesCaseAndAbsence() {
-        val upper = highlightMatches("ABC Song", "bc")
-        assertEquals(1, upper.spanStyles.size)
-        assertEquals("BC", upper.text.substring(upper.spanStyles[0].start, upper.spanStyles[0].end))
-
-        assertEquals("查不到时文本原样", "行行重行行", highlightMatches("行行重行行", "唐诗").text)
-        assertTrue("查不到时没有命中段", highlightMatches("行行重行行", "唐诗").spanStyles.isEmpty())
-        assertTrue("空查询不高亮", highlightMatches("行行重行行", "  ").spanStyles.isEmpty())
     }
 
     @Test

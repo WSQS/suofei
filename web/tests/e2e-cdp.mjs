@@ -29,7 +29,7 @@ import {
 } from '../app/content.js';
 import { APP_VERSION, CONTENT_URL, resourceCacheName } from '../app/config.js';
 import {
-  comparePoems, groupPoems, hasProductOrder, isUnknownAuthor, productOrderStatus, searchPoems, UNKNOWN_AUTHORS,
+  comparePoems, groupPoems, hasProductOrder, isUnknownAuthor, productOrderStatus, UNKNOWN_AUTHORS,
 } from '../app/render.js';
 import { buildVariants } from '../scripts/lib/variants.mjs';
 import { DEPLOY_FILES, DEPLOY_TEXT_FILES, makeDeployment } from './lib/deploy.mjs';
@@ -271,14 +271,6 @@ async function openFresh(url) {
 }
 const summary = () => evaluate('JSON.parse(JSON.stringify(window.__app.summary()))');
 
-async function setQuery(text) {
-  await evaluate(`(() => {
-    const el = document.querySelector('[data-test="search-input"]');
-    el.value = ${JSON.stringify(text)};
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-  })()`);
-}
-
 const screenshotFailures = [];
 const screenshotAttempts = [];
 
@@ -305,7 +297,6 @@ async function screenshot(name) {
 
 const domPoemIds = () => evaluate(`[...document.querySelectorAll('[data-test="poem-row"]')].map(r => r.dataset.poemId)`);
 const groupKeys = () => evaluate(`[...document.querySelectorAll('[data-test="dynasty-group"]')].map(g => g.dataset.dynastyKey)`);
-const searchTitles = () => evaluate(`[...document.querySelectorAll('[data-test="poem-row"] .poem-row-title')].map(e => e.textContent)`);
 const errorText = () => evaluate(`document.querySelector('[data-test="error-text"]').textContent`);
 const cacheKeys = () => evaluate('caches.keys()');
 /** 站点缓存（pc-resources-*）集合。 */
@@ -406,7 +397,6 @@ function unitTests(baseDoc, variants) {
   eq('目录次序 == 产物数组次序', groupPoems(baseDoc).flatMap((g) => g.poems.map((p) => p.id)), expectedDomOrder(baseDoc));
   eq('本机拼音排序会把第 1 首推到队列末尾', fallbackOrder(baseDoc)[baseDoc.poems.length - 1], baseDoc.poems[0].id);
   check('本机拼音排序与产物次序不同（这条断言才有牙齿）', dump(fallbackOrder(baseDoc)) !== dump(expectedDomOrder(baseDoc)));
-  eq('搜索命中保持产物数组相对次序', searchPoems(baseDoc, '佚名').map((p) => p.id), baseDoc.poems.map((p) => p.id));
 
   section('0c 客户端不读两个拼音名次键（即使产物里还带着）');
   const keysButNoIndex = structuredClone(baseDoc);
@@ -740,7 +730,7 @@ async function main() {
   await screenshot('02-index-real-content.png');
 
   // ------------------------------------------------ 1b 可分享 URL 形态（用户 2026-10-14 拍板：保持现状）
-  section('1b 可分享 URL 形态：诗页深链接可直接打开、刷新仍在同一首；搜索不进地址栏');
+  section('1b 可分享 URL 形态：诗页深链接可直接打开、刷新仍在同一首');
   const deepPoem = baseDoc.poems[5];              // 挑一首非首首的，证明是按 id 定位、不是「碰巧第一首」
   await openFresh(`${BASE}#/p/${deepPoem.id}`);   // 真·新开一个文档落在这一首
   await waitForPoemView(deepPoem.id);
@@ -755,41 +745,6 @@ async function main() {
     await evaluate(`document.querySelector('[data-test="view-poem"]').dataset.poemId`), deepPoem.id);
   eq('刷新后地址栏不变', await evaluate('location.hash'), `#/p/${deepPoem.id}`);
 
-  await hashTo('#/');
-  await waitForIndex();
-  await setQuery('佚名');                          // 搜索不进地址栏（用户拍板）
-  check('目录里搜索会显示结果', await evaluate(`Boolean(document.querySelector('[data-test="view-search"]'))`));
-  // 命中高亮：令牌 `--mark-bg` / `--mark-text` 以前**只声明、没人用**（Android 有、Web 没有）——
-  // 2026-10-15 逐屏材料实测 `<mark>` 数为 0 才发现。这里把它变成可断言的。
-  const markInfo = await evaluate(`(() => {
-    const hit = document.querySelector('[data-test="search-hit"]');
-    const root = getComputedStyle(document.documentElement);
-    const norm = (s) => String(s).replace(/\\s+/g, '');
-    // 令牌可能写成 #rrggbb，而计算值总是 rgb()/rgba() —— 两边都过一遍探针元素，再比。
-    const asColor = (v) => {
-      const el = document.createElement('span');
-      el.style.color = v;
-      document.body.appendChild(el);
-      const out = getComputedStyle(el).color;
-      el.remove();
-      return norm(out);
-    };
-    return {
-      count: document.querySelectorAll('[data-test="search-hit"]').length,
-      bg: hit ? norm(getComputedStyle(hit).backgroundColor) : null,
-      fg: hit ? norm(getComputedStyle(hit).color) : null,
-      tokenBg: asColor(root.getPropertyValue('--mark-bg')),
-      tokenFg: asColor(root.getPropertyValue('--mark-text')),
-    };
-  })()`);
-  check('搜索命中高亮真的画出来了（与 Android 同语义）', markInfo.count > 0, dump(markInfo));
-  eq('命中高亮的底色 = 令牌 --mark-bg（不是自造色）', markInfo.bg, markInfo.tokenBg);
-  eq('命中高亮的字色 = 令牌 --mark-text', markInfo.fg, markInfo.tokenFg);
-  eq('搜索时地址栏不变、没有搜索参数',
-    [await evaluate('location.hash'), (await evaluate('location.href')).includes('?q=')], ['#/', false]);
-  await setQuery('');
-  await hashTo('#/');
-  await waitForIndex();
 
   // ------------------------------------------------ 1c 诗页渲染（真实内容）
   section('1c 诗页渲染：正文分行/分节与「底本」照旧；**异文不上界面**（用户决定，Android 同此）');
@@ -932,7 +887,6 @@ async function main() {
     const cs = (el) => getComputedStyle(el);
     const row = document.querySelector('[data-test="poem-row"]');
     const chip = document.querySelector('.btn');
-    const search = document.querySelector('[data-test="search-input"]');
     const sunken = document.querySelector('.status-list');
     const groupTitle = document.querySelector('.dynasty-group-title');
     const label = document.querySelector('[data-test="dynasty-label"]');
@@ -944,11 +898,10 @@ async function main() {
       chipTransition: [cs(chip).transitionProperty, cs(chip).transitionDuration],
       chipShadow: cs(chip).boxShadow,
       chipRadius: cs(chip).borderTopLeftRadius,
-      searchBg: cs(search).backgroundColor,
-      searchRadius: cs(search).borderTopLeftRadius,
       sunkenBg: cs(sunken).backgroundColor,
       sunkenRadius: cs(sunken).borderTopLeftRadius,
       groupBg: cs(groupTitle).backgroundColor,
+      groupRadius: cs(groupTitle).borderTopLeftRadius,
       labelBorder: cs(label).borderLeftColor + ' ' + cs(label).borderLeftWidth,
       labelPadLeft: cs(label).paddingLeft,
       countText: document.querySelector('.dynasty-count').innerText.trim(),
@@ -961,10 +914,10 @@ async function main() {
       countFont: cs(document.querySelector('.dynasty-count')).fontFamily,
     };
   })()`);
-  eq('卡面色 = --surface（#141b1e）', indexVis.searchBg, 'rgb(20, 27, 30)');
+  eq('卡面色 = --surface（#141b1e）', indexVis.groupBg, 'rgb(20, 27, 30)');
   eq('下沉面 = --surface-sunken（#111719）', indexVis.sunkenBg, 'rgb(17, 23, 25)');
-  eq('圆角取值（下沉面/搜索框 = 4px，芯片 = --radius-pill 3px）',
-    [indexVis.sunkenRadius, indexVis.searchRadius, indexVis.chipRadius], ['4px', '3px', '3px']);
+  eq('圆角取值（下沉面/组卡片 = 4px，芯片 = --radius-pill 3px）',
+    [indexVis.sunkenRadius, indexVis.groupRadius, indexVis.chipRadius], ['4px', '4px', '3px']);
   eq('列表行与按钮都没有阴影', [indexVis.rowShadow, indexVis.chipShadow], ['none', 'none']);
   eq('列表行没有关键帧动画', indexVis.rowAnimation, 'none');
   eq('列表行过渡属性只有颜色类', indexVis.rowTransition[0], 'border-color, background');
@@ -1156,8 +1109,10 @@ async function main() {
   await waitForIndex();
   eq('切换后目录次序 == 新产物数组次序', await domPoemIds(), expectedDomOrder(variants.fixtureContent.doc));
   eq('新内容生效：末首变成测试夹具诗', (await evaluate(`[...document.querySelectorAll('[data-test="poem-row"] .poem-row-title')].map(e => e.textContent)`)).at(-1), '测试夹具诗（非诗文）');
-  eq('旧内容已不在：明月何皎皎搜不到', await (async () => { await setQuery('明月何皎皎'); return searchTitles(); })(), []);
-  await setQuery('');
+  // 旧内容已不在：目录的可见文本里不得再出现被删掉的那一首（用户 2026-10-15 起界面已无搜索，
+  // 所以这里直接查目录文本，不再借搜索过滤）。
+  check('旧内容已不在：被删掉的末首（明月何皎皎）不再出现在目录里',
+    !(await evaluate(`document.querySelector('[data-test="view-index"]').innerText`)).includes('明月何皎皎'));
   await waitForSiteCaches([v2.cacheName], '旧 cache 已删除、只剩新 cache');
   eq('旧 cache 已被新 SW 删掉', await siteCaches(), [v2.cacheName]);
   check('部署内容带夹具标记 → 界面明确标出（不是发布内容）',

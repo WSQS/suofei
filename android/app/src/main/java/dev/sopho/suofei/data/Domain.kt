@@ -60,17 +60,6 @@ data class Content(
             .sortedBy { it.dynasty.order }
     }
 
-    /** v0 最低要求：对 title / author 做子串匹配（不做拼音增强）。 */
-    fun search(rawQuery: String): List<Poem> {
-        val q = rawQuery.trim()
-        if (q.isEmpty()) return emptyList()
-        return groups.flatMap { group ->
-            group.poems.filter { p ->
-                p.title.contains(q, ignoreCase = true) || p.author.contains(q, ignoreCase = true)
-            }
-        }
-    }
-
     companion object {
         /** 契约 §2.1 的显式规则：佚名/未知作者排在该组最后，不靠字符串碰巧。
          *

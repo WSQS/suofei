@@ -13,15 +13,13 @@ import {
 } from './content.js';
 import { APP_VERSION, ROUTES, resourceCacheName } from './config.js';
 import {
-  productOrderStatus, renderIndex, renderPoemPage, renderSearchResults,
+  productOrderStatus, renderIndex, renderPoemPage,
 } from './render.js';
 
 const els = {
   view: document.getElementById('view'),
   notices: document.getElementById('notices'),
   status: document.getElementById('status'),
-  search: document.getElementById('search-input'),
-  searchForm: document.getElementById('search-form'),
   appVersion: document.getElementById('app-version'),
 };
 
@@ -32,7 +30,6 @@ const state = {
   meta: null,
   loading: false,
   error: null,          // {kind, message, hint}
-  query: '',
   view: { kind: 'index', id: null },
   online: navigator.onLine,
   notice: null,         // {kind, text, action}
@@ -123,7 +120,7 @@ function navigate(hash) {
 /** 回到目录（不是诗页）时，若已有待生效的新版本，就切换（刷新）。 */
 function maybeApplyUpdateOnIndex() {
   if (!state.update.available || state.update.applying) return;
-  if (state.view.kind === 'poem' && state.query.trim() === '') return; // 还在阅读：不打断
+  if (state.view.kind === 'poem') return; // 还在阅读：不打断
   applyUpdate('回到目录后自动生效');
 }
 
@@ -153,10 +150,8 @@ function renderView() {
     return;
   }
 
-  const onOpen = (id) => { state.query = ''; els.search.value = ''; navigate(ROUTES.poem(id)); };
-  if (state.query.trim() !== '') {
-    els.view.append(renderSearchResults(state.doc, state.query, { onOpen }));
-  } else if (state.view.kind === 'poem') {
+  const onOpen = (id) => navigate(ROUTES.poem(id));
+  if (state.view.kind === 'poem') {
     els.view.append(renderPoemPage(state.doc, state.view.id, { onBack: () => navigate(ROUTES.index) }));
   } else {
     els.view.append(renderIndex(state.doc, { onOpen }));
@@ -513,16 +508,6 @@ async function boot() {
 
 // ---------------------------------------------------------------- 事件
 
-els.searchForm.addEventListener('submit', (e) => {
-  e.preventDefault();
-  state.query = els.search.value;
-  render();
-});
-els.search.addEventListener('input', () => {
-  state.query = els.search.value;
-  if (state.query.trim() !== '' && state.view.kind === 'poem') state.view = { kind: 'index', id: null };
-  render();
-});
 window.addEventListener('hashchange', () => {
   state.view = parseHash();
   render();
@@ -541,7 +526,6 @@ window.__app = {
   loadContentIntoState,
   checkForSiteUpdate,
   applyUpdate,
-  setQuery(q) { state.query = q; els.search.value = q; render(); },
   summary() {
     return {
       ready: window.__app.ready,
@@ -554,7 +538,6 @@ window.__app = {
       formatVersion: state.doc?.formatVersion ?? null,
       error: state.error,
       view: state.view,
-      query: state.query,
       online: state.online,
       sw: {
         supported: state.sw.supported,

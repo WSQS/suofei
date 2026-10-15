@@ -1,4 +1,4 @@
-// 纯 DOM 渲染：目录分组、搜索、诗页（分行/分节/空行）、笔记按需展开、状态面板。
+// 纯 DOM 渲染：目录分组、诗页（分行/分节/空行）、笔记按需展开、状态面板。
 //
 // 视觉刻意保持朴素：本轮不做视觉设计（原型线 B 评审结果出来后统一落两端）。
 // 这里只保证结构清晰、正文分行/空行/笔记展开正确。
@@ -11,7 +11,7 @@
 //
 // 次序约定（**不许在客户端重排**）：
 //  编译期是唯一排序权威（IF-15/IF-16）。产物组内只要有**任何一首带了 `orderInSource`（整数）**
-//  就说明「产物已经排好了」，目录与搜索结果都**照产物数组次序**渲染；一首都没带
+//  就说明「产物已经排好了」，目录**照产物数组次序**渲染；一首都没带
 //  （老产物/手写 JSON）才退回本机拼音兜底，并在状态面板写明。
 //  用户 2026-10-14 拍板：产物**只发 `orderInSource`**，编译期的 `authorSortKey`/`titleSortKey`
 //  不再发布（客户端**不再读它们**，即使产物里还带着）。否则两端各自再排一遍，
@@ -121,17 +121,6 @@ export function groupPoems(doc) {
   return all;
 }
 
-/**
- * 跨组搜索：诗名/作者子串匹配（契约 §2 的 v0 最低要求）。
- * **在产物数组次序上过滤，保持同一相对次序**（不重排）；只有产物没给排序键时才本地兜底排序。
- */
-export function searchPoems(doc, query) {
-  const q = String(query ?? '').trim().toLowerCase();
-  if (!q) return [];
-  const hits = doc.poems.filter((p) => p.title.toLowerCase().includes(q) || p.author.toLowerCase().includes(q));
-  return hasProductOrder(doc) ? hits : hits.sort(comparePoems);
-}
-
 export function getPoem(doc, id) {
   return doc.poems.find((p) => p.id === id) ?? null;
 }
@@ -238,53 +227,14 @@ export function renderPoemBody(poem) {
   return body;
 }
 
-/** 搜索命中高亮：与 Android 的 `highlightMatches()` **同语义**（大小写不敏感的子串），
- *  颜色只取令牌 `--mark-bg` / `--mark-text`。
- *  为什么补它：这两个令牌此前**只声明、没人用**，于是 Android 有高亮、Web 没有 —— 属「声明了却没接线」的偏离
- *  （2026-10-15 逐屏材料里实测到 `<mark>` 数为 0 才发现）。e2e 现在有断言盯着。 */
-function highlightMatches(text, query) {
-  const q = String(query ?? '').trim();
-  if (!q) return [document.createTextNode(text)];
-  const nodes = [];
-  const lower = text.toLowerCase();
-  const lq = q.toLowerCase();
-  let i = 0;
-  for (;;) {
-    const at = lower.indexOf(lq, i);
-    if (at < 0) {
-      nodes.push(document.createTextNode(text.slice(i)));
-      break;
-    }
-    if (at > i) nodes.push(document.createTextNode(text.slice(i, at)));
-    nodes.push(h('mark', {
-      class: 'search-hit',
-      dataset: { test: 'search-hit' },
-      text: text.slice(at, at + q.length),
-    }));
-    i = at + q.length;
-  }
-  return nodes;
-}
-
-function poemRow(poem, onOpen, opts = {}) {
-  // 有查询时按查询高亮（与 Android 一致）；没有查询时走原来的纯文本路径，行为不变。
-  const title = h('span', { class: 'poem-row-title' });
-  const author = h('span', { class: 'poem-row-author' });
-  if (opts.query) {
-    for (const node of highlightMatches(poem.title, opts.query)) title.append(node);
-    for (const node of highlightMatches(poem.author, opts.query)) author.append(node);
-  } else {
-    title.textContent = poem.title;
-    author.textContent = poem.author;
-  }
+function poemRow(poem, onOpen) {
+  const title = h('span', { class: 'poem-row-title', text: poem.title });
+  const author = h('span', { class: 'poem-row-author', text: poem.author });
   const link = h('a', {
     class: 'poem-row',
     href: ROUTES.poem(poem.id),
     dataset: { test: 'poem-row', poemId: poem.id },
   }, [title, author]);
-  if (opts.showDynasty) {
-    link.prepend(h('span', { class: 'poem-row-dynasty', text: poem.dynastyLabel }));
-  }
   if (hasNotes(poem)) link.append(h('span', { class: 'poem-row-notes', text: '有笔记' }));
   link.addEventListener('click', () => onOpen?.(poem.id));
   return link;
@@ -311,23 +261,6 @@ export function renderIndex(doc, { onOpen } = {}) {
     sec.append(list);
     root.append(sec);
   }
-  return root;
-}
-
-/** 搜索结果：跨组，行内标出时代。 */
-export function renderSearchResults(doc, query, { onOpen } = {}) {
-  const root = h('div', { class: 'view view--search', dataset: { test: 'view-search' } });
-  const hits = searchPoems(doc, query);
-  root.append(h('p', { class: 'view-hint', dataset: { test: 'search-summary' },
-    text: `搜索「${String(query).trim()}」：${hits.length} 条` }));
-  if (!hits.length) {
-    root.append(h('p', { class: 'empty-state', dataset: { test: 'search-empty' },
-      text: '没有匹配的诗名或作者。' }));
-    return root;
-  }
-  const list = h('div', { class: 'poem-list' });
-  for (const p of hits) list.append(poemRow(p, onOpen, { showDynasty: true, query }));
-  root.append(list);
   return root;
 }
 
