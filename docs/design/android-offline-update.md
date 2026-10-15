@@ -49,7 +49,7 @@
 }
 ```
 
-- 地址常量：`UpdateEndpoint.BASE_URL` / `MANIFEST_PATH`，当前是**占位** `https://example.invalid/suofei/content/latest.json`（`.invalid` 是保留域名，占位期绝不会误连真站点）。改地址＝只改这两行。
+- 地址常量：`UpdateEndpoint.BASE_URL` / `MANIFEST_PATH`，**2026-10-15 已换成真实站点** `https://wsqs.github.io/suofei/content/latest.json`（用户拍板推进更新源）。旧占位 `example.invalid`（`.invalid` 是保留域名，占位期保证不会误连真站点）**已不再使用**。改地址＝只改这两行；`UpdateEndpointTest` 把该 URL **逐字**钉住（改错一位即报红点名）。
 - **`url` 的解析基准＝清单文件所在目录**（实现是 `URL(URL(manifestUrl), url)`，同 RFC 3986）。
   所以：清单在 `<站点>/content/latest.json`、内容在 `<站点>/content/<版本>/content.json` 时，`url` 写 **`<版本>/content.json`**。
   ⚠️ 写成 `content/<版本>/content.json` 会解析成 `/content/content/<版本>/content.json`（多一层），**真部署时 404**——这个错例原本就写在本节，2026-10-14 被发布线 F 发现、负责人核过 Android 代码与 URL 语义后改正。
@@ -163,7 +163,7 @@ filesDir/content/
 
 **已验证（可复现）**
 - `./gradlew assembleDebug` 通过；APK 内 `assets/content/content.json` 存在且与源文件字节一致（命令见 `android/README.md`）。
-- **72 个 JVM 单测通过**（`./gradlew testDebugUnitTest`）：`ContentParserTest`(14)、`ContentStoreTest`(12)、`ContentRepositoryTest`(6)、`ContentVersionTest`(5)、`UpdateFlowTest`(10)、`UpdateManifestParserTest`(7)、`UnknownAuthorsSourceTest`(1)，以及视觉/结构记号与文案的三道门 `VisualTokensConsistencyTest`(5)、`StructuralMarksTest`(6)、`UpdateStatusTextTest`(6)。
+- **76 个 JVM 单测通过**（`./gradlew testDebugUnitTest`）：`ContentParserTest`(14)、`ContentStoreTest`(12)、`ContentRepositoryTest`(6)、`ContentVersionTest`(5)、`UpdateFlowTest`(10)、`UpdateManifestParserTest`(7)、`UnknownAuthorsSourceTest`(1)，视觉/结构记号与文案的三道门 `VisualTokensConsistencyTest`(5)、`StructuralMarksTest`(6)、`UpdateStatusTextTest`(6)，以及更新源地址门 `UpdateEndpointTest`(4)。
   > 后面这三道门守的是「静默终端」视觉与更新页文案，不属于本文件的离线更新范围，说明见 `android/README.md` §6/§7。
   - 其中 `UpdateFlowTest` 用本机临时 HTTP 服务真跑「检查→下载→校验→切换」，覆盖成功、校验失败、体积不符、结构过新、应用过旧、HTTP 500、清单非法、连续升级与「只剩当前一个快照」。
   - 覆盖的降级/保旧版路径：失败保旧版、不兼容拒绝、损坏退回内置、指针与载荷不一致、结构过新不解析。
@@ -175,7 +175,7 @@ filesDir/content/
 
 **未验证（不要当成已成立）**
 - **未在真机/模拟器上运行过**（本轮授权禁止 adb/模拟器操作）：界面渲染效果、实际点击路径、Android 平台 `assets` 读取与 `filesDir` 行为「按代码正确」但未在设备上观察。
-- **未对真实发布源验证过更新流程**：`BASE_URL` 是占位地址，成功路径只在本地临时 HTTP 服务上验证过；HTTPS、真实 CDN、真实 Token 都没跑过。
+- **「下载并切换」这条路径未在真实发布源上验证过**：地址已于 2026-10-15 换成真实站点，**地址链在 HTTP 层只读探测过**（清单 200；按清单里的相对 `url` 取的快照 200，且 **sha256 与清单逐字一致**）；但**「远端存在更高版本 → 应用下载 → 校验 → 切换」这条界面内成功路径仍未实测**（要远端造一个更高版本 + 在设备上装 APK 实跑）。失败路径在本地临时 HTTP 服务上验证过。
 - 未做断网/弱网/大文件/并发多次点击「检查更新」的真实设备测试。
 - 未做应用升级（`versionCode` 增长）的真机验证。
 - 未在真机上验证「删掉上一个快照」对真实用户路径的影响（它没有界面入口，所以预期无影响，但未在设备上观察过）。
