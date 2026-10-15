@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="tech">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>目录页层级讨论原型 · 候选 B「结构记号」</title>
+<style>
+/* ─────────────────────────────────────────────────────────────────────────
+ * 令牌快照（内嵌副本，不是新权威）
+ *   来源：prototype/css/theme-tech.css（只读，未改动）
+ *   仓库提交：4755c48
+ *   权威仍是 docs/design/visual-tokens.md（§2 颜色 / §3 排版 / §4 间距形状 / §4.1 结构记号）。
+ *   这里只是为「自包含单文件」而复制的一份快照，值逐字照抄、未做微调；
+ *   只列本页实际用到的令牌 —— 本页有意不用 --surface（不画卡片）。
+ * ───────────────────────────────────────────────────────────────────────── */
+:root {
+  --bg: #0e1315;
+  --bg-pattern: linear-gradient(to right, rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+  --bg-pattern-opacity: 1;
+  --surface-hover: #182124;
+  --text: #dde5e4;
+  --text-dim: #98a8a6;
+  --text-faint: #788a88;
+  --line: #233034;
+  --accent-line: rgba(79, 179, 165, 0.38);
+  --warn-soft: rgba(201, 162, 74, 0.08);
+  --warn-text: #dcc078;
+  --line-warn: rgba(201, 162, 74, 0.34);
+  --test-line: rgba(79, 179, 165, 0.36);
+  --test-soft: rgba(79, 179, 165, 0.07);
+  --test-text: #7fd4c6;
+  --radius: 4px;
+  --radius-s: 3px;
+  --row-transition: border-color 0.15s ease, background 0.15s ease;
+  --font-body: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-mono: 'Consolas', 'SFMono-Regular', ui-monospace, monospace;
+  --font-size: 15px;
+  --lh: 1.75;
+  --ls: 0.005em;
+  --gname-ls: 0.16em;
+  --ptitle-ls: 0.06em;
+  --group-gap: 0.6rem;
+  --row-pad: 0.9rem 1.05rem;
+  --pad: 1.25rem;
+  --measure: 660px;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--font-size);
+  line-height: var(--lh);
+  letter-spacing: var(--ls);
+}
+/* 极淡网格：纯装饰（同 prototype/base.css 的做法） */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image: var(--bg-pattern);
+  opacity: var(--bg-pattern-opacity);
+}
+body > * { position: relative; z-index: 1; }
+a { color: inherit; }
+:focus-visible { outline: 1px solid var(--accent-line); outline-offset: 2px; }
+
+/* ── 原型脚手架（不是被评审的设计）────────────────────────────── */
+.wrap { max-width: 1140px; margin: 0 auto; padding: 1.5rem var(--pad) 4rem; }
+.phead { max-width: var(--measure); }
+.ptag {
+  display: inline-block;
+  margin: 0 0 0.9rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px dashed var(--test-line);
+  background: var(--test-soft);
+  color: var(--test-text);
+  border-radius: var(--radius-s);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+}
+.phead h1 { font-size: 1.15rem; font-weight: 500; letter-spacing: 0.08em; margin: 0 0 0.9rem; }
+.phead p, .phead li { color: var(--text-dim); margin: 0.5rem 0; }
+.phead b { color: var(--text); font-weight: 500; }
+.phead ul { padding-left: 1.1rem; margin: 0.5rem 0; }
+.phead code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  padding: 0 0.25rem;
+}
+.psection { margin-top: 2rem; }
+.psection > h2 {
+  font-size: 0.95rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: var(--text);
+  margin: 0 0 0.35rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--line);
+}
+.psection > .sub { color: var(--text-dim); font-size: 0.85rem; margin: 0.5rem 0 1rem; }
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 1.1rem;
+  align-items: start;
+}
+.inst { border: 1px dashed var(--test-line); background: var(--test-soft); border-radius: var(--radius); padding: 0.75rem; }
+.inst > .icap {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  letter-spacing: 0.05em;
+  color: var(--test-text);
+  margin-bottom: 0.6rem;
+  line-height: 1.5;
+}
+.inst > .icap em { display: block; color: var(--text-dim); font-style: normal; }
+.fxban {
+  background: var(--warn-soft);
+  border: 1px solid var(--line-warn);
+  color: var(--warn-text);
+  border-radius: var(--radius-s);
+  padding: 0.5rem 0.65rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.6rem;
+}
+
+
+/* ── 候选 B「结构记号」的层级表达 ──────────────────────────────
+ * 不画卡片：层级靠「左侧发丝竖线 + 字号」表达；方括号承担收起/展开记号。
+ */
+.hub { padding: 0 0 0.2rem; }
+/* 组与组之间留出空隙：竖线因此断开，组的范围不会被读成一条通到底的线 */
+.hub .grp { margin-top: var(--group-gap); }
+.hub .groupline { padding-left: 0.75rem; border-left: 2px solid var(--accent-line); }
+.hub .ghead {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  width: 100%;
+  margin: 0;
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0.85rem 0 0.7rem;
+  cursor: pointer;
+}
+.hub .gname { font-size: 1.05rem; letter-spacing: var(--gname-ls); }
+.hub .gcount {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--text-faint);
+}
+/* 记号只表达状态：收起 [−] / 展开 [+]，方括号本身就是这套视觉的记号 */
+.hub .gmark {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--text-faint);
+  transition: var(--row-transition);
+}
+.hub .ghead:hover .gmark, .hub .ghead:hover .gcount { color: var(--text-dim); }
+.hub .glist {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0.3rem;
+  border-left: 2px solid var(--line);   /* 竖线延续到组内：组的范围可见 */
+}
+.hub .poemrow { border: 0; }
+.hub .plink {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: var(--row-pad);
+  padding-left: 0.75rem;       /* 平铺不缩进：诗目与组名同一左沿 */
+  text-decoration: none;
+  transition: var(--row-transition);
+}
+.hub .plink:hover { background: var(--surface-hover); }
+.hub .ptitle { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; letter-spacing: var(--ptitle-ls); }
+.hub .pauthor { flex: 0 0 auto; font-size: 0.8rem; color: var(--text-faint); }
+.hub .footline {
+  display: flex;
+  padding: 0.9rem 0 0.2rem;
+  border-top: 1px solid var(--line);
+  margin-top: 1rem;
+}
+.hub .aboutlink {
+  color: var(--text-dim);
+  text-decoration: none;
+  font-size: 0.86rem;
+  letter-spacing: 0.06em;
+  transition: var(--row-transition);
+}
+.hub .aboutlink:hover { color: var(--text); }
+
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="phead">
+    <p class="ptag">讨论原型 · 不是产品实施 · 不是已采纳规格</p>
+    <h1>目录页的层级表达 —— 候选 B「结构记号」（讨论用）</h1>
+    <p>这一页只回答一个问题：<b>目录页的层级怎么形成、收起／展开怎么辨认、关于入口放哪</b>。
+       它不回答信息项该有哪些（那些已定：组头＝组名＋数量，诗目＝题名＋作者，只有一个「关于」入口；不显示应用名、搜索、笔记标记、题名预览）。</p>
+    <p>它有两个<b>可以分开选的轴</b>，本页两边都取了候选 B：</p>
+    <ul>
+      <li><b>轴① 层级怎么形成</b> ＝ 候选 B：不画卡片。组头＝左侧一条 2px accent 发丝竖线（规范 §4.1 的记号 ①）＋组名＋右侧计数；收起／展开的记号由方括号承担：<code>[+] 19 首</code>（收起）／<code>[−] 19 首</code>（展开）；诗目平铺不缩进，靠竖线与字号形成层级（竖线从组头延续到组内）。</li>
+      <li><b>轴② 关于入口放哪</b> ＝ 候选 B：底部：只放「关于」这一项（一个入口）。不附加状态位／版本号／任何其他未采纳信息。</li>
+    </ul>
+    <p>两个轴<b>可以混搭</b>（例如 A 的层级 ＋ B 的关于位置）——我会分开记录，不是「只能二选一」。</p>
+    <p><code>[+] [−]</code> 是<b>探索记号</b>：都<b>不算已采纳</b>，也没有对应的视觉令牌；这里只用字形表达，
+       等于是「把状态标出来」的一种写法，不是定了的规格。</p>
+    <p><b>选 A / 选 B 不等于整页批准</b>：这是信息层之外的层级表达探索，选它不等于批准目录页整页。</p>
+  </div>
+  <section class="psection">
+    <h2>【真实内容：1 组 19 首】</h2>
+    <p class="sub">数据＝真实产物里的《古诗十九首》19 首、组名「汉」、作者「佚名」。行为按规格：首次（无既有状态）<b>全部收起，单组也收起</b>。</p>
+    <div class="grid">
+      <div class="inst">
+        <div class="icap">① 首态：首次进入（无既有状态）→ 全部收起
+          <em>点组头任意一处即展开；本实例可当场点</em></div>
+        <div data-mount="b1"></div>
+      </div>
+      <div class="inst">
+        <div class="icap">② 展开：点过组头之后
+          <em>为了一页里能同时看到这个状态，本实例预置为展开态；真机上首次进入是全收起</em></div>
+        <div data-mount="b2"></div>
+      </div>
+    </div>
+  </section>
+  <section class="psection">
+    <h2>【多组布局夹具（非内容）】</h2>
+    <p class="sub">真产物现在只有 1 个组，多组排布只能用夹具看。<b>夹具数据只在这两个原型的脚本里</b>，不进产物、不改真实诗。</p>
+    <div class="grid">
+      <div class="inst">
+        <div class="fxban">仅布局夹具：不是内容、不代表真实数据、不改真实诗</div>
+        <div class="icap">③ 全收起（多组）
+          <em>三个组都收起时，组头的记号全是一致的状态</em></div>
+        <div data-mount="b3"></div>
+      </div>
+      <div class="inst">
+        <div class="fxban">仅布局夹具：不是内容、不代表真实数据、不改真实诗</div>
+        <div class="icap">④ 展开一组（多组）
+          <em>本实例预置第一组展开；其余两组各自还是收起的</em></div>
+        <div data-mount="b4"></div>
+      </div>
+      <div class="inst">
+        <div class="fxban">仅布局夹具：不是内容、不代表真实数据、不改真实诗</div>
+        <div class="icap">⑤ 同时展开两组（多组）
+          <em>本实例预置第一、三组同时展开 —— 各组独立，不是手风琴</em></div>
+        <div data-mount="b5"></div>
+      </div>
+    </div>
+  </section>
+</div>
+<script>
+(function () {
+  'use strict';
+  // 真实内容：1 组 19 首（题名与作者取自 android/app/src/main/assets/content/content.json）
+  var REAL_GROUPS = [{ key: "han", label: "汉", poems: [{"id":"gushi-shijiu-shou-01","title":"行行重行行","author":"佚名"},{"id":"gushi-shijiu-shou-02","title":"青青河畔草","author":"佚名"},{"id":"gushi-shijiu-shou-03","title":"青青陵上柏","author":"佚名"},{"id":"gushi-shijiu-shou-04","title":"今日良宴会","author":"佚名"},{"id":"gushi-shijiu-shou-05","title":"西北有高楼","author":"佚名"},{"id":"gushi-shijiu-shou-06","title":"涉江采芙蓉","author":"佚名"},{"id":"gushi-shijiu-shou-07","title":"明月皎夜光","author":"佚名"},{"id":"gushi-shijiu-shou-08","title":"冉冉孤生竹","author":"佚名"},{"id":"gushi-shijiu-shou-09","title":"庭中有奇树","author":"佚名"},{"id":"gushi-shijiu-shou-10","title":"迢迢牵牛星","author":"佚名"},{"id":"gushi-shijiu-shou-11","title":"回车驾言迈","author":"佚名"},{"id":"gushi-shijiu-shou-12","title":"东城高且长","author":"佚名"},{"id":"gushi-shijiu-shou-13","title":"驱车上东门","author":"佚名"},{"id":"gushi-shijiu-shou-14","title":"去者日以疏","author":"佚名"},{"id":"gushi-shijiu-shou-15","title":"生年不满百","author":"佚名"},{"id":"gushi-shijiu-shou-16","title":"凛凛岁云暮","author":"佚名"},{"id":"gushi-shijiu-shou-17","title":"孟冬寒气至","author":"佚名"},{"id":"gushi-shijiu-shou-18","title":"客从远方来","author":"佚名"},{"id":"gushi-shijiu-shou-19","title":"明月何皎皎","author":"佚名"}] }];
+  // 夹具数据：只存在于本原型脚本里，不是内容，不改真实诗（页内有醒目横幅）
+  var FX_GROUPS = [{"key":"fx-1","label":"夹具·先秦","poems":[{"id":"fx-一-1","title":"夹具题名一01","author":"夹具作者甲"},{"id":"fx-一-2","title":"夹具题名一02","author":"夹具作者甲"},{"id":"fx-一-3","title":"夹具题名一03","author":"夹具作者甲"},{"id":"fx-一-4","title":"夹具题名一04","author":"夹具作者甲"},{"id":"fx-一-5","title":"夹具题名一05","author":"夹具作者甲"},{"id":"fx-一-6","title":"夹具题名一06","author":"夹具作者甲"},{"id":"fx-一-7","title":"夹具题名一·这一条故意写得很长用来看折行与对齐·再加长一截让它在窄栏里真的折到第二行","author":"夹具作者甲"}]},{"key":"fx-2","label":"夹具·汉","poems":[{"id":"fx-二-1","title":"夹具题名二01","author":"夹具作者乙"},{"id":"fx-二-2","title":"夹具题名二02","author":"夹具作者乙"},{"id":"fx-二-3","title":"夹具题名二03","author":"夹具作者乙"},{"id":"fx-二-4","title":"夹具题名二04","author":"夹具作者乙"},{"id":"fx-二-5","title":"夹具题名二05","author":"夹具作者乙"},{"id":"fx-二-6","title":"夹具题名二·这一条故意写得很长用来看折行与对齐·再加长一截让它在窄栏里真的折到第二行","author":"夹具作者乙"}]},{"key":"fx-3","label":"夹具·魏晋","poems":[{"id":"fx-三-1","title":"夹具题名三01","author":"夹具作者甲"},{"id":"fx-三-2","title":"夹具题名三02","author":"夹具作者甲"},{"id":"fx-三-3","title":"夹具题名三03","author":"夹具作者甲"},{"id":"fx-三-4","title":"夹具题名三04","author":"夹具作者甲"},{"id":"fx-三-5","title":"夹具题名三·这一条故意写得很长用来看折行与对齐·再加长一截让它在窄栏里真的折到第二行","author":"夹具作者甲"}]}];
+
+/* ── 目录页实例：每个实例各自记状态，互不影响 ─────────────────────
+ * 规格：首次（无既有状态）全部收起——单组也收起；各组独立展开；
+ *       整个组头可点击；记号只表达状态。
+ */
+function createHub(instId, variant, groups, presetOpen) {
+  const open = new Set(presetOpen || []);
+  const root = document.createElement('div');
+  root.className = 'hub';
+  root.dataset.inst = instId;
+  root.dataset.variant = variant;
+  root.dataset.test = 'hub';
+
+  const rows = [];
+
+  // 轴②：A=顶部只放「关于」；B=底部只放「关于」
+  if (variant === 'a') {
+    const top = document.createElement('div');
+    top.className = 'topline';
+    top.appendChild(aboutLink());
+    root.appendChild(top);
+  }
+
+  for (let gi = 0; gi < groups.length; gi++) {
+    const g = groups[gi];
+    const listId = instId + '-list-' + gi;
+
+    const sec = document.createElement('section');
+    sec.className = 'grp';
+    sec.dataset.group = g.key;
+
+    const head = document.createElement('button');
+    head.type = 'button';
+    head.className = 'ghead';
+    head.dataset.test = 'ghead';
+    head.dataset.group = g.key;
+    head.setAttribute('aria-controls', listId);
+
+    const name = document.createElement('span');
+    name.className = 'gname';
+    name.textContent = g.label;
+
+    const mark = document.createElement('span');
+    mark.className = 'gmark';
+    mark.dataset.test = 'gmark';
+    mark.setAttribute('aria-hidden', 'true'); // 状态已由 aria-expanded 表达，字形不重复播报
+
+    const count = document.createElement('span');
+    count.className = 'gcount';
+    count.dataset.test = 'gcount';
+    if (variant === 'a') {
+      // A：计数保持 §4.1 的 [19] 首，记号是独立的一个三角
+      const b = document.createElement('b');
+      b.textContent = String(g.poems.length);
+      count.append(b, document.createTextNode(' 首'));
+      head.append(name, count, mark);
+    } else {
+      // B：方括号承担记号，计数是普通的 19 首
+      count.append(document.createTextNode(String(g.poems.length) + ' 首'));
+      head.append(name, mark, count);
+    }
+
+    const list = document.createElement('ul');
+    list.className = 'glist';
+    list.id = listId;
+    list.dataset.test = 'glist';
+    for (const p of g.poems) {
+      const li = document.createElement('li');
+      li.className = 'poemrow';
+      const a = document.createElement('a');
+      a.className = 'plink';
+      a.href = '#/p/' + p.id; // 诗页在本原型里未实现（返回保留原位置见说明文档）
+      const t = document.createElement('span');
+      t.className = 'ptitle';
+      t.textContent = p.title;
+      const au = document.createElement('span');
+      au.className = 'pauthor';
+      au.textContent = p.author;
+      a.append(t, au);
+      li.appendChild(a);
+      list.appendChild(li);
+    }
+
+    const body = document.createElement('div');
+    if (variant === 'b') body.className = 'groupline';
+    body.append(head, list);
+    sec.appendChild(body);
+    root.appendChild(sec);
+
+    rows.push({ key: g.key, head, list, mark });
+
+    head.addEventListener('click', () => {
+      if (open.has(g.key)) open.delete(g.key); else open.add(g.key);
+      apply();
+    });
+  }
+
+  if (variant === 'b') {
+    const foot = document.createElement('div');
+    foot.className = 'footline';
+    foot.appendChild(aboutLink());
+    root.appendChild(foot);
+  }
+
+  function aboutLink() {
+    const a = document.createElement('a');
+    a.className = 'aboutlink';
+    a.dataset.test = 'about';
+    a.href = '#/about';
+    a.textContent = '关于';
+    return a;
+  }
+
+  function apply() {
+    for (const r of rows) {
+      const isOpen = open.has(r.key);
+      r.head.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      r.list.hidden = !isOpen;
+      r.mark.textContent = variant === 'a' ? (isOpen ? '\u25be' : '\u25b8') : (isOpen ? '[\u2212]' : '[+]');
+    }
+  }
+
+  apply();  // 首态：全部收起（presetOpen 为空时即真实首态）
+  return root;
+}
+
+  window.__hub = { createHub: createHub, REAL_GROUPS: REAL_GROUPS, FX_GROUPS: FX_GROUPS };
+  var mounts = [
+    ['b1', 'b', REAL_GROUPS, []],
+    ['b2', 'b', REAL_GROUPS, ["han"]],
+    ['b3', 'b', FX_GROUPS, []],
+    ['b4', 'b', FX_GROUPS, ['fx-1']],
+    ['b5', 'b', FX_GROUPS, ['fx-1', 'fx-3']]
+  ];
+  for (var i = 0; i < mounts.length; i++) {
+    var m = mounts[i];
+    var host = document.querySelector('[data-mount="' + m[0] + '"]');
+    if (!host) continue;
+    host.appendChild(createHub(m[0], m[1], m[2], m[3]));
+  }
+})();
+</script>
+</body>
+</html>
