@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 不预设黑底/霓虹，仅一个最小 Material 主题壳；视觉以原型评审为准。 -->
-    <style name="Theme.PoetryCollection" parent="android:Theme.Material.Light.NoActionBar" />
+    <!--
+      单主题「静默终端」（用户 2026-10-14 选定）。这个平台主题不是设计决定，只负责 Compose 画出第一帧
+      之前的窗口底色 —— 它的值与 docs/design/visual-tokens.md 的 `bg`（#0e1315）一致，避免启动白闪。
+      浅色 Material 的默认白底正是「评审过的视觉没接线」的一个表现，这里一并修掉。
+    -->
+    <style name="Theme.PoetryCollection" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#0e1315</item>
+        <item name="android:colorBackground">#0e1315</item>
+        <item name="android:statusBarColor">#0e1315</item>
+        <item name="android:navigationBarColor">#0e1315</item>
+    </style>
 </resources>

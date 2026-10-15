@@ -15,7 +15,7 @@ cd android
 #   JAVA_HOME=C:\Users\wsqsy\.jdks\ms-17.0.17
 ./gradlew assembleDebug          # 产物：android/app/build/outputs/apk/debug/app-debug.apk
 
-./gradlew testDebugUnitTest      # 55 个 JVM 单测（无需设备/模拟器）
+./gradlew testDebugUnitTest      # 72 个 JVM 单测（无需设备/模拟器）
 ```
 
 - 本机 `gradle` 不在 PATH，用 wrapper（`gradlew` + `gradle/wrapper/`，发行版已缓存在 `~/.gradle/wrapper/dists`，不需要联网下载）。
@@ -46,7 +46,9 @@ cd android
 | JDK | **17**（`ms-17.0.17`） | `JAVA_HOME` 实测；AGP 8.13 要求 JDK 17 |
 | JSON | Android 平台自带 `org.json` | 运行时不引第三方 JSON 库；JVM 单测用 `org.json:json:20240303` 提供实现 |
 
-验证结果：`clean assembleDebug` 与 `testDebugUnitTest` 复测通过（`--rerun-tasks` 下 43 个任务全部实际执行、非缓存，BUILD SUCCESSFUL）；**55 例全绿**（2026-10-14 复测，含存储层「只留当前」与「落盘/写指针失败不留孤儿目录」两轮改动的回归）。
+验证结果：`clean assembleDebug` 与 `testDebugUnitTest` 复测通过（`--rerun-tasks` 下 43 个任务全部实际执行、非缓存，BUILD SUCCESSFUL）；**72 例全绿**（2026-10-15 复测，含视觉令牌门与结构记号门）。
+
+> ⚠️ **`assembleRelease` 在本机会以「缺少正式签名环境变量，fail-closed」直接失败**——这是发布线的设计（见 §8），不是编译错误；本地开发/验收一律用 `assembleDebug`。
 `aapt2 dump badging` 实测：`package: name='dev.sopho.suofei' versionCode='1' versionName='0.1.0'`、`minSdkVersion:'26'`、`targetSdkVersion:'36'`、`application-label:'索斐'`、`uses-permission: android.permission.INTERNET`。
 
 ## 3. 内置内容：已是真实产物（2026-10-14 由负责人替换完成）
@@ -107,9 +109,13 @@ android/
 │   │   ├── data/ContentRepository.kt        # 应用内读取内容的唯一入口与降级
 │   │   ├── update/UpdateProtocol.kt         # ⚠️ 接口区：远端地址 + 清单字段与解析
 │   │   ├── update/ContentUpdater.kt         # 检查 → 下载 → 校验 → 移交 Store 切换
-│   │   └── ui/{AppState,Screens}.kt         # 界面状态与三个页面
-│   └── res/values/{strings,themes}.xml      # app_name = 索斐
-└── app/src/test/java/dev/sopho/suofei/      # 55 个 JVM 单测（含本机 HTTP 端到端更新流程）
+│   │   ├── ui/Theme.kt                     # ⚠️ 视觉令牌唯一集中处（值＝visual-tokens.md）+ Material3 主题
+│   │   ├── ui/StructuralMarks.kt           # 规范 §4.1 结构记号：组名竖线 / `[n] 首` / 时代小标签 / 命中高亮
+│   │   ├── ui/PoemHead.kt                  # 诗页题头（§4.1-3：不画下划线，该文件不得出现分割线）
+│   │   ├── ui/UpdateStatusText.kt          # 更新状态文案（纯函数，可单测）
+│   │   └── ui/{AppState,Screens}.kt         # 界面状态与四个页面
+│   └── res/values/{strings,themes}.xml      # app_name = 索斐；窗口底色 #0e1315
+└── app/src/test/java/dev/sopho/suofei/      # 72 个 JVM 单测（含本机 HTTP 端到端更新流程与视觉令牌门）
 ```
 
 ### 5.1 设备上的运行时存储层（用户 2026-10-14 决定：只留当前）
@@ -129,14 +135,87 @@ filesDir/content/                       # 应用私有目录，卸载即清空
 - 落盘/写指针失败（磁盘满、IO 错误）不会把异常抛上去，而是走 `InstallResult.Refused(IO)`：**未切换、不留无人引用的快照目录**、清掉半个 `current.tmp`，旧内容继续生效，原因在「内容更新」页如实显示。
 - 同名重装（已装快照损坏、远端又给同一版）指针无需切换，直接当一次**修复**（单测 `reinstallOfSameVersion_repairsActiveSnapshot_withoutPointerSwap`）。
 
-## 6. 签名（重要）
+## 6. 视觉：静默终端（用户 2026-10-14 选定）
+
+**唯一来源＝`docs/design/visual-tokens.md`**（其源头是评审通过的原型 `prototype/css/theme-tech.css`）。
+令牌**集中一处**：`app/src/main/java/dev/sopho/suofei/ui/Theme.kt`（`PoetryTokens` 值 + `PoetryTextStyles` 语义样式 +
+`PoetryTheme` 接到 Material3 的 `darkColorScheme`/`Typography`/`Shapes`）。界面不写任何硬编码色值/字号。
+
+- 单主题：无浅色备选、无切换开关、无偏好持久化（规范 §6）。
+- **正文排版是这套视觉的核心**：17sp / 行高 2 / 字距 0.045em；**段间空行＝1.2em**（≈20.4dp，不得为 0）。
+- 圆角 4/3dp、**无阴影**（不用 elevation）、仅 0.15s 颜色过渡、**不做位移/缩放/发光动画**。
+- `res/values/themes.xml` 的窗口底色也改成 `#0e1315`（避免启动白闪）——浅色 Material 的默认白底正是这轮「评审过的视觉没接线」的表现之一。
+
+### 6.1 三道结构记号（规范 §4.1，两端都要有）
+
+| 记号 | Android 落点 |
+|---|---|
+| 组名左沿 2dp 发丝竖线（色＝`accent-line`）+ 左内边距 0.6rem | `ui/StructuralMarks.kt` 的 `GroupNameBar()` / `GroupNameRow()` |
+| 计数 `[3] 首`（括号 `text-faint`、0.85em） | 同文件 `groupCountAnnotated()` |
+| 诗页题头**不画下划线** | `ui/PoemHead.kt`（该文件不允许出现任何分割线/边框） |
+
+### 6.2 让「值一致」可检查（门）
+
+| 门 | 断言 |
+|---|---|
+| `VisualTokensConsistencyTest` | 读规范文件**逐项**比对：§2 颜色（22 个键一一对应，多一个少一个都报出来）、§3 字体与排版、§4 间距/圆角/无阴影/0.15s、§4.1 三样记号；另有源码守卫：ui 里不得出现 `Modifier.shadow(`、缩放/位移动画、渐变，`elevation` 只能 0.dp，`PoemHead.kt` 不得含分割线/边框 |
+| `StructuralMarksTest` | `groupCountText(3) == "[3] 首"`、括号段带 `text-faint` 与 0.85em、命中高亮用 `mark-bg`/`mark-text` |
+| `UpdateStatusTextTest` | 每种更新状态都给出非空文案；空 message 也有兜底（见 §7） |
+
+**变异验证**（证明门不是空过）：临时把 `bg` 改成 `#0e1316`、`poem-lh` 改成 1.5、括号字号改成 0.8em，三条断言各自报红并点名：
+
+```
+colors…   : bg 的值（规范 #0e1315） expected:<#0e1315> but was:<#0e1316>
+typography: poem-lh（行高倍数） expected:<2.0> but was:<1.5>
+structural: 括号字号（规范 0.85em） expected:<0.85> but was:<0.8>
+```
+
+### 6.3 规范未覆盖 / 无法逐值对齐的地方（如实列出）
+
+先对齐规范 §4.2「与原型的有意差异」（负责人 2026-10-15 补，用户可否决）——与本端实现一致的三条：
+① 搜索用**文字按钮**（本端顶栏就是「搜索」文字按钮，不画放大镜）；② 笔记头**不加** `n-badge` 夹具徽标（本端不画）；
+③ 状态色只有两档 accent/warn、**不新增红/error 令牌**——本端 M3 的 `error` 就映射到 `warn`、`errorContainer`=`warn-soft`。
+规范 §4.2 的第 4 条（目录页结构）与下面第 8 项是同一件事，**仍待台账确认**。
+
+1. **字体族**：Web 是 `'Microsoft YaHei UI', system-ui, sans-serif`；Android 退到系统无衬线（`FontFamily.SansSerif`）——规范 §3 明确说这样即可（**不出宋体**）。
+2. **`bg-pattern`（1px 网格）**：规范 §5 说移动端可省 ⇒ 令牌保留、**不渲染**。
+3. **`surface-hover` / `line-strong` / `accent-soft`**：前两个原型的用途是「行悬停」（鼠标），触摸端没有 hover，所以只进了 M3 方案（`outlineVariant` 等）而**没有直接用在某个可组合项上**；`accent-soft` 同理（挂 `primaryContainer`）。值都在令牌表里、都被门对比着，只是目前没有界面位置用它们。
+4. **`measure` 660px / `note-measure` 36em**：手机屏本来就窄于它 ⇒ 不施加（令牌保留）。
+5. **括号内外各 1px 的间距**：`[3] 首` 用一个 `AnnotatedString` 拼出，那一层微间距**未逐值实现**（要逐值得拆成多个 Text）。
+6. **动效 0.15s**：本版界面没有需要颜色过渡的状态（笔记是显/隐），令牌已就位、暂无动画使用。
+7. **组名字重**：规范与原型都没给 ⇒ 用默认 400（此前代码自设 SemiBold，已按「不得自行调整」去掉）。
+8. **结构形态差异（不是令牌值）**：原型首页是「组卡片（含计数+预览）→ 进组看行列表」；Android 是一页平铺（组头卡片 + 该组诗行）——因为 `CONTEXT.md` 要求「组内直接列标题＋作者、不强制作者页」。观感对比时会看到这个差别。
+9. **更新页在原型里没有对照片** ⇒ 用同一套令牌排版（小标题 0.82rem 次要色、正文 15sp、说明 0.78rem 更淡色）。
+10. 真机/强光下长时间阅读疲劳**未验证**，且单主题**没有退路**——规范 §6 已声明为已知风险。
+
+## 7. 更新页两处修正（2026-10-15）
+
+**(a) 过期文案已改**：原来写「当前内置内容为占位夹具，非校对文本」。内置内容从 2026-10-14 起就是本次发布的**真实**编译产物（与 `dist/content.json` 字节一致），再那么写会让用户以为读到的是测试数据。
+现在写：「内置内容＝本次发布的完整内容（随 APK 打包，首次断网即可读）；每首诗的底本与来源见诗页底部」——
+**不写具体数字**（数字会过期）。代码里留了注释说明为何不再提「夹具」。
+
+**(b) 「状态」行渲染为空的待查项**：模拟器验收记录里写着「原始 UI XML：`状态` → `''` → 按钮」，但代码里六个状态分支都有非空文案。
+我做的事实核查：
+
+- `updateStatusText` 的六个分支均为非空；`UpdateStatus.Error` **在生产代码里从未被构造**（只有 `Idle/Checking/UpToDate/Activated/Failed` 会被设置）；
+- 同屏「说明」那段用的是同一种样式（`labelSmall`/`onSurfaceVariant`）且**渲染正常**——所以「样式导致不可见」解释不了；
+- 因此**成因仍未查清**：从代码无法复现（本轮按授权不操作模拟器/真机）。
+
+已做的两件事（把「悬着」变成「可查」）：
+
+1. 文案抽成纯函数 `ui/UpdateStatusText.kt`，并加 `UpdateStatusTextTest`：**每个状态都必须给出非空文案**，空 message 也有兜底文案（不会再渲染成空行）；
+2. `AppRoot` 根节点开了 `testTagsAsResourceId`，状态那行挂了 `Modifier.testTag("update-status")` ⇒ 下次 `uiautomator dump` 里该节点会带 `resource-id="update-status"`，能直接定位到底是不是这一行、内容是什么。
+
+仍需要负责人这边提供：那次 dump 的**原始 XML 片段**（或该行截图）以及「点击检查更新后过了多久」，才能定论。
+
+## 8. 签名（重要）
 
 - 当前 APK 用 **debug 签名**（`apksigner verify --print-certs` 实测 `CN=Android Debug, O=Android, C=US`）。
 - **它不能替代正式固定签名**：正式发布必须用固定私钥签名才能支持覆盖升级；密钥不入公开 Git。
   本阶段未读取/生成任何签名私钥，也未配置签名 secrets（授权未到）。
 
-## 7. 已验证 / 未验证
+## 9. 已验证 / 未验证
 
-**已验证**：`clean assembleDebug` 通过；APK 内 assets 存在且字节一致；**55 个 JVM 单测通过**（含更新流程的成功/失败/不兼容/损坏路径、「升级后只剩当前一个快照、旧版本目录确被删除」，以及「写指针失败 ⇒ 存储层明确 `Refused(IO)`、调用方拿到同类 `Failed(IO)`、不留孤儿目录、生效版本不变」——后两条做过反向验证：还原修复后它们会红）；APK 包名、展示名、SDK 版本、权限、签名证书实测。另有一道契约一致性门 `UnknownAuthorsSourceTest`：断言匿名作者清单与唯一来源 `schema/unknown-authors.json` 逐项一致（读不到文件即失败并列出尝试过的路径，不跳过；测试自身不持副本）。
+**已验证**：`clean assembleDebug` 通过；APK 内 assets 存在且字节一致；**72 个 JVM 单测通过**（含更新流程的成功/失败/不兼容/损坏路径、「升级后只剩当前一个快照、旧版本目录确被删除」、「写指针失败 ⇒ 存储层明确 `Refused(IO)`、调用方拿到同类 `Failed(IO)`、不留孤儿目录、生效版本不变」、**视觉令牌与规范逐项一致**、**三样结构记号**、**更新状态文案非空**）；APK 包名、展示名、SDK 版本、权限、签名证书实测。另有一道契约一致性门 `UnknownAuthorsSourceTest`：断言匿名作者清单与唯一来源 `schema/unknown-authors.json` 逐项一致（读不到文件即失败并列出尝试过的路径，不跳过；测试自身不持副本）。
 
-**未验证**：未在真机或模拟器上运行（本轮不操作 adb 与任何设备）；Compose 实际渲染与交互未在设备上观察；未对真实发布源（HTTPS/真实 CDN）跑过更新；未做断网/弱网/应用升级的真机验证；未在设备上验证「删掉上一个快照」对用户路径无影响（它无界面入口，预期无影响）。
+**未验证**：未在真机或模拟器上运行（本轮不操作 adb 与任何设备）⇒ **深色主题的实际观感、字体渲染、强光下的可读性、三样结构记号看上去对不对，都没在设备上观察过**（值一致有单测，观感要你截图看）；未对真实发布源（HTTPS/真实 CDN）跑过更新；未做断网/弱网/应用升级的真机验证；未在设备上验证「删掉上一个快照」对用户路径无影响（它无界面入口，预期无影响）；**release 变体本地不可构建**（按设计在签名检查处 fail-closed，我没有做任何绕过）；更新页「状态行渲染为空」**成因仍未查清**（见 §7(b)）。

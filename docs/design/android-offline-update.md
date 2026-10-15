@@ -163,7 +163,8 @@ filesDir/content/
 
 **已验证（可复现）**
 - `./gradlew assembleDebug` 通过；APK 内 `assets/content/content.json` 存在且与源文件字节一致（命令见 `android/README.md`）。
-- **55 个 JVM 单测通过**（`./gradlew testDebugUnitTest`）：`ContentParserTest`(14)、`ContentStoreTest`(12)、`ContentRepositoryTest`(6)、`ContentVersionTest`(5)、`UpdateFlowTest`(10)、`UpdateManifestParserTest`(7)、`UnknownAuthorsSourceTest`(1)。
+- **72 个 JVM 单测通过**（`./gradlew testDebugUnitTest`）：`ContentParserTest`(14)、`ContentStoreTest`(12)、`ContentRepositoryTest`(6)、`ContentVersionTest`(5)、`UpdateFlowTest`(10)、`UpdateManifestParserTest`(7)、`UnknownAuthorsSourceTest`(1)，以及视觉/结构记号与文案的三道门 `VisualTokensConsistencyTest`(5)、`StructuralMarksTest`(6)、`UpdateStatusTextTest`(6)。
+  > 后面这三道门守的是「静默终端」视觉与更新页文案，不属于本文件的离线更新范围，说明见 `android/README.md` §6/§7。
   - 其中 `UpdateFlowTest` 用本机临时 HTTP 服务真跑「检查→下载→校验→切换」，覆盖成功、校验失败、体积不符、结构过新、应用过旧、HTTP 500、清单非法、连续升级与「只剩当前一个快照」。
   - 覆盖的降级/保旧版路径：失败保旧版、不兼容拒绝、损坏退回内置、指针与载荷不一致、结构过新不解析。
 - 存储层新语义有专门断言：升级后**旧版本目录确实被删除**（`upgrade_deletesOldVersionDirectory`），且内容根目录恰好只有 `current`/`versions`/`staging` 三项（多一项少一项都算回归）。
