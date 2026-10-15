@@ -1,0 +1,152 @@
+== 本文件是 `items/content-format/prototypes/a-route-v2/demo.mjs` 的**真实输出**（原样收集，不是手抄）：三次运行各带自己的 EXIT 码。
+== ① 无参数：自检 + 自证，EXIT=0 为正常
+
+========================================================================================================
+a-route-v2 字段稿材料 —— 演示脚本输出（**演示用，不是编译器**；样例 JSON 不是正式产物）
+========================================================================================================
+仓库根（从脚本目录向上查找 prototype\css\theme-tech.css 得到）：.
+
+① 自检：正文切分不污染（逐行相等）／分段保真／键序／缺省／声明范围内的 Markdown
+--------------------------------------------------------------------------------------------------------
+文件                              诗行 段数 每段  逐行 分段 #头 键序 无旧键 详情 笔记 告警 JSON
+fixture-multi-stanza.md         8    3    [3/3/2]是    是    0   是    是      null null 0    一致
+real-01-alt-source-in-detail.md 8    1    [8]   是    是    0   是    是      文本   null 0    一致
+real-01-no-detail.md            8    1    [8]   是    是    0   是    是      null 文本   0    一致
+real-01-text-only.md            8    1    [8]   是    是    0   是    是      null null 0    一致
+real-01-with-detail.md          8    1    [8]   是    是    0   是    是      文本   null 0    一致
+real-01-with-note.md            8    1    [8]   是    是    0   是    是      文本   文本   0    一致
+--------------------------------------------------------------------------------------------------------
+自检：通过（真实《行行重行行》8 行逐行相等、单段；多段夹具 3 段保真；键序＝本稿草案；缺省如预期；样例 0 告警）
+
+② `dynasty` 单值之后：诗对象里只剩一个中文 `dynasty`（组序不在诗里，由编译期查表）
+--------------------------------------------------------------------------------------------------------
+文件                              dynasty 组序(编译期查表) 诗对象里有 dynastyKey/Label/Order/era？
+fixture-multi-stanza.md         汉       100             没有（本稿如此）
+real-01-alt-source-in-detail.md 汉       100             没有（本稿如此）
+real-01-no-detail.md            汉       100             没有（本稿如此）
+real-01-text-only.md            汉       100             没有（本稿如此）
+real-01-with-detail.md          汉       100             没有（本稿如此）
+real-01-with-note.md            汉       100             没有（本稿如此）
+  说明：组序**不是**作者写在每首诗里的字段；它是编译期按 `dynasty` 查注册表得到的。
+  它最终进不进产物、以什么形状进 —— 本稿**并列方案、不自行定**（见 top-level-dynasties.md）。
+
+③ 歧义构造「会响」自证（合成正文，逐类断言 ≥1 条告警）
+--------------------------------------------------------------------------------------------------------
+合成正文共抓到 4 条告警：
+  - [fence-heading] 代码围栏内部出现形如「## 围栏里的假标题」的节标题（是不是切分点 —— 未定，本演示不当切分点，但必须响）
+  - [unknown-section] 未知的节「## 校本」（不是 详情/笔记 —— 未定：报错／忽略／原样保留？）
+  - [duplicate-section] 重复的节「## 详情」（未定：报错／覆盖／拼接？）
+  - [md-out-of-range] ## 详情 节内第 4 行用了声明范围之外的写法（表格行（`| … |`））："| 本子 | 异文 |"
+
+  响  unknown-section
+  响  duplicate-section
+  响  fence-heading
+  响  md-out-of-range
+
+④ 本稿已删除的键还在源文件里 ⇒ 响（fixtures-ambiguous/removed-keys.md）
+--------------------------------------------------------------------------------------------------------
+  items/content-format/prototypes/a-route-v2/fixtures-ambiguous/removed-keys.md ⇒ 告警 2 条，其中 removed-key 2 条：
+  - [removed-key] front matter 写了本稿已删除的键「dynastyOrder」（本稿每首只有一个 `dynasty`，且不再有 `era`；见 fields.md）
+  - [removed-key] front matter 写了本稿已删除的键「era」（本稿每首只有一个 `dynasty`，且不再有 `era`；见 fields.md）
+  响  removed-key（≥2：era 与 dynastyOrder）
+
+⑤ 歧义夹具文件（fixtures-ambiguous/ambiguous-detail.md）会响
+--------------------------------------------------------------------------------------------------------
+  items/content-format/prototypes/a-route-v2/fixtures-ambiguous/ambiguous-detail.md ⇒ 告警 7 条：
+  - [fence-heading] 代码围栏内部出现形如「## 这一行在代码围栏里，看起来像节标题（切分点判据未定）」的节标题（是不是切分点 —— 未定，本演示不当切分点，但必须响）
+  - [unknown-section] 未知的节「## 校本」（不是 详情/笔记 —— 未定：报错／忽略／原样保留？）
+  - [duplicate-section] 重复的节「## 详情」（未定：报错／覆盖／拼接？）
+  - [md-out-of-range] ## 详情 节内第 5 行用了声明范围之外的写法（标题层级超过 `###`）："#### 层级更深的标题（声明的最小支持范围只到 `###`）"
+  - [md-out-of-range] ## 详情 节内第 7 行用了声明范围之外的写法（表格行（`| … |`））："| 本子 | 异文 |"
+  - [md-out-of-range] ## 详情 节内第 8 行用了声明范围之外的写法（表格行（`| … |`））："| --- | --- |"
+  - [md-out-of-range] ## 详情 节内第 9 行用了声明范围之外的写法（表格行（`| … |`））："| 四库本 | 返 |"
+  （单跑 `--parse fixtures-ambiguous/ambiguous-detail.md` 会**非零退出**，见下方自证）
+
+⑥ 顶层 `dynasties` 的候选示意（top-level-candidates/*.json：**方案示意，不是产物**）
+--------------------------------------------------------------------------------------------------------
+  option-1-registry.json
+      顶层键：_note, formatVersion, contentVersion, generatedAt, dynasties, poems
+      诗对象键：id, title, author, dynasty, genre, source, orderInSource, detail, stanzas, notes
+      顶层注册表：有（key/label/order 齐）；两层 groups：无；诗里带组序整数：否
+  option-2a-order-in-array.json
+      顶层键：_note, formatVersion, contentVersion, generatedAt, poems
+      诗对象键：id, title, author, dynasty, genre, source, orderInSource, detail, stanzas, notes
+      顶层注册表：无；两层 groups：无；诗里带组序整数：否
+  option-2b-per-poem-group-order.json
+      顶层键：_note, formatVersion, contentVersion, generatedAt, poems
+      诗对象键：id, title, author, dynasty, dynastyOrder, genre, source, orderInSource, detail, stanzas, notes
+      顶层注册表：无；两层 groups：无；诗里带组序整数：是
+  option-3-grouped-poems.json
+      顶层键：_note, formatVersion, contentVersion, generatedAt, groups
+      诗对象键：id, title, author, dynasty, genre, source, orderInSource, detail, stanzas, notes
+      顶层注册表：无；两层 groups：有；诗里带组序整数：否
+  四个候选都可解析、且各自形状不同（本演示不对哪个更好表态）
+
+========================================================================================================
+全部自检通过。
+提醒：本演示**只覆盖本稿已约定的写法**；仍未定的东西（`source` 归属 / `detail` 字段名与缺省语义 /
+      `id` 归谁产生 / `## 详情` 分界 / 重复与未知节 / 围栏里的 `##` / 最小 Markdown 范围 /
+      顶层 `dynasties` 与组序 / 删 `era` 的迁移）见 undecided.md、top-level-dynasties.md、era-removal.md。
+========================================================================================================
+EXIT=0
+
+== ② 故意有歧义的夹具：--parse fixtures-ambiguous/ambiguous-detail.md ⇒ 必须 EXIT≠0
+
+# --parse items/content-format/prototypes/a-route-v2/fixtures-ambiguous/ambiguous-detail.md
+
+{
+  "id": "fixture-ambiguous-01",
+  "title": "夹具：歧义（不是真实诗）",
+  "author": "佚名",
+  "dynasty": "汉",
+  "genre": "五言古诗",
+  "source": "夹具，不是真实来源（本文件只用于证明演示脚本「会响」）。",
+  "orderInSource": 9002,
+  "detail": "### 异文\n\n- **游子不顾返** —— 底本作「反」，四库本作「返」。\n\n#### 层级更深的标题（声明的最小支持范围只到 `###`）\n\n| 本子 | 异文 |\n| --- | --- |\n| 四库本 | 返 |\n\n```text\n## 这一行在代码围栏里，看起来像节标题（切分点判据未定）\n```",
+  "stanzas": [
+    [
+      "行行重行行，与君生别离。",
+      "相去万余里，各在天一涯。"
+    ]
+  ],
+  "notes": null
+}
+
+告警 7 条：
+  - [fence-heading] 代码围栏内部出现形如「## 这一行在代码围栏里，看起来像节标题（切分点判据未定）」的节标题（是不是切分点 —— 未定，本演示不当切分点，但必须响）
+  - [unknown-section] 未知的节「## 校本」（不是 详情/笔记 —— 未定：报错／忽略／原样保留？）
+  - [duplicate-section] 重复的节「## 详情」（未定：报错／覆盖／拼接？）
+  - [md-out-of-range] ## 详情 节内第 5 行用了声明范围之外的写法（标题层级超过 `###`）："#### 层级更深的标题（声明的最小支持范围只到 `###`）"
+  - [md-out-of-range] ## 详情 节内第 7 行用了声明范围之外的写法（表格行（`| … |`））："| 本子 | 异文 |"
+  - [md-out-of-range] ## 详情 节内第 8 行用了声明范围之外的写法（表格行（`| … |`））："| --- | --- |"
+  - [md-out-of-range] ## 详情 节内第 9 行用了声明范围之外的写法（表格行（`| … |`））："| 四库本 | 返 |"
+⇒ 有告警：进程非零退出（宁可响，不许静默）。
+EXIT=1
+
+== ③ 旧键还在源文件里：--parse fixtures-ambiguous/removed-keys.md ⇒ 必须 EXIT≠0
+
+# --parse items/content-format/prototypes/a-route-v2/fixtures-ambiguous/removed-keys.md
+
+{
+  "id": "fixture-removed-keys-01",
+  "title": "夹具：旧键还在（不是真实诗）",
+  "author": "佚名",
+  "dynasty": "汉",
+  "genre": "五言古诗",
+  "source": "夹具，不是真实来源。",
+  "orderInSource": 9003,
+  "detail": null,
+  "stanzas": [
+    [
+      "行行重行行，与君生别离。",
+      "相去万余里，各在天一涯。"
+    ]
+  ],
+  "notes": null
+}
+
+告警 2 条：
+  - [removed-key] front matter 写了本稿已删除的键「dynastyOrder」（本稿每首只有一个 `dynasty`，且不再有 `era`；见 fields.md）
+  - [removed-key] front matter 写了本稿已删除的键「era」（本稿每首只有一个 `dynasty`，且不再有 `era`；见 fields.md）
+⇒ 有告警：进程非零退出（宁可响，不许静默）。
+EXIT=1
