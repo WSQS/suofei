@@ -53,10 +53,10 @@
   --block-w: 430px;        /* 验收宽度：真实 430 CSS px（移动口径），不是草案、是任务书给的口径 */
   --edge-x: 1.05rem;       /* 草案值：块的左右内沿（取令牌 --row-pad 的横向分量，使组头右沿与诗行右沿同一条线） */
   --mark-slot: 1.7rem;     /* 草案值：悬挂记号的槽宽（页 1 选项 A 用；= 记号宽 + 两侧余量） */
-  --indent-base: 1.6rem;   /* 草案值：页 2 基线题名缩进（任务书给的草案值） */
-  --indent-light: 0.8rem;  /* 草案值：页 2 选项 A 缩进（任务书给的草案值） */
-  --name-x: 0px;           /* 组名首字相对块左沿的实测偏移，由页面脚本量出后写回（页 2 选项 B 用） */
-  --indent: var(--indent-base);  /* 每个块可覆盖 */
+  --name-x: 0px;           /* 【参照系】组名左沿相对块左沿的实测偏移，由页面脚本量出后写回（随组头排布走） */
+  --indent-base: 1.6rem;   /* 草案值：诗目缩进基线 = 组名左沿 + 1.6rem（任务书给的草案值） */
+  --indent-light: 0.8rem;  /* 草案值：页 2 选项 A = 组名左沿 + 0.8rem（任务书给的草案值） */
+  --indent-add: var(--indent-base);  /* 每个块可覆盖：诗目左沿 = 组名左沿 + --indent-add（0rem 即与组名首字对齐） */
 }
 /* == DRAFT-VALUES-END == */
 
@@ -257,7 +257,7 @@ html[data-shot="1"] .glist > .poemrow:nth-child(n+4) { display: none; }
   align-items: baseline;
   gap: 0.6rem;
   padding: var(--row-pad);
-  padding-left: var(--indent);
+  padding-left: calc(var(--name-x) + var(--indent-add));   /* 诗目缩进：相对**组名左沿**量（不是相对块左沿） */
   padding-right: var(--edge-x);
   text-decoration: none;
   transition: var(--row-transition);
@@ -291,9 +291,9 @@ html[data-shot="1"] .glist > .poemrow:nth-child(n+4) { display: none; }
       <li><code>[+]/[−]</code> 方括号开合记号<b>只表达状态</b>，是<b>探索记号</b>（不算已采纳、也没有令牌）。</li>
       <li>行为（三页一致）：首次进入<b>全部收起</b>（单组也收起）· <b>整个组头可点</b>（组名／空白／数量／记号任一处）· 各组<b>独立</b>展开（<b>可同时展开两组</b>，不是手风琴）。</li>
     </ul>
-    <p>这一页只改<b>诗行的左沿</b>（题名的左沿）：<b>相对组头的左边界关系</b>。组头内部（页 1 的维度）与题名／作者（页 3 的维度）本页<b>不动</b>，都按基线画。</p>
-    <p><code>1.6rem</code>（基线）与 <code>0.8rem</code>（选项 A）<b>都是任务书给的草案值</b>，不是规范值。三块都从<b>同一条参照</b>量起：<b>块的左沿</b>（＝屏幕左沿 0px）；右边沿三块相同：块的右内沿 <code>1.05rem</code>＝16.8px（沿用令牌 <code>--row-pad</code> 的横向分量）。</p>
-    <p>⚠ 一条要知道的实测事实：基线组头是 <code>[+] 汉</code>（记号内联占位），<b>组名首字并不在块的最左沿</b> —— 实测在 <b>45px</b>。所以「基线 1.6rem＝25.6px 的题名」与「组名首字 45px」是<b>两条不同的竖线</b>，题名反而落在组名左侧 —— 这正是本页要看的边界关系（选项 B 才是把两条竖线并成一条：45px＝2.8rem）。</p>
+    <p>这一页只改<b>诗行的左沿</b>（题名的左沿）：<b>相对组头（组名左沿）的缩进量</b>。组头内部（页 1 的维度）与题名／作者（页 3 的维度）本页<b>不动</b>，都按基线画。</p>
+    <p>三个量都是任务书给的<b>草案值</b>，不是规范值。三块<u>从同一条参照量起</u>：<b>组名左沿</b>（基线组头的组名左沿实测在 <b>45px</b>；它随组头排布走，不是固定值）。右边沿三块相同：块的右内沿 <code>1.05rem</code>＝16.8px（沿用令牌 <code>--row-pad</code> 的横向分量）。</p>
+    <p>⚠ <b>参照系更正（早期版本的缺陷）</b>：早期版本把缩进<b>从块左沿量</b>，于是「1.6rem」落在 25.6px、比组名左沿（45px）还靠左 —— <b>层级方向是反的</b>（题名像在组名的外边），而且三个选项都没有一个是「诗目在组名右侧」。现已改为<b>相对「组名左沿」量</b>：基线＝组名左沿 + 1.6rem（＝45 + 25.6＝<b>70.6px</b>），题名一定在组名<b>右侧</b>；选项 A＝+0.8rem；选项 B＝+0（与组名首字对齐）。三块是<b>同一个方向上的三个量</b>：<b>+0 → +0.8rem → +1.6rem（基线）</b>。</p>
     <p><b>块宽＝真实 430 CSS px</b>（四处对齐都按这个宽度渲染）；<b>真实内容（汉·19 首）与多组夹具分开</b>，夹具块有醒目标注。</p>
     <p class="pnote">⚠ 这一页上的说明文字 —— 含本段、下面每个块的标题、以及夹具横幅 —— <b>是原型的说明/夹具标注，不属于应用页面，也不是新的卡片方案。</b></p>
   </div>
@@ -304,20 +304,20 @@ html[data-shot="1"] .glist > .poemrow:nth-child(n+4) { display: none; }
       <div class="shotbanner"><b>目录页「水平排布／对齐」讨论原型 · 页 2／3：组头 ↔ 诗目的左右边界（诗目从哪条左沿起）。</b><br><b>本图＝本页的 4 个块（每个恰好 430 CSS px 宽）纵向排列。</b>本图是在页面加载后<b>用真实鼠标点开各组</b>再拍的（页面加载时是全收起；块标题里写的 <b>[+]</b> 是收起态的字形，图里已点开、所以记号显示为 <b>[−]</b>）；为了让图不过长，<b>每个展开的组在本图里只截到前 3 行</b>（页面上是完整的 19 首）。<br>青/黄色文字是原型的说明与夹具标注，<b>不属于应用页面，也不是新的卡片方案</b>；页面正常打开不含这条横幅。</div>
       <div class="rack">
     <div class="inst" data-block="b1">
-      <div class="icap">① 基线：诗目缩进 <b>1.6rem</b>（草案值）起题名<em>题名左沿＝块左沿 + 1.6rem（实测见自检脚本输出的数字）。</em></div>
+      <div class="icap">① 基线：<b>组名左沿 + 1.6rem</b>（草案值）起题名 —— 诗目在组名<b>右侧</b><em>题名左沿 = 组名左沿（实测 45px）+ 25.6px = 70.6px（自检脚本会把三块的数字都打出来）。</em></div>
       <div data-mount="b1"></div>
     </div>
     <div class="inst" data-block="b2">
-      <div class="icap">② 选项 A：<b>轻缩进 0.8rem</b>（草案值）<em>层次读起来更淡；与基线的差别只有这一条左沿。</em></div>
+      <div class="icap">② 选项 A：<b>组名左沿 + 0.8rem</b>（草案值）＝比基线少 12.8px<em>与基线的差别只有这一条左沿（题名左沿＝45 + 12.8＝57.8px）。</em></div>
       <div data-mount="b2"></div>
     </div>
     <div class="inst" data-block="b3">
-      <div class="icap">③ 选项 B：<b>对齐到组名首字</b>（缩进 = 记号宽＋间隙，题名与组名首字同一条竖线）<em>缩进不是写死的值，而是页面量出「组名首字」的位置后对齐过去（所以组头排布一改，它就跟着走）。</em></div>
+      <div class="icap">③ 选项 B：<b>组名左沿 + 0</b> —— 与组名首字对齐（题名与组名首字同一条竖线）<em>量是 0，是三个量里最小的一个（参照系改成组名左沿后，它就是一个 0 偏移；题名左沿＝组名左沿＝45px）。</em></div>
       <div data-mount="b3"></div>
     </div>
     <div class="inst" data-block="b4">
       <div class="fxban">仅布局夹具：不是内容、不代表真实数据、不改真实诗<br>（这条横幅本身也是原型的说明/夹具标注，<b>不属于应用页面，也不是新的卡片方案</b>。）</div>
-      <div class="icap">④ 多组夹具：<b>基线</b>排布（1.6rem）× 3 个组 · 可同时展开两组<em>本块每组第一条是故意写长的夹具题名（看长题名在窄栏里的左沿与折行）。</em></div>
+      <div class="icap">④ 多组夹具：<b>基线</b>排布（组名左沿 + 1.6rem）× 3 个组 · 可同时展开两组<em>本块每组第一条是故意写长的夹具题名（看长题名在窄栏里的左沿与折行）。</em></div>
       <div data-mount="b4"></div>
     </div>
       </div>
@@ -389,7 +389,7 @@ html[data-shot="1"] .glist > .poemrow:nth-child(n+4) { display: none; }
     root.dataset.block = spec.block;
     root.dataset.head = spec.head;
     root.dataset.rel = spec.rel;
-    if (spec.indent) root.style.setProperty('--indent', spec.indent);
+    if (spec.add) root.style.setProperty('--indent-add', spec.add);
 
     // 顶部只此一项入口：「关于」
     var top = el('div', 'topline');
@@ -486,7 +486,8 @@ html[data-shot="1"] .glist > .poemrow:nth-child(n+4) { display: none; }
     return root;
   }
 
-  // 量出「组名首字相对块左沿」的偏移，写回 --name-x（页 2 选项 B：题名左沿对齐到组名首字）
+  // 量出「组名左沿相对块左沿」的偏移，写回 --name-x —— 这是诗目缩进的**参照系**（所有页面都用它，
+  // 所以组头排布一变，缩进就跟着组名走）
   function measureNameX(hub) {
     var name = hub.querySelector('[data-test="gname"]');
     if (!name) return;
@@ -502,7 +503,7 @@ html[data-shot="1"] .glist > .poemrow:nth-child(n+4) { display: none; }
       "block": "baseline",
       "head": "baseline",
       "rel": "right",
-      "indent": "var(--indent-base)",
+      "add": "var(--indent-base)",
       "groups": "real",
       "fxRowFirst": false,
       "open": []
@@ -512,7 +513,7 @@ html[data-shot="1"] .glist > .poemrow:nth-child(n+4) { display: none; }
       "block": "optA",
       "head": "baseline",
       "rel": "right",
-      "indent": "var(--indent-light)",
+      "add": "var(--indent-light)",
       "groups": "real",
       "fxRowFirst": false,
       "open": []
@@ -522,7 +523,7 @@ html[data-shot="1"] .glist > .poemrow:nth-child(n+4) { display: none; }
       "block": "optB",
       "head": "baseline",
       "rel": "right",
-      "indent": "var(--name-x)",
+      "add": "0rem",
       "groups": "real",
       "fxRowFirst": false,
       "open": []
@@ -532,7 +533,7 @@ html[data-shot="1"] .glist > .poemrow:nth-child(n+4) { display: none; }
       "block": "fx",
       "head": "baseline",
       "rel": "right",
-      "indent": "var(--indent-base)",
+      "add": "var(--indent-base)",
       "groups": "fixture",
       "fxRowFirst": false,
       "open": []
