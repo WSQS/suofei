@@ -38,7 +38,7 @@ A 路线骨架（**用户已选，已固定，不在本材料重开讨论**）�
 | `samples-alt/alt-id-from-filename.md` | `id` **从文件名得**那一案的样例（首行没有 `id:`） |
 | `fixtures-ambiguous/ambiguous-detail.md` | **故意有歧义**的夹具（两个 `## 详情`、未知 `## 校本`、围栏里的 `##`、超出范围的表格与 `####`），用来证明演示脚本**会响** |
 | `demo.mjs` | **演示脚本**（文件头写明「**演示用，不是编译器**」）。只读 `samples/`、`json/`、`fixtures-ambiguous/`，**绝不读 `content/`、绝不写任何东西** |
-| `demo-output.txt` | 上面脚本的**实际输出**（样例 JSON 自检表 ＋ 告警路径自证 ＋ 那次**非零退出**的 `--parse` 运行） |
+| `../../history/round-2026-10-15-content-format-candidates/demo-output.txt` | 上面脚本的**实际输出**（样例 JSON 自检表 ＋ 告警路径自证 ＋ 那次**非零退出**的 `--parse` 运行） |
 
 运行：
 
@@ -77,17 +77,17 @@ node items/content-format/prototypes/a-route/demo.mjs \
 ## 4. 输入依据（本材料据什么写的）
 
 - **用户已选的方向**（A 路线两条骨架）与 2026-10-15 的口径纠正（升版判据看**键路径**；旧 APK **拒收更高 `formatVersion`**、同签名新 APK 是普通覆盖安装；切分验证按**逐诗逐行**、不用子串断言；**不宣称免费**）。
-- **只读参考**（上一轮原型，**未改一字**）：`items/content-format/prototypes/a-detail-in-body-text-field.md`、`samples/a-poem-01*.md`、`demo-parse-samples.mjs`、`README.md`。
+- **只读参考**（上一轮原型，**未改一字**）：`items/content-format/prototypes/a-detail-in-body-text-field.md`、`samples/a-poem-01*.md`、`../../history/round-2026-10-15-content-format-candidates/demo-parse-samples.mjs`、`../../history/round-2026-10-15-content-format-candidates/README.md`。
 - **现行契约与工程事实**（只读）：`docs/design/content-contract.md`（字段表、键序、`null` 口径、字段集门判据、`source` 标为必填）、`content/poems/gushi-shijiu-shou-01.md`（真实 8 行与 3 条异文，抄用未改字）、`web/app/render.js`（笔记渲染子集、详情页读 `source`／逐条渲染 `variants`）、`web/about-fields.json`（关于页字段集）、`android/.../ui/Screens.kt`（笔记＝`Text()` 纯文本；详情页读 `source`／逐条渲染 `variants`）、`items/content-format/item.md`（开放项与采集口径）、`CONTEXT.md`（已确认范围）。
 
 ---
 
 ## 5. 自证（实跑，贴原文）
 
-1. **演示脚本实际输出**（样例 JSON ＋ 各样例自检表）：`demo-output.txt` 开头那一段（到 `EXIT=0` 为止）。要点：
+1. **演示脚本实际输出**（样例 JSON ＋ 各样例自检表）：`../../history/round-2026-10-15-content-format-candidates/demo-output.txt` 开头那一段（到 `EXIT=0` 为止）。要点：
    - 4 份样例都是 **8 行 / 单段 / 无 `#` 开头行**，正文**逐行相等**；缺省三态（`detail`／`notes` 各为文本或 `null`）**如预期**；样例 **0 告警**。
    - 4 份 `json/*.json` 与解析结果 **逐字节一致**（防手抄漂移）。
-2. **告警路径自证**（喂一段故意有歧义的详情 ⇒ 抓到告警 ＋ **非零退出**）：`demo-output.txt` 里 `--parse` 那一段（到末尾 `EXIT=1` 为止）。要点：
+2. **告警路径自证**（喂一段故意有歧义的详情 ⇒ 抓到告警 ＋ **非零退出**）：`../../history/round-2026-10-15-content-format-candidates/demo-output.txt` 里 `--parse` 那一段（到末尾 `EXIT=1` 为止）。要点：
    - 合成正文抓到 **4 条**告警，**逐类都响**：`fence-heading`／`unknown-section`／`duplicate-section`／`md-out-of-range`。
    - `--parse fixtures-ambiguous/ambiguous-detail.md` 抓到 **7 条**告警并**非零退出**（`EXIT=1`）。
 3. **`git status --short` 只有本目录下新增的文件**（见 §6）。
@@ -97,7 +97,7 @@ node items/content-format/prototypes/a-route/demo.mjs \
 
 ## 6. 硬边界（本材料**没有**做什么）
 
-- **只新增**文件，写入范围**只有** `items/content-format/prototypes/a-route/`；上一轮原型文件（`items/content-format/prototypes/*.md`／`samples/`／`demo-parse-samples.mjs`）**一字未改**。
+- **只新增**文件，写入范围**只有** `items/content-format/prototypes/a-route/`；上一轮原型文件（`items/content-format/prototypes/*.md`／`samples/`／`../../history/round-2026-10-15-content-format-candidates/demo-parse-samples.mjs`）**一字未改**。
 - **没碰** `content/**`（19 首一字未动）、`tools/**`、`schema/**`、`docs/**`、`items/*/item.md`、`items/app-ui/**`（另一条工作线在跑）、`release/**`；**没升** `formatVersion`；**没发布**；**没 push**、**没打 tag**、**没碰设备/密钥**。
 - `demo.mjs` **只读**本目录文件，**不写任何东西**；它是**演示**，**不是** `tools/` 里的正式编译器；正式解析/校验/错误码仍以 `tools/` 与 `docs/design/content-contract.md` 为准。
 - 笔记样例**明确是测试夹具**（正文里就写着「不是用户笔记」）；**不代用户写任何第一人称笔记**。

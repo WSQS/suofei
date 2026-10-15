@@ -30,7 +30,7 @@
 
 ## 后继
 
-- 水平排布轮：`items/app-ui/prototypes/q-hub-horizontal.*`（当时仍在 `prototypes/`；**待下一轮交回后按同一规则归档**）。
+- 水平排布轮：**已归档** `items/app-ui/history/round-2026-10-15-hub-horizontal/`（当时仍在 `prototypes/`；**待下一轮交回后按同一规则归档**）。
 - 对齐轮（记号↔组名）：负责人按用户反馈组织，独立命名。
 
 ## 怎么复跑（归档后仍可复跑）
