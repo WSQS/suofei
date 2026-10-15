@@ -46,6 +46,8 @@ cd android && ./gradlew assembleRelease -PextraMavenMirror=https://maven.aliyun.
 | `d-update-failed-offline.png` | D2/E2（失败面） | 断网（飞行模式）后检查：状态＝`更新未生效，旧内容保留：取更新清单失败：Unable to resolve host "wsqs.github.io": …`，而**生效内容版本仍是 `2026.10.16.18（来源：已下载）`** ⇒ 失败不动已有内容 |
 | `e-offline-hub.png` / `e-offline-poem.png` | E3（Android 侧） | **断网状态**下目录仍 19 首、诗页仍可读（内置/已下载内容兜底） |
 
+> ⚠ **历史材料（2026-10-15）**：本目录里的 `c-search-*` 三张与「搜索三态」那几行，记录的是**当天那一刻的状态**。用户当天稍后拍板「**第一版不做搜索**」、两端实现已移除 ⇒ **这部分是历史记录，不是现状**。
+
 ## 发布后补拍（2026-10-15，对着**线上**发布物）
 
 | 文件 | 状态 | 实测文本（uiautomator，不靠眼看） |
