@@ -16,7 +16,7 @@
 // 经典 worker 不能 import ES 模块，所以这里必须各写一遍；
 // tests/e2e-cdp.mjs 有一条断言会读本文件源码与之交叉核对，改一处会立刻报红。
 
-const APP_VERSION = '0.1.0';
+const APP_VERSION = '0.1.1';
 const CACHE_PREFIX = 'pc-resources-';
 const CACHE_NAME = `${CACHE_PREFIX}${APP_VERSION}`;
 
