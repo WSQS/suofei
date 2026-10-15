@@ -23,7 +23,9 @@ createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost');
     let path = normalize(decodeURIComponent(url.pathname));
-    if (path.endsWith('/')) path += 'index.html';
+    // 结尾分隔符两种都要认：Windows 上 normalize('/prototype/') 会把结尾的 '/' 变成 '\'，
+    // 只判 '/' 的话，/prototype/ 会去 readFile 一个目录 ⇒ EISDIR ⇒ 500（2026-10-15 实测踩到）。
+    if (path.endsWith('/') || path.endsWith('\\')) path += 'index.html';
     const file = join(root, path);
     if (!file.startsWith(root)) {
       res.writeHead(403).end('403');
