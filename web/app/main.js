@@ -169,7 +169,7 @@ function renderNotices() {
   const doc = state.doc;
   if (doc && (doc.placeholder === true || doc.fixture === true)) {
     const isFixtureVariant = doc.fixture === true;
-    els.notices.append(h('div', { class: 'notice notice--warn', dataset: { test: 'fixture-notice' } }, [
+    els.notices.append(h('div', { class: 'notice notice--fixture', dataset: { test: 'fixture-notice' } }, [
       h('strong', { text: isFixtureVariant ? '测试夹具内容：' : '占位夹具内容：' }),
       h('span', {
         dataset: { test: 'fixture-notice-text' },

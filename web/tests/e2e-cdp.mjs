@@ -738,6 +738,178 @@ async function main() {
   await hashTo('#/');
   await waitForIndex();
 
+  // ------------------------------------------------ 1d 视觉令牌逐值对齐（静默终端）
+  section('1d 视觉令牌逐值对齐（静默终端；不靠人看，逐项比对）');
+  // 唯一来源：**评审通过的原型 CSS**（规范文档由它整理；这里直接读它的令牌声明）。
+  // 刻意不人眼比对、也不正则解析散文 —— 后者已经被证明一改措辞就红（且报错没信息）。
+  const protoCss = await readFile(resolve(repoRoot, 'prototype', 'css', 'theme-tech.css'), 'utf8');
+  const protoBlock = /html\[data-theme='tech'\]\s*\{([\s\S]*?)\n\}/.exec(protoCss);
+  check('能读到原型主题的令牌块', Boolean(protoBlock), protoBlock ? `${protoBlock[1].length} 字符` : '没找到');
+  const norm = (s) => String(s).replace(/\s+/g, ' ').trim();
+  const protoTokens = new Map();
+  if (protoBlock) {
+    for (const m of protoBlock[1].matchAll(/--([a-z-]+):\s*([^;]+);/g)) protoTokens.set(m[1], norm(m[2]));
+  }
+  const rootValues = await evaluate(`(() => {
+    const cs = getComputedStyle(document.documentElement);
+    const out = {};
+    for (const name of ${JSON.stringify([...protoTokens.keys()].map((n) => `--${n}`))}) out[name] = cs.getPropertyValue(name);
+    return out;
+  })()`);
+  const undeclared = [];
+  const mismatched = [];
+  for (const [name, want] of protoTokens) {
+    const got = norm(rootValues[`--${name}`] ?? '');
+    if (got === '') undeclared.push(name);
+    else if (got !== want) mismatched.push(`--${name}: 原型=「${want}」 本站=「${got}」`);
+  }
+  eq('原型里的每个令牌，本站都有声明', undeclared, []);
+  eq('本站令牌值与原型逐项一致', mismatched, []);
+  check(`令牌数量合理（原型共 ${protoTokens.size} 项）`, protoTokens.size >= 40, `${protoTokens.size} 项`);
+
+  // 计算值层（浏览器实际用的值）：颜色/行高/字距/段间距/阴影/动画/过渡/网格
+  await hashTo(`#/p/${p1.id}`);
+  await waitForPoemView(p1.id);
+  const poemVis = await evaluate(`(() => {
+    const cs = (el, p) => getComputedStyle(el, p);
+    const line = document.querySelector('[data-test="poem-line"]');
+    const stanzas = [...document.querySelectorAll('[data-test="stanza"]')];
+    return {
+      bodyBg: cs(document.body).backgroundColor,
+      bodyColor: cs(document.body).color,
+      bodyShadow: cs(document.body).boxShadow,
+      bodyTextShadow: cs(document.body).textShadow,
+      bodyAnimation: cs(document.body).animationName,
+      patternImage: cs(document.body, '::before').backgroundImage,
+      patternPosition: cs(document.body, '::before').position,
+      lineSize: parseFloat(cs(line).fontSize),
+      lineHeight: parseFloat(cs(line).lineHeight),
+      lineSpacing: parseFloat(cs(line).letterSpacing),
+      lineFont: cs(line).fontFamily,
+      lineWhite: cs(line).whiteSpace,
+      stanzaGap: stanzas.length > 1 ? parseFloat(cs(stanzas[1]).marginTop) : null,
+      titleBorderBottom: cs(document.querySelector('[data-test="poem-title"]')).borderBottomStyle,
+      metaBorderBottom: cs(document.querySelector('[data-test="poem-meta"]')).borderBottomStyle,
+      sourceFont: cs(document.querySelector('[data-test="source-block"] dd')).fontSize,
+      sourceLineHeight: parseFloat(cs(document.querySelector('[data-test="source-block"] dd')).lineHeight),
+    };
+  })()`);
+  eq('页面底色 = --bg（#0e1315）', poemVis.bodyBg, 'rgb(14, 19, 21)');
+  eq('正文颜色 = --text（#dde5e4）', poemVis.bodyColor, 'rgb(221, 229, 228)');
+  eq('无阴影（--shadow: none）', [poemVis.bodyShadow, poemVis.bodyTextShadow], ['none', 'none']);
+  eq('没有关键帧动画（不做位移动画）', poemVis.bodyAnimation, 'none');
+  // 注意：计算值会把 alpha 0.028 取整显示成 0.027、把 transparent 写成 rgba(0, 0, 0, 0)，
+  // 所以这里按数值容差断言（这是「无法逐字符对齐」的那一类，见 README §5 的诚实边界）。
+  const gridAlphas = [...poemVis.patternImage.matchAll(/rgba\(255, 255, 255, ([0-9.]+)\)/g)].map((m) => Number(m[1]));
+  check('极淡 1px 网格在（方向线各一条、alpha≈0.028、fixed 铺满）',
+    gridAlphas.length === 2 && gridAlphas.every((a) => Math.abs(a - 0.028) <= 0.002) && poemVis.patternPosition === 'fixed',
+    `alphas=${dump(gridAlphas)}（浏览器把 0.028 显示成 0.027）position=${poemVis.patternPosition}`);
+  eq('正文字号 = --poem-size（17px）', poemVis.lineSize, 17);
+  eq('正文行高 = --poem-lh × 字号（2 → 34px）', poemVis.lineHeight, 34);
+  check('正文行高恰好是字号的 2 倍（不被行高取整带偏）',
+    Math.abs(poemVis.lineHeight - poemVis.lineSize * 2) < 0.01, `${poemVis.lineHeight} / ${poemVis.lineSize}`);
+  check('正文字距 = --poem-ls（0.045em → 0.765px）', Math.abs(poemVis.lineSpacing - 17 * 0.045) < 0.02,
+    `letterSpacing=${poemVis.lineSpacing}px`);
+  check('正文全无衬线（sans-serif，没有 serif 回退）',
+    /sans-serif/.test(poemVis.lineFont) && !/serif/.test(poemVis.lineFont.replace(/sans-serif/g, '')), poemVis.lineFont);
+  eq('正文仍然 pre-wrap（行内空白不被折叠）', poemVis.lineWhite, 'pre-wrap');
+  eq('--stanza-gap 令牌值为 1.2em（不为 0）',
+    await evaluate(`getComputedStyle(document.documentElement).getPropertyValue('--stanza-gap').trim()`), '1.2em');
+  check('真实产物 19 首都是单节，所以段间空行的**元素级**断言在 §4e（夹具诗）上做',
+    baseDoc.poems.every((p) => p.stanzas.length === 1),
+    `最大节数=${Math.max(...baseDoc.poems.map((p) => p.stanzas.length))}`);
+  eq('底本小字与原型 .poem-foot 一致（0.74rem → 11.84px）', poemVis.sourceFont, '11.84px');
+
+  await hashTo('#/');
+  await waitForIndex();
+  const indexVis = await evaluate(`(() => {
+    const cs = (el) => getComputedStyle(el);
+    const row = document.querySelector('[data-test="poem-row"]');
+    const chip = document.querySelector('.btn');
+    const search = document.querySelector('[data-test="search-input"]');
+    const sunken = document.querySelector('.status-list');
+    const groupTitle = document.querySelector('.dynasty-group-title');
+    const label = document.querySelector('[data-test="dynasty-label"]');
+    return {
+      rowBgHoverable: cs(row).borderBottomColor,
+      rowShadow: cs(row).boxShadow,
+      rowAnimation: cs(row).animationName,
+      rowTransition: [cs(row).transitionProperty, cs(row).transitionDuration],
+      chipTransition: [cs(chip).transitionProperty, cs(chip).transitionDuration],
+      chipShadow: cs(chip).boxShadow,
+      chipRadius: cs(chip).borderTopLeftRadius,
+      searchBg: cs(search).backgroundColor,
+      searchRadius: cs(search).borderTopLeftRadius,
+      sunkenBg: cs(sunken).backgroundColor,
+      sunkenRadius: cs(sunken).borderTopLeftRadius,
+      groupBg: cs(groupTitle).backgroundColor,
+      labelBorder: cs(label).borderLeftColor + ' ' + cs(label).borderLeftWidth,
+      labelPadLeft: cs(label).paddingLeft,
+      countText: document.querySelector('.dynasty-count').innerText.trim(),
+      countBrackets: (() => {
+        const b = document.querySelector('.dynasty-count b');
+        const c = (p) => getComputedStyle(b, p);
+        return [c('::before').content, c('::before').color, c('::before').fontSize, c('::before').marginRight,
+          c('::after').content, c('::after').marginLeft];
+      })(),
+      countFont: cs(document.querySelector('.dynasty-count')).fontFamily,
+    };
+  })()`);
+  eq('卡面色 = --surface（#141b1e）', indexVis.searchBg, 'rgb(20, 27, 30)');
+  eq('下沉面 = --surface-sunken（#111719）', indexVis.sunkenBg, 'rgb(17, 23, 25)');
+  eq('圆角取值（下沉面/搜索框 = 4px，芯片 = --radius-pill 3px）',
+    [indexVis.sunkenRadius, indexVis.searchRadius, indexVis.chipRadius], ['4px', '3px', '3px']);
+  eq('列表行与按钮都没有阴影', [indexVis.rowShadow, indexVis.chipShadow], ['none', 'none']);
+  eq('列表行没有关键帧动画', indexVis.rowAnimation, 'none');
+  eq('列表行过渡属性只有颜色类', indexVis.rowTransition[0], 'border-color, background');
+  eq('按钮过渡属性只有颜色类', indexVis.chipTransition[0], 'color, border-color');
+  check('过渡时长都是 0.15s（--chip-transition / --row-transition）',
+    [indexVis.rowTransition[1], indexVis.chipTransition[1]]
+      .every((d) => d.split(',').map((x) => x.trim()).every((x) => x === '0.15s')),
+    dump([indexVis.rowTransition[1], indexVis.chipTransition[1]]));
+  check('过渡里没有 transform/opacity/all（不做位移动画）',
+    [indexVis.rowTransition[0], indexVis.chipTransition[0]].every((p) => /^(border-color|background|color)(, (border-color|background|color))*$/.test(p)),
+    dump([indexVis.rowTransition[0], indexVis.chipTransition[0]]));
+  check('组名左沿有发丝竖线（原型静默终端的结构记号）',
+    /2px/.test(indexVis.labelBorder) && /rgba\(79, 179, 165/.test(indexVis.labelBorder), indexVis.labelBorder);
+  check('组内计数用等宽字体', /mono|Consolas/i.test(indexVis.countFont), indexVis.countFont);
+
+  // ---- 规范 §4.1「结构记号」三条（补漏：漏掉它们就与用户评审通过的那一版长得不一样）----
+  eq('结构记号 1：组名左内边距 = 0.6rem（9.6px）', indexVis.labelPadLeft, '9.6px');
+  // 注：`innerText` **不包含**伪元素生成的文字（实测 countText="19 首"），所以「渲染成 [19] 首」
+  // 由伪元素断言 + 截图共同证明（横幅那条不是靠 innerText）。
+  check('结构记号 2：计数在浏览器里渲染成 [19] 首（方括号来自伪元素）',
+    indexVis.countBrackets[0] === '"["' && !indexVis.countText.includes('['),
+    `innerText=${dump(indexVis.countText)}（不含伪元素）::before=${indexVis.countBrackets[0]}`);
+  eq('结构记号 2：方括号来自伪元素（::before/::after）',
+    [indexVis.countBrackets[0], indexVis.countBrackets[4]], ['"["', '"]"']);
+  check('结构记号 2：括号色 --text-faint、字号 0.85em、内外各 1px',
+    indexVis.countBrackets[1] === 'rgb(120, 138, 136)'
+    && Math.abs(parseFloat(indexVis.countBrackets[2]) - 1.05 * 16 * 0.85) < 0.1
+    && indexVis.countBrackets[3] === '1px' && indexVis.countBrackets[5] === '1px',
+    dump(indexVis.countBrackets));
+  eq('结构记号 3：诗页题头不画下划线（题名与题下那行都没有下边框；本站没有 .poem-head 包裹层）',
+    [poemVis.titleBorderBottom, poemVis.metaBorderBottom], ['none', 'none']);
+
+  // ------------------------------------------------ 9. 视觉截图（原型口径）
+  section('1e 视觉截图（口径同原型 tools/shots.sh：桌面 1280×860@2x、手机 430×932@2x）');
+  const shootTheme = async (w, h, label) => {
+    await cdp.send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 2, mobile: false });
+    await hashTo('#/');
+    await waitForIndex();
+    await screenshot(`theme-tech-${label}-hub.png`);
+    await hashTo(`#/p/${p1.id}`);
+    await waitForPoemView(p1.id);
+    await screenshot(`theme-tech-${label}-poem.png`);
+  };
+  await shootTheme(1280, 860, 'desktop');
+  await shootTheme(430, 932, 'mobile');
+  await cdp.send('Emulation.clearDeviceMetricsOverride');
+  await hashTo('#/');
+  await waitForIndex();
+  console.log('  截图：theme-tech-{desktop,mobile}-{hub,poem}.png'
+    + '（与原型 screenshots/desktop-*.png、mobile-*.png 同口径）');
+
   // ---------------------------------------------------------------- 2. 站点缓存 = 壳 + 内容成对
   section('2 站点缓存：壳与内容在同一个 cache 里成对；独立内容通道已不存在');
   const expectedCache = resourceCacheName(APP_VERSION);
@@ -889,8 +1061,9 @@ async function main() {
   const fixturePoem = variants.fixtureContent.doc.poems.find((p) => p.id === 'fixture-test-poem-01');
   eq('分节数量与 JSON 一致（空行表达的分段）', await evaluate(`document.querySelectorAll('[data-test="stanza"]').length`), fixturePoem.stanzas.length);
   eq('每节的行数', await evaluate(`[...document.querySelectorAll('[data-test="stanza"]')].map(s => s.querySelectorAll('[data-test="poem-line"]').length)`), fixturePoem.stanzas.map((x) => x.length));
-  check('第二节与第一节之间有间距（空行由 stanzas 分段表达）',
-    await evaluate(`parseFloat(getComputedStyle(document.querySelectorAll('[data-test="stanza"]')[1]).marginTop) > 0`));
+  const gapPx = await evaluate(`parseFloat(getComputedStyle(document.querySelectorAll('[data-test="stanza"]')[1]).marginTop)`);
+  check('第二节与第一节之间有间距（空行由 stanzas 分段表达）', gapPx > 0, `marginTop=${gapPx}px`);
+  check('段间距 = --stanza-gap（1.2em × 17px = 20.4px）', Math.abs(gapPx - 17 * 1.2) < 0.2, `marginTop=${gapPx}px`);
   eq('笔记默认折叠', await evaluate(`document.querySelector('[data-test="notes-details"]').open`), false);
   await evaluate(`document.querySelector('[data-test="notes-summary"]').click()`);
   await waitFor(`document.querySelector('[data-test="notes-details"]').open === true`, { label: '笔记展开' });
