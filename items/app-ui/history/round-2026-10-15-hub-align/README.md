@@ -2,7 +2,7 @@
 
 > **按用户 2026-10-15 定的原型生命周期**：一轮用完后**整轮**（说明／HTML／PNG／自检脚本）`git mv` 到 `history/<round-id>/`。
 > 本目录是**已用毕**的一轮（用户已就其中一项给出选择），后继轮独立命名，**不覆盖**本目录任何文件。
-> ⚠ 原目录里本轮的 `q-hub-align.html`、`q-hub-align.430.png` 与 **`check-align.mjs` 仍留在 `items/app-ui/prototypes/`**（用户尚未要求搬；`history/` 里本文件只记归档**记录**）。
+> 本轮材料（`q-hub-align.html`、`q-hub-align.430.png`、`q-hub-align.md`、`check-align.mjs`）**已整轮搬入本目录**——依据**用户 2026-10-15 的常设要求**：一轮用完后整轮搬，不必每轮再等一句「请搬」。原本留了「材料仍在 `prototypes/`」的说法，已按搬迁更正。
 
 ## 这一轮回答什么问题
 
@@ -39,12 +39,17 @@
    - **B（未做）**：组名仍钉在左内沿 16.8、记号往左溢出 ⇒ 在记号排版宽 21.1px > 16.8px 下记号会跑到**屏幕外约 10.7px**，需左内沿/页边留白 ≥27.5px。
 4. 用户选的是 **A ＋ 竖直居中** ⇒ 因而**水平轮**那条「缩进 0／作者紧随题名」等选择继续有效。
 
+## 搬迁时处理的依赖（2026-10-15）
+
+- 脚本原把**仓库根**写成 `join(OUT, "..", "..", "..")` ⇒ 整轮搬进 `history/` 后**指到 `items/`**、跑不起来（实测：`ENOENT … items/content/poems/…`）。已改为**从脚本所在目录向上查找 `prototype/css/theme-tech.css`** 来定位仓库根（找不到就抛出）。
+- 搬迁后**复跑：失败断言 0**。
+
 ## 复跑（归档后仍可复跑）
 
 ```bash
-CHROME_BIN=<本机 Chromium 路径> node items/app-ui/prototypes/check-align.mjs
+CHROME_BIN=<本机 Chromium 路径> node items/app-ui/history/round-2026-10-15-hub-align/check-align.mjs
 ```
 
 - 脚本按**自身所在目录**解析页面 ⇒ 整轮搬迁后路径仍有效。
-- ⚠ 它会**重写** `items/app-ui/prototypes/q-hub-align.430.png`；不同 Chromium／字体渲染可能让**字节**微变。
+- ⚠ 它会**重写本目录** `q-hub-align.430.png`；不同 Chromium／字体渲染可能让**字节**微变。
 - 脚本内含：六块几何逐项打印、首态全收起、**真鼠标点四个位置各只影响该组**、430 无溢出且每块恰 430、题名左沿＝组名左沿、实心笔画未被裁、自包含无 JS 报错、令牌快照一致、宽屏 1180 不拉伸；边界已证：`CHROME_BIN` 指到不存在路径 ⇒ **如实报错退出 2**，不假装通过。

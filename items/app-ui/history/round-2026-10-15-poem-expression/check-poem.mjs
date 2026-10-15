@@ -78,7 +78,15 @@ import { fileURLToPath } from 'node:url';
 import net from 'node:net';
 
 const OUT = dirname(fileURLToPath(import.meta.url));       // 本脚本所在目录＝原型目录
-const ROOT = join(OUT, '..', '..', '..');                  // 仓库根
+const ROOT = (() => {
+  // 搬迁时改成「向上查找」：原写法是 join(OUT, '..','..','..')，一旦整轮搬进 history/ 就会指到 items/。
+  let d = OUT;
+  for (let i = 0; i < 8; i += 1) {
+    if (existsSync(join(d, 'prototype', 'css', 'theme-tech.css'))) return d;
+    d = dirname(d);
+  }
+  throw new Error('找不到仓库根：从 ' + OUT + ' 向上查找 prototype/css/theme-tech.css 失败');
+})();
 const SHOT = !process.argv.includes('--no-shot');
 const W = 430;                                             // 规格：真实 430 CSS px 移动宽度
 const DPR = 2;                                             // 图：860 px 宽

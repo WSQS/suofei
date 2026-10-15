@@ -1,6 +1,6 @@
 # 归档轮次：诗页（阅读页）表达轮（round-2026-10-15-poem-expression）
 
-> ⚠ **本文件是归档记录**。用户尚未要求把材料搬进 `history/`（`q-poem.head.*`／`q-poem.entries.*`／`check-poem.mjs` 仍在 `items/app-ui/prototypes/`），所以本目录目前只有这份记录。
+> 本轮材料（`q-poem.head.html`、`q-poem.head.430.png`、`q-poem.entries.html`、`q-poem.entries.430.png`、`q-poem.md`、`check-poem.mjs`）**已整轮搬入本目录**——依据**用户 2026-10-15 的常设要求**：一轮用完后整轮搬，不必每轮再等一句「请搬」。
 
 ## 这一轮回答什么问题
 
@@ -53,7 +53,7 @@
 ## 复跑（当前路径下）
 
 ```bash
-CHROME_BIN=<本机 Chromium 路径> node items/app-ui/prototypes/check-poem.mjs
+CHROME_BIN=<本机 Chromium 路径> node items/app-ui/history/round-2026-10-15-poem-expression/check-poem.mjs
 ```
 
 - 断言含：430 无溢出且每块恰 430、**原文 8 行逐行逐字等于** `content/poems/gushi-shijiu-shou-01.md`、段间距实测 ≠ 0、令牌快照 34/34 逐字一致、**无笔记块 `querySelector` 为 null**、有笔记入口是 `<button type="button">` 且真点开/收起（`aria-expanded` 跟着变）、14 个可点元素语义正确、CDP **端口由内核分配**、`CHROME_BIN` 指错**如实退出 2**。
