@@ -8,7 +8,7 @@
 /* ─────────────────────────────────────────────────────────────────────────
  * 令牌快照（内嵌副本，不是新权威）
  *   来源：prototype/css/theme-tech.css（只读，未改动）
- *   仓库提交：4755c48
+ *   仓库提交：660e250
  *   权威仍是 docs/design/visual-tokens.md（§2 颜色 / §3 排版 / §4 间距形状 / §4.1 结构记号）。
  *   这里只是为「自包含单文件」而复制的一份快照，值逐字照抄、未做微调；
  *   只列本页实际用到的令牌 —— 本页有意不用 --surface（不画卡片）。
@@ -99,6 +99,7 @@ a { color: inherit; }
   border-radius: var(--radius-s);
   padding: 0 0.25rem;
 }
+.pnote { border-left: 2px solid var(--test-line); padding-left: 0.7rem; }
 .psection { margin-top: 2rem; }
 .psection > h2 {
   font-size: 0.95rem;
@@ -227,6 +228,7 @@ a { color: inherit; }
     <p><code>[+] [−]</code> 是<b>探索记号</b>：都<b>不算已采纳</b>，也没有对应的视觉令牌；这里只用字形表达，
        等于是「把状态标出来」的一种写法，不是定了的规格。</p>
     <p><b>选 A / 选 B 不等于整页批准</b>：这是信息层之外的层级表达探索，选它不等于批准目录页整页。</p>
+    <p class="pnote"><b>⚠ 这一页上的说明文字 —— 含本段、下面每块的标题、以及夹具横幅 —— 是原型的说明/夹具标注，不属于应用页面，也不是新的卡片方案。</b></p>
   </div>
   <section class="psection">
     <h2>【真实内容：1 组 19 首】</h2>
@@ -249,19 +251,19 @@ a { color: inherit; }
     <p class="sub">真产物现在只有 1 个组，多组排布只能用夹具看。<b>夹具数据只在这两个原型的脚本里</b>，不进产物、不改真实诗。</p>
     <div class="grid">
       <div class="inst">
-        <div class="fxban">仅布局夹具：不是内容、不代表真实数据、不改真实诗</div>
+        <div class="fxban">仅布局夹具：不是内容、不代表真实数据、不改真实诗<br>（这条横幅本身也是原型的说明/夹具标注，<b>不属于应用页面，也不是新的卡片方案</b>。）</div>
         <div class="icap">③ 全收起（多组）
           <em>三个组都收起时，组头的记号全是一致的状态</em></div>
         <div data-mount="b3"></div>
       </div>
       <div class="inst">
-        <div class="fxban">仅布局夹具：不是内容、不代表真实数据、不改真实诗</div>
+        <div class="fxban">仅布局夹具：不是内容、不代表真实数据、不改真实诗<br>（这条横幅本身也是原型的说明/夹具标注，<b>不属于应用页面，也不是新的卡片方案</b>。）</div>
         <div class="icap">④ 展开一组（多组）
           <em>本实例预置第一组展开；其余两组各自还是收起的</em></div>
         <div data-mount="b4"></div>
       </div>
       <div class="inst">
-        <div class="fxban">仅布局夹具：不是内容、不代表真实数据、不改真实诗</div>
+        <div class="fxban">仅布局夹具：不是内容、不代表真实数据、不改真实诗<br>（这条横幅本身也是原型的说明/夹具标注，<b>不属于应用页面，也不是新的卡片方案</b>。）</div>
         <div class="icap">⑤ 同时展开两组（多组）
           <em>本实例预置第一、三组同时展开 —— 各组独立，不是手风琴</em></div>
         <div data-mount="b5"></div>
