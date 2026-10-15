@@ -53,7 +53,9 @@
   --block-w: 430px;          /* 验收宽度：真实 430 CSS px（移动口径），不是草案、是任务书给的口径 */
   --edge-x: 1.05rem;         /* 草案值：块的左右内沿（取令牌 --row-pad 的横向分量；「关于」与诗行右沿都落在它上面） */
   --seam-a: 0.4rem;          /* 草案值：块 ① 的固定缝（记号右沿 → 组名左沿）＝ 6.4px */
-  --slot-b: 1.2rem;          /* 草案值：块 ② 的槽宽（记号在槽内水平居中）＝ 19.2px */
+  --slot-b: 2rem;            /* 草案值（**已更正**）：块 ② 的槽宽＝32px —— 上一版这里是 1.2rem＝19.2px，比记号排版宽（21.13px）还窄，实测缝为负、居中后贴住组名，故按负责人 2026-10-15 的决定改实 */
+  --slot-b-alt: 1.6rem;      /* 草案值（② 的另一档）：块 ②-2 的槽宽＝25.6px（刚好装下 21.13px 的记号，两侧各≈2.2px） */
+  --slot-here: 0px;          /* 每个块自己的「居中槽宽」，由 data-slot 选：b2 → var(--slot-b)，b2-2 → var(--slot-b-alt) */
   --inline-gap: 0.35rem;     /* 草案值：块 ③（不悬挂）记号与组名之间的段内间距＝ 5.6px */
   --name-x: 0px;             /* 【参照系】组名左沿相对块左沿的实测偏移，由页面脚本量出后写回（每块各不相同） */
 }
@@ -248,11 +250,13 @@ html[data-shot="1"] .glist > .poemrow:nth-child(n+4) { display: none; }
  */
 .hub[data-mark="hang-gap"] .ghead { padding-left: 0; }
 .hub[data-mark="hang-gap"] .gmark { margin-right: var(--seam-a); }
-/* ② 悬挂 + 槽内居中：槽宽恒为 --slot-b，记号在槽内水平居中（缝＝槽宽与记号宽度之差的一半）。
+/* ② 悬挂 + 槽内居中：槽宽由 --slot-here 给出（块 ② 2rem、块 ②-2 1.6rem），记号在槽内水平居中。
  *   用 flex 居中（而不是 text-align:center）：槽比记号窄时 text-align 会退化成起点对齐，居中就没被表达出来；
  *   flex 的居中在溢出时仍然对称地把记号居中，这一块才是真的「槽内居中」（代价是记号会向槽外两侧溢出）。 */
 .hub[data-mark="hang-center"] .ghead { padding-left: 0; }
-.hub[data-mark="hang-center"] .gmark { width: var(--slot-b); margin-right: 0; display: flex; justify-content: center; }
+.hub[data-mark="hang-center"] .gmark { width: var(--slot-here); margin-right: 0; display: flex; justify-content: center; }
+.hub[data-slot="b"] { --slot-here: var(--slot-b); }
+.hub[data-slot="b-alt"] { --slot-here: var(--slot-b-alt); }
 /* ③ 不悬挂（对照）：记号在块左内沿上、与组名同一段，段内间距 --inline-gap。 */
 .hub[data-mark="inline"] .ghead { padding-left: var(--edge-x); }
 .hub[data-mark="inline"] .gmark { margin-right: var(--inline-gap); }
@@ -281,7 +285,7 @@ html[data-shot="1"] .glist > .poemrow:nth-child(n+4) { display: none; }
 <div class="wrap">
   <div class="phead">
     <p class="ptag">讨论原型 · 不是产品实施 · 不是发布 · 不是已采纳规格</p>
-    <h1>目录页「展开记号 ↔ 组名 <b>对齐关系</b>」聚焦讨论原型 —— 4 个聚焦块 ＋ 1 个布局夹具块</h1>
+    <h1>目录页「展开记号 ↔ 组名 <b>对齐关系</b>」聚焦讨论原型 —— 5 个聚焦块（其中 ② 两个档）＋ 1 个布局夹具块</h1>
     <p>这一页只回答<b>一个问题</b>：<b>记号与组名怎么对齐才不显得「没对齐」？</b>四个聚焦块<b>并列</b>、不排序、不衬托，<b>没有推荐项</b>；<b>选某一块 ≠ 采纳整页规格</b>。</p>
     <p><b>本页固定不变（不在这里重问）：</b></p>
     <ul>
@@ -293,28 +297,33 @@ html[data-shot="1"] .glist > .poemrow:nth-child(n+4) { display: none; }
       <li>信息只有：<b>组名＋数量</b>、<b>诗题＋作者</b>。🚫 不出现：搜索／应用名／笔记标记／题名预览／状态位／版本号。</li>
       <li>四块的<b>记号字号与字距统一</b>（等宽 0.8rem、不设字距）—— 这样量出来的「缝」才是真实可见的缝，不是字距的空白。</li>
     </ul>
-    <p><b>四个聚焦块各变什么</b>（其余一切相同）：① 悬挂＋<b>固定缝 0.4rem</b>（草案值）· ② 悬挂＋<b>槽内居中</b>（槽宽 1.2rem，草案值）· ③ <b>不悬挂</b>（对照，不是推荐）· ④ 悬挂＋<b>竖直居中</b>（水平与 ① 完全相同，只改竖直关系）· ⑤ 用 ① 的排布 × 3 个组的<b>布局夹具</b>。</p>
+    <p><b>五个聚焦块各变什么</b>（其余一切相同）：① 悬挂＋<b>固定缝 0.4rem</b>（草案值）· ② 悬挂＋<b>槽内居中</b>（槽宽 2rem，草案值）· ②-2 悬挂＋<b>槽内居中</b>（槽宽 1.6rem，草案值，即 ② 的另一档——刚好装下记号）· ③ <b>不悬挂</b>（对照，不是推荐）· ④ 悬挂＋<b>竖直居中</b>（水平与 ① 完全相同，只改竖直关系）· ⑤ 用 ① 的排布 × 3 个组的<b>布局夹具</b>。</p>
+    <p class="pnote">⚠ <b>一处更正（负责人选值偏窄，已改实）</b>：② 的槽宽上一版取的是 <b>1.2rem（19.2px）</b>，它比记号自身的排版宽（<b>21.13px</b>）<b>还窄</b> ⇒ 实测上「居中后缝自然变大」<b>不成立</b>（缝 −0.97px、实心笔画 1.16px，看图是 <code>[−]汉</code> 贴住）。本轮按负责人 2026-10-15 的决定改为 <b>2rem</b>，并另出 <b>1.6rem</b> 一档；两个槽宽都大于记号宽，「居中且留缝」才真正成立（实测数字见同目录 <code>q-hub-align.md</code>）。</p>
     <p><b>本页对「悬挂／不悬挂」的实现口径</b>（写清，免得误读）：<b>悬挂</b>＝记号的槽<b>从块左沿（0）量起</b>、<b>组名左沿 = 槽右沿</b>，所以记号落在内容左内沿（<code>--edge-x</code>＝16.8px）<b>之外</b>；<b>不悬挂</b>＝记号落在<b>块左内沿上</b>（与「关于」同一条竖线）、组名被记号自然推开（块 ③ 的对照）。两种口径下诗目都是「题名左沿 = 组名左沿」。</p>
-    <p>间距数字：<b>块宽 430 CSS px</b>（任务书给的验收口径，不是草案）；<code>--edge-x 1.05rem</code>（沿用令牌 <code>--row-pad</code> 的横向分量）、<code>--seam-a 0.4rem</code>、<code>--slot-b 1.2rem</code>、<code>--inline-gap 0.35rem</code> 是<b>草案值</b>（规范里没有这些值）。四块的实测数字由自检脚本打印，也写在本页同目录的 <code>q-hub-align.md</code> 里。</p>
-    <p>行为（四块＋夹具块一致）：首次进入<b>全部收起</b>（单组也收起）· <b>整个组头可点</b>（组名／空白／数量／记号任一处）· 各组<b>独立</b>展开（<b>可同时展开两组</b>，不是手风琴）。每块都可点，都能看到<b>收起与展开两种状态</b>。</p>
+    <p>间距数字：<b>块宽 430 CSS px</b>（任务书给的验收口径，不是草案）；<code>--edge-x 1.05rem</code>（沿用令牌 <code>--row-pad</code> 的横向分量）、<code>--seam-a 0.4rem</code>、<code>--slot-b 2rem</code>、<code>--slot-b-alt 1.6rem</code>、<code>--inline-gap 0.35rem</code> 是<b>草案值</b>（规范里没有这些值）。五个聚焦块＋夹具块的实测数字由自检脚本打印，也写在本页同目录的 <code>q-hub-align.md</code> 里。</p>
+    <p>行为（五个聚焦块＋夹具块一致）：首次进入<b>全部收起</b>（单组也收起）· <b>整个组头可点</b>（组名／空白／数量／记号任一处）· 各组<b>独立</b>展开（<b>可同时展开两组</b>，不是手风琴）。每块都可点，都能看到<b>收起与展开两种状态</b>。</p>
     <p class="pnote">⚠ 这一页上的说明文字 —— 含本段、下面每个块的标题、以及夹具横幅 —— <b>是原型的说明/夹具标注，不属于应用页面，也不是新的卡片方案。</b></p>
   </div>
   <section class="psection" id="blocks">
-    <h2>【本轮的 4 个聚焦块 ＋ 1 个布局夹具块】① 悬挂＋固定缝 ② 悬挂＋槽内居中 ③ 不悬挂（对照） ④ 悬挂＋竖直居中 ⑤ 夹具</h2>
-    <p class="sub">五块各自独立、都在真实 430 CSS px 宽下渲染，都可点（首态全收起）。① ② ③ ④ 用<b>真实内容</b>（汉·19 首），⑤ 用<b>多组夹具</b>。</p>
+    <h2>【本轮的 5 个聚焦块（② 两个档）＋ 1 个布局夹具块】① 悬挂＋固定缝 ② 悬挂＋槽内居中（2rem） ②-2 悬挂＋槽内居中（1.6rem） ③ 不悬挂（对照） ④ 悬挂＋竖直居中 ⑤ 夹具</h2>
+    <p class="sub">六块各自独立、都在真实 430 CSS px 宽下渲染，都可点（首态全收起）。①②②-2③④ 用<b>真实内容</b>（汉·19 首），⑤ 用<b>多组夹具</b>。</p>
     <div class="shotframe" data-shotframe>
-      <div class="shotbanner"><b>目录页「展开记号 ↔ 组名 对齐关系」聚焦讨论原型</b>（4 个聚焦块 ＋ 1 个布局夹具块）。<br><b>本图＝这 5 个块（每个恰好 430 CSS px 宽）纵向排列。</b>本图是在页面加载后<b>用真实鼠标点开各组</b>再拍的（页面加载时是全收起；块标题里写的 <b>[+]</b> 是收起态的字形，图里已点开、所以记号显示为 <b>[−]</b>）。<br><b>⚠ 为了让图不过长，每个展开的组在本图里只截到前 3 行</b>（页面上是完整的 19 首／夹具组是完整的 5~7 行）。<br>青/黄色文字是原型的说明与夹具标注，<b>不属于应用页面，也不是新的卡片方案</b>；页面正常打开不含这条横幅。</div>
+      <div class="shotbanner"><b>目录页「展开记号 ↔ 组名 对齐关系」聚焦讨论原型</b>（5 个聚焦块，其中 ② 两个档 ＋ 1 个布局夹具块）。<br><b>本图＝这 6 个块（每个恰好 430 CSS px 宽）纵向排列。</b>本图是在页面加载后<b>用真实鼠标点开各组</b>再拍的（页面加载时是全收起；块标题里写的 <b>[+]</b> 是收起态的字形，图里已点开、所以记号显示为 <b>[−]</b>）。<br><b>⚠ 为了让图不过长，每个展开的组在本图里只截到前 3 行</b>（页面上是完整的 19 首／夹具组是完整的 5~7 行）。<br>青/黄色文字是原型的说明与夹具标注，<b>不属于应用页面，也不是新的卡片方案</b>；页面正常打开不含这条横幅。</div>
       <div class="rack">
     <div class="inst" data-block="b1">
       <div class="icap">① 悬挂 ＋ <b>固定缝 0.4rem</b>（草案值）：记号在组名左沿之外的槽里，<b>记号右沿到组名左沿留 0.4rem（＝6.4px）</b>的缝<em>槽宽＝记号自身宽度＋缝；实测数字（记号左右沿／槽宽／缝／组名左沿／题名左沿）由自检脚本逐块打印。</em></div>
       <div data-mount="b1"></div>
     </div>
     <div class="inst" data-block="b2">
-      <div class="icap">② 悬挂 ＋ <b>槽内居中</b>：槽宽 <b>1.2rem</b>（草案值，＝19.2px），记号在槽内<b>水平居中</b><em>槽宽与记号宽度都由自检脚本量出后打印（这一块的缝不是固定的，是槽宽与记号宽度之差分到两侧的结果）。</em></div>
+      <div class="icap">② 悬挂 ＋ <b>槽内居中</b>：槽宽 <b>2rem</b>（草案值，＝32px；<b>已由 1.2rem 更正而来</b>），记号在槽内<b>水平居中</b><em>槽宽与记号宽度都由自检脚本量出后打印（这一块的缝不是固定的，是槽宽与记号宽度之差分到两侧的结果）。</em></div>
       <div data-mount="b2"></div>
     </div>
+    <div class="inst" data-block="b2-2">
+      <div class="icap">②-2 悬挂 ＋ <b>槽内居中</b>：<b>② 的另一档</b>，槽宽 <b>1.6rem</b>（草案值，＝25.6px）——比 ② 窄，<b>刚好装下记号</b><em>② 与 ②-2 只差槽宽：两块对比着看，就是「居中缝留多宽才够」这一档的剂量；两块都满足「记号完全落在槽内」。</em></div>
+      <div data-mount="b2-2"></div>
+    </div>
     <div class="inst" data-block="b3">
-      <div class="icap">③ <b>不悬挂</b>（对照，<b>不是推荐</b>）：记号与组名<b>同一段、共享左沿</b>——记号落在块左内沿（16.8px）上，组名被记号自然推开<em>这一块是给「悬挂」一个可比的对照；它同样满足「题名与组名首字同一竖线」。</em></div>
+      <div class="icap">③ <b>不悬挂</b>（对照，<b>不是推荐</b>）：记号与组名<b>同一段、共享左沿</b>——记号落在块左内沿（16.8px）上，组名被记号自然推开<em>这一块是给「悬挂」一个可比的对照（与 ①②②-2 的区别是：记号不再占左内沿之外的那条槽，而是从左内沿起、把组名推右）；它同样满足「题名与组名首字同一竖线」。</em></div>
       <div data-mount="b3"></div>
     </div>
     <div class="inst" data-block="b4">
@@ -391,6 +400,7 @@ html[data-shot="1"] .glist > .poemrow:nth-child(n+4) { display: none; }
     root.dataset.block = spec.block;
     root.dataset.mark = spec.mark;
     root.dataset.valign = spec.valign;
+    if (spec.slot) root.dataset.slot = spec.slot;
 
     // 顶部只此一项入口：「关于」
     var top = el('div', 'topline');
@@ -497,7 +507,8 @@ html[data-shot="1"] .glist > .poemrow:nth-child(n+4) { display: none; }
     "page": "align",
     "blocks": [
       { "inst": "b1", "block": "hang-gap", "mark": "hang-gap", "valign": "baseline", "groups": "real", "open": [] },
-      { "inst": "b2", "block": "hang-center", "mark": "hang-center", "valign": "baseline", "groups": "real", "open": [] },
+      { "inst": "b2", "block": "hang-center-2rem", "mark": "hang-center", "slot": "b", "valign": "baseline", "groups": "real", "open": [] },
+      { "inst": "b2-2", "block": "hang-center-16rem", "mark": "hang-center", "slot": "b-alt", "valign": "baseline", "groups": "real", "open": [] },
       { "inst": "b3", "block": "inline", "mark": "inline", "valign": "baseline", "groups": "real", "open": [] },
       { "inst": "b4", "block": "hang-gap-center", "mark": "hang-gap", "valign": "center", "groups": "real", "open": [] },
       { "inst": "b5", "block": "fx", "mark": "hang-gap", "valign": "baseline", "groups": "fixture", "open": [] }
