@@ -57,10 +57,30 @@ class ContentParserTest {
             content.contentVersion.matches(Regex("""\d{4}\.\d{2}\.\d{2}\.\d+""")),
         )
 
-        // 组名＝顶层数组里的中文串；只列实际有内容的组（注册表 order 升序：先秦…近现代）
-        assertEquals(listOf("汉", "近现代"), content.dynasties)
-        assertEquals(listOf("汉", "近现代"), content.groups.map { it.name })
-        assertEquals(20, content.poems.size)
+        // 组名＝顶层数组里的中文串；只列实际有内容的组（注册表 order 升序：先秦…近现代）。
+        // ⚠ 2026-10-16（新增杜甫《梦李白二首》两条）：**不再写死「20 首」与固定组清单** ——
+        //   期望值从内容的**唯一来源** `content/poems/**` 派生（见 `ContentSources`）。
+        //   这比字面量**更强**：源文加了诗而内置产物忘了重编 ⇒ 这里就报红（2026-10-14 那次
+        //   「内置内容落后于内容源」的真实事故形态，当时谁也没发现）。
+        assertEquals(
+            "内置产物首数应等于 content/poems/** 的源文数（产物 == 源）",
+            ContentSources.poemCount, content.poems.size,
+        )
+        val registry = ContentSources.dynastiesRegistry
+        val sourceGroups = ContentSources.dynastiesInSources
+        assertTrue(
+            "源文里出现的组名都必须在注册表 tools/lib/dynasties.mjs 里声明（精确匹配）：$sourceGroups",
+            sourceGroups.all { registry.containsKey(it) },
+        )
+        assertEquals(
+            "顶层 dynasties == 源文里出现过的组，按注册表 order 升序（组序唯一权威＝注册表）",
+            sourceGroups.sortedBy { registry.getValue(it) },
+            content.dynasties,
+        )
+        assertEquals(
+            "顶层 dynasties 只列**实际有内容**的组（空组不得声明）",
+            content.groups.size, content.dynasties.size,
+        )
 
         // 契约：编译产物已按底本原次序排好，客户端不得重排。
         assertEquals("行行重行行", content.poems.first().title)
@@ -115,10 +135,8 @@ class ContentParserTest {
         // 「源里有 `## 详情` ⟺ 产物里 detail 非 null」——内容线日后增删详情，这条会真报红。
         // ⚠ 2026-10-16：真实内容现在**两个组**（`古诗十九首/` 与 `毛泽东/`）⇒ 不再假定单一目录，
         //   改为在 `content/poems/` 下**按题名递归查找**唯一来源（找不到即失败，不跳过）。
-        val poemsRoot = TestRepoFiles.repoFile(
-            "content/poems/古诗十九首/行行重行行.md",
-            "内容的唯一来源（S3 迁移后的 v2 布局）；读不到即失败，不跳过。",
-        ).parentFile.parentFile            // ⇒ content/poems/
+        // ⚠ 2026-10-16：源文根与「有 `## 详情` 的源文数」都走 `ContentSources`（同一份忽略规则，不各写一遍）。
+        val poemsRoot = ContentSources.poemsRoot
         val sourceOf = { title: String ->
             poemsRoot.walkTopDown().firstOrNull { it.isFile && it.name == "$title.md" }
         }

@@ -18,6 +18,10 @@ import org.junit.Test
  * `detail` **非空**，其余 6 首 `null`（真实状态，不是丢数据）；`notes` 仍全为 `null`。
  * ⇒ 详情页那句「这一首在产物里没有详情正文。」现在只对**那 6 首**显示（逐首与源文对照的强断言在
  * `ContentParserTest.detailAndNotes_reflectTheSourceProduct_forEveryPoem`）。
+ *
+ * ⚠ **2026-10-16 又一处收尾（杜甫《梦李白二首》两条入库）**：连本条注释里那几个数（20 / 13 / 6）也
+ * **不再写进断言** —— 首数与「有 `## 详情` 的条数」都从内容的唯一来源（`content/poems/` 下的源文，
+ * 递归，见 `ContentSources`）派生，所以**内容继续增删时本测试无需改动，却仍能抓住「源与产物不同步」**。
  */
 class PoemDetailContentTest {
 
@@ -27,14 +31,22 @@ class PoemDetailContentTest {
 
     @Test
     fun detailIsPresentWhereTheSourceHasASection_andTheEmptyHintCoversOnlyTheRest() {
-        assertEquals(20, content.poems.size)
+        // ⚠ 2026-10-16：**首数与「有详情」的条数都不写死**（原先写死 20 / 13）——
+        //   两者都从内容的唯一来源 `content/poems/**` 派生（见 `ContentSources`）。
+        //   源文加了诗（如杜甫《梦李白二首》两条）而内置产物忘了重编 ⇒ 这条真报红。
+        assertEquals(
+            "内置产物首数应等于 content/poems/** 的源文数（产物 == 源）",
+            ContentSources.poemCount, content.poems.size,
+        )
         val withDetail = content.poems.filter { it.detail != null }
         val withoutDetail = content.poems.filter { it.detail == null }
-        // 与源文一致（`content/poems/` 里 13 首有 `## 详情`；新增那首用户未写 ⇒ 计入无 detail）。
-        assertEquals("带 `## 详情` 的应是 13 首", 13, withDetail.size)
+        val expectedWithDetail = ContentSources.sourcesWithDetail
+        // 与源文一致：`content/poems/` 下写了 `## 详情` 的文件数 == 产物里 detail 非 null 的条数。
+        assertEquals("带 `## 详情` 的应等于源文里写了该节的条数", expectedWithDetail, withDetail.size)
         assertEquals(
-            "没有详情正文的应是 ${content.poems.size - 13} 首（详情页只对它们显示「没有详情正文」这句实话）",
-            content.poems.size - 13, withoutDetail.size,
+            "没有详情正文的应是 ${content.poems.size - expectedWithDetail} 首" +
+                "（详情页只对它们显示「没有详情正文」这句实话）",
+            content.poems.size - expectedWithDetail, withoutDetail.size,
         )
         assertTrue("带详情的正文不得是空白占位", withDetail.all { !it.detail!!.isBlank() })
         // 详情页的最小 Markdown 渲染要吃的就是 `### 小标题` 这种形状（S3 写的是「异文／分段依据」）
