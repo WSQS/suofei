@@ -1,0 +1,44 @@
+{
+  "_note": "**跨端块标记边界的正反例**（2026-10-16 由负责人建立）。三方都读这一个文件：编译器 `tests/markdown-subset-contract.test.mjs`、Web `web/tests/md-conformance.mjs`、Android `MarkdownTest.kt`。规则条文见 `schema/markdown-subset.json` 的 `boundary`。",
+  "_why": "起因是真实分叉：编译器与 Web 曾用 `\\s+`、Android 要字面空格 ⇒ `###\\t甲` 一端当标题、一端当段落（且编译器**放行** ⇒ 产物真能到达两端）；`### 甲 ` 的尾空格也曾一端留一端去。这些不是假想边界，是可达的。",
+  "_semantics": {
+    "compiler": "`tools/lib/markdown.mjs::classifyLine` 的返回值（`marker-form` ⇒ 报错码 `MD_MARKER_FORM`；`heading-other` ⇒ `MD_HEADING`）",
+    "endKind": "两端渲染器都应产出的块类型：Heading3 / UnorderedList / OrderedList / Quote / Paragraph / separator（空行分隔，无块）",
+    "endText": "该块的文字：单行块＝该行文字；列表＝**该项**文字；空行＝null。**逐字比较**（含尾空格/制表符，两端都不许 trim）",
+    "negative-rule": "`compiler` 为报错码的用例，**两端都必须渲染成同一个 Paragraph 且文字＝整行原样** —— 它们经正规编译到不了两端，但产物被手工改过时两端也不许分叉"
+  },
+  "cases": [
+    { "id": "h3-canonical", "line": "### 甲", "compiler": "heading-h3", "endKind": "Heading3", "endText": "甲", "why": "闭集内正例" },
+    { "id": "ul-canonical", "line": "- 甲", "compiler": "ul", "endKind": "UnorderedList", "endText": "甲", "why": "闭集内正例" },
+    { "id": "ol-canonical", "line": "1. 甲", "compiler": "ol", "endKind": "OrderedList", "endText": "甲", "why": "闭集内正例" },
+    { "id": "quote-canonical", "line": "> 甲", "compiler": "quote", "endKind": "Quote", "endText": "甲", "why": "闭集内正例" },
+    { "id": "ol-multi-digit", "line": "12. 甲", "compiler": "ol", "endKind": "OrderedList", "endText": "甲", "why": "多位序号也算有序列表" },
+    { "id": "h3-trailing-space", "line": "### 甲 ", "compiler": "heading-h3", "endKind": "Heading3", "endText": "甲 ", "why": "**尾空格逐字保留**：曾一端留一端去（Android 曾 trim）" },
+    { "id": "h3-trailing-tab", "line": "### 甲\t", "compiler": "heading-h3", "endKind": "Heading3", "endText": "甲\t", "why": "块的**文字**里的制表符照样逐字保留（标记后的分隔才要求是空格）" },
+    { "id": "ul-trailing-space", "line": "- 甲 ", "compiler": "ul", "endKind": "UnorderedList", "endText": "甲 ", "why": "同上，列表项文字也逐字保留" },
+    { "id": "paragraph-plain", "line": "甲行", "compiler": "text", "endKind": "Paragraph", "endText": "甲行", "why": "普通段落" },
+    { "id": "blank-empty", "line": "", "compiler": "blank", "endKind": "separator", "endText": null, "why": "空行＝块分隔" },
+    { "id": "blank-spaces", "line": "   ", "compiler": "blank", "endKind": "separator", "endText": null, "why": "只有空白的行也是分隔" },
+    { "id": "decimal-not-marker", "line": "1.5 是小数", "compiler": "text", "endKind": "Paragraph", "endText": "1.5 是小数", "why": "**误报守卫**：`1.` 后不是空白 ⇒ 段落，不是有序列表的近失" },
+    { "id": "negative-number-not-marker", "line": "-5 度", "compiler": "text", "endKind": "Paragraph", "endText": "-5 度", "why": "**误报守卫**：`-` 后不是空白 ⇒ 段落" },
+
+    { "id": "h3-tab-marker", "line": "###\t甲", "compiler": "heading-other", "endKind": "Paragraph", "endText": "###\t甲", "why": "**曾经的真实分叉**：编译器/Web 当标题、Android 当段落" },
+    { "id": "ul-tab-marker", "line": "-\t甲", "compiler": "marker-form", "endKind": "Paragraph", "endText": "-\t甲", "why": "**曾经的真实分叉**：编译器/Web 当列表、Android 当段落" },
+    { "id": "ol-tab-marker", "line": "1.\t甲", "compiler": "marker-form", "endKind": "Paragraph", "endText": "1.\t甲", "why": "同上（有序列表）" },
+    { "id": "quote-tab-marker", "line": ">\t甲", "compiler": "marker-form", "endKind": "Paragraph", "endText": ">\t甲", "why": "同上（引用；Android 当段落，Web 曾当引用）" },
+    { "id": "ul-two-spaces", "line": "-  甲", "compiler": "marker-form", "endKind": "Paragraph", "endText": "-  甲", "why": "**曾经的真实分叉**：项文字 Web 得 `甲`、Android 得 ` 甲`" },
+    { "id": "ol-two-spaces", "line": "1.  甲", "compiler": "marker-form", "endKind": "Paragraph", "endText": "1.  甲", "why": "同上" },
+    { "id": "ul-indented", "line": "  - 甲", "compiler": "marker-form", "endKind": "Paragraph", "endText": "  - 甲", "why": "**曾经的真实分叉**：编译器放行当列表，两端都当段落" },
+    { "id": "h3-indented", "line": "  ### 甲", "compiler": "heading-other", "endKind": "Paragraph", "endText": "  ### 甲", "why": "行首缩进的标题：越界（`MD_HEADING`）" },
+    { "id": "quote-bare-indented", "line": "  > 甲", "compiler": "marker-form", "endKind": "Paragraph", "endText": "  > 甲", "why": "行首缩进的引用：越界" },
+    { "id": "h3-bare", "line": "### ", "compiler": "heading-other", "endKind": "Paragraph", "endText": "### ", "why": "裸标记（后无内容）⇒ 越界；两端都当段落" },
+    { "id": "ul-bare", "line": "- ", "compiler": "marker-form", "endKind": "Paragraph", "endText": "- ", "why": "裸标记（后无内容）⇒ 越界" },
+    { "id": "quote-bare", "line": ">", "compiler": "text", "endKind": "Paragraph", "endText": ">", "why": "**曾经的真实分叉**：Web 曾把裸 `>` 当空引用，编译器/Android 当段落" },
+    { "id": "quote-space-only", "line": "> ", "compiler": "marker-form", "endKind": "Paragraph", "endText": "> ", "why": "裸标记（`> ` 后无内容）⇒ 越界，与 `- `、`### ` 一致；两端都当段落" },
+    { "id": "dash-bare", "line": "-", "compiler": "text", "endKind": "Paragraph", "endText": "-", "why": "单个连字符＝普通段落文字" },
+
+    { "id": "section-tab", "line": "##\t详情", "compiler": "heading-other", "endKind": "Paragraph", "endText": "##\t详情", "why": "节分界也要求恰好一个空格：`##\\t` 不再是分界，落入 `MD_HEADING`（两端当段落）" },
+    { "id": "star-list", "line": "* 甲", "compiler": "star-list", "endKind": "Paragraph", "endText": "* 甲", "why": "既有越界码：两端都当段落（Web 曾当列表 ⇒ 那正是该码存在的理由）" },
+    { "id": "task-list", "line": "- [ ] 甲", "compiler": "task-list", "endKind": "UnorderedList", "endText": "[ ] 甲", "why": "**有意的既有例外**（两端一致）：确实以 `- ` 开头 ⇒ 两端都当普通列表项、文字原样，无 checkbox" }
+  ]
+}

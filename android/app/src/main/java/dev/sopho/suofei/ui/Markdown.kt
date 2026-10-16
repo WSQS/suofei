@@ -70,7 +70,13 @@ object Markdown {
     /** 引用块（`> `），连续 `> ` 行合成一个块。 */
     data class Quote(val lines: List<String>) : MarkdownBlock
 
-    private val OL = Regex("""^(\d{1,9})\. (.*)$""")
+    // 块标记边界（与编译器、Web **同一套**；定义见 schema/markdown-subset.json 的 `boundary`）：
+    //   行首第 0 列 ＋ 恰好一个 ASCII 空格 ＋ 其后非空白；块内文字＝标记之后**逐字保留**（不 trim）。
+    // 曾经用 removePrefix + trim，且判据不含 `\S` ⇒ 制表符/多空格/尾空格与另两端分叉。
+    private val H3 = Regex("""^### (\S.*)$""")
+    private val UL = Regex("""^- (\S.*)$""")
+    private val OL = Regex("""^(\d{1,9})\. (\S.*)$""")
+    private val QUOTE = Regex("""^> (\S.*)$""")
 
     /** 逐行解析。空行分隔块；标题/列表/引用各自起新块（不与前后段落合并）。 */
     fun parse(markdown: String): List<MarkdownBlock> {
@@ -85,14 +91,14 @@ object Markdown {
             }
             when {
                 isHeading3(line) -> {
-                    out += Heading3(line.removePrefix("### ").trim())
+                    out += Heading3(H3.matchEntire(line)!!.groupValues[1])
                     i++
                 }
 
                 isUnorderedItem(line) -> {
                     val items = ArrayList<String>()
                     while (i < lines.size && isUnorderedItem(lines[i])) {
-                        items += lines[i].removePrefix("- ")
+                        items += UL.matchEntire(lines[i])!!.groupValues[1]
                         i++
                     }
                     out += UnorderedList(items)
@@ -110,7 +116,7 @@ object Markdown {
                 isQuoteLine(line) -> {
                     val quoted = ArrayList<String>()
                     while (i < lines.size && isQuoteLine(lines[i])) {
-                        quoted += lines[i].removePrefix("> ")
+                        quoted += QUOTE.matchEntire(lines[i])!!.groupValues[1]
                         i++
                     }
                     out += Quote(quoted)
@@ -129,17 +135,17 @@ object Markdown {
         return out
     }
 
-    /** 行首恰好 `### `（`# `、`#### `、`## ` 都不算）。 */
-    fun isHeading3(line: String): Boolean = line.startsWith("### ")
+    /** 行首**恰好** `### ` ＋ 非空白（`# `、`#### `、`## `、`###` 后接制表符都不算）。 */
+    fun isHeading3(line: String): Boolean = H3.matches(line)
 
-    /** 行首 `- `（连字符＋一个空格；`* ` 不收）。 */
-    fun isUnorderedItem(line: String): Boolean = line.startsWith("- ")
+    /** 行首**恰好** `- ` ＋ 非空白（`* ` 不收；制表符／多个空格／行首缩进都不算）。 */
+    fun isUnorderedItem(line: String): Boolean = UL.matches(line)
 
-    /** 行首 `数字.` ＋ 一个空格。 */
+    /** 行首 `数字.` ＋ **恰好一个空格** ＋ 非空白。 */
     fun isOrderedItem(line: String): Boolean = OL.matches(line)
 
-    /** 行首 `> `。 */
-    fun isQuoteLine(line: String): Boolean = line.startsWith("> ")
+    /** 行首**恰好** `> ` ＋ 非空白（裸 `>` 不算）。 */
+    fun isQuoteLine(line: String): Boolean = QUOTE.matches(line)
 
     private fun startsBlock(line: String): Boolean =
         isHeading3(line) || isUnorderedItem(line) || isOrderedItem(line) || isQuoteLine(line)

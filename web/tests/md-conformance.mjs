@@ -29,8 +29,9 @@
  *    并断言渲染出的标签集合**不超出**契约里那 8 样所声明的标签（多一个 `<table>` 就红）。
  *    `MD_TASK_LIST` 是**有意的例外**（`- [ ]` 确实以 `- ` 开头）：这里如实记录它＝一个普通列表项、
  *    文字原样 `[ ] 待办`、**没有** checkbox 元素 —— 与 Android 的说明一致（那正是 `MD_TASK_LIST` 诊断存在的理由）。
- * 5. **观察（不判红）**：标记后的空白边缘（TAB／多个空格）—— 契约文字没写到，而**两端渲染器判据不同**
- *    （编译器实测**放行**）。这里只如实打印，不写成断言 —— 判红等于替负责人把「谁对」当成已知。
+ * 5. **块标记边界（判红）**：正反例固定在三方共用的 `tests/fixtures/contract/md-boundary.json`（规则见契约的 `boundary`），
+ *    逐例断言三方言行一致：Web **真渲染**、Android 判据重写、编译器 `classifyLine`。
+ *    （2026-10-16 之前这里只是「只打印不判红」的观察；那是可到达的分叉，现已收进共同定义。）
  *
  * ## 边界
  * 只读契约/夹具/渲染器，**不改任何生产文件**；只新建本文件（另有 gitignore 的 `web/tests/artifacts/` 证据文件）。
@@ -54,14 +55,16 @@ import { fileURLToPath } from 'node:url';
 
 /** 编译器的逐行判据（`tools/lib/markdown.mjs`）—— **只读**，用来在报告里量出「编译器放不放行」。 */
 let checkMarkdownLine = null;
+let classifyLine = null;
 try {
-  ({ checkMarkdownLine } = await import(new URL('../../tools/lib/markdown.mjs', import.meta.url)));
+  ({ checkMarkdownLine, classifyLine } = await import(new URL('../../tools/lib/markdown.mjs', import.meta.url)));
 } catch { /* 模块不在时只影响第 5 节的观察，不影响断言 */ }
 
 const webRoot = fileURLToPath(new URL('..', import.meta.url));          // web/
 const repoRoot = resolve(webRoot, '..');
 const CONTRACT_PATH = resolve(repoRoot, 'schema', 'markdown-subset.json');
 const FIXTURE_PATH = resolve(repoRoot, 'tests', 'fixtures', 'contract', 'md-subset-legal.json');
+const BOUNDARY_PATH = resolve(repoRoot, 'tests', 'fixtures', 'contract', 'md-boundary.json');
 const artifactsDir = resolve(webRoot, 'tests', 'artifacts');
 const NODE = process.execPath;
 const CHROME_BIN = process.env.CHROME_BIN
@@ -231,6 +234,8 @@ const EXCLUDED_SAMPLES = {
   MD_FOOTNOTE: { input: '脚注写法[^1]\n', wantKinds: ['Paragraph'], literal: true },
   MD_HTML: { input: '<br>\n', wantKinds: ['Paragraph'], literal: true },
   MD_STAR_LIST: { input: '* 星号项\n', wantKinds: ['Paragraph'], literal: true },
+  // 2026-10-16 新增（负责人）：块标记「形式不合规」也**统一拒绝**——`-\t甲` 曾两端块类型不同。
+  MD_MARKER_FORM: { input: '-\t甲\n', wantKinds: ['Paragraph'], literal: true },
   // 有意与其余 9 条不同：`- [ ]` 确实以 `- ` 开头 ⇒ `- ` 那条构造照常生效（普通列表项），
   // 但**没有**任务列表语义。Android 的 Markdown.kt 文档里写着同一件事（那正是 MD_TASK_LIST 诊断的理由）。
   MD_TASK_LIST: { input: '- [ ] 待办\n', wantKinds: ['UnorderedList'], literal: false, taskList: true },
@@ -337,21 +342,21 @@ function oracleBlocks(markdown) {
   const flush = () => { if (cur) { blocks.push(cur); cur = null; } };
   for (const line of lines) {
     if (line.trim() === '') { flush(); continue; }
-    const h3 = /^### (.*)$/.exec(line);
+    const h3 = /^### (\S.*)$/.exec(line);
     if (h3) { flush(); blocks.push({ kind: 'Heading3', lines: [stripInline(h3[1])] }); continue; }
-    const ul = /^- (.*)$/.exec(line);
+    const ul = /^- (\S.*)$/.exec(line);
     if (ul) {
       if (!cur || cur.kind !== 'UnorderedList') { flush(); cur = { kind: 'UnorderedList', items: [] }; }
       cur.items.push(stripInline(ul[1]));
       continue;
     }
-    const ol = /^\d+\. (.*)$/.exec(line);
+    const ol = /^\d+\. (\S.*)$/.exec(line);
     if (ol) {
       if (!cur || cur.kind !== 'OrderedList') { flush(); cur = { kind: 'OrderedList', items: [] }; }
       cur.items.push(stripInline(ol[1]));
       continue;
     }
-    const q = /^> (.*)$/.exec(line);
+    const q = /^> (\S.*)$/.exec(line);
     if (q) {
       if (!cur || cur.kind !== 'Quote') { flush(); cur = { kind: 'Quote', lines: [] }; }
       cur.lines.push(stripInline(q[1]));
@@ -530,17 +535,22 @@ function allowedTags() {
   return tags;
 }
 
-/** Android 侧判据的**重写**（照 `Markdown.kt`：`startsWith("### ")` / `startsWith("- ")` / `\d{1,9}\.` + 一个空格 /
- *  `startsWith("> ")`，标题列 `trim()`；**未在本机跑 Android 单测**）。只用于第 5 节的观察打印，不作断言。 */
+/** Android 侧判据的**重写**（照 2026-10-16 收严后的 `Markdown.kt`：行首**恰好一个 ASCII 空格** ＋ 非空白，
+ *  块内文字**逐字保留不 trim**；**未在本机跑 Android 单测** —— 真正的 Android 半边由 `MarkdownTest` 跑，
+ *  这里是在**同一份边界夹具**上的同轮对照）。 */
 function androidJudge(md) {
   const out = [];
   for (const line of String(md).replace(/\r\n?/g, '\n').split('\n')) {
     if (line.trim() === '') continue;
-    if (line.startsWith('### ')) out.push(`Heading3(${JSON.stringify(line.slice(4).trim())})`);
-    else if (line.startsWith('- ')) out.push(`UnorderedList(${JSON.stringify([line.slice(2)])})`);
-    else if (/^\d{1,9}\. /.test(line)) out.push(`OrderedList(${JSON.stringify([/^\d{1,9}\. (.*)$/.exec(line)[1]])})`);
-    else if (line.startsWith('> ')) out.push(`Quote(${JSON.stringify([line.slice(2)])})`);
-    else out.push(`Paragraph(${JSON.stringify([line])})`);
+    const h3 = /^### (\S.*)$/.exec(line);
+    if (h3) { out.push(`Heading3(${JSON.stringify([h3[1]])})`); continue; }
+    const ul = /^- (\S.*)$/.exec(line);
+    if (ul) { out.push(`UnorderedList(${JSON.stringify([ul[1]])})`); continue; }
+    const ol = /^\d{1,9}\. (\S.*)$/.exec(line);
+    if (ol) { out.push(`OrderedList(${JSON.stringify([ol[1]])})`); continue; }
+    const q = /^> (\S.*)$/.exec(line);
+    if (q) { out.push(`Quote(${JSON.stringify([q[1]])})`); continue; }
+    out.push(`Paragraph(${JSON.stringify([line])})`);
   }
   return out.join(' / ');
 }
@@ -754,37 +764,41 @@ async function main() {
     console.log(`    ${code.padEnd(16)} → ${got.blocks.map((b) => b.kind).join('/')} | ${JSON.stringify(got.plain)} | tags=${got.tags.join(',')}`);
   }
 
-  // -------------------------------------------------- 5 观察（**不判红**）
+  // -------------------------------------------------- 5 块标记边界：**判红**（正反例＝三方共用夹具）
   //
-  // 「标记之后是 TAB / 多个空格」这类边缘，契约的文字没写到，而**两端渲染器真的不一样**。
-  // 这里只**如实打印**、不作断言：判红等于替负责人把「谁对」当成已知（反而挡住对齐），写松又等于没牙。
-  // 契约文字写的是字面空格（`行首 - ` / `### ` / `1. `），但**编译器用的是 `\s+`（实测放行）** ⇒
-  // 这类行会进产物，于是两端差异会真的显出来。谁改哪个文件由负责人拍板（本测试不动任何一端）。
-  section('5 观察（不判红）：标记后的空白边缘 —— 编译器放行、两端渲染器判据不同');
-  const EDGE = [
-    ['###\t甲', '### 后是 TAB'],
-    ['-\t甲', '- 后是 TAB'],
-    ['1.\t甲', '1. 后是 TAB'],
-    ['-  甲', '- 后两个空格'],
-    ['### 甲 ', '行尾多一个空格'],
-  ];
-  const rows = [];
-  for (const [input, note] of EDGE) {
-    const got = await evaluate(`window.__mdProbe(${JSON.stringify(`${input}\n`)})`);
-    const web = got.blocks.map((b) => `${b.kind}(${JSON.stringify((b.lines ?? b.items).map((l) => l.map((x) => x.text).join('')).join('\\n'))})`).join(' / ');
-    const verdict = checkMarkdownLine
-      ? (checkMarkdownLine(input) === null ? '放行（闭集内）' : `报错 ${checkMarkdownLine(input).code}`)
-      : '未核（编译器模块不可读）';
-    rows.push({ input, note, 编译器: verdict, Web: web, Android: androidJudge(`${input}\n`) });
+  // 2026-10-16 由负责人收口（此前是「只打印不判红」的观察）：编译器与 Web 用 `\s+`、Android 要字面空格，
+  // 于是 `###\t甲`／`-\t甲` 这类行**编译器放行、两端块类型不同**；`-  甲` 的项文字、`### 甲 ` 的尾空格
+  // 也一处一差 —— 全部是产物**真能到达**的分叉。现在边界写进 `schema/markdown-subset.json` 的 `boundary`，
+  // 三个实现同一套判据，正反例固定在 `tests/fixtures/contract/md-boundary.json`（编译器／Web／Android 都读它）。
+  section('5 块标记边界：正反例逐例对账（Web 真渲染 ＋ Android 判据重写 ＋ 编译器判据；夹具＝三方共用）');
+  check('编译器模块可读（边界的三方对账需要它）', Boolean(classifyLine) && Boolean(checkMarkdownLine),
+    'tools/lib/markdown.mjs 未读入');
+  const boundary = JSON.parse(readFileSync(BOUNDARY_PATH, 'utf8'));
+  const boundaryRows = [];
+  for (const c of boundary.cases) {
+    const want = c.endKind === 'separator' ? [] : [{ kind: c.endKind, text: c.endText }];
+    const got = await evaluate(`window.__mdProbe(${JSON.stringify(`${c.line}\n`)})`);
+    const norm = got.blocks.map((b) => ({
+      kind: b.kind,
+      text: (b.lines ?? b.items).map((l) => l.map((x) => x.text).join('')).join('\n'),
+    }));
+    eq(`边界「${c.id}」Web 真渲染 ${JSON.stringify(c.line)}`, norm, want);
+
+    if (c.endKind === 'separator') {
+      const gj = androidJudge(`${c.line}\n`);
+      check(`边界「${c.id}」Android 判据：空行不成块`, gj === '', gj);
+    } else {
+      const wantAndroid = `${c.endKind}(${JSON.stringify([c.endText])})`;
+      const gotAndroid = androidJudge(`${c.line}\n`);
+      check(`边界「${c.id}」Android 判据 ${JSON.stringify(c.line)}`, gotAndroid === wantAndroid,
+        `actual=${gotAndroid}\n        expected=${wantAndroid}`);
+    }
+
+    const cls = classifyLine ? classifyLine(c.line) : '(模块未读入)';
+    eq(`边界「${c.id}」编译器判据 ${JSON.stringify(c.line)}`, cls, c.compiler);
+    boundaryRows.push({ id: c.id, line: c.line, why: c.why, compiler: cls, web: norm });
   }
-  for (const r of rows) {
-    console.log(`  ${JSON.stringify(r.input).padEnd(12)} 编译器=${r.编译器.padEnd(14)} Web=${r.Web.padEnd(26)} Android(重写判据)=${r.Android}  [${r.note}]`);
-  }
-  console.log('  ↑ 上面 5 行**没有**判红、也**不是** PASS/FAIL 条数；它们是交给负责人拍板的两端差异。' +
-    ' 本测试不改任何一端。');
-  const androidDiffers = rows.filter((r) => r.Web !== r.Android);
-  console.log(`  实测 Web 与 Android(重写判据) 在这 5 行里不同的：`
-    + `${androidDiffers.map((r) => JSON.stringify(r.input)).join('、') || '（无）'}`);
+  console.log(`  边界正反例 ${boundary.cases.length} 例，逐例已判红（三方同一份期望，夹具 ${BOUNDARY_PATH}）。`);
 
   // -------------------------------------------------- 证据
   const evidence = {
@@ -797,7 +811,7 @@ async function main() {
     fixture: { kinds: fixtureGot.blocks.map((b) => b.kind), texts: gotTexts, oracleTexts: oracleTexts(oracle), outerHTML: fixtureGot.outerHTML },
     excludedObserved: Object.fromEntries(Object.entries(hostileObserved).map(([k, v]) => [k, { blocks: v.blocks, tags: v.tags, plain: v.plain }])),
     inline: { plain: inlineGot.plain, blocks: inlineGot.blocks, unclosed: { plain: unclosed.plain, blocks: unclosed.blocks } },
-    whitespaceEdges: rows,
+    boundaryCases: boundaryRows,
   };
   await writeFile(resolve(artifactsDir, 'md-conformance.json'), `${JSON.stringify(evidence, null, 2)}\n`, 'utf8');
   console.log(`\n证据：${resolve(artifactsDir, 'md-conformance.json')}`);

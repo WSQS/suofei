@@ -156,4 +156,61 @@ class MarkdownTest {
         val blocks = dev.sopho.suofei.ui.Markdown.parse("> 第一行\n> 第二行")
         assertEquals(listOf("第一行", "第二行"), (blocks.single() as dev.sopho.suofei.ui.Markdown.Quote).lines)
     }
+
+    /**
+     * **块标记边界的正反例**（与编译器、Web 读**同一份**：`tests/fixtures/contract/md-boundary.json`；
+     * 规则条文见 `schema/markdown-subset.json` 的 `boundary`）。
+     *
+     * 为何要它：2026-10-16 收严之前，`###\t甲`／`-\t甲` 这类行在两端**块类型不同**（一端标题/列表、一端段落），
+     * 而编译器用的是 `\s+` ⇒ **放行**、于是那种行真能到达两端；`-  甲` 的项文字与 `### 甲 ` 的尾空格也一端一差。
+     * 现在三个实现同一套判据（行首恰好一个 ASCII 空格 ＋ 非空白，文字逐字保留不 trim），本测试把那套边界钉住。
+     */
+    @Test
+    fun markerBoundary_cases_matchTheSharedExpectations() {
+        val cases = org.json.JSONObject(
+            TestRepoFiles.read(
+                "tests/fixtures/contract/md-boundary.json",
+                "跨端块标记边界的正反例是三方共用的；读不到即失败（不跳过）。",
+            ),
+        ).getJSONArray("cases")
+        assertTrue("边界夹具不该是空壳", cases.length() >= 20)
+        val wrong = ArrayList<String>()
+        for (i in 0 until cases.length()) {
+            val c = cases.getJSONObject(i)
+            val id = c.getString("id")
+            val line = c.getString("line")
+            val wantKind = c.getString("endKind")
+            val wantText = if (c.isNull("endText")) null else c.getString("endText")
+            val shown = line.replace("\t", "\\t")
+            val blocks = dev.sopho.suofei.ui.Markdown.parse("$line\n")
+            if (wantKind == "separator") {
+                if (blocks.isNotEmpty()) wrong += "$id [$shown]: 空行不该成块，实际 ${blocks.map { it::class.simpleName }}"
+                continue
+            }
+            val got = blocks.singleOrNull()
+            if (got == null) {
+                wrong += "$id [$shown]: 期望恰一个块，实际 ${blocks.size} 个"
+                continue
+            }
+            val text: String? = when (got) {
+                is dev.sopho.suofei.ui.Markdown.Heading3 -> got.text
+                is dev.sopho.suofei.ui.Markdown.Paragraph -> got.lines.singleOrNull()
+                is dev.sopho.suofei.ui.Markdown.UnorderedList -> got.items.singleOrNull()
+                is dev.sopho.suofei.ui.Markdown.OrderedList -> got.items.singleOrNull()
+                is dev.sopho.suofei.ui.Markdown.Quote -> got.lines.singleOrNull()
+                else -> null
+            }
+            if (got::class.simpleName != wantKind) {
+                wrong += "$id [$shown]: 块类型 ${got::class.simpleName} ≠ $wantKind"
+            }
+            if (text != wantText) {
+                wrong += "$id [$shown]: 文字 ${text?.let { "«$it»" }} ≠ ${wantText?.let { "«$it»" }}"
+            }
+        }
+        assertEquals(
+            "块标记边界必须逐例与共用夹具一致（否则两端又会分叉）",
+            emptyList<String>(),
+            wrong,
+        )
+    }
 }

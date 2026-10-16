@@ -2,9 +2,16 @@
   "_comment": "最小 Markdown 闭集 —— **跨端唯一的机器可读范围定义**。人类可读的规范条文在 docs/design/content-contract.md §1.0。两端的范围定义都要与本文件的 constructs[].id 逐项一致：Android 由 MarkdownTest 真读本文件；Web 侧见 tests/。excluded[] 是闭集之外必须报错的写法码（编译器侧，见 §3.1 码表）。⚠ 本文件是权威副本；原型轮 `items/content-format/history/round-2026-10-16-rules-v4/expectations.json`（**该轮 2026-10-16 已归档**）里的同名段落只是**那一稿的快照**。⚠ 2026-10-16 由负责人建立：起因是 Android 单测原先直接读那个原型目录，归档即断。",
   "formatVersion": 2,
   "spec": "docs/design/content-contract.md",
+  "boundary": {
+    "rule": "四个块级标记（`- ` / `1. ` / `### ` / `> `）只在**行首第 0 列**（不允许行首缩进）且标记后是**恰好一个 ASCII 空格（U+0020）**、其后第一个字符**非空白**时成立；块内文字 ＝ 标记之后的余下部分**逐字保留**（**不 trim**）。",
+    "why": "2026-10-16 收严：此前编译器与 Web 用 `\\s+`、Android 要字面空格 ⇒ `###\\t甲`／`-\\t甲`／`1.\\t甲` 在两端**块类型不同**（一面当标题/列表、一面当段落），而 `-  甲` 的项文字与 `### 甲 ` 的尾空格也是一面留一面去 —— 全部是**产物真能到达**的分叉（编译器放行 ⇒ 两端都会收到）。",
+    "nonconforming": "行首缩进、制表符、多个空格、裸标记（`###`／`-`／`>` 后无内容）一律越界 ⇒ 编译期 `MD_MARKER_FORM` 报错（`## ` 节分界同理：恰好一个空格，`##\\t` 不再是分界、落入 `MD_HEADING`）。",
+    "endsMustAgree": "两端渲染器（`web/app/render.js`、`android/app/src/main/java/dev/sopho/suofei/ui/Markdown.kt`）必须与本节**逐字一致**；跨端正反例见 `tests/fixtures/contract/md-boundary.json`（编译器／Web／Android 三方都读它）。"
+  },
   "fixtures": {
     "legalSample": "tests/fixtures/contract/md-subset-legal.json",
     "realPoemSample": "tests/fixtures/contract/real-01-full.json",
+    "boundaryCases": "tests/fixtures/contract/md-boundary.json",
     "legalSources": "tests/fixtures/rules-v4-legal/"
   },
   "constructs": [
@@ -20,12 +27,12 @@
     },
     {
       "id": "ul-dash",
-      "syntax": "行首 `- `（连字符 + 一个空格）",
+      "syntax": "行首 `- `（连字符 + **恰好一个** ASCII 空格，行首无缩进；见 `boundary`）",
       "renders": "无序列表：连续 `- ` 行合成一个列表，每行一个列表项"
     },
     {
       "id": "ol-number",
-      "syntax": "行首 `数字. `（如 `1. `、`2. `）",
+      "syntax": "行首 `数字. `（如 `1. `、`2. `；恰好一个空格，见 `boundary`）",
       "renders": "有序列表：按出现次序编号（源里的数字不决定显示编号）"
     },
     {
@@ -40,17 +47,18 @@
     },
     {
       "id": "h3",
-      "syntax": "行首 `### `（三级标题）",
+      "syntax": "行首 `### `（三级标题；恰好一个空格，见 `boundary`）",
       "renders": "块级小标题：整行成为一个标题块，不与前后段落合并"
     },
     {
       "id": "quote",
-      "syntax": "行首 `> `（引用）",
+      "syntax": "行首 `> `（引用；恰好一个空格，见 `boundary`）",
       "renders": "引用块：连续 `> ` 行合成一个引用块，缩进/左侧竖线区分"
     }
   ],
   "excluded": [
     { "code": "MD_STAR_LIST", "syntax": "行首 `* `（星号列表）" },
+    { "code": "MD_MARKER_FORM", "syntax": "块标记形式不合规：行首缩进，或标记后不是恰好一个空格（制表符／多个空格／裸标记 `###`·`-`·`>` 后无内容）——见 `boundary`" },
     { "code": "MD_TABLE", "syntax": "行首 `|`（表格）" },
     { "code": "MD_IMAGE", "syntax": "`![`（图片）" },
     { "code": "MD_LINK", "syntax": "`](`（行内链接）" },

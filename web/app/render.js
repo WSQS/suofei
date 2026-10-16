@@ -159,10 +159,14 @@ function inlineNodes(text) {
   return nodes;
 }
 
-const RE_H3 = /^###\s+(.*)$/;
-const RE_UL = /^-\s+(.*)$/;
-const RE_OL = /^\d+\.\s+(.*)$/;
-const RE_QUOTE = /^>\s?(.*)$/;
+// 块标记边界（与编译器、Android **同一套**；定义见 schema/markdown-subset.json 的 `boundary`）：
+//   **行首第 0 列** ＋ **恰好一个 ASCII 空格（U+0020）** ＋ 其后**非空白**；
+//   块内文字 ＝ 标记之后的**余下部分逐字保留**（不 trim——两端不得各自去空白）。
+// 不合规的标记形式（制表符／多个空格／行首缩进／裸标记）由**编译期** `MD_MARKER_FORM` 报错，产物里不会出现。
+const RE_H3 = /^### (\S.*)$/;   // 曾为 `\s+`：制表符会被当标题，而 Android 不当 ⇒ 两端分叉（已收严）
+const RE_UL = /^- (\S.*)$/;
+const RE_OL = /^\d+\. (\S.*)$/;
+const RE_QUOTE = /^> (\S.*)$/;  // 曾为 `^>\s?(.*)$`：裸 `>` 会成空引用，而编译器/Android 当段落（已收严）
 
 /**
  * 把一段最小 Markdown 渲染成 DOM（全部以文本节点写入，不解析 HTML）。

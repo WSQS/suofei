@@ -36,7 +36,18 @@ export const MD_CODES = Object.freeze({
   'inline-code': 'MD_INLINE_CODE',
   footnote: 'MD_FOOTNOTE',
   'star-list': 'MD_STAR_LIST',
+  'marker-form': 'MD_MARKER_FORM',
 });
+
+/**
+ * 「看起来是块标记、但形式不合规」的探测（越界 ⇒ 统一拒绝）。
+ *
+ * 闭集内的四个块标记一律要求：**行首第 0 列** ＋ **恰好一个 ASCII 空格（U+0020）** ＋ 其后**非空白**。
+ * 因此下面这些都要报错（而不是静默当段落）：制表符分隔、多个空格、行首缩进、裸标记。
+ * 已经由更早的码覆盖的形式不走这里：`- [ ]`（`MD_TASK_LIST`）、`* `（`MD_STAR_LIST`）、
+ * 行首 `#` 家族（`MD_HEADING`，含 `###` 后不是恰好一个空格）。
+ */
+const MARKER_FORM_NEAR_MISS = /^(?:[ \t]+(?=[-*>#]|\d+\.)|(?:[-*#>]|\d+\.)[ \t])/;
 
 /**
  * 把不可见字符写成可见转义（否则「为什么报错」在终端里看不出来）。首/尾空白也写成转义。
@@ -58,16 +69,20 @@ export function vis(s) {
 export function classifyLine(line) {
   if (/^\s*[-*+]\s+\[[ xX]\]\s/.test(line)) return 'task-list';
   if (/^\s*<\/?[A-Za-z][^>]*>/.test(line)) return 'html';
-  if (/^\s*#{1,6}/.test(line)) return /^###\s+\S/.test(line) ? 'heading-h3' : 'heading-other';
+  if (/^\s*#{1,6}/.test(line)) return /^### \S/.test(line) ? 'heading-h3' : 'heading-other';
   if (/^\s*\|/.test(line)) return 'table';
   if (/!\[/.test(line)) return 'image';
   if (/\]\(/.test(line)) return 'link';
   if (/`/.test(line)) return 'inline-code';
   if (/\[\^/.test(line)) return 'footnote';
   if (/^\s*\*\s+\S/.test(line)) return 'star-list';
-  if (/^\s*-\s+\S/.test(line)) return 'ul';
-  if (/^\s*\d+\.\s+\S/.test(line)) return 'ol';
-  if (/^\s*>\s+\S/.test(line)) return 'quote';
+  // ↓ 闭集内的四个块标记：**行首第 0 列** ＋ **恰好一个 ASCII 空格** ＋ 其后**非空白**（不 trim、不宽容 `\s`）。
+  if (/^### \S/.test(line)) return 'heading-h3';
+  if (/^- \S/.test(line)) return 'ul';
+  if (/^\d+\. \S/.test(line)) return 'ol';
+  if (/^> \S/.test(line)) return 'quote';
+  // ↓ 像标记但形式不合规（制表/多空格/缩进/裸标记）⇒ 越界、统一拒绝（见 MARKER_FORM_NEAR_MISS）。
+  if (MARKER_FORM_NEAR_MISS.test(line)) return 'marker-form';
   if (line.trim() === '') return 'blank';
   return 'text';
 }
@@ -86,6 +101,8 @@ const MD_MESSAGE = {
   MD_FOOTNOTE: (line) => `详情/笔记里出现脚注写法：${JSON.stringify(vis(line))}。最小范围不含脚注；请把注释直接写进正文。`,
   MD_HTML: (line) => `详情/笔记行首出现 HTML 标签：${JSON.stringify(vis(line))}。最小范围不含 HTML（两端都不会执行它）；请删掉标签。`,
   MD_STAR_LIST: (line) => `详情/笔记出现 \`* \` 星号列表项：${JSON.stringify(vis(line))}。闭集只收 \`- \`（现状 Web 会把 \`* \` 当列表、Android 不会 ⇒ 两端不一致）；请改用 \`- \`。`,
+  MD_MARKER_FORM: (line) =>
+    `行首的块标记形式不合规：${JSON.stringify(vis(line))}。闭集只收「**行首第 0 列 ＋ 标记后恰好一个 ASCII 空格 ＋ 其后非空白**」：\`- \`、\`1. \`、\`### \`、\`> \`（制表符、多个空格、行首缩进、裸标记都不收——它们会让两端的块类型对不上）。请改成恰好一个空格，或把开头的空白删掉。`,
   MD_CODE_FENCE: (line) => `正文里出现代码围栏：${JSON.stringify(vis(line))}。① 围栏内不算节分界（所以不会另报未知节）；② 最小范围不含围栏，所以这里报错。若确实要贴代码，请先把围栏加进范围并同步两端渲染。`,
   MD_EMPHASIS_UNCLOSED: (line) =>
     `详情/笔记里出现未闭合的行内强调：${JSON.stringify(vis(line))}。\`**粗体**\` 与 \`*斜体*\` 都必须成对；落单的星号本闭集不当作「字面星号」（闭集不含转义写法）—— 请删掉它，或补上配对的星号。`,
