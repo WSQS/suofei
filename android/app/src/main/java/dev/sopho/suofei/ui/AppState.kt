@@ -157,5 +157,5 @@ class AppState(
      * **不该出现在两端共用的版本信息里**（Android 若要呈现来源，只能放进更新块，而那也尚未采纳）——
      * 所以这一行不再拼「（来源：…）」。
      */
-    fun contentVersionText(): String = loaded?.content?.contentVersion ?: "尚未载入"
+    fun contentVersionText(): String = loaded?.content?.contentVersion ?: CONTENT_VERSION_NOT_LOADED
 }

@@ -1,6 +1,8 @@
 package dev.sopho.suofei
 
 import dev.sopho.suofei.ui.AboutFields
+import dev.sopho.suofei.ui.CONTENT_VERSION_NOT_LOADED
+import dev.sopho.suofei.ui.looksLikeVersionNumber
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -50,6 +52,30 @@ class AboutFieldsTest {
         // 「内容版本」是**收窄后**的标签（原「内容版本与来源」），值里也**不带**「来源：」
         assertTrue("标签应已收成「内容版本」", AboutFields.LABELS.contains("内容版本"))
         assertFalse("不该再有「内容版本与来源」", AboutFields.LABELS.contains("内容版本与来源"))
+    }
+
+    @Test
+    fun onlyTheVersionNumberItselfIsMonospaced_theNotLoadedFallbackIsNot() {
+        // 采纳锚 `about-min`（用户 2026-10-15/16）：值列里**只有版本号本身**走等宽（`.ver`），
+        // 说明文字走常规字（`.v`）。对话侧 2026-10-16 确认：**这条钟也适用于未载入兜底**，
+        // 「尚未载入」是一句说明、不是版本号 ⇒ 必须落常规字（不是「等宽里夹汉字」）。
+        assertTrue("0.1.1 是版本号", looksLikeVersionNumber("0.1.1"))
+        assertTrue("2026.10.16.22 是版本号", looksLikeVersionNumber("2026.10.16.22"))
+        assertFalse("未载入兜底不是版本号（汉字开头）", looksLikeVersionNumber(CONTENT_VERSION_NOT_LOADED))
+        assertEquals("尚未载入", CONTENT_VERSION_NOT_LOADED)
+        // 也钉住源文件层面：值列的样式来自**值本身**，不是调用方写死 mono 参数
+        // —— 否则以后任何非版本号的兜底文案又会被涂成等宽。
+        // ⚠ 这里断言的是**函数签名**（无 `mono` 参数）而不是搜字符串 «mono = true»：
+        //    后者会命中本函数上方那段**注释**里的同一个字样，变成一条永远为假的断言（我自己踩过）。
+        val screens = TestRepoFiles.read(
+            "android/app/src/main/java/dev/sopho/suofei/ui/Screens.kt",
+            "「关于」页在 Screens.kt 里",
+        )
+        assertTrue(
+            "版本行不再接收 mono 参数（样式改由值本身决定）",
+            screens.contains("private fun KeyValueRow(label: String, value: String) {"),
+        )
+        assertTrue("版本行的样式应由 looksLikeVersionNumber(value) 决定", screens.contains("looksLikeVersionNumber(value)"))
     }
 
     @Test

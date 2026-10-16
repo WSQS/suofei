@@ -66,6 +66,20 @@ object AboutFields {
 }
 
 /**
+ * 值是不是**版本号本身** —— **只有它**走等宽（采纳锚 `about-min`：值列里 `.v` 是常规字，只有 `.ver` 是等宽）。
+ *
+ * 判据：**以数字开头**。本项目的版本形如 `0.1.1`／`2026.10.16.22`；
+ * 而**说明文字**（如未载入兜底 [CONTENT_VERSION_NOT_LOADED]）以汉字开头 ⇒ 自动落常规字。
+ * ❓ 为什么由**值本身**判定而不是调用方写死：写死 `mono = true` 时，任何非版本号的兜底文案
+ * 都会被涂成等宽字（2026-10-16 对话侧确认：这条钟也适用于未载入兜底，汉字不作为版本号）。
+ */
+fun looksLikeVersionNumber(value: String): Boolean =
+    value.isNotEmpty() && value.first().isDigit()
+
+/** 内容**尚未载入**时版本值的兜底文案。⚠ 它**不是版本号**（汉字开头）⇒ 按常规字呈现，见 [looksLikeVersionNumber]。 */
+const val CONTENT_VERSION_NOT_LOADED = "尚未载入"
+
+/**
  * 顶部行/详情页里的固定控件文案（原型逐字）：`返回` / `详情` / `笔记`。
  * 笔记入口的记号随展开状态翻（`[+]笔记` ↔ `[−]笔记`）——见 [noteEntryLabel]。
  */

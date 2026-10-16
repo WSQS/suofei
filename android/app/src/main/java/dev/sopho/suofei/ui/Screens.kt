@@ -529,13 +529,11 @@ private fun AboutScreen(state: AppState, onBack: () -> Unit, onCheckUpdate: () -
                 KeyValueRow(
                     label = AboutFields.LABELS[1],
                     value = state.appVersionName,
-                    mono = true,
                 )
                 Spacer(Modifier.height(PoetryTokens.rem(PoetryTokens.ROW_GAP_REM)))
                 KeyValueRow(
                     label = AboutFields.LABELS[2],
                     value = state.contentVersionText(),
-                    mono = true,
                 )
 
                 // ③ Android 额外一块「内容更新」：**上方按钮 ＋ 下方状态文本**，**无框**。
@@ -578,7 +576,7 @@ private fun AboutScreen(state: AppState, onBack: () -> Unit, onCheckUpdate: () -
  * 标签与值都是**一行一条**（不改成两行）。
  */
 @Composable
-private fun KeyValueRow(label: String, value: String, mono: Boolean) {
+private fun KeyValueRow(label: String, value: String) {
     Row(Modifier.fillMaxWidth()) {
         Text(
             label,
@@ -586,7 +584,12 @@ private fun KeyValueRow(label: String, value: String, mono: Boolean) {
             modifier = Modifier.width(PoetryTokens.labelColumnDp().dp),
         )
         Spacer(Modifier.width(PoetryTokens.rem(PoetryTokens.K_GAP_REM)))
-        Text(value, style = if (mono) PoetryTextStyles.aboutMono else PoetryTextStyles.aboutValue)
+        // 采纳锚 `about-min`：值列里**只有版本号本身**用等宽（`.ver`），说明文字用常规字（`.v`）。
+        // ⇒ 样式由**值本身**决定，不是调用方写死 `mono = true`：未载入兜底「尚未载入」是说明文字 ⇒ 常规字。
+        Text(
+            value,
+            style = if (looksLikeVersionNumber(value)) PoetryTextStyles.aboutMono else PoetryTextStyles.aboutValue,
+        )
     }
 }
 
