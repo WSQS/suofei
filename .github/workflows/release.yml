@@ -88,6 +88,18 @@ jobs:
             "$BROWSER" --version || true
           fi
 
+      - name: 装中文字体（**必需**：本项目是中文应用）
+        # 为何必要：CI runner 上没有 CJK 字体时，无头浏览器把汉字量成**很窄/零宽** ⇒
+        # 「超宽行按句读折行」那两条断言的前提（这行比列宽还宽）不成立，产物本身没问题却在 CI 上报红。
+        # 本机有系统字体所以看不出来。这里装上并把「确实有中文字体」变成一个 fail-closed 的前置。
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq fonts-noto-cjk fontconfig
+          fc-cache -f >/dev/null 2>&1 || true
+          fc-list :lang=zh | head -3
+          test -n "$(fc-list :lang=zh)" || { echo "::error::装完仍没有中文字体，汉字宽度相关的断言不可信"; exit 1; }
+
       - name: 解码签名密钥到临时文件
         env:
           KS_B64: ${{ secrets.SUOFEI_KEYSTORE }}

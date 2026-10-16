@@ -1753,6 +1753,37 @@ async function main() {
     return out;
   })()`);
   eq('把视觉折行拼回去 == 原文逐行（折行不删字/不加字）', printedTexts, fixturePoem.stanzas.flat());
+  // ⚠ 先把**前提**本身断言掉（2026-10-16 加）：这两条的成立靠「那行比列宽还宽」。
+  //   CI runner 上曾因为没有中文字体、汉字被量成很窄 ⇒ 整行装得下、根本没折 ⇒ 报出来的却是
+  //   「pieces.length > 1 失败」，看了半天才知道是字体。现在把前提显式量出来（canvas 用同一 font 字符串），
+  //   不成立就带着数位报红——**不是跳过、也没有放松结论断言**。
+  const foldPremise = await evaluate(`(() => {
+    const lineEls = [...document.querySelectorAll('[data-test="poem-line"]')]
+      .filter(e => e.dataset.printedLine === '3');
+    // 用**渲染出来的那些片段拼回去**的那条印刷行（与上面「拼回去 == 原文」逐字一致），
+    // 而不是去索引夹具数组——省得索引错位时量到别的短行（我自己先踩了一次）。
+    const printed = lineEls.map((e) => e.textContent).join('');
+    // 用**真实 DOM 探针**量（不用 canvas：computed font 里包含 line-height，canvas.font 会
+    // **静默拒收**那个值、退回默认 10px —— 我自己先踩了一次：量出 238px，正好是「45 字 × 10px 字宽」。）
+    const cs = getComputedStyle(lineEls[0]);
+    const probe = document.createElement('span');
+    probe.textContent = printed;
+    probe.style.position = 'absolute';
+    probe.style.visibility = 'hidden';
+    probe.style.whiteSpace = 'nowrap';
+    probe.style.fontFamily = cs.fontFamily;
+    probe.style.fontSize = cs.fontSize;
+    probe.style.fontWeight = cs.fontWeight;
+    probe.style.fontStyle = cs.fontStyle;
+    probe.style.letterSpacing = cs.letterSpacing;
+    document.body.append(probe);
+    const textWidth = probe.getBoundingClientRect().width;
+    probe.remove();
+    const avail = document.querySelector('[data-test="poem-body"]').clientWidth;
+    return { chars: printed.length, textWidth, avail, fontSize: cs.fontSize, fontFamily: cs.fontFamily };
+  })()`);
+  check('前提：那行印刷行的实测宽度真的超过列宽（否则折行断言毫无意义）',
+    foldPremise.textWidth > foldPremise.avail, dump(foldPremise));
   const foldInfo = await evaluate(`(() => {
     const pieces = [...document.querySelectorAll('[data-test="poem-line"]')]
       .filter(e => e.dataset.printedLine === '3')
