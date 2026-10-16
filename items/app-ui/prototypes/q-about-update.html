@@ -1,0 +1,991 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="tech"
+      data-token-blob="e395a54b6eec32f98ffd48822584401e085eb1a8"
+      data-head-sha="b8631f1"
+      data-deduct="24" data-pct="88" data-floor="320" data-cap="viewport"
+      data-fixture="short" data-state="idle">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>「关于页 · Android 更新块」讨论原型 · 信息层级 ＋ 动作与反馈怎么组织 —— 材料，不是实施</title>
+<style>
+/* ============================================================================
+ * 令牌快照（**内嵌副本，不是新权威**）
+ *   来源：prototype/css/theme-tech.css（**只读**，本轮未改）
+ *   依据文件的 blob：e395a54b6eec32f98ffd48822584401e085eb1a8（git hash-object）
+ *   记录时的 HEAD：b8631f1（git rev-parse --short HEAD）
+ *   权威仍是 docs/design/visual-tokens.md（§2 颜色 / §3 排版 / §4 间距与形状 / §4.1 结构记号）。
+ *   这里只为「单文件自包含」复制一份快照：值逐字照抄、未做微调；**只列本页实际用到的令牌**。
+ *   ⚠ 本轮**不用** --measure（660px）：宽度用**已选口径**，上界＝视口宽 V，不设 660／860 上限。
+ * ========================================================================== */
+/* == TOKEN-SNAPSHOT-BEGIN == */
+:root {
+  --bg: #0e1315;
+  --bg-pattern: linear-gradient(to right, rgba(255, 255, 255, 0.028) 1px, transparent 1px), linear-gradient(to bottom, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+  --surface: #141b1e;
+  --surface-hover: #182124;
+  --surface-sunken: #111719;
+  --text: #dde5e4;
+  --text-dim: #98a8a6;
+  --text-faint: #788a88;
+  --line: #233034;
+  --line-strong: #35494d;
+  --accent-soft: rgba(79, 179, 165, 0.1);
+  --accent-line: rgba(79, 179, 165, 0.38);
+  --accent-text: #7fd4c6;
+  --warn-soft: rgba(201, 162, 74, 0.08);
+  --warn-text: #dcc078;
+  --line-warn: rgba(201, 162, 74, 0.34);
+  --test-line: rgba(79, 179, 165, 0.36);
+  --test-soft: rgba(79, 179, 165, 0.07);
+  --test-text: #7fd4c6;
+  --radius: 4px;
+  --radius-s: 3px;
+  --shadow: none;
+  --row-transition: border-color 0.15s ease, background 0.15s ease;
+  --font-body: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-mono: 'Consolas', 'SFMono-Regular', ui-monospace, monospace;
+  --font-size: 15px;
+  --lh: 1.75;
+  --ls: 0.005em;
+  --title-size: 1.5rem;
+  --title-weight: 500;
+  --brand-ls: 0.3em;
+  --gname-ls: 0.16em;
+}
+/* == TOKEN-SNAPSHOT-END == */
+
+/* ============================================================================
+ * 草案值 / 已选值（**都不在** docs/design/visual-tokens.md 里 —— 规范没有这些条目）
+ *   ⇒ 它们**不是**规范值。分三类标注：
+ *      [已定]   已定/已选的口径（本轮照做，不重新提问）
+ *      [草案]   本轮为「这一块怎么排」临时取的数（字号/间距/列宽）
+ *      [写回]   页面脚本量完后写回的运行时值（这里给默认值，只为不出现「用了却没声明」）
+ * ========================================================================== */
+/* == DRAFT-VALUES-BEGIN == */
+:root {
+  --edge-x: 1.05rem;        /* [已定·沿用] 行内沿（内容列**内部**那一层的内边距）＝16.8px */
+  --col-top: 1.25rem;       /* [草案] 块顶部留白 */
+  --col-bottom: 1rem;       /* [草案] 块底部留白 */
+  --row-gap: 0.5rem;        /* [草案] 同组内两行之间 */
+  --sec-gap: 0.9rem;        /* [草案] 两块之间（版本组 / 更新块 / 仓库） */
+  --kcol: 5.2em;            /* [草案] 「一行一条」里 label 列的固定宽（右对齐 ⇒ 冒号对齐、值左沿对齐） */
+  --k-gap: 0.5rem;          /* [草案] label 列 → 值 之间的固定缝 */
+  --grp-size: 0.8rem;       /* [草案] 小标题（当前状态／动作／上一次结果）—— 字距用规范的 --gname-ls */
+  --label-size: 0.82rem;    /* [草案] label（应用版本：／步骤名） */
+  --value-size: 0.88rem;    /* [草案] 值（0.1.1） */
+  --mono-size: 0.86rem;     /* [草案] 仓库链接（等宽） */
+  --ctl-size: 0.82rem;      /* [草案] 控件（检查更新） */
+  --ctl-ls: 0.06em;         /* [草案] 控件字距 */
+  --status-size: 0.82rem;   /* [草案] 状态行 */
+  --upd-pad: 0.8rem;        /* [草案] 更新块内边距 */
+  --zone-gap: 0.6rem;       /* [草案] 分区之间的间距 */
+  --proto-pad: 12px;        /* [草案] 原型脚手架（说明／标注）的左右内边距，不是应用页面的值 */
+  --cw: 100%;               /* [写回] 本块在本视口下的**内容宽 C**（公式算出的 px 值） */
+  --col-l: 0px;             /* [写回] 内容列左沿（原型标注用） */
+  --col-r: 0px;             /* [写回] 内容列右沿（原型标注用） */
+}
+/* == DRAFT-VALUES-END == */
+
+/* ── 底：颜色与字体只用令牌 ─────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background-color: var(--bg);
+  background-image: var(--bg-pattern);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--font-size);
+  line-height: var(--lh);
+  letter-spacing: var(--ls);
+}
+a { color: var(--accent-text); }
+:focus-visible { outline: 1px solid var(--test-line); outline-offset: 2px; }
+button { font: inherit; }
+
+/* ── 原型脚手架（**不是**被评审的那一层）───────────────────────── */
+.phead { padding: 1.4rem var(--proto-pad) 0; overflow-wrap: anywhere; }
+.phead .ptag {
+  display: inline-block; margin: 0 0 0.9rem; padding: 0.25rem 0.6rem;
+  border: 1px dashed var(--test-line); background: var(--test-soft); color: var(--test-text);
+  border-radius: var(--radius-s); font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.08em;
+}
+.phead h1 { font-size: 1.02rem; font-weight: 500; letter-spacing: 0.05em; margin: 0 0 0.8rem; line-height: 1.6; }
+.phead h2 { font-size: 0.92rem; font-weight: 500; color: var(--text); margin: 1.1rem 0 0.4rem; letter-spacing: 0.04em; }
+.phead p, .phead li { color: var(--text-dim); margin: 0.45rem 0; }
+.phead b { color: var(--text); font-weight: 500; }
+.phead code {
+  font-family: var(--font-mono); font-size: 0.85em; color: var(--text);
+  border: 1px solid var(--line); border-radius: var(--radius-s); padding: 0 0.25rem;
+}
+.pok { border-left: 2px solid var(--test-line); background: var(--test-soft); color: var(--text); padding: 0.6rem 0.8rem; border-radius: var(--radius-s); }
+.pwarn { border-left: 2px solid var(--line-warn); background: var(--warn-soft); color: var(--warn-text); padding: 0.5rem 0.7rem; border-radius: var(--radius-s); }
+.pwarn b { color: var(--warn-text); }
+.pfix {
+  border: 1px dashed var(--test-line); background: var(--test-soft); color: var(--test-text);
+  border-radius: var(--radius-s); padding: 0.55rem 0.7rem; margin: 0.7rem 0;
+  font-family: var(--font-mono); font-size: 0.76rem; line-height: 1.65; letter-spacing: 0.02em;
+}
+.pfix button {
+  font-family: var(--font-mono); font-size: 0.76rem; margin: 0.25rem 0.3rem 0 0; padding: 0.22rem 0.5rem;
+  color: var(--test-text); background: var(--test-soft);
+  border: 1px solid var(--test-line); border-radius: var(--radius-s); cursor: pointer;
+}
+.pfix button[aria-pressed="true"] { color: var(--bg); background: var(--test-text); }
+table.fx { border-collapse: collapse; margin: 0.5rem 0; font-family: var(--font-mono); font-size: 0.74rem; }
+table.fx th, table.fx td { border: 1px solid var(--line); padding: 0.25rem 0.45rem; text-align: left; color: var(--text-dim); vertical-align: top; }
+table.fx th { color: var(--text); font-weight: 500; }
+table.fx td.r { color: var(--text); }
+
+/* 块区（截图范围）。⚠ 容器**不带左右内边距**：里面的 .pg 是「满视口宽」的块，
+ *   容器一旦有左右 padding，内容列就会越出视口（上一轮真踩过的坑）。文字元素自己带 padding。 */
+.deck { margin-top: 1.2rem; }
+.imgban {
+  display: block;
+  background: var(--test-soft); border: 1px dashed var(--test-line); color: var(--test-text);
+  border-radius: var(--radius-s); font-family: var(--font-mono); font-size: 0.74rem; line-height: 1.65;
+  letter-spacing: 0.03em; padding: 0.6rem 0.7rem; margin: 0 var(--proto-pad) 0.9rem; overflow-wrap: anywhere;
+}
+.ghead2 {
+  font-family: var(--font-mono); font-size: 0.78rem; line-height: 1.55; letter-spacing: 0.03em;
+  color: var(--warn-text); padding: 0.8rem var(--proto-pad) 0.1rem; margin: 0; overflow-wrap: anywhere;
+}
+.gdesc { font-family: var(--font-mono); font-size: 0.75rem; line-height: 1.6; letter-spacing: 0.02em; color: var(--text-dim); padding: 0 var(--proto-pad); margin: 0; overflow-wrap: anywhere; }
+.demo {
+  border-top: 1px dashed var(--test-line); border-bottom: 1px dashed var(--test-line);
+  padding: 0.55rem 0 0.65rem; margin: 0 0 0.85rem; overflow-wrap: anywhere;
+}
+.dhead { font-family: var(--font-mono); font-size: 0.75rem; line-height: 1.5; letter-spacing: 0.03em; color: var(--test-text); padding: 0 var(--proto-pad); margin-bottom: 0.25rem; }
+.dhead .dname { display: inline-block; padding: 0.12rem 0.45rem; border: 1px solid var(--test-line); background: var(--test-soft); color: var(--test-text); border-radius: var(--radius-s); font-size: 0.74rem; letter-spacing: 0.05em; }
+.dhead .dplat { display: inline-block; margin-left: 0.35rem; padding: 0.12rem 0.45rem; border: 1px solid var(--line-warn); background: var(--warn-soft); color: var(--warn-text); border-radius: var(--radius-s); font-size: 0.72rem; letter-spacing: 0.05em; }
+.dhead .dplat.real { border-color: var(--test-line); background: var(--test-soft); color: var(--test-text); }
+.dhead .dplat.fixture { border-color: var(--line-warn); background: var(--warn-soft); color: var(--warn-text); }
+.dhead .dknob { display: block; margin-top: 0.2rem; color: var(--text-dim); }
+.cap { font-family: var(--font-mono); font-size: 0.72rem; line-height: 1.55; letter-spacing: 0.01em; color: var(--text-dim); padding: 0 var(--proto-pad); margin: 0.3rem 0 0; overflow-wrap: anywhere; }
+.cap b { color: var(--text); font-weight: 500; }
+
+/* ── 应用页面（被评审的那一层）──────────────────────────────────
+ * 结构（A3，用户已定）：应用名当页标题 → 版本相邻组（**没有来源行**）→ 更新块 → 仓库链接置底
+ *   内容宽用**已选口径**：C = min(V, max(320, 0.88 × (V − 24)))
+ *   ⚠ 「24」是**一次性从视口宽扣掉的总量**（只用来得到基准 A），**不是**左右各 12px 的外层页边。
+ */
+.pg { position: relative; background: transparent; }
+.col {
+  width: var(--cw); margin-inline: auto;
+  padding-top: var(--col-top); padding-bottom: var(--col-bottom);
+  display: flex; flex-direction: column;
+}
+.guide { position: absolute; top: 0; bottom: 0; width: 0; pointer-events: none; }
+.guide.c-l { left: var(--col-l); border-left: 1px dashed var(--test-line); }
+.guide.c-r { left: calc(var(--col-r) - 1px); border-left: 1px dashed var(--test-line); }
+
+.brand {
+  margin: 0 0 var(--sec-gap); padding: 0 var(--edge-x);
+  font-size: var(--title-size); font-weight: var(--title-weight); letter-spacing: var(--brand-ls);
+  color: var(--text);
+}
+.pair { display: block; }
+.kv { display: flex; align-items: baseline; padding: 0 var(--edge-x); }
+.kv + .kv { margin-top: var(--row-gap); }
+.kv > .k { flex: 0 0 var(--kcol); text-align: right; color: var(--text-dim); font-size: var(--label-size); letter-spacing: 0.02em; }
+.kv > .v { margin-left: var(--k-gap); font-size: var(--value-size); color: var(--text); overflow-wrap: anywhere; }
+.kv > .v > .ver { font-family: var(--font-mono); font-size: var(--mono-size); }
+.repoSpacer { margin-top: var(--sec-gap); }
+.repo {
+  font-family: var(--font-mono); font-size: var(--mono-size); letter-spacing: 0.01em;
+  color: var(--accent-text); text-decoration: none;
+  border-bottom: 1px solid transparent; transition: var(--row-transition);
+}
+.repo:hover { border-bottom-color: var(--accent-line); background-color: var(--surface-hover); }
+
+/* ── 更新块（本轮被讨论的那一块）──────────────────────────────── */
+.upd {
+  margin-top: var(--sec-gap); padding: var(--upd-pad);
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+/* U1 单行式：一行里左边状态、右端按钮 */
+.u1row { display: flex; align-items: baseline; gap: 0.8rem; }
+.u1row > .status { flex: 1 1 auto; margin: 0; }
+.u1act { flex: 0 0 auto; }
+/* 状态句 */
+.status {
+  margin: 0; padding: 0.55rem 0.7rem;
+  background: var(--surface-sunken); border: 1px solid var(--line); border-radius: var(--radius-s);
+  font-size: var(--status-size); color: var(--text-dim); overflow-wrap: anywhere;
+}
+.status.is-warn { background: var(--warn-soft); border-color: var(--line-warn); color: var(--warn-text); }
+.status .ver { font-family: var(--font-mono); }
+/* 动作行（U2/U3/U4/U5）*/
+.actrow { display: flex; align-items: baseline; gap: 0.5rem; margin-top: var(--row-gap); flex-wrap: wrap; }
+.actrow > .lastcheck { margin-left: auto; }
+/* 动作按钮 */
+.ctl {
+  font-size: var(--ctl-size); letter-spacing: var(--ctl-ls);
+  padding: 0.3rem 0.7rem; color: var(--accent-text);
+  background: var(--accent-soft); border: 1px solid var(--accent-line); border-radius: var(--radius-s);
+  cursor: pointer; transition: var(--row-transition);
+}
+.ctl:hover { background-color: var(--surface-hover); }
+.ctl[disabled] { color: var(--text-faint); background: transparent; border-color: var(--line); cursor: default; }
+.ctl.todo { color: var(--warn-text); background: var(--warn-soft); border-color: var(--line-warn); }
+/* 「上次检查／上次结果」尾注 */
+.lastcheck { margin: 0; font-family: var(--font-mono); font-size: 0.74rem; letter-spacing: 0.01em; color: var(--text-faint); overflow-wrap: anywhere; }
+/* U3 折叠式：默认只有一行摘要（一个 <button type=button>，不用 details 元素）*/
+.foldhead {
+  display: flex; align-items: baseline; gap: 0.5rem; width: 100%; text-align: left;
+  padding: 0.4rem 0.55rem; cursor: pointer;
+  background: var(--surface-sunken); border: 1px solid var(--line); border-radius: var(--radius-s);
+  color: var(--text); transition: var(--row-transition);
+}
+.foldhead:hover { background-color: var(--surface-hover); }
+.foldlabel { font-size: var(--grp-size); letter-spacing: var(--gname-ls); color: var(--text-dim); }
+.foldstate { font-size: var(--status-size); color: var(--text); }
+.foldchev { margin-left: auto; font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-faint); }
+.foldpanel { margin-top: var(--row-gap); }
+/* U4 步骤式 */
+.upd-title { margin: 0 0 var(--row-gap); font-size: var(--grp-size); letter-spacing: var(--gname-ls); color: var(--text-dim); }
+.upd-title + .status { margin-bottom: var(--row-gap); }
+.steps { display: block; }
+.step { display: flex; align-items: baseline; padding: 0 0; }
+.step + .step { margin-top: 0.25rem; }
+.step > .sk { flex: 0 0 var(--kcol); text-align: right; color: var(--text-dim); font-size: var(--label-size); }
+.step > .sv { margin-left: var(--k-gap); font-size: var(--status-size); color: var(--text-dim); overflow-wrap: anywhere; }
+.step[data-do="doing"] > .sk { color: var(--accent-text); }
+.step[data-do="doing"] > .sv { color: var(--text); }
+.step[data-do="done"] > .sv { color: var(--text); }
+.step[data-do="todo"] > .sk, .step[data-do="todo"] > .sv { color: var(--text-faint); }
+.steps + .lastcheck { margin-top: var(--row-gap); }
+/* U5 分区式 */
+.zone { display: block; }
+.zone + .zone { margin-top: var(--zone-gap); padding-top: var(--zone-gap); border-top: 1px solid var(--line-strong); }
+.ztitle {
+  margin: 0 0 0.35rem; padding-left: 0.5rem;
+  border-left: 2px solid var(--accent-line);   /* 沿用规范 §4.1 那条发丝竖线记号 */
+  font-size: var(--grp-size); letter-spacing: var(--gname-ls); color: var(--text-dim);
+}
+.zone[data-zone="last"] .lastcheck + .lastcheck { margin-top: 0.25rem; }
+/* 原型标注（**在块内**，所以必须自己声明「不属于应用页面」）*/
+.marks { display: block; }
+.runmark, .unmark {
+  display: block; margin-top: 0.35rem; padding: 0.2rem 0.4rem;
+  border: 1px dashed var(--test-line); background: var(--test-soft); color: var(--test-text);
+  border-radius: var(--radius-s); font-family: var(--font-mono); font-size: 0.7rem; line-height: 1.6;
+  letter-spacing: 0.02em; overflow-wrap: anywhere;
+}
+.unmark { border-color: var(--line-warn); background: var(--warn-soft); color: var(--warn-text); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="phead">
+    <p class="ptag">讨论原型 · 不是产品实施 · 不是发布 · 不是整页规格</p>
+    <h1>「关于页」里 <b>Android 更新块</b>的讨论原型 —— 只回答「这一块的信息层级 ＋ 动作与反馈怎么组织」（候选 <b>并列、不排序、不写推荐</b>）</h1>
+
+    <p class="pok">✓ <b>本页遵守的已定项（不重问、不改）</b>：<br>
+      ① <b>共用版本信息里不要「来源」</b>（「内容来源：已下载」不该出现在两端共用的版本信息里）；<b>Web 不显示来源</b>；<b>Android 若要呈现来源，只能放进更新块</b>，且<b>绝不因为 Android 需要就让 Web 多一行</b>；<br>
+      ② <b>结构＝A3</b>：<b>应用名当页标题 → 版本相邻组 → 更新块 → 仓库链接置底</b>，<b>不附带 A3 里那条来源行</b>；<br>
+      ③ <b>B 组不再强求选</b>（去掉来源后几案近似）⇒ 本页<b>不把任何一档当作已获准</b>（尤其不把 B2 当已准）；<br>
+      ④ <b>仓库链接＝C1 完整 URL</b>，<b>不给</b>「会打开浏览器」的提示；<br>
+      ⑤ D 组（上一轮那 4 块）用户未采纳 ⇒ 本轮<b>不是挪按钮位置或改状态字句</b>，而是给出<b>整体组织上的差异候选</b>；<br>
+      ⑥ 继承：<b>宽度口径</b> <code>C = min(V, max(320, 0.88 × (V − 24)))</code>（<b>24 是一次性扣除总量</b>，不是左右各 12px）；<b>静默终端令牌</b>；<b>这一页只做内容更新，不做 APK 更新</b>。</p>
+
+    <p class="pwarn">⚠ <b>页面里的数字都是「当前值」，不是页面文案定稿</b>：应用版本 <code>0.1.1</code>、内容版本 <code>2026.10.16.20</code>、仓库 <code>https://github.com/WSQS/suofei</code>。
+      状态句里的版本号／字节数／时间都是<b>运行时值</b>（<code>⟨…⟩</code> 是运行时占位），块内也用虚线小标标出这一点。</p>
+
+    <p><b>宽度用已选口径</b>：<code>C = min(V, max(320, 0.88 × (V − 24)))</code>，<code>V</code>＝视口宽、<code>V−24</code>＝基准 A、上界＝视口 V（<b>不夹</b> 660／860）。
+      ⚠ <code>24</code> 是<b>一次性从视口宽扣掉的总量</b>，<b>不是</b>左右各 12px 的外层页边 ⇒ <b>列外余白＝(V−C)/2</b>（320 上恰为 0），行内沿 <code>1.05rem</code>＝16.8px 是<b>列内</b>的一层、照旧存在。</p>
+
+    <h2>本页只探索两件事</h2>
+    <ul>
+      <li><b>A. 信息层级与动作／反馈的组织</b>：<b>U 组</b>＝五档<b>整体组织方式</b>（不是挪位置），每档是一个完整的更新块。</li>
+      <li><b>B. 状态与动作的真实映射</b>：<b>S 组</b>＝同一档组织（U2 两行式，只作<b>参考档</b>）在 <b>11 个状态</b>下的样子；U 组那五档在每个状态下的状态区也由自检脚本逐条量过并逐字打印（见 <code>q-about-update.md</code> §4）。</li>
+    </ul>
+
+    <h2>状态清单与真实性（只读核代码得出，不猜）</h2>
+    <p>真实状态集合＝<code>android/app/src/main/java/dev/sopho/suofei/ui/AppState.kt</code> 的 <code>sealed interface UpdateStatus</code>（Idle／Checking／UpToDate／Activated／Failed／Error）＋ 文案函数 <code>ui/UpdateStatusText.kt</code>。
+      ⚠ <code>UpdateStatus.Error</code> <b>在生产代码里从未被构造</b>（<code>android/README.md</code> 明说，只有前五个会被设置）⇒ 本页<b>不</b>把它当成一个可选状态来画。</p>
+    <table class="fx">
+      <thead><tr><th>#</th><th>状态（本页画的）</th><th>真实性</th><th>依据／代价</th></tr></thead>
+      <tbody data-test="veracity-table"></tbody>
+    </table>
+    <p>「有 11 个状态」不等于「有 11 个协议状态」：其中 <b>5 条真实</b>，其余是<b>原型在表达未批准的功能</b> —— 每格块内都有虚线小标写明。</p>
+
+    <h2>原型控件（在截图范围之外，不属于应用页面）</h2>
+    <div class="pfix" data-test="state-panel">
+      <b>状态选择器（原型夹具，不属于应用页面）</b>：点一个状态 ⇒ <b>U 组五档</b>同时换成那个状态（用来比较「同一状态、五种组织」）。
+      S 组那 11 块<b>固定</b>各自的状态，不受它影响。<br>
+      <span data-test="state-buttons"></span>
+    </div>
+    <div class="pfix" data-test="fixture-panel">
+      <b>最长如实报错夹具（不属于应用页面）</b>：把所有块的状态句换成<b>最长的如实报错</b>（数字用 <code>⟨…⟩</code> 运行时占位），用来检查<b>最坏情况下的横向溢出</b>。
+      <b>这不是我给页面加了一个功能。</b><br>
+      <button type="button" data-test="fixture-toggle" aria-pressed="false">切到「最长如实报错」夹具</button>
+    </div>
+
+    <h2>怎么读图</h2>
+    <p>块区（虚线框内）就是截图范围：<b>U 组</b>每块＝一个满视口宽的「屏幕」（宽＝视口宽、左沿 0），<b>S 组</b>每块＝同一个状态在参考档下的样子。
+      青色的字与虚线、<b>块内的虚线小标</b>、以及各档的标题与数字行，<b>都不属于应用页面</b>。</p>
+    <p>实测数字见同目录 <code>q-about-update.md</code>；行为由 <code>check-about-update.mjs</code> 可复跑自证（失败断言 0）。</p>
+  </div>
+
+  <div class="deck" data-shotframe="U" data-test="shotframe-u">
+    <div class="imgban" data-test="imgban">
+      <b>原型说明 ／ 夹具标注，不属于应用页面。</b>本图＝本讨论原型在<b>一个</b>真实视口宽（<span data-test="shotinfo">…</span>）下的截图 —— <b>U 组：更新块的五档整体组织方式</b>，按真实 CSS px @DPR 2 拍摄，<b>没有</b>把不同宽度拼成缩放对照图，也<b>没有</b>缩放拼图（S 组另有一张同视口宽的图）。<br>
+      图中青色／黄色文字与虚线、每档上方的标题与实测数字行、<b>块内的虚线小标</b>（运行时值／未批准功能）都是<b>原型的说明与标注</b>；
+      应用版本 <code>0.1.1</code>、内容版本 <code>2026.10.16.20</code>、仓库地址是<b>当前值</b>，<b>不是页面文案定稿</b>；状态句里的版本号／字节数／时间是<b>运行时值</b>。<br>
+      本图是<b>候选并列（不排序、不写推荐）</b>的材料：<b>选其中某一块 ≠ 采纳整页规格</b>，也<b>不决定</b> JSON／MD 分界与产物字段。<b>不是产品实施、不是发布。</b>
+    </div>
+
+    <div class="ghead2">U 组 · 更新块的五档<b>整体组织方式</b>（结构、版本相邻组、仓库链接三件事在五档里固定不动；只改这一块怎么组织）</div>
+    <p class="gdesc">固定不动：应用名＝<code>索斐</code>（页标题）／版本相邻组＝「一行一条」的应用版本＋内容版本（<b>无来源行、无小标题</b>）／更新块的位置＝版本组与仓库链接之间／仓库链接＝<b>完整 URL</b> 且置底。图中五档的状态都＝<b>尚未检查</b>（用上面的状态选择器可以把它们同时换成别的状态）。</p>
+    <div data-test="rack-U"></div>
+  </div>
+
+  <div class="deck" data-shotframe="S" data-test="shotframe-s">
+    <div class="imgban" data-test="imgban">
+      <b>原型说明 ／ 夹具标注，不属于应用页面。</b>本图＝本讨论原型在<b>同一个</b>真实视口宽（<span data-test="shotinfo">…</span>）下的截图 —— <b>S 组：11 个状态 × 固定组织（U2 两行式）</b>，按真实 CSS px @DPR 2 拍摄，<b>没有</b>缩放拼图。<br>
+      图中青色／黄色文字与虚线、每块上方的标题／真实性标签与实测数字行、<b>块内的虚线小标</b>都是<b>原型的说明与标注</b>；状态句里的版本号／字节数／时间是<b>运行时值</b>；带「未批准功能的原型表达」标签的格子<b>不是现状</b>，而是本页在表达一个尚未批准的功能。<br>
+      <b>选其中某一块 ≠ 采纳整页规格</b>；本图也<b>不决定</b> JSON／MD 分界与产物字段。<b>不是产品实施、不是发布。</b>
+    </div>
+
+    <div class="ghead2">S 组 · 状态与动作的真实映射（组织固定＝<b>U2 两行式</b>；只换状态这一件事）</div>
+    <p class="gdesc">为什么固定用 U2：它的状态句独占一整行 ⇒ <b>逐字文案与折行数在不同状态之间可直接比较</b>（这只是量测方便，不是推荐这一档）。每块上方的标签写明该状态的<b>真实性</b>。</p>
+    <div data-test="rack-S"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── 已选宽度口径（页面这一侧的实现；自检脚本会**独立**再实现一遍，两边必须逐档一致）──
+   *   A = V − 24 ； C = min(V, max(320, 0.88 × A)) ； 上界＝视口宽 V（不夹 660／860）。
+   *   ⚠ 24 是「从视口宽一次性扣除的总量」，不是左右各 12px 的外层页边。 */
+  var DEDUCT = 24, PCT = 88, FLOOR = 320;
+  function cwFor(V) { return Math.min(V, Math.max(FLOOR, (PCT / 100) * (V - DEDUCT))); }
+
+  /* ── 页面里的值：**当前值**，不是文案定稿 ───────────────────────────── */
+  var APP = {
+    name: '索斐',
+    appVersion: '0.1.1',
+    contentVersion: '2026.10.16.20',
+    repoFull: 'https://github.com/WSQS/suofei'
+  };
+  var VER = APP.contentVersion;
+
+  /* ── 状态清单 ────────────────────────────────────────────────────────
+   * veracity：'real' ＝ 协议里真有；'unapproved' ＝ 原型在表达**未批准的功能**。
+   * parts：状态句的「文字段 ＋ 运行时值段」（运行时值渲染成独立 <span data-test="verval">）。
+   * short：U3 摘要行右端那半句。
+   * steps：U4 四步（检查／下载／校验／切换）各自的结果；do：done／doing／todo。 */
+  var STATES = [
+    { key: 'idle', name: '尚未检查', veracity: 'real', by: 'UpdateStatus.Idle', badge: '真实状态',
+      real: true, where: '文案原文＝「尚未检查。」', parts: [['t', '尚未检查。']], short: '尚未检查',
+      steps: [['—', 'todo'], ['—', 'todo'], ['—', 'todo'], ['—', 'todo']], stepAt: -1, warn: false },
+    { key: 'checking', name: '检查中', veracity: 'real', by: 'UpdateStatus.Checking', badge: '真实状态',
+      real: true, where: '文案原文＝「正在检查…」；这一态覆盖 检查＋下载＋校验＋切换 全过程（见下）',
+      parts: [['t', '正在检查…']], short: '检查中',
+      steps: [['进行中…', 'doing'], ['—', 'todo'], ['—', 'todo'], ['—', 'todo']], stepAt: 0, warn: false },
+    { key: 'uptodate', name: '已是最新（带远端内容版本）', veracity: 'real', by: 'UpdateStatus.UpToDate(remoteVersion)', badge: '真实状态',
+      real: true, where: '文案原文＝「已是最新内容（远端 {ver}）。」',
+      parts: [['t', '已是最新内容（远端 '], ['v', VER], ['t', '）。']], short: '已是最新',
+      steps: [['已是最新（远端 ' + VER + '）', 'done'], ['—', 'todo'], ['—', 'todo'], ['—', 'todo']], stepAt: 0, warn: false },
+    { key: 'available', name: '有新内容可用', veracity: 'unapproved', by: '—', badge: '未批准功能的原型表达',
+      real: false, where: '协议里没有这个状态：checkAndUpdate 发现远端更新后直接进下载，中间不留「已发现、待下载」的一态',
+      parts: [['t', '有新内容可用（远端 '], ['v', VER], ['t', '），尚未下载。']], short: '有新内容可用',
+      steps: [['已发现远端 ' + VER, 'done'], ['未开始', 'todo'], ['—', 'todo'], ['—', 'todo']], stepAt: 0, warn: false },
+    { key: 'downloading', name: '下载中（含进度与已收字节）', veracity: 'unapproved', by: '—', badge: '未批准功能的原型表达',
+      real: false, where: '实现里 ContentUpdater 有 onProgress(downloaded,total) 形参，但 AppState.checkForUpdate 没接（用默认空回调）⇒ UI 从不显示进度；UpdateStatus 里也没有下载态',
+      parts: [['t', '正在下载新内容 '], ['v', VER], ['t', '…（已收 '], ['v', '⟨已收字节⟩'], ['t', ' / '], ['v', '⟨总字节⟩'], ['t', ' 字节）']], short: '下载中',
+      steps: [['已完成：远端 ' + VER, 'done'], ['进行中：已收 ⟨已收字节⟩ / ⟨总字节⟩ 字节', 'doing'], ['—', 'todo'], ['—', 'todo']], stepAt: 1, warn: false },
+    { key: 'verifying', name: '校验中', veracity: 'unapproved', by: '—', badge: '未批准功能的原型表达',
+      real: false, where: '下载与校验都发生在 Checking 内部（同一次 checkAndUpdate 调用里）⇒ 没有独立的校验态，屏上只有「正在检查…」',
+      parts: [['t', '正在校验已下载的内容…（'], ['v', VER], ['t', '）']], short: '校验中',
+      steps: [['已完成：远端 ' + VER, 'done'], ['已完成：⟨总字节⟩ 字节', 'done'], ['进行中：SHA-256 比对', 'doing'], ['—', 'todo']], stepAt: 2, warn: false },
+    { key: 'failed', name: '下载或校验失败', veracity: 'real+shape', by: 'UpdateStatus.Failed(kind, reason)', badge: '真实状态（呈现方式未批准）',
+      real: true, where: '失败态真实（文案＝「更新未生效，旧内容保留：{reason}{补充}」）；把「下载阶段／校验阶段」分开呈现是原型结构',
+      parts: [['t', '更新未生效，旧内容保留：'], ['v', '下载内容的大小与清单不符'], ['t', '（下载/校验未通过）']], short: '失败（旧内容保留）',
+      steps: [['已完成：远端 ' + VER, 'done'], ['失败：下载内容的大小与清单不符', 'doing'], ['未执行', 'todo'], ['未执行', 'todo']], stepAt: 1, warn: true },
+    { key: 'pending', name: '已下载待切换（等用户动作）', veracity: 'unapproved', by: '—', badge: '未批准功能的原型表达',
+      real: false, where: '协议里没有「待切换」：下载＋校验＋切换（指针原子切换）在 checkAndUpdate 内一次完成；也不需要用户点任何按钮 —— 阅读会话的采用只是延后到「回到目录」时自动发生',
+      parts: [['t', '新内容 '], ['v', VER], ['t', ' 已下载、校验通过，等待切换（尚未生效）。']], short: '待切换',
+      steps: [['已完成：远端 ' + VER, 'done'], ['已完成：⟨总字节⟩ 字节', 'done'], ['已完成：SHA-256 通过', 'done'], ['等待用户动作', 'doing']], stepAt: 3, warn: false },
+    { key: 'switched', name: '已切换生效', veracity: 'real', by: 'UpdateStatus.Activated(version, bytes)', badge: '真实状态',
+      real: true, where: '文案原文＝「新内容 {v} 已下载、校验通过并已切换生效（{bytes} 字节）；返回目录后采用。」⇒ 磁盘已切换、自动发生，不是用户动作的结果',
+      parts: [['t', '新内容 '], ['v', VER], ['t', ' 已下载、校验通过并已切换生效（'], ['v', '⟨字节数⟩'], ['t', ' 字节）；返回目录后采用。']], short: '已切换生效',
+      steps: [['已完成：远端 ' + VER, 'done'], ['已完成：⟨字节数⟩ 字节', 'done'], ['已完成：SHA-256 通过', 'done'], ['已完成：返回目录后采用', 'done']], stepAt: 3, warn: false },
+    { key: 'deferred', name: '用户选择延后', veracity: 'unapproved', by: '—', badge: '未批准功能的原型表达',
+      real: false, where: '协议里没有任何「稍后／延后」选项，也没有对应状态；本页画它只为把「需要用户决定」这件事摆出来',
+      parts: [['t', '已延后：新内容 '], ['v', VER], ['t', ' 暂不切换，继续使用当前内容。']], short: '已延后',
+      steps: [['已完成：远端 ' + VER, 'done'], ['已完成：⟨总字节⟩ 字节', 'done'], ['已完成：SHA-256 通过', 'done'], ['已延后', 'doing']], stepAt: 3, warn: false },
+    { key: 'failold', name: '失败时旧内容仍在使用', veracity: 'real', by: 'UpdateStatus.Failed(kind=CHECKSUM_MISMATCH)', badge: '真实状态',
+      real: true, where: '与「下载或校验失败」是同一个协议状态（Failed），只是 FailureKind 不同；保旧是 fail-closed 的真实语义（任何 Failed 都意味着旧内容原封不动）',
+      parts: [['t', '更新未生效，旧内容保留：SHA-256 不符（下载/校验未通过）；当前内容仍是 '], ['v', VER], ['t', '。']], short: '失败（旧内容仍在使用）',
+      steps: [['已完成：远端 ' + VER, 'done'], ['已完成：⟨总字节⟩ 字节', 'done'], ['失败：SHA-256 不符', 'doing'], ['未执行', 'todo']], stepAt: 2, warn: true }
+  ];
+  var STATE_BY_KEY = {};
+  STATES.forEach(function (s) { STATE_BY_KEY[s.key] = s; });
+
+  /* 展开态夹具：最长的如实报错（数字一律运行时占位，不写死版本/字节数） */
+  var FIXTURE = { key: 'fixture-long', name: '最长如实报错（夹具）', veracity: 'fixture', badge: '夹具（不属于应用页面）',
+    parts: [['t', '更新未生效，旧内容保留：下载内容的大小与清单不符（清单 '], ['v', '⟨清单字节数⟩'], ['t', ' 字节，实际收到 '], ['v', '⟨实收字节数⟩'],
+            ['t', ' 字节）（下载/校验未通过）']], short: '失败（旧内容保留）', warn: true };
+
+  /* ── 动作表 ────────────────────────────────────────────────────────
+   * real=true  ＝ 真实动作（代码里就是这个标签／这个禁用规则）；real=false ＝ 未批准功能的原型动作。
+   * 真实规则只有一条：**唯一的动作按钮是「检查更新」，检查中禁用**（Screens.kt：enabled = updateStatus !is Checking）。 */
+  var ACTIONS = {
+    idle: { primary: ['检查更新', true], enabled: true },
+    checking: { primary: ['检查更新', true], enabled: false },
+    uptodate: { primary: ['检查更新', true], enabled: true },
+    available: { primary: ['下载新内容', false], enabled: true },
+    downloading: { primary: ['取消下载', false], enabled: true },
+    verifying: { primary: ['取消', false], enabled: true },
+    failed: { primary: ['检查更新', true], enabled: true },
+    pending: { primary: ['立即切换', false], enabled: true, secondary: ['稍后', false] },
+    switched: { primary: ['检查更新', true], enabled: true },
+    deferred: { primary: ['立即切换', false], enabled: true },
+    failold: { primary: ['检查更新', true], enabled: true }
+  };
+
+  /* ── 五档：整体组织方式（**只改这一块怎么组织**）─────────────────────
+   * org       ：这一块内部的组织（row／two／fold／steps／zones）
+   * lastpos   ：本档把「上次检查时间／上次结果」放在哪（none／action-row／detail-panel／block-tail／own-section）
+   * secondary ：本档给不给第二个动作用的位置（none ⇒ 放不下，是这一档的可量测代价） */
+  var TIERS = [
+    { id: 'U1', org: 'row', lastpos: 'none', secondary: 'none',
+      name: 'U1 · 单行式：状态一行，动作在行右端',
+      knob: '整块只有一行：左边一句状态（自带这块的名字），右端一个按钮；没有小标题、没有第二行',
+      cost: '状态句与按钮抢同一行的宽度 ⇒ 长文案要折更多行；本档没有放第二个动作的位置' },
+    { id: 'U2', org: 'two', lastpos: 'action-row', secondary: 'inline',
+      name: 'U2 · 两行式：状态为主行、动作为次行',
+      knob: '第一行＝状态句（占满列宽）；第二行＝动作按钮 ＋ 右端「上次检查」尾注',
+      cost: '块高比 U1 高一行的位置；「上次检查」与按钮同行，窄屏上一起折行' },
+    { id: 'U3', org: 'fold', lastpos: 'detail-panel', secondary: 'inline',
+      name: 'U3 · 折叠式：默认一行摘要，展开才见动作与细节',
+      knob: '默认只有一行可点摘要（「内容更新 · 状态词 ›」）；完整状态句、动作按钮、「上次检查／上次结果」都在展开面板里',
+      cost: '默认态看不见动作（要一次点击）；摘要行的状态词是另写的一句，与状态句不是同一串字' },
+    { id: 'U4', org: 'steps', lastpos: 'block-tail', secondary: 'inline',
+      name: 'U4 · 步骤式：检查 → 下载 → 校验 → 切换',
+      knob: '四步纵向列出，每步右侧写它自己的结果；动作按钮在四步下方；「上次检查」在块尾一行',
+      cost: '块最高（四行步骤）；把一个连续动作切成四格 ⇒ 必须发明「下载中／校验中」这类中间格' },
+    { id: 'U5', org: 'zones', lastpos: 'own-section', secondary: 'inline',
+      name: 'U5 · 分区式：当前状态 ／ 动作 ／ 上一次结果',
+      knob: '三个带小标题的分区（发丝线分开）：当前状态区、动作区、上一次结果区（两行）',
+      cost: '块内出现三个小标题 ＋ 两条分隔线 ⇒ 块最高、层级最多；「上一次结果」独占一区' }
+  ];
+
+  /* ── 小工具 ────────────────────────────────────────────────────── */
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined && text !== null) e.textContent = text;
+    return e;
+  }
+  function px(v) { return Math.round(v * 100) / 100; }
+  function rect(e) { return e.getBoundingClientRect(); }
+  function n(v) { return String(Math.round(v * 100) / 100); }
+  function fold(tier) { return tier.org === 'fold'; }
+
+  function vspan(kind, text) {
+    var s;
+    if (kind === 'ver') { s = el('span', 'ver', text); s.dataset.test = 'verval'; }
+    else { s = el('span', null, text); }
+    return s;
+  }
+  function fillParts(host, parts, cls) {
+    if (cls) host.className = cls;
+    host.textContent = '';
+    parts.forEach(function (p) {
+      if (p[0] === 'v') { host.appendChild(vspan('ver', p[1])); }
+      else { host.appendChild(document.createTextNode(p[1])); }
+    });
+    return host;
+  }
+  function textOf(parts) { return parts.map(function (p) { return p[1]; }).join(''); }
+
+  /* 固定框架：应用名（页标题）→ 版本相邻组 → 更新块 → 仓库链接（置底） */
+  function brandRow() { var p = el('p', 'brand', APP.name); p.dataset.test = 'brand'; return p; }
+  function kvRow(label, parts) {
+    var row = el('div', 'kv'); row.dataset.test = 'kv';
+    var k = el('span', 'k', label); k.dataset.test = 'k';
+    var v = el('span', 'v'); v.dataset.test = 'v';
+    parts.forEach(function (p) { v.appendChild(p[0] === 'v' ? vspan('ver', p[1]) : document.createTextNode(p[1])); });
+    row.appendChild(k); row.appendChild(v);
+    return row;
+  }
+  function verPair() {
+    var d = el('div', 'pair'); d.dataset.test = 'verpair';
+    d.appendChild(kvRow('应用版本：', [['v', APP.appVersion]]));
+    d.appendChild(kvRow('内容版本：', [['v', VER]]));
+    return d;
+  }
+  function repoRow() {
+    var row = el('div', 'kv'); row.dataset.test = 'kv'; row.dataset.role = 'repo';
+    var k = el('span', 'k', '仓库：'); k.dataset.test = 'k';
+    var v = el('span', 'v'); v.dataset.test = 'v';
+    var a = el('a', 'repo', APP.repoFull);
+    a.dataset.test = 'repolink';
+    a.href = APP.repoFull;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    v.appendChild(a);
+    row.appendChild(k); row.appendChild(v);
+    return row;
+  }
+  function ctlButton(label, isReal, enabled) {
+    var b = el('button', 'ctl' + (isReal ? '' : ' todo'), label);
+    b.type = 'button';
+    b.dataset.test = 'primarybtn';
+    b.dataset.real = isReal ? '1' : '0';
+    if (enabled === false) b.disabled = true;
+    return b;
+  }
+
+  /* 状态句（带 warn 通道） */
+  function statusEl(state, partsOverride) {
+    var st = el('p', 'status'); st.dataset.test = 'status';
+    var parts = partsOverride || state.parts;
+    var warn = partsOverride ? FIXTURE.warn : state.warn;
+    if (warn) st.classList.add('is-warn');
+    fillParts(st, parts);
+    return st;
+  }
+  /* 原型标注（块内）：① 运行时值 ② 未批准功能 */
+  function marksEl(state) {
+    var box = el('div', 'marks'); box.dataset.test = 'marks';
+    var rm = el('span', 'runmark', '原型标注（不属于应用页面）：这一行里的版本号／字节数／时间是运行时值（当前值 ' + VER + '），不是页面文案定稿。');
+    rm.dataset.test = 'runmark';
+    box.appendChild(rm);
+    if (state.veracity === 'unapproved') {
+      var um = el('span', 'unmark', '⚠ 未批准功能的原型表达（不属于应用页面）：协议里没有这个状态／这个动作 —— ' + state.where);
+      um.dataset.test = 'unmark';
+      box.appendChild(um);
+    } else if (state.veracity === 'real+shape') {
+      var us = el('span', 'unmark', '⚠ 这个呈现方式是原型结构（未批准）（不属于应用页面）：状态本身是真的 —— ' + state.where);
+      us.dataset.test = 'unmark';
+      box.appendChild(us);
+    } else if (state.veracity === 'fixture') {
+      var fm = el('span', 'unmark', '原型夹具标注（不属于应用页面）：这段「最长的如实报错」是夹具，⟨…⟩ 是运行时占位；展开态只为检查最坏情况的横向溢出。');
+      fm.dataset.test = 'unmark';
+      box.appendChild(fm);
+    }
+    return box;
+  }
+  /* 「上次检查／上次结果」尾注（原型表达：协议里没有任何时间戳/历史记录 —— 全仓 grep 无 lastCheck／上次） */
+  function lastCheckEl(tier, twoLines) {
+    if (tier.lastpos === 'none') return null;
+    if (twoLines) {
+      var wrap = el('div'); wrap.dataset.test = 'lastwrap';
+      var a = el('p', 'lastcheck', '上次检查：⟨上次检查时间⟩'); a.dataset.test = 'lastcheck';
+      var b = el('p', 'lastcheck', '上次结果：⟨上次结果摘要⟩'); b.dataset.test = 'lastresult';
+      wrap.appendChild(a); wrap.appendChild(b);
+      return wrap;
+    }
+    var p = el('p', 'lastcheck', '上次检查：⟨上次检查时间⟩ · 上次结果：⟨上次结果摘要⟩');
+    p.dataset.test = 'lastcheck';
+    return p;
+  }
+
+  /* ── 一块更新块（按 org 组织）────────────────────────────────── */
+  function buildUpd(tier, state, partsOverride) {
+    var upd = el('div', 'upd'); upd.dataset.test = 'upd'; upd.dataset.org = tier.org;
+    var act = ACTIONS[state.key] || ACTIONS.idle;
+    var st = statusEl(state, partsOverride);
+    var primary = ctlButton(act.primary[0], act.primary[1], act.enabled);
+    var secondary = act.secondary ? ctlButton(act.secondary[0], act.secondary[1], true) : null;
+    if (secondary) secondary.dataset.test = 'secondarybtn';
+    var acts = { primary: primary, secondary: secondary };
+
+    if (tier.org === 'row') {
+      var row = el('div', 'u1row');
+      row.appendChild(st);
+      var box = el('div', 'u1act');
+      box.appendChild(primary);
+      row.appendChild(box);
+      upd.appendChild(row);
+      if (secondary) {
+        var drop = el('p', 'lastcheck', '（本档只有一个位置 ⇒ 第二个动作「' + act.secondary[0] + '」在这一档里没有位置；自检会断言本档不渲染它）');
+        drop.dataset.test = 'dropnote';
+        upd.appendChild(drop);
+      }
+    } else if (tier.org === 'two') {
+      upd.appendChild(st);
+      var ar = el('div', 'actrow');
+      ar.appendChild(primary);
+      if (secondary) ar.appendChild(secondary);
+      var lc = lastCheckEl(tier, false);
+      if (lc) ar.appendChild(lc);
+      upd.appendChild(ar);
+    } else if (tier.org === 'fold') {
+      var head = el('button', 'foldhead');
+      head.type = 'button';
+      head.dataset.test = 'foldsummary';
+      head.setAttribute('aria-expanded', 'false');
+      head.appendChild(el('span', 'foldlabel', '内容更新'));
+      head.appendChild(el('span', 'foldstate', state.short));
+      var ch = el('span', 'foldchev', '›');
+      ch.setAttribute('aria-hidden', 'true');
+      head.appendChild(ch);
+      upd.appendChild(head);
+      var panel = el('div', 'foldpanel'); panel.dataset.test = 'foldpanel'; panel.hidden = true;
+      panel.appendChild(st);
+      var ar2 = el('div', 'actrow');
+      ar2.appendChild(primary);
+      if (secondary) ar2.appendChild(secondary);
+      panel.appendChild(ar2);
+      var lc2 = lastCheckEl(tier, false);
+      if (lc2) panel.appendChild(lc2);
+      upd.appendChild(panel);
+    } else if (tier.org === 'steps') {
+      var t = el('p', 'upd-title', '内容更新'); t.dataset.test = 'updtitle';
+      upd.appendChild(t);
+      upd.appendChild(st);   /* 这一档把同一件事说了两遍（状态句 ＋ 下面四步明细）—— 这是它的代价 */
+      var steps = el('div', 'steps'); steps.dataset.test = 'steps';
+      var names = ['检查', '下载', '校验', '切换'];
+      state.steps.forEach(function (s, i) {
+        var row = el('div', 'step'); row.dataset.test = 'step'; row.dataset.i = String(i + 1); row.dataset.do = s[1];
+        row.appendChild(el('span', 'sk', (i + 1) + ' ' + names[i]));
+        row.appendChild(el('span', 'sv', s[0]));
+        steps.appendChild(row);
+      });
+      upd.appendChild(steps);
+      var ar3 = el('div', 'actrow');
+      ar3.appendChild(primary);
+      if (secondary) ar3.appendChild(secondary);
+      upd.appendChild(ar3);
+      var lc3 = lastCheckEl(tier, false);
+      if (lc3) upd.appendChild(lc3);
+    } else { /* zones */
+      var z1 = el('div', 'zone'); z1.dataset.test = 'zone'; z1.dataset.zone = 'state';
+      z1.appendChild(el('p', 'ztitle', '当前状态'));
+      z1.appendChild(st);
+      var z2 = el('div', 'zone'); z2.dataset.test = 'zone'; z2.dataset.zone = 'action';
+      z2.appendChild(el('p', 'ztitle', '动作'));
+      var ar4 = el('div', 'actrow');
+      ar4.appendChild(primary);
+      if (secondary) ar4.appendChild(secondary);
+      z2.appendChild(ar4);
+      var z3 = el('div', 'zone'); z3.dataset.test = 'zone'; z3.dataset.zone = 'last';
+      z3.appendChild(el('p', 'ztitle', '上一次结果'));
+      z3.appendChild(lastCheckEl(tier, true));
+      upd.appendChild(z1); upd.appendChild(z2); upd.appendChild(z3);
+    }
+    upd.appendChild(marksEl(state));
+    return { el: upd, actions: acts };
+  }
+
+  /* ── 一档 ＝ 一个满视口宽的块 ────────────────────────────────── */
+  var INSTANCES = [];
+  function buildBlock(group, tier, state, rack, blockId, head) {
+    var demo = el('div', 'demo'); demo.dataset.test = 'demo';
+    var hd = el('div', 'dhead'); hd.dataset.test = 'dhead';
+    hd.appendChild(el('span', 'dname', head.name));
+    var badge = el('span', 'dplat' + (head.badgeKind === 'real' ? ' real' : ''), head.badge);
+    badge.dataset.test = 'veracity';
+    badge.dataset.veracity = head.badgeKind;
+    hd.appendChild(badge);
+    hd.appendChild(el('span', 'dknob', head.knob));
+    if (group === 'U') {
+      var cs0 = el('span', 'dknob', '当前状态＝尚未检查（真实状态）');
+      cs0.dataset.test = 'curstate';
+      hd.appendChild(cs0);
+    }
+    demo.appendChild(hd);
+    var cap = el('div', 'cap'); cap.dataset.test = 'cap';
+    demo.appendChild(cap);
+
+    var pg = el('section', 'pg pg-upd');
+    pg.dataset.test = 'page';
+    pg.dataset.block = blockId || (group + tier.id);
+    pg.dataset.tier = tier.id;
+    pg.dataset.group = group;
+    pg.dataset.platform = 'android';
+    pg.dataset.state = state.key;
+    pg.dataset.fixed = group === 'S' ? '1' : '0';
+    var col = el('div', 'col'); col.dataset.test = 'col';
+    col.appendChild(brandRow());
+    col.appendChild(verPair());
+    var upd = buildUpd(tier, state, null);
+    col.appendChild(upd.el);
+    var sp = el('div', 'repoSpacer'); col.appendChild(sp);
+    col.appendChild(repoRow());
+    pg.appendChild(col);
+    demo.appendChild(pg);
+    (rack || document.querySelector('[data-test="rack-' + group + '"]')).appendChild(demo);
+
+    var inst = { group: group, tier: tier, state: state, demo: demo, cap: cap, pg: pg, col: col, upd: upd };
+    INSTANCES.push(inst);
+    return inst;
+  }
+
+  var RACK_U = document.querySelector('[data-test="rack-U"]');
+  var RACK_S = document.querySelector('[data-test="rack-S"]');
+  var U_INSTANCES = [], S_INSTANCES = [];
+  TIERS.forEach(function (t) {
+    var i = buildBlock('U', t, STATE_BY_KEY.idle, RACK_U, t.id, {
+      name: t.name,
+      badge: 'Android（Web 没有这一块）· 状态跟状态选择器走',
+      badgeKind: 'real',
+      knob: '只改：' + t.knob + '（本档的代价：' + t.cost + '）'
+    });
+    U_INSTANCES.push(i);
+  });
+  /* S 组：组织固定＝U2（两行式），只换状态 */
+  var REF_TIER = TIERS.filter(function (t) { return t.id === 'U2'; })[0];
+  STATES.forEach(function (s) {
+    var i = buildBlock('S', REF_TIER, s, RACK_S, 'S-' + s.key, {
+      name: 'S-' + s.key + ' · ' + s.name,
+      badge: s.badge + (s.by === '—' ? '' : '（' + s.by + '）'),
+      badgeKind: s.veracity === 'real' ? 'real' : 'unapproved',
+      knob: '依据／代价：' + s.where
+    });
+    S_INSTANCES.push(i);
+  });
+
+  /* 状态选择器（在截图范围之外） */
+  var stateBtns = document.querySelector('[data-test="state-buttons"]');
+  var SBTNS = {};
+  STATES.forEach(function (s) {
+    var b = el('button', null, s.name);
+    b.type = 'button';
+    b.dataset.test = 'state-btn';
+    b.dataset.state = s.key;
+    b.setAttribute('aria-pressed', String(s.key === 'idle'));
+    b.addEventListener('click', function () { setState(s.key); });
+    stateBtns.appendChild(b);
+    SBTNS[s.key] = b;
+  });
+
+  /* 真实性表（脚手架里的表体，由状态清单生成 ⇒ 表与页面同源） */
+  var vt = document.querySelector('[data-test="veracity-table"]');
+  STATES.forEach(function (s, i) {
+    var tr = el('tr');
+    tr.appendChild(el('td', null, String(i + 1)));
+    tr.appendChild(el('td', 'r', s.name));
+    var vd = el('td', 'r', s.badge + (s.by === '—' ? '' : '（' + s.by + '）'));
+    tr.appendChild(vd);
+    tr.appendChild(el('td', null, s.where));
+    vt.appendChild(tr);
+  });
+
+  /* ── 换状态（U 组）／换夹具（全部块）────────────────────────────── */
+  var fixtureLong = false;
+  function renderUpd(inst) {
+    var fresh = buildUpd(inst.tier, inst.state, fixtureLong ? FIXTURE.parts : null);
+    var old = inst.upd.el;
+    old.parentNode.replaceChild(fresh.el, old);
+    inst.upd = fresh;
+    /* 折叠块的面板展开状态在重渲染后回到默认（收起） */
+    var head = fresh.el.querySelector('[data-test="foldsummary"]');
+    if (head) { head.setAttribute('aria-expanded', 'false'); }
+  }
+  function repaint() {
+    INSTANCES.forEach(function (inst) { renderUpd(inst); });
+    layout();
+  }
+  function setState(key) {
+    var s = STATE_BY_KEY[key];
+    if (!s) return;
+    document.documentElement.dataset.state = key;
+    U_INSTANCES.forEach(function (inst) {
+      inst.state = s;
+      inst.pg.dataset.state = key;
+      var cs2 = inst.demo.querySelector('[data-test="curstate"]');
+      if (cs2) cs2.textContent = '当前状态＝' + s.name + '（' + s.badge + '）';
+    });
+    Object.keys(SBTNS).forEach(function (k) { SBTNS[k].setAttribute('aria-pressed', String(k === key)); });
+    repaint();
+  }
+  var fxBtn = document.querySelector('[data-test="fixture-toggle"]');
+  fxBtn.addEventListener('click', function () {
+    fixtureLong = !fixtureLong;
+    document.documentElement.dataset.fixture = fixtureLong ? 'long' : 'short';
+    fxBtn.setAttribute('aria-pressed', String(fixtureLong));
+    fxBtn.textContent = fixtureLong ? '切回默认状态句（收起夹具）' : '切到「最长如实报错」夹具';
+    repaint();
+  });
+  /* 折叠块：真鼠标点摘要行 ⇒ 展开／收起（用 <button> ＋ [hidden]，不用 details 元素） */
+  document.addEventListener('click', function (ev) {
+    var t = ev.target && ev.target.closest ? ev.target.closest('[data-test="foldsummary"]') : null;
+    if (!t) return;
+    var panel = t.parentNode.querySelector('[data-test="foldpanel"]');
+    if (!panel) return;
+    var open = panel.hidden;
+    panel.hidden = !open;
+    t.setAttribute('aria-expanded', String(open));
+    layout();
+  });
+
+  /* ── 量测 ＋ 写回 ＋ 打数字 ──────────────────────────────────── */
+  function inkBox(e) {
+    var r = document.createRange();
+    r.selectNodeContents(e);
+    var rs = r.getClientRects(), l = 1e9, rr = -1e9;
+    for (var i = 0; i < rs.length; i++) { l = Math.min(l, rs[i].left); rr = Math.max(rr, rs[i].right); }
+    if (l > rr) return { left: 0, right: 0, w: 0, boxes: 0 };
+    return { left: px(l), right: px(rr), w: px(rr - l), boxes: rs.length };
+  }
+  function cs(e, p) { return getComputedStyle(e)[p]; }
+  /* 真实行数（**块级元素**）：内容高 ÷ 行高。
+   * ⚠ 不用「Range 行盒的不同 top 个数」：同一行里字号不同的内联片段的 top 会差 1px，会被误数成两行（上一轮踩过）。内联元素用 boxes。 */
+  function linesOf(e) {
+    var c = getComputedStyle(e);
+    var h = e.clientHeight - parseFloat(c.paddingTop || 0) - parseFloat(c.paddingBottom || 0);
+    var lh = parseFloat(c.lineHeight) || parseFloat(c.fontSize) * 1.2;
+    return Math.max(1, Math.round(h / lh));
+  }
+  function vertOverlap(a, b) {
+    var ra = rect(a), rb = rect(b);
+    return px(Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top));
+  }
+
+  function layout() {
+    var V = window.innerWidth, H = window.innerHeight;
+    var C = cwFor(V);
+    INSTANCES.forEach(function (inst) {
+      var pg = inst.pg, col = inst.col, tier = inst.tier;
+      pg.style.setProperty('--cw', n(C) + 'px');
+      var rPg = rect(pg), rCol = rect(col);
+      pg.style.setProperty('--col-l', n(rCol.left) + 'px');
+      pg.style.setProperty('--col-r', n(rCol.right) + 'px');
+
+      var verpair = pg.querySelector('[data-test="verpair"]');
+      var updEl = pg.querySelector('[data-test="upd"]');
+      var marks = updEl.querySelector('[data-test="marks"]');
+      var appH = px(rect(updEl).height - rect(marks).height);
+      var st = updEl.querySelector('[data-test="status"]');
+      var summary = updEl.querySelector('[data-test="foldsummary"]');
+      var panel = updEl.querySelector('[data-test="foldpanel"]');
+      var primary = updEl.querySelector('[data-test="primarybtn"]');
+      var secondary = updEl.querySelector('[data-test="secondarybtn"]');
+      var dropnote = updEl.querySelector('[data-test="dropnote"]');
+      var last = updEl.querySelector('[data-test="lastcheck"]');
+      var lastres = updEl.querySelector('[data-test="lastresult"]');
+      var steps = updEl.querySelector('[data-test="steps"]');
+      var zones = updEl.querySelectorAll('[data-test="zone"]');
+      var unmark = updEl.querySelector('[data-test="unmark"]');
+      var repoA = pg.querySelector('[data-test="repolink"]');
+      var repoInk = repoA ? inkBox(repoA) : null;
+      var rowEl = pg.querySelector('[data-test="kv"], .brand');
+      var edge = rowEl ? parseFloat(cs(rowEl, 'paddingLeft')) : 0;
+      var ctlBad = 0, ctlCount = 0;
+      [].slice.call(pg.querySelectorAll('a, button, [tabindex], [onclick]')).forEach(function (e2) {
+        ctlCount++;
+        var good = (e2.tagName === 'A' && e2.hasAttribute('href')) ||
+                   (e2.tagName === 'BUTTON' && e2.getAttribute('type') === 'button');
+        if (!good) ctlBad++;
+      });
+      /* 「上次检查」的位置分类（机器可查）：none／action-row／detail-panel／block-tail／own-section */
+      var lastpos = 'none';
+      if (last) {
+        if (tier.lastpos === 'detail-panel') lastpos = panel && panel.contains(last) ? 'detail-panel' : '?';
+        else if (tier.lastpos === 'action-row') lastpos = vertOverlap(last, primary) > 4 ? 'action-row' : '?';
+        else if (tier.lastpos === 'block-tail') lastpos = rect(last).top > rect(primary).bottom ? 'block-tail' : '?';
+        else if (tier.lastpos === 'own-section') lastpos = last.closest('[data-zone="last"]') ? 'own-section' : '?';
+      }
+
+      var m = {
+        V: V, H: H, block: pg.dataset.block, group: inst.group, tier: tier.id, state: inst.state.key,
+        pgLeft: px(rPg.left), pgW: px(rPg.width), pgH: px(rPg.height),
+        colLeft: px(rCol.left), colW: px(rCol.width), cwFormula: px(C),
+        gutter: px(rCol.left), edge: px(edge), avail: px(rCol.width - 2 * edge),
+        verPairText: verpair ? verpair.innerText.replace(/\s+/g, ' ').trim() : '',
+        updTop: px(rect(updEl).top - rPg.top), updBottom: px(rPg.bottom - rect(updEl).bottom),
+        updH: px(rect(updEl).height), updAppH: appH,
+        marksH: px(rect(marks).height),
+        statusText: st ? st.textContent : null,
+        statusHidden: !!(panel && panel.hidden),
+        statusLines: (panel && panel.hidden) ? null : (st ? linesOf(st) : null),
+        statusW: st ? inkBox(st).w : null,
+        statusWarn: st ? st.classList.contains('is-warn') : null,
+        summaryText: summary ? summary.textContent : null,
+        primaryText: primary ? primary.textContent : null,
+        primaryReal: primary ? primary.dataset.real : null,
+        primaryDisabled: primary ? primary.disabled : null,
+        secondaryText: secondary ? secondary.textContent : null,
+        hasDropNote: !!dropnote,
+        lastText: last ? last.textContent : null,
+        lastPos: lastpos, lastDeclared: tier.lastpos,
+        lastLines: (last && !(panel && panel.hidden)) ? linesOf(last) : null,
+        lastTop: last ? px(rect(last).top - rPg.top) : null,
+        lastResultText: lastres ? lastres.textContent : null,
+        stepCount: steps ? steps.querySelectorAll('[data-test="step"]').length : 0,
+        stepDoing: steps ? steps.querySelectorAll('.step[data-do="doing"]').length : 0,
+        stepDone: steps ? steps.querySelectorAll('.step[data-do="done"]').length : 0,
+        stepTodo: steps ? steps.querySelectorAll('.step[data-do="todo"]').length : 0,
+        zoneCount: zones.length,
+        zoneTitles: [].slice.call(updEl.querySelectorAll('.ztitle')).map(function (z) { return z.textContent; }),
+        unmarkText: unmark ? unmark.textContent : null,
+        hasUnmark: !!unmark,
+        repoText: repoA ? repoA.textContent : null,
+        repoW: repoInk ? repoInk.w : null, repoBoxes: repoA ? repoA.getClientRects().length : null,
+        repoIsLast: px(rPg.bottom - rect(repoA).bottom),
+        updGapPrev: px(rect(updEl).top - rect(verpair).bottom),
+        ctlCount: ctlCount, ctlBad: ctlBad
+      };
+      writeCap(inst, m);
+      inst.m = m;
+    });
+    document.documentElement.dataset.ready = '1';
+    var infos = document.querySelectorAll('[data-test="shotinfo"]');
+    var txt = V + '×' + H + '（innerWidth ' + V + ' ／ innerHeight ' + H + ' ／ DPR 2）';
+    [].slice.call(infos).forEach(function (i) { i.textContent = txt; });
+  }
+
+  function writeCap(inst, m) {
+    var bits = [];
+    bits.push('<b>块</b> ' + m.pgW + '×' + m.pgH + '·左' + m.pgLeft);
+    bits.push('<b>列</b> C <b>' + m.colW + '</b>（复算 ' + m.cwFormula + '）·余白 ' + m.gutter);
+    bits.push('内沿 ' + m.edge + '·可用 <b>' + m.avail + '</b>');
+    if (m.statusText !== null) {
+      bits.push('状态行 ' + (m.statusLines === null ? '（折叠未展开）' : m.statusLines + ' 行·宽 ' + m.statusW) + (m.statusWarn ? '·warn' : ''));
+    }
+    bits.push('更新块 面板高 <b>' + m.updAppH + '</b>（＋标注 ' + m.marksH + '）');
+    if (m.summaryText) bits.push('摘要「' + m.summaryText + '」');
+    if (m.primaryText) bits.push('动作 <b>' + m.primaryText + '</b>' + (m.primaryReal === '0' ? '(未批准)' : '') + (m.primaryDisabled ? '(禁用)' : ''));
+    if (m.secondaryText) bits.push('第二动作 ' + m.secondaryText);
+    if (m.hasDropNote) bits.push('本档放不下第二动作');
+    bits.push('上次检查 ' + (m.lastPos === 'none' ? '<b>不留</b>' : '<b>' + m.lastPos + '</b>·距顶 ' + m.lastTop));
+    if (m.stepCount) bits.push('四步 ' + m.stepCount + ' 行（当前第 ' + m.stepDoing + ' 步）');
+    if (m.zoneCount) bits.push('分区 ' + m.zoneCount + '（' + m.zoneTitles.join('／') + '）');
+    bits.push('可点 <b>' + m.ctlCount + '</b>（不合法 ' + m.ctlBad + '）');
+    inst.cap.innerHTML = bits.join(' ｜ ');
+    var d = inst.cap.dataset;
+    d.mPgW = m.pgW; d.mPgLeft = m.pgLeft; d.mPgH = m.pgH; d.mColW = m.colW; d.mGutter = m.gutter;
+    d.mUpdAppH = m.updAppH; d.mState = m.state; d.mTier = m.tier; d.mLastPos = m.lastPos;
+    d.mPrimary = m.primaryText || ''; d.mCtl = m.ctlCount; d.mCtlBad = m.ctlBad;
+  }
+
+  /* ── 自证用的只读出口（脚本读它，不写页面）────────────────────── */
+  window.__ABOUT_UPD__ = {
+    deduct: DEDUCT, pct: PCT, floor: FLOOR,
+    app: APP,
+    tierIds: TIERS.map(function (t) { return t.id; }),
+    stateKeys: STATES.map(function (s) { return s.key; }),
+    fixtureLine: textOf(FIXTURE.parts),
+    veracity: (function () { var o = {}; STATES.forEach(function (s) { o[s.key] = s.veracity; }); return o; })(),
+    stateName: (function () { var o = {}; STATES.forEach(function (s) { o[s.key] = s.name; }); return o; })(),
+    text: (function () { var o = {}; STATES.forEach(function (s) { o[s.key] = textOf(s.parts); }); return o; })(),
+    shortText: (function () { var o = {}; STATES.forEach(function (s) { o[s.key] = s.short; }); return o; })(),
+    steps: (function () { var o = {}; STATES.forEach(function (s) { o[s.key] = s.steps.map(function (x) { return x[0]; }); }); return o; })(),
+    actions: ACTIONS,
+    lastpos: (function () { var o = {}; TIERS.forEach(function (t) { o[t.id] = t.lastpos; }); return o; })(),
+    secondarySlot: (function () { var o = {}; TIERS.forEach(function (t) { o[t.id] = t.secondary; }); return o; })(),
+    cwFor: function (V) { return Math.min(V, Math.max(FLOOR, (PCT / 100) * (V - DEDUCT))); },
+    setState: setState,
+    setFixture: function (v) { if (!!v !== fixtureLong) fxBtn.click(); },
+    repaint: repaint
+  };
+
+  window.addEventListener('resize', layout);
+  window.addEventListener('orientationchange', layout);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(layout);
+  layout();
+})();
+</script>
+</body>
+</html>
