@@ -1,0 +1,20 @@
+adb devices -l
+List of devices attached
+YOCTO                  device transport_id:3
+127.0.0.1:7776         device product:vext_auto8668p1_64_vm_paravirt model:auto8668p1_64_vm_paravirt device:auto8668p1_64_vm_paravirt transport_id:4
+emulator-5554          device product:PD2364 model:V2364A device:PD2364 transport_id:1
+emulator-5556          device product:sdk_gphone64_x86_64 model:sdk_gphone64_x86_64 device:emu64xa transport_id:11
+
+
+adb -s emulator-5556 shell getprop ro.serialno
+EMULATOR36X1X9X0
+
+ro.product.model / ro.product.device
+sdk_gphone64_x86_64
+emu64xa
+
+ro.build.version.sdk
+35
+
+（未触碰的邻居）emulator-5554 的 ro.serialno（空=不是本仓 AVD）
+
