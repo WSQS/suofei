@@ -92,12 +92,12 @@ class UpdateFlowTest {
         }
     }
 
-    private fun payload(version: String, formatVersion: Int = 1): String =
+    private fun payload(version: String, formatVersion: Int = 2): String =
         """
-        {"formatVersion":$formatVersion,"contentVersion":"$version","generatedAt":"2026-10-14T12:00:00Z",
-         "dynasties":[{"key":"han","label":"汉","order":100}],
-         "poems":[{"id":"p1","title":"$version","author":"佚名","dynastyKey":"han","source":"占位",
-                   "variants":[],"stanzas":[["行一。"]]}]}
+        {"formatVersion":$formatVersion,"contentVersion":"$version","generatedAt":"2026-10-16T12:00:00Z",
+         "dynasties":["汉"],
+         "poems":[{"id":"p1","title":"$version","author":"佚名","dynasty":"汉","genre":null,
+                   "source":"占位","orderInSource":1,"detail":null,"stanzas":[["行一。"]],"notes":null}]}
         """.trimIndent()
 
     private fun sha256(text: String): String =
@@ -183,8 +183,8 @@ class UpdateFlowTest {
     @Test
     fun formatTooNew_isRefusedAndNothingDownloads() {
         val store = store()
-        val body = payload("2027.1.1.1", formatVersion = 2)
-        responses["/latest.json"] = 200 to manifest("2027.1.1.1", sha256(body), formatVersion = 2).toByteArray()
+        val body = payload("2027.1.1.1", formatVersion = 3)
+        responses["/latest.json"] = 200 to manifest("2027.1.1.1", sha256(body), formatVersion = 3).toByteArray()
         responses["/content.json"] = 200 to body.toByteArray()
 
         val outcome = ContentUpdater.checkAndUpdate("$base/latest.json", null, 1, store)

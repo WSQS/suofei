@@ -13,26 +13,38 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 
 /**
  * **结构记号**（规范 `docs/design/visual-tokens.md` §4.1，两端都要有）。
  *
  * 这三样不是装饰细节，而是「静默终端」表达结构感的方式；漏掉它们，目录页/诗页会与用户评审
  * 通过的那一版长得不一样。所以它们集中在**一个文件**里，值由 `VisualTokensConsistencyTest`
- * 从规范文件逐项比对，行为（`[3] 首` 的形状）由 `StructuralMarksTest` 断言。
+ * 从规范文件逐项比对，行为（`[3] 首` 的形状、悬挂槽的宽度）由 `StructuralMarksTest` 断言。
+ *
+ * ⚠ **§4.1-1（组名左沿 2px 发丝竖线）已被取代**（负责人 2026-10-16 的裁决，Web 端同步）：
+ * 它与目录页的采纳锚相抵 —— 锚是「**悬挂＋竖直居中**」＋「**组名左沿＝题名左沿（缩进 0）**」，
+ * 而优先画那条竖线会把组名首字推右约 11.6px（2px 线 ＋ 0.6rem 内边距），与实测
+ * 「组名左沿＝27.52px ＝ 悬挂槽宽」不符。⇒ **两端都不画它**；**记号②③照旧**。
+ * 本文件保留 [AccentBar]（令牌门要求 `accentLine` 与 `GROUP_BAR_WIDTH_DP` 出现在这里），
+ * 它的使用者变成了 **Markdown 引用块（`> `）的左边线** —— 那是 `visual-tokens.md` §6
+ * 明确建议的取法（`--accent-line` 作左边线）＋ `md-subset.md` 的「缩进 ＋ 左侧竖线」。
  */
 
-/** §4.1-1 组名左沿一条发丝竖线：2dp 宽、色＝`accent-line`. */
+/**
+ * 一条发丝竖线：2dp 宽、色＝`accent-line`。
+ * 当前使用者：**引用块（`> `）的左边线**；目录页组名旁的那条已按 2026-10-16 裁决取消（见类注释）。
+ */
 @Composable
-fun GroupNameBar() {
+fun AccentBar() {
     Box(
         Modifier
             .width(PoetryTokens.GROUP_BAR_WIDTH_DP.dp)
@@ -77,14 +89,35 @@ fun rowPadding(): PaddingValues = PaddingValues(
 )
 
 /**
- * 组名行：`[竖线] 组名 ………… [n] 首`（§4.1-1 + §4.1-2）。
- * 外层卡片（边框/圆角/底色/行内边距）由调用方给，这里只管这一行的内容。
+ * 目录页的**悬挂记号**（采纳锚 `round-2026-10-15-hub-align` 的 ④ 档：悬挂＋**竖直居中**）。
+ *
+ * 槽从**内容列左沿**量起、宽＝[PoetryTokens.MARKER_SLOT_REM]（27.52px＝记号自身宽 ＋ 固定缝 0.4rem）；
+ * 记号落在槽的起点，于是槽内剩下的那一段就是「固定缝」。组名与诗目题名都从槽的右沿开始（缩进 0）。
+ * 记号**只表达状态**，整块组头才是可点区域（`round-2026-10-15-hub-hierarchy` 的 `q-d28c4e4e`）。
  */
 @Composable
-fun GroupNameRow(name: String, count: Int) {
+fun HangingMarker(expanded: Boolean, modifier: Modifier = Modifier) {
+    Box(
+        modifier.width(PoetryTokens.rem(PoetryTokens.MARKER_SLOT_REM)),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Text(
+            text = if (expanded) PoetryTokens.MARKER_EXPANDED else PoetryTokens.MARKER_COLLAPSED,
+            style = PoetryTextStyles.marker,
+        )
+    }
+}
+
+/**
+ * 组名行：`[悬挂记号槽] 组名 ………… [n] 首`（竖直居中）。
+ *
+ * 外层的行内边距与发丝线由调用方给（**不画卡片**：`round-2026-10-15-hub-hierarchy` 的两个候选
+ * 都明确「不画卡片、组头与页底同色」）。
+ */
+@Composable
+fun GroupNameRow(name: String, count: Int, expanded: Boolean) {
     Row(Modifier.height(IntrinsicSize.Min)) {
-        GroupNameBar()
-        Spacer(Modifier.width(PoetryTokens.rem(PoetryTokens.GROUP_BAR_PADDING_LEFT_REM)))
+        HangingMarker(expanded)
         Text(name, style = PoetryTextStyles.groupName, modifier = Modifier.weight(1f))
         Text(groupCountAnnotated(count), style = PoetryTextStyles.monoDim)
     }

@@ -13,10 +13,35 @@ Kotlin + Jetpack Compose 的 Android 端骨架，含**最小可运行阅读实�
 > —— 它们只为与规范 §2 的「颜色一一对应」门保持一致（规范侧条目待负责人删除）。
 
 > **页面集合＝四个（用户 2026-10-15）**：**目录 / 诗 / 诗歌详情（新增第四页）/ 关于（原「更新页」改名）**。
-> 本端落地：目录页不再有「有笔记」标记（与 Web 同）、诗页不再有底本与来源（搬去详情页）、
-> 详情页放「这一首的考据与来源」（底本/来源 ＋ **产物里每条 `variants[].text` 与其 note**）、
-> 关于页两端同一批字段（唯一来源 `web/about-fields.json`）＋ **Android 多一块「更新」**。
-> 每页的信息清单见 §5.2，断言见 §9。行为口径：详情页返回→**那首诗**，诗页/关于页返回→目录。
+> ⚠ **2026-10-16 起详情页的呈现方式变了**（见下节）：不再是「`variants` 结构化渲染」，而是渲染
+> 产物的 `detail` **整段 Markdown**（最小子集）。
+
+## 0. 2026-10-16 变更：字段集升版 + 四页按采纳锚重排 + 从零的最小 Markdown 渲染
+
+用户 2026-10-16 授权「实现＋迁移 19 首、本地核验」（**严禁公开发布**），本端这一批做的是
+**字段新形状 ＋ 四页 UI（按归档原型逐项对照）+ 最小 Markdown 渲染**。逐项对照结论在交付报告里。
+
+| 变更 | 落点 | 说明 |
+|---|---|---|
+| **字段新形状（`formatVersion` 2）** | `data/Domain.kt`、`data/ContentParser.kt` | 顶层 `dynasties`＝**有序中文值数组**；每首 **10 键** `id,title,author,dynasty,genre,source,orderInSource,detail,stanzas,notes`；`dynasty` 是**中文单值**并与顶层数组**精确匹配**；`detail`/`notes` 空节 ⇒ `null`（**键仍在**）。旧形状（`dynastyKey`/`dynastyLabel`/`dynastyOrder`/`era`/`variants`）**不再认识** |
+| **目录页** | `ui/Screens.kt`、`ui/StructuralMarks.kt` | 采纳锚 `hub-hierarchy`／`hub-horizontal`／`hub-align`：**不画卡片**、记号**悬挂＋竖直居中**（槽 27.52px／固定缝 0.4rem）、**组名左沿＝题名左沿（缩进 0）**、作者**紧随题名**、「关于」在**顶部**；行为＝**首态全收起（含单组）**、**整块组头可点**、**各组独立展开**（IF-44）；顶部**不重复显示应用名**（`q-52a14e2c`）、**版本页脚已移除**。⇒ **不再画** §4.1-1 那条组名竖线（负责人 2026-10-16 已把该条标为被取代，Web 同步） |
+| **诗页** | `ui/Screens.kt`、`ui/PoemHead.kt`、`ui/SemanticBreak.kt` | 题名／身份行／**每个视觉行都居中**；顶部行＝**返回左／笔记 · 详情右**（不参与居中）；**正文之后没有页脚行**；身份行＝**作者 · 朝代 · 体裁**；**语义折行**（够宽保原行；超宽按句读；多标点取窗内最后一个；无标点或半句超宽⇒字位断；收尾标点不起行） |
+| **笔记（档②）** | `ui/Screens.kt` | 入口在**顶部行**（`[+]笔记`／`[−]笔记`），展开内容在**正文之后、同一列、无框**；**`notes == null` ⇒ 连入口都不出现**（不再有「（无笔记）」占位） |
+| **详情页** | `ui/Screens.kt`、`ui/Markdown.kt` | 诗题①**左对齐**／来源①**正文前带标签「底本与来源」**／`detail` 整段走**最小 Markdown 渲染**（`### ` 小标题**无竖线**、`> ` 引用块＝缩进＋左边线）；**不重复身份信息**、不再有固定副题与硬编码「异文」标题 |
+| **关于页** | `ui/Screens.kt` | 采纳锚 `about-min` 的 **V3（标签左对齐）**＋`about-update` 的两条：**无区域框**、**初态只显示按钮**（不生成状态文本元素、不占位）；**仓库链接（C1 完整 URL）置底**；**不再显示更新源地址**（`q-9f9eca3d` 未采纳它）；共用版本信息里**不出现「来源：」** |
+| **最小 Markdown 渲染** | `ui/Markdown.kt` | **从零新增**：逐行解析成段落／无序列表／有序列表／三级标题／引用块，行内 `**粗体**`／`*斜体*` 用 `AnnotatedString`；范围＝**闭集 8 样**（唯一来源 `items/content-format/prototypes/rules-v4/md-subset.md` 与机器可读的 `expectations.json`），**闭集之外不加分支**（编译期报错挡住） |
+| **内置产物** | `app/src/main/assets/content/content.json` | **机械转换**成 v2 形状（不新写一个字）：19 首的 `id/title/author/genre/source/orderInSource/stanzas` 逐字保留，`dynasty`＝`汉`，`detail`／`notes`＝`null`。⚠ **`variants`（24 条异文）不在新形状里** ⇒ 见「已知依赖」 |
+
+**已知依赖（合并前必须由负责人/编译器线处理，本端不单方面动）**
+
+1. **`tools/check-bundled-content.mjs` 会崩**（它读 `p.variants.length`，v1 时代的门）—— 字段集一变它就必须与编译器线/S3 同批更新；`npm test` 里包含它。
+2. **24 条异文不在内置产物里**：新形状没有 `variants` 键，它们要作为 `detail` 的 Markdown 进产物（S3 把 `content/poems/` 的 `## 详情` 节搬进来）。现在源里还没有那一节 ⇒ 19 首的 `detail` 全是 `null`，详情页如实显示「这一首在产物里没有详情正文。」。
+3. **`web/about-fields.json`（跨端共用字段集）落后于 `q-9f9eca3d`**：用户定的共用信息是「应用名 / 应用版本 / 内容版本 / 仓库链接」，文件里仍有「一句话说明」与「诚实的限制」。删它们＝改跨端契约（要同时改 Web 端与它的 e2e）⇒ 本端**保留**这五项（与 Web 仍一致，不制造新的两端分歧），只改排布。那两条「未采纳」记在 [`../items/ui-about/item.md`](../items/ui-about/item.md)。
+4. **两端待统一的一处口径**：身份行顺序。`expectations.json` 的 Web 一列写 `dynasty · author · genre`，而诗页/详情页/宽度的采纳锚与本端任务书都是 **作者 · 朝代 · 体裁** ⇒ 本端按采纳锚实现（`ui/ScreenContent.kt` 的 `poemMetaLine`）。
+5. **宽度口径的 V 取的是「Scaffold 内容区宽」**（已扣掉系统栏 inset），不是 Web 意义的视口宽：竖屏下两者差不多，横屏带侧栏时会略小。这是为了避免列被系统栏裁掉（本端一处**未在设备上验证**的口径差异）。
+
+> **本机核验（2026-10-16）**：`./gradlew testDebugUnitTest --offline` ⇒ **143 例全绿**（基线 97 例；新增/改写 46 例；0 skip）。
+> ⚠ 一如既往：**单测绿 ≠ 体验符合** —— 四页 UI 的逐项对照结论在交付报告里，观感仍需模拟器验收（本轮不碰设备）。
 
 ## 1. 构建与打包（本机实测命令）
 
@@ -27,7 +52,7 @@ cd android
 #   JAVA_HOME=C:\Users\wsqsy\.jdks\ms-17.0.17
 ./gradlew assembleDebug          # 产物：android/app/build/outputs/apk/debug/app-debug.apk
 
-./gradlew testDebugUnitTest      # 81 个 JVM 单测（无需设备/模拟器）
+./gradlew testDebugUnitTest      # 143 个 JVM 单测（无需设备/模拟器；2026-10-16 实测全绿）
 ```
 
 - 本机 `gradle` 不在 PATH，用 wrapper（`gradlew` + `gradle/wrapper/`，发行版已缓存在 `~/.gradle/wrapper/dists`，不需要联网下载）。
@@ -63,9 +88,13 @@ cd android
 > ⚠️ **`assembleRelease` 在本机会以「缺少正式签名环境变量，fail-closed」直接失败**——这是发布线的设计（见 §8），不是编译错误；本地开发/验收一律用 `assembleDebug`。
 `aapt2 dump badging` 实测：`package: name='dev.sopho.suofei' versionCode='1' versionName='0.1.0'`、`minSdkVersion:'26'`、`targetSdkVersion:'36'`、`application-label:'索斐'`、`uses-permission: android.permission.INTERNET`。
 
-## 3. 内置内容：已是真实产物（2026-10-14 由负责人替换完成）
+## 3. 内置内容：已是真实产物（2026-10-14 由负责人替换完成；**2026-10-16 机械转成 v2 形状**）
 
-替换已按下面步骤实际执行过（不是待办）：
+⚠ **现状（2026-10-16）**：内置产物已按**新字段形状**（`formatVersion` 2）写成，
+但 `content/poems/` 还没有 `## 详情` 节 ⇒ `detail` 全为 `null`，**24 条异文暂时不在内置产物里**
+（它们仍在 `content/poems/*.md` 与 `docs/sources/`）。⇒ 下面这套「与 `dist/content.json` 字节一致」的
+流程**当前不成立**：`dist/content.json` 由 v1 编译器产出，`tools/check-bundled-content.mjs` 也还是 v1 时代的门
+（它会崩）。**字段集升版必须与编译器同批** —— 那一步（S1/S3）由负责人管的另一条线做，落定后重跑下面 1–4 步即可。
 
 1. ✅ 用编译线 C 产出的 `dist/content.json` 覆盖 `android/app/src/main/assets/content/content.json`；
 2. ✅ 删掉占位的 `FIXTURE-README.md`，并更新本 README 与设计文档里「内置内容为占位夹具」的表述；
@@ -76,7 +105,9 @@ cd android
 
 - 路径常量只有一处：`ContentRepository.ASSET_PATH = "content/content.json"`。
 - **内置内容必须与 `dist/content.json` 字节一致**（第 4 节的门就是查这个）；不一致就意味着 APK 内置的版本与你以为发布的内容不是同一份。
-- **真实 19 首里没有任何笔记**（`notes` 全为 `null`），这是真实空状态，不是缺失；UI 显示「（无笔记）」，不得生成占位笔记。
+- **真实 19 首里没有任何笔记**（`notes` 全为 `null`），这是真实空状态，不是缺失。
+  ⚠ **2026-10-16 更正**：新形状下 `notes == null` ⇒ **界面连笔记入口都不出现**（用户 `q-bed9e64e`）；
+  原来那句「（无笔记）」占位已删除。
 
 ## 4. 自证：确认 assets 里的 content.json 真的在 APK 内
 
@@ -105,12 +136,16 @@ EOF
 
 实测结果（2026-10-14）：APK 内 `assets/content/content.json` 23899 字节，sha256 `f58f945adcfb94aa50cdc0570f10a53a4956ebd22dab5b99b7684812bb724503`，与源文件、且与 `dist/content.json` **三方字节一致**。
 
+⚠ **2026-10-16 起这条不成立**：内置产物已机械转成新的 v2 形状（13 802 字节、`detail`/`notes` 全为 `null`），
+而 `dist/content.json` 仍由 v1 编译器产出 ⇒ **不再字节一致**；`tools/check-bundled-content.mjs`（v1 时代的门）
+会直接崩。字段集升版必须与编译器同批（见 §0 的「已知依赖」）。
+
 ## 5. 目录结构
 
 ```
 android/
 ├── app/src/main/
-│   ├── assets/content/content.json          # APK 内置内容（＝ dist/content.json，真实 19 首）
+│   ├── assets/content/content.json          # APK 内置内容（真实 19 首；2026-10-16 起为 v2 形状，见 §0）
 │   ├── java/dev/sopho/suofei/
 │   │   ├── MainActivity.kt                  # 装配：store + repository + AppState，打开时自动检查更新
 │   │   ├── data/ContentModel…（Domain.kt）  # 内容领域模型 + 分组/排序规则
@@ -133,7 +168,12 @@ android/
 ├── tools/make-launcher-icon.mjs             # 从只读交付源生成上面五个资源（内置自检，见 §6.4）
 └── app/src/test/java/dev/sopho/suofei/      # 97 个 JVM 单测（含更新流程、视觉令牌门、更新源地址门、图标门、四页导航/清单门）```
 
-### 5.2 四个页面与各页信息清单（用户 2026-10-15）
+### 5.2 四个页面与各页信息清单（⚠ **2026-10-16 已按采纳锚重排，下表是旧版描述，就地保留作留痕**）
+
+下表描述的是 **2026-10-15 的候选实现**（四页已落地那次）。**2026-10-16 的现状以 §0 与交付报告为准**：
+目录页不再有卡片/应用名/版本页脚、组头可折叠；诗页顶部行＝返回左／笔记 · 详情右、**正文之后无页脚行**；
+详情页渲染 `detail` 的 Markdown（不再逐条渲染 `variants`）；关于页去框、初态无状态占位、多一条仓库链接、
+不再显示更新源地址。
 
 | 页 | 在代码里放了什么 | 明确**不放** | 守着它的断言 |
 |---|---|---|---|
@@ -294,6 +334,11 @@ mono 单色且与 fg 同形、**两端轮廓逐点一致**），但它**不渲�
 
 **(c) 更新源不再是占位地址，那行文案同步改（用户 2026-10-15 拍板推进更新源）**：原来写「更新源（占位地址，见代码常量）」，现在只写「更新源」——地址照常显示在它下一行（`UpdateEndpoint.displayUrl()`），不再说「占位」。
 
+> ⚠ **2026-10-16 再次变更**：用户 `q-9f9eca3d` 定的关于页共用信息是「应用名 / 应用版本 / 内容版本 / 仓库链接」——
+> **更新源地址没有被一并采纳** ⇒ 关于页**不再显示更新源那一行**（地址仍由 `UpdateEndpointTest` 逐字钉住，
+> 且它仍是检查更新的实际入口）。与之一起按采纳锚改的还有：**V3 标签左对齐**、**无区域框**、
+> **初态只显示按钮**（不生成状态文本元素）、**仓库链接置底**、共用版本信息里去掉了「来源：」。
+
 - 换的是 `update/UpdateProtocol.kt` 的 `UpdateEndpoint.BASE_URL`：占位 `https://example.invalid/suofei` → **真实站点** `https://wsqs.github.io/suofei`（GitHub Pages，强制 https）。走到位后的 URL＝`https://wsqs.github.io/suofei/content/latest.json`。**换的判据**：站点侧 `content/latest.json` 与 `content/<版本>/content.json` **已在发布白名单里**（发布脚本的产物，不必为此新增产物），且站点已上线。
 - 判据有断言：新增 `UpdateEndpointTest`，把该 URL **逐字写死**（写死是故意的——它就是本次发布的接口值），地址改错一位即报红点名；顺带钉住「清单里的相对 `url` 按清单所在目录解析」这条语义（真实站点产出的清单给的正是相对路径）。
 - **只读探测（2026-10-15，本机 HTTP 请求，不是应用内验收）**：`https://wsqs.github.io/suofei/content/latest.json` → `HTTP 200`；再按清单里的**相对** `url`（`<版本>/content.json`）解析后请求 → `HTTP 200`、字节数与 sha256 **与清单逐字一致** ⇒ **这条地址链在 HTTP 层是通的**（清单里的版本号与 `minAppVersionCode` 随每次发布变化，故不写进本文）。
@@ -307,12 +352,13 @@ mono 单色且与 fg 同形、**两端轮廓逐点一致**），但它**不渲�
 
 ## 9. 已验证 / 未验证
 
-**已验证**：`clean testDebugUnitTest assembleDebug` 通过；APK 内 assets 存在且字节一致；**97 个 JVM 单测通过**（含更新流程的成功/失败/不兼容/损坏路径、「升级后只剩当前一个快照、旧版本目录确被删除」、「写指针失败 ⇒ 存储层明确 `Refused(IO)`、调用方拿到同类 `Failed(IO)`、不留孤儿目录、生效版本不变」、**视觉令牌与规范逐项一致**、**三样结构记号**、**更新状态文案非空**、**更新源 URL 逐字断言**）；APK 包名、展示名、SDK 版本、权限、签名证书实测。图标落地后（2026-10-15）新增 **`LauncherIconTest` 8 例**：清单连线 / 三层齐全 / 108 画布 / 不依赖字体 / fg 在保证可见区内 / bg 满幅且与窗口底色同值 / mono 单色且与 fg 同形 / **与 Web 侧同一份轮廓逐点一致**（详见 §6.4；它不渲染、不看像素）。另有一道契约一致性门 `UnknownAuthorsSourceTest`：断言匿名作者清单与唯一来源 `schema/unknown-authors.json` 逐项一致（读不到文件即失败并列出尝试过的路径，不跳过；测试自身不持副本）。
+**已验证**：`clean testDebugUnitTest assembleDebug` 通过；APK 内 assets 存在；**143 个 JVM 单测通过**（**2026-10-16**：基线 97 例 → 143 例；新增/改写 46 例 —— 字段新形状（含从规范侧读键序、旧形状被拒）、**最小 Markdown 渲染 10 例**、**语义折行 10 例**、**宽度口径 11 例**、四页源码级对照 14 例；均在 `--offline` 下复跑过），含更新流程的成功/失败/不兼容/损坏路径、**视觉令牌与规范逐项一致**、**结构记号**、**更新状态文案非空**、**更新源 URL 逐字断言**。图标落地后（2026-10-15）新增 **`LauncherIconTest` 8 例**：清单连线 / 三层齐全 / 108 画布 / 不依赖字体 / fg 在保证可见区内 / bg 满幅且与窗口底色同值 / mono 单色且与 fg 同形 / **与 Web 侧同一份轮廓逐点一致**（详见 §6.4；它不渲染、不看像素）。另有一道契约一致性门 `UnknownAuthorsSourceTest`：断言匿名作者清单与唯一来源 `schema/unknown-authors.json` 逐项一致（读不到文件即失败并列出尝试过的路径，不跳过；测试自身不持副本）。
 
-**页面集合落地（2026-10-15，新增 16 例）**：`AppStateNavigationTest`（4）——四页转移，含「详情页返回→那首诗」「关于页返回→目录」「详情页不改变选中的诗」；
-`ScreenInventoryTest`（6）——四页存在且 `UpdateScreen` 已消失、**诗页不引用 `variants`/`poem.source`**、诗页有详情入口、详情页渲染 source/variants/variant.text/variant.note 且**遍历全部**、目录无「有笔记」/组头无 `clickable`/有「关于」入口、关于页带共享字段＋更新块；
+**页面集合落地（2026-10-15，新增 16 例）**：`AppStateNavigationTest`（4）——四页转移，含「详情页返回→那首诗」「关于页返回→目录」「详情页不改变选中的诗」；`ScreenInventoryTest`（6）——四页存在且 `UpdateScreen` 已消失、**诗页不引用 `variants`/`poem.source`**、诗页有详情入口、详情页渲染 source/variants/variant.text/variant.note 且**遍历全部**、目录无「有笔记」/组头无 `clickable`/有「关于」入口、关于页带共享字段＋更新块；
 `PoemDetailContentTest`（3）——内置产物 **24 条/13 首**、每条 text/note 非空、6 首无异议；`AboutFieldsTest`（3）——`AboutFields` 与唯一来源 `web/about-fields.json` 逐项一致、关于页渲染每个字段。
 **证伪实测**：给诗页加一句 `Text(poem.variants…)` ⇒ `poemScreen_showsNoVariantsAndNoSource` 报红「诗页不得出现异文（variants）」；把详情页改成只取 `variants.first()` ⇒ `poemDetailScreen_rendersSourceAndEveryVariantField` 报红「详情页要遍历全部异文（variants.forEach…），不是只取第一条」（均已还原）。
+
+> ⚠ **2026-10-16 取代**：上面那段里的 `ScreenInventoryTest`／`PoemDetailContentTest`／`AboutFieldsTest` 的**具体断言已随字段集与四页重排重写**（如「详情页逐条渲染 variants」不再成立——详情页现在渲染 `detail` 的 Markdown；「诗页不得引用 variants」仍成立，另加「不得引用 poem.detail」；「关于页要显示更新源」改为「要有仓库链接」）。现例数：`ScreenInventoryTest` 14、`PoemDetailContentTest` 4、`AboutFieldsTest` 4、新增 `MarkdownTest` 10／`SemanticBreakTest` 10／`ContentWidthTest` 11。源码级守卫仍然是**结构守卫、不是渲染验证** —— 观感需模拟器验收。
 **未验证**：**强光/长时间阅读疲劳**未验（用户 2026-10-15 已决定不做物理真机验收 ⇒ 这一条以「已知并接受、未验证」记录）；
 **图标没在任何真机/启动器上看过**（真实遮罩形状随厂商变、`<monochrome>` 的实际观感取决于系统「主题图标」开关；
 `LauncherIconTest` 只做静态断言、不渲染、不看像素）——见 §6.4；未在真机/弱网上验更新流程；

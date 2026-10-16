@@ -22,12 +22,12 @@ class ContentStoreTest {
     @get:Rule
     val tmp = TemporaryFolder()
 
-    private fun payload(version: String, formatVersion: Int = 1, title: String = "占位诗题甲"): String =
+    private fun payload(version: String, formatVersion: Int = 2, title: String = "占位诗题甲"): String =
         """
-        {"formatVersion":$formatVersion,"contentVersion":"$version","generatedAt":"2026-10-14T12:00:00Z",
-         "dynasties":[{"key":"han","label":"汉","order":100}],
-         "poems":[{"id":"p1","title":"$title","author":"佚名","dynastyKey":"han","dynastyLabel":"汉",
-                   "dynastyOrder":100,"source":"占位夹具","variants":[],"stanzas":[["行一。"]]}]}
+        {"formatVersion":$formatVersion,"contentVersion":"$version","generatedAt":"2026-10-16T12:00:00Z",
+         "dynasties":["汉"],
+         "poems":[{"id":"p1","title":"$title","author":"佚名","dynasty":"汉","genre":null,
+                   "source":"占位夹具","orderInSource":1,"detail":null,"stanzas":[["行一。"]],"notes":null}]}
         """.trimIndent()
 
     private fun stage(store: ContentStore, version: String, json: String): File {
@@ -129,7 +129,7 @@ class ContentStoreTest {
         store.install(stage(store, "2026.10.14.1", payload("2026.10.14.1")), "2026.10.14.1", null, null)
 
         val result = store.install(
-            stage(store, "2026.10.14.2", "{ \"formatVersion\": 1, \"poems\": [ "),
+            stage(store, "2026.10.14.2", "{ \"formatVersion\": 2, \"poems\": [ "),
             "2026.10.14.2",
             null,
             null,
@@ -148,7 +148,7 @@ class ContentStoreTest {
         store.install(stage(store, "2026.10.14.1", payload("2026.10.14.1")), "2026.10.14.1", null, null)
 
         val result = store.install(
-            stage(store, "2027.1.1.1", payload("2027.1.1.1", formatVersion = 2)),
+            stage(store, "2027.1.1.1", payload("2027.1.1.1", formatVersion = 3)),
             "2027.1.1.1",
             null,
             null,

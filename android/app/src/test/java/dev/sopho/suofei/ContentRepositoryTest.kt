@@ -26,12 +26,12 @@ class ContentRepositoryTest {
     /** 内置内容的版本号从**同一份文件**读出来：写死的话每次换内容都要改测试，而且看不出这行到底在断言什么。 */
     private val bundledVersion = ContentParser.parse(bundledJson).contentVersion
 
-    private fun payload(version: String, formatVersion: Int = 1): String =
+    private fun payload(version: String, formatVersion: Int = 2): String =
         """
-        {"formatVersion":$formatVersion,"contentVersion":"$version","generatedAt":"2026-10-14T12:00:00Z",
-         "dynasties":[{"key":"han","label":"汉","order":100}],
-         "poems":[{"id":"p1","title":"$version","author":"佚名","dynastyKey":"han","source":"占位",
-                   "variants":[],"stanzas":[["行一。"]]}]}
+        {"formatVersion":$formatVersion,"contentVersion":"$version","generatedAt":"2026-10-16T12:00:00Z",
+         "dynasties":["汉"],
+         "poems":[{"id":"p1","title":"$version","author":"佚名","dynasty":"汉","genre":null,"source":"占位",
+                   "orderInSource":1,"detail":null,"stanzas":[["行一。"]],"notes":null}]}
         """.trimIndent()
 
     private fun repo(): Pair<ContentRepository, ContentStore> {
@@ -84,10 +84,10 @@ class ContentRepositoryTest {
     @Test
     fun installedContentWithNewerFormatVersion_isNotParsed_fallsBackToBundled() {
         val (repository, store) = repo()
-        // 直接往目录里塞一个 formatVersion=2 的快照（模拟：新版应用装过，随后应用被降级）
+        // 直接往目录里塞一个 formatVersion=3 的快照（模拟：新版应用装过，随后应用被降级）
         val dir = File(tmp.root, "content/versions/2027.1.1.1")
         dir.mkdirs()
-        File(dir, "content.json").writeText(payload("2027.1.1.1", formatVersion = 2), Charsets.UTF_8)
+        File(dir, "content.json").writeText(payload("2027.1.1.1", formatVersion = 3), Charsets.UTF_8)
         File(tmp.root, "content/current").writeText("2027.1.1.1", Charsets.UTF_8)
 
         val loaded = repository.load()
