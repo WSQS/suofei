@@ -89,7 +89,7 @@ source: "《文选》卷二十九·杂诗上「古诗一十九首」（李善注
 - **产物**：六个键 ＋ 由路径派生的 `id`。**这一块不渲染成任何界面元素**，但它决定题头与目录分组。
 - **Web 预期**：
   - 现状：诗页题下一行由 `poem.dynastyLabel` / `poem.author` / `poem.era` / `poem.genre` 拼成（`web/app/render.js:295`）；目录分组按 `poem.dynastyKey` 归组、组名取 `poem.dynastyLabel`（`web/app/render.js:90-116`、`264-267`）；产物校验要求这些键是字符串（`web/app/content.js:65-75`）。
-  - 要改：题下一行改成 `dynasty · author · genre`（`genre` 为 `null` 时按现有 `filter(Boolean)` 自动省略）；分组改成按 `poem.dynasty` 匹配顶层 `dynasties` 里的**中文名**；`content.js` 的校验同步（`dynasties` 元素从对象变字符串）。
+  - 要改：题下一行改成 `author · dynasty · genre`（`genre` 为 `null` 时按现有 `filter(Boolean)` 自动省略）；分组改成按 `poem.dynasty` 匹配顶层 `dynasties` 里的**中文名**；`content.js` 的校验同步（`dynasties` 元素从对象变字符串）。
 - **Android 预期**：
   - 现状：题下一行同样用 `dynastyLabel` / `era`（`android/app/src/main/java/dev/sopho/suofei/ui/ScreenContent.kt:19-20`）；解析要求 `dynastyKey` / `dynastyLabel` / `dynastyOrder` 三个键且 `dynastyKey` 必须在 `dynasties` 里声明（`…/data/ContentParser.kt:62-75`）；`Dynasty(key,label,order)`（`…/data/Domain.kt:10`）；分组 `sortedBy { it.dynasty.order }`（`…/data/Domain.kt:49-60`）。
   - 要改：`Poem` 去掉 dynastyKey/dynastyLabel/dynastyOrder/era、加 `dynasty: String`；`Dynasty` 只要中文 label；解析按字符串数组读、按中文名分组与排序（次序照顶层数组）。

@@ -29,8 +29,9 @@
 > - **关于页**：V3（标签左对齐）＋**无区域框**；Web 的更新交给 SW ⇒ 那页没有「更新」块（「初态只按钮」那条针对更新控件）。
 > - **列宽口径**：`C = min(V, max(320, 0.88 × (V − 24)))`，`24` 是**一次性扣除总量**；内容行内边距 `1.05rem`＝16.8px（列内一层）。
 > - **详情页返回→那首诗**（深链接直开也一样）；**诗页返回目录恢复原滚动位置（IF-45）**，深链接直开目录仍从顶部。
-> - ⚠ **过渡适配**：字段集升版（1→2）由另一条线在 `tools/` ＋ `schema/` 落地；在它合并进来之前，
->   本地 `dist/content.json` 仍是老形状 ⇒ e2e 与本地演练用 `scripts/lib/upgrade-content.mjs` 幂等升到 2（编译器产出 v2 后它是直通）。
+> - ⚠ **过渡适配已到期删除（2026-10-16，`docs/design/implementation-plan.md` §4b）**：字段集升版（1→2）已在 `tools/` ＋ `schema/` 落地，真实产物就是 `formatVersion: 2`
+>   ⇒ 过渡件 `scripts/lib/upgrade-content.mjs`（v1→v2 幂等适配）**已整份删除**。基座必须是**真实 v2 产物**：
+>   客户端只认 2（`SUPPORTED_FORMAT_VERSION`），**v1 照样如实拒绝**，**不得静默升版后自称支持 2**。
 
 ## 1. 怎么看效果（确切命令）
 
@@ -87,7 +88,6 @@ web/
   scripts/serve.mjs     零依赖静态服务
   scripts/prepare-dev-content.mjs   把一份内容 JSON 放到 web/content.json
   scripts/lib/variants.mjs          从基座派生测试变体（部署内容 / 失败内容 / 次序形状）
-  scripts/lib/upgrade-content.mjs   过渡适配：把 formatVersion 1 老形状升到 2（幂等；编译器升版后直通）
   fixtures/             **测试夹具（不是发布内容）**
   tests/e2e-cdp.mjs                 端到端验证（无头 Chromium + CDP）
   tests/lib/deploy.mjs              组装「部署目录」，用来真发两版
@@ -237,11 +237,16 @@ web/
 
 | 元素 | Web | Android | 守着它的断言 |
 |---|---|---|---|
-| 应用名 / 一句话说明 | 显示 | 显示 | 唯一来源 `about-fields.json`；Web e2e §1c-3、Android `AboutFieldsTest` |
+| 应用名 | 显示 | 显示 | 唯一来源 `about-fields.json`；Web e2e §1c-3、Android `AboutFieldsTest` |
 | 应用版本 | 显示（**站点资源版本** `APP_VERSION`） | 显示（APK versionName/versionCode） | 值平台相关 |
-| 内容版本与来源 | 显示（本次站点部署，随 SW 缓存） | 显示（APK 内置 / 已下载） | 值平台相关 |
-| 诚实的限制 | 显示（`HONEST_STORAGE_NOTE`，与页脚状态面板同一段原文） | 显示（`ABOUT_LIMITS_ANDROID`） | e2e 断言 Web 那份与页脚原文逐字相同 |
+| 内容版本 | 显示（`v<contentVersion>`，随 SW 缓存） | 显示（APK 内置 / 已下载） | 值平台相关；标签不再带「来源」、值里也不写「来源：」 |
+| 仓库链接 | 显示（完整 URL `ABOUT.repoUrl`，纯文本） | 显示（`AboutFields.REPO_URL`） | **C1：完整 URL、不加「在浏览器打开」提示**；e2e 断言值＝唯一来源 |
+| ~~一句话说明~~ / ~~诚实的限制~~ | **不显示**（用户 `q-9f9eca3d` 未采纳这两项） | 待 Android 线同步 | e2e §1c-3 反向断言两行不在；「诚实的限制」原文仍在**页脚状态面板**（`honest-storage-note`） |
 | 「更新」块 | **无**（Web 的更新交给 SW） | **有**（更新源地址、状态文案、检查按钮） | e2e 断言 Web 关于页无 `check-site-update`；Android `ScreenInventoryTest` |
+
+⚠ **共享字段集＝4 项**（应用名／应用版本／内容版本／仓库链接，用户 `q-9f9eca3d`），唯一来源 `about-fields.json`；
+Web 的 `config.ABOUT` 与它逐字一致，且 e2e 断言字段集就是这 4 项。
+⚠ **Android 侧当前仍写 5 项**（`ui/ScreenContent.kt` 的 `AboutFields.LABELS`，且多渲染了未采纳的那两行）—— 那是**已记录的跨端待同步**，由 Android 线按同一采纳锚改；不是 Web 单方面改契约。
 
 ## 5. 视觉：静默终端（深墨底）
 
@@ -369,8 +374,8 @@ node ../android/tools/make-launcher-icon.mjs              # Android 侧的矢量
     并比对 `poem.source`；D0 四项（诗题左对齐／无身份行／来源块在正文前且标签为「底本与来源」／小标题无竖线 0px）；
     没有 detail 的诗如实说明（`detail-empty`）；
     **详情页「返回」落到那首诗**（含真·深链接直开详情页后返回）；
-  - **§1c-3 关于页**：`config.ABOUT` 与唯一来源 `about-fields.json` 逐字一致；目录有「关于」入口（`#/about`）与深链接直开；
-    字段标签集合与唯一来源相同；应用名/一句话说明/站点资源版本/内容版本与来源/诚实的限制都在；无「更新」块；返回目录；
+  - **§1c-3 关于页**：`config.ABOUT` 与唯一来源 `about-fields.json` 逐字一致，且字段集就是采纳锚那 **4 项**；目录有「关于」入口（`#/about`）与深链接直开；
+    字段标签集合与唯一来源相同；应用名/站点资源版本/内容版本/仓库链接（C1 完整 URL）都在；**「一句话说明」与「诚实的限制」两行不在**（未采纳；后者原文仍在页脚）；无「更新」块；返回目录；
   - **§1c-4 IF-45**：从诗页返回目录**恢复原滚动位置**；进入诗页从顶部开始；深链接直开目录仍从顶部；
   - **§4e**：切换到带笔记的夹具内容后，**目录文本里没有「有笔记」**（夹具诗确实带笔记、也确实在目录里 ⇒ 这条反向断言有牙齿）。
 

@@ -17,7 +17,7 @@
 // 字段形状（**formatVersion 2**，用户 2026-10-15「字段集一变就升」）：
 //  顶层 `dynasties` ＝有序中文值数组；每首 10 键，`dynasty` 单值、`detail` 是最小 Markdown 文本。
 
-import { ABOUT, HONEST_STORAGE_NOTE, ROUTES } from './config.js';
+import { ABOUT, ROUTES } from './config.js';
 
 /** 「谁是佚名/未知作者」：**唯一来源 = schema/unknown-authors.json**（契约线提供，机器可读；
  *  契约正文只说明来源，不再被任何代码/测试正则解析）。
@@ -524,10 +524,14 @@ export function renderDetailPage(doc, id, { onBack } = {}) {
 
 /**
  * 「关于」页（原「更新页」改名，用户 2026-10-15 定）：两端都有、**同一批字段**（`web/about-fields.json`）。
- * 字段值平台相关：Web 的应用版本＝站点资源版本；内容来源＝本次站点部署（随 SW 缓存）。
+ * 字段值平台相关：Web 的应用版本＝站点资源版本；内容版本＝本次站点部署的内容版本（随 SW 缓存）。
  * Web 的更新交给 Service Worker，所以这里**没有**「更新」块（Android 在那页里多一块「更新」）。
  * 排布按 `round-2026-10-16-about-min` 的 **V3（标签左对齐）＋ 无区域框**；「初态只按钮」那条
  * 针对的是更新控件（Web 无此块 ⇒ 不适用，见报告）。
+ *
+ * ⚠ 2026-10-16 字段集按采纳锚对齐为 **4 项**（用户 `q-9f9eca3d`：应用名／应用版本／内容版本／仓库链接）：
+ * 不再有「一句话说明」与「诚实的限制」两行（后者只在页脚状态面板里保留同一段原文），
+ * 标签「内容版本与来源」收成「内容版本」（值里的「来源：」也去掉），并补上「仓库链接」（C1 完整 URL，照 Android 一样只显示 URL 文本、不加「在浏览器打开」提示）。
  */
 export function renderAboutPage({ appVersion, doc, onBack } = {}) {
   const root = h('div', { class: 'view view--about', dataset: { test: 'view-about' } });
@@ -540,12 +544,9 @@ export function renderAboutPage({ appVersion, doc, onBack } = {}) {
     dl.append(h('dd', { dataset: { test }, text: value }));
   };
   row('应用名', ABOUT.appName, 'about-app-name');
-  row('一句话说明', ABOUT.tagline, 'about-tagline');
   row('应用版本', `站点资源版本 v${appVersion}`, 'about-app-version');
-  row('内容版本与来源',
-    doc ? `v${doc.contentVersion}（来源：本次站点部署，随本站缓存一起保存）` : '（尚未取到）',
-    'about-content-version');
-  row('诚实的限制', HONEST_STORAGE_NOTE, 'about-honest-limits');
+  row('内容版本', doc ? `v${doc.contentVersion}` : '（尚未取到）', 'about-content-version');
+  row('仓库链接', ABOUT.repoUrl, 'about-repo-url');
   root.append(dl);
   return root;
 }
