@@ -25,9 +25,10 @@
  *  [2] 每个视口：innerWidth 与 visualViewport.width 精确等于目标；docW == bodyW == 目标宽、所有可见元素都在 0…目标宽 内（**无横向溢出**）。
  *  [3] **逐项几何**（逐字 Range 量墨迹盒）：D0 的 返回／诗题／来源标签／来源文本／小标题／列表项／段落 的**左沿都＝行内沿 16.8px**；
  *      每一行右沿 ≤ 列宽 − 行内沿（**不溢出**）；L1 的 ① 左沿＝16.8 且 ② 居中；L2 三档来源文本左沿＝16.8；
- *      L3 三档小标题左沿（① 因发丝竖线＋0.6rem 内边距右移，②③＝16.8）。
+ *      **L3 三档小标题左沿都＝16.8**（去装饰竖线后回到与正文同一条左沿；②③ 作对照）。
  *  [4] **几何与已定值**：详情正文 17px／行高 34px／字距 0.765px；诗题 24px／字距 2.4px；来源与小标题 13.5px；返回 13.12px；
- *      间距（来源块上 25.6／详情正文上 25.6／小标题上 25.6 下 8／列表项 9.6／段落 14.4）**逐项实测**。
+ *      间距（来源块上 25.6／详情正文上 25.6／小标题上 25.6 下 8／列表项 9.6／段落 14.4）**逐项实测**；
+ *      **去线自证**：`### ` 小标题的 border-left-width＝0px、padding-left＝0px、margin-left＝0px（无那 2px＋内边距偏移）。
  *  [5] **可点元素语义**：图内唯一的应用层链接＝「返回」，它是 <a>、有 href、文本非空、href = `#/p/<id>`（**落到这首诗**，不是目录）；
  *      没有空文本链接、没有 javascript:／外部 href。
  *  [6] 字号／行高／字距**不随宽度变**（三个视口各只有一个取值）。
@@ -275,7 +276,8 @@ const MEASURE = String.raw`(function(){
     if (!e) return null;
     var c = getComputedStyle(e);
     return { fs: c.fontSize, lh: c.lineHeight, ls: c.letterSpacing, color: c.color,
-      mt: c.marginTop, mb: c.marginBottom, pt: c.paddingTop, pb: c.paddingBottom };
+      mt: c.marginTop, mb: c.marginBottom, pt: c.paddingTop, pb: c.paddingBottom,
+      pl: c.paddingLeft, blw: c.borderLeftWidth, ml: c.marginLeft };
   }
   var subs = d0n.querySelectorAll('.detail .d-sub');
   var links = [];
@@ -306,7 +308,7 @@ const MEASURE = String.raw`(function(){
       li: csOf('.detail .d-li'), p: csOf('.detail .d-p'), title: csOf('.d-title'), back: csOf('.ctl'),
       subFirst: csOf('.detail .d-sub'),
       provBox: csOf('.prov'),
-      subSecond: subs.length > 1 ? (function(c){ return { fs: c.fontSize, ls: c.letterSpacing, pt: c.paddingTop, pb: c.paddingBottom }; })(getComputedStyle(subs[1])) : null },
+      subSecond: subs.length > 1 ? (function(c){ return { fs: c.fontSize, ls: c.letterSpacing, pt: c.paddingTop, pb: c.paddingBottom, pl: c.paddingLeft, blw: c.borderLeftWidth, ml: c.marginLeft }; })(getComputedStyle(subs[1])) : null },
     links: links, badHref: badHref, allProvText: l2pAll,
     seeds: { title: document.querySelector('[data-test="raw-title"]').textContent,
              source: document.querySelector('[data-test="source-txt"]').textContent,
@@ -581,7 +583,7 @@ async function run() {
 
       /* [3] 逐项几何：D0 左沿 */
       log('\n[3] 逐项几何（逐字 Range 的**墨迹盒**；dCol＝相对本列左沿；over＝越出「列宽 − 行内沿」）');
-      const SUB_LEFT = r2(EDGE + 9.6 + 2);          /* 发丝竖线 2px ＋ 内边距 0.6rem＝9.6px */
+      const SUB_LEFT = EDGE;                       /* 去线后：小标题与正文同一条左沿（不再是 EDGE+2+9.6）*/
       const edgeRows = ['back', 'title', 'provLabel', 'provText', 'li', 'p'];
       const leftBad = [];
       edgeRows.forEach((role) => {
@@ -592,9 +594,14 @@ async function run() {
       });
       const subRowD0 = rowOf(d0col, 'sub');
       const subD = r2(subRowD0.minLeft - d0col.colLeft);
-      check(`[3] D0 逐项左沿：返回／诗题／来源标签／来源文本／列表项／段落 都 = 行内沿 ${EDGE}px；小标题（eyebrow ①）＝竖线 2px ＋ 0.6rem 内边距 ⇒ ${SUB_LEFT}px`,
+      const liLeft = r2(rowOf(d0col, 'li').minLeft - d0col.colLeft);
+      const pLeft = r2(rowOf(d0col, 'p').minLeft - d0col.colLeft);
+      check(`[3] D0 逐项左沿都 = 行内沿 ${EDGE}px（返回／诗题／来源标签／来源文本／列表项／段落／小标题）`,
         leftBad.length === 0 && Math.abs(subD - SUB_LEFT) <= 0.5,
         (leftBad.length ? leftBad.join(' | ') + ' | ' : '') + `sub=${subD}（要求 ${SUB_LEFT}±0.5）`);
+      check(`[3] **去装饰竖线后**：\`### \` 小标题左沿 == 正文左沿 == 行内沿 ${EDGE}px（不再是 28.39px）`,
+        Math.abs(subD - EDGE) <= 0.5 && Math.abs(liLeft - subD) <= 0.5 && Math.abs(pLeft - subD) <= 0.5 && Math.abs(liLeft - EDGE) <= 0.5,
+        `小标题 ${subD} ／ 列表项 ${liLeft} ／ 段落 ${pLeft} ／ 行内沿 ${EDGE}`);
       const overBad = [];
       d0colsIterate(d0col, (r) => {
         if (r.maxRight === null) return;
@@ -616,9 +623,8 @@ async function run() {
         log(`      ${r.role.padEnd(3)} ${r.lines.map((x) => `${x.n}字 L${r2(x.l - d0col.colLeft)} R${r2(x.r - d0col.colLeft)} W${x.w}`).join(' | ')}`);
       });
       /* 行内几何：行高（相邻行 top 差）＋ 段间距 */
-      check('[3] 详情正文的正文行（列表项／段落）都以同一左沿（行内沿 16.8px）起排，没有一行居中/右移；小标题另有自己的左沿',
-        detailRows.filter((r) => r.role !== 'sub').every((r) => Math.abs(r2(r.minLeft - d0col.colLeft) - EDGE) <= 0.5) &&
-        detailRows.filter((r) => r.role === 'sub').every((r) => Math.abs(r2(r.minLeft - d0col.colLeft) - SUB_LEFT) <= 0.5),
+      check('[3] 详情正文的正文行（列表项／段落）与小标题都以同一左沿（行内沿 16.8px）起排，没有一行居中/右移',
+        detailRows.every((r) => Math.abs(r2(r.minLeft - d0col.colLeft) - EDGE) <= 0.5),
         detailRows.map((r) => r.role + ':' + r2(r.minLeft - d0col.colLeft)).join(' '));
 
       /* [4] 几何与已定值 */
@@ -630,10 +636,14 @@ async function run() {
         S.title.fs === '24px' && S.title.ls === '2.4px' && S.prov.fs === '13.5px' &&
         S.subFirst.fs === '13.5px' && S.subFirst.ls === '2.16px' && S.back.fs === '13.12px',
         `title ${S.title.fs}/${S.title.ls}；prov ${S.prov.fs}；sub ${S.subFirst.fs}/${S.subFirst.ls}；back ${S.back.fs}`);
-      check(`[4] 间距逐项实测：来源块上 ${S.provBox.mt}（25.6）／详情正文上 ${S.detail.mt}（25.6）／小标题上 ${S.subSecond.pt} 下 ${S.subSecond.pb}（25.6／8）／列表项 ${S.li.pb}（9.6）／段落 ${S.p.pb}（14.4）`,
+      check(`[4] 间距逐项实测（**未改动**）：来源块上 ${S.provBox.mt}（25.6）／详情正文上 ${S.detail.mt}（25.6）／小标题上 ${S.subSecond.pt} 下 ${S.subSecond.pb}（25.6／8）／列表项 ${S.li.pb}（9.6）／段落 ${S.p.pb}（14.4）`,
         S.provBox.mt === '25.6px' && S.detail.mt === '25.6px' && S.subSecond && S.subSecond.pt === '25.6px' && S.subSecond.pb === '8px' &&
         S.li.pb === '9.6px' && S.p.pb === '14.4px' && S.subFirst.pt === '0px',
         `prov.mt=${S.provBox.mt} detail.mt=${S.detail.mt} sub1.pt=${S.subFirst.pt} sub2.pt=${S.subSecond && S.subSecond.pt} sub2.pb=${S.subSecond && S.subSecond.pb} li.pb=${S.li.pb} p.pb=${S.p.pb}`);
+      check('[4] **新增（去线自证）**：`### ` 小标题的计算值里**没有**那 2px 装饰竖线与内边距偏移 ⇒ border-left-width = 0px、padding-left = 0px、margin-left = 0px（首个与第二个都查）',
+        S.subFirst.blw === '0px' && S.subFirst.pl === '0px' && S.subFirst.ml === '0px' &&
+        S.subSecond.blw === '0px' && S.subSecond.pl === '0px' && S.subSecond.ml === '0px',
+        `sub1 blw=${S.subFirst.blw} pl=${S.subFirst.pl} ml=${S.subFirst.ml}；sub2 blw=${S.subSecond.blw} pl=${S.subSecond.pl} ml=${S.subSecond.ml}`);
 
       /* [3] 局部对照格几何 */
       const l1 = byId('L1');
@@ -649,10 +659,8 @@ async function run() {
         l2p.map((r, i) => `${i}→${r2(r.minLeft - l2.cols[i].colLeft)}`).join(' '));
       const l3 = byId('L3');
       const l3s = l3.cols.map((c) => rowOf(c, 'sub'));
-      check('[3] L3：① 小标题（发丝竖线＋0.6rem 内边距）左沿 > 16.8px；②③ 左沿 = 16.8px；③ 的文字以「### 」原样可见',
-        l3s.length === 3 && r2(l3s[0].minLeft - l3.cols[0].colLeft) > EDGE + 1 &&
-        Math.abs(r2(l3s[1].minLeft - l3.cols[1].colLeft) - EDGE) <= 0.5 &&
-        Math.abs(r2(l3s[2].minLeft - l3.cols[2].colLeft) - EDGE) <= 0.5 &&
+      check('[3] L3：三档小标题左沿都 = 行内沿 16.8px（① 去线后的目标形状；②③ 对照）',
+        l3s.length === 3 && l3s.every((r, i) => Math.abs(r2(r.minLeft - l3.cols[i].colLeft) - EDGE) <= 0.5) &&
         l3s[2].text.indexOf('### ') === 0,
         l3s.map((r, i) => `${i}→L${r2(r.minLeft - l3.cols[i].colLeft)}${i === 2 ? ' text=' + JSON.stringify(r.text.slice(0, 8)) : ''}`).join(' ／ '));
       check('[3] L3：三档小标题字号 ①＝②＝13.5px（--note-size）；③＝17px（与正文同字号 ⇒ 层级消失）',
