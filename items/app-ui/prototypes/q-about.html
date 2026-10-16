@@ -1,0 +1,787 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="tech"
+      data-token-blob="e395a54b6eec32f98ffd48822584401e085eb1a8"
+      data-head-sha="9c1e2b6"
+      data-deduct="24" data-pct="88" data-floor="320" data-cap="viewport"
+      data-fixture="short">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>「关于页表达」讨论原型 · 只做内容更新（Android 多一块「更新」）—— 材料，不是实施</title>
+<style>
+/* ============================================================================
+ * 令牌快照（**内嵌副本，不是新权威**）
+ *   来源：prototype/css/theme-tech.css（**只读**，本轮未改）
+ *   依据文件的 blob：e395a54b6eec32f98ffd48822584401e085eb1a8（git hash-object）
+ *   记录时的 HEAD：9c1e2b6（git rev-parse --short HEAD）
+ *   权威仍是 docs/design/visual-tokens.md（§2 颜色 / §3 排版 / §4 间距与形状 / §4.1 结构记号）。
+ *   这里只为「单文件自包含」复制一份快照：值逐字照抄、未做微调；**只列本页实际用到的令牌**。
+ *   ⚠ 本轮**不用** --measure（660px）：宽度用**已选口径**，上界＝视口宽 V，不设 660／860 上限。
+ * ========================================================================== */
+/* == TOKEN-SNAPSHOT-BEGIN == */
+:root {
+  --bg: #0e1315;
+  --bg-pattern: linear-gradient(to right, rgba(255, 255, 255, 0.028) 1px, transparent 1px), linear-gradient(to bottom, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+  --surface: #141b1e;
+  --surface-hover: #182124;
+  --surface-sunken: #111719;
+  --text: #dde5e4;
+  --text-dim: #98a8a6;
+  --text-faint: #788a88;
+  --line: #233034;
+  --line-strong: #35494d;
+  --accent-soft: rgba(79, 179, 165, 0.1);
+  --accent-line: rgba(79, 179, 165, 0.38);
+  --accent-text: #7fd4c6;
+  --warn-soft: rgba(201, 162, 74, 0.08);
+  --warn-text: #dcc078;
+  --line-warn: rgba(201, 162, 74, 0.34);
+  --test-line: rgba(79, 179, 165, 0.36);
+  --test-soft: rgba(79, 179, 165, 0.07);
+  --test-text: #7fd4c6;
+  --radius-s: 3px;
+  --shadow: none;
+  --row-transition: border-color 0.15s ease, background 0.15s ease;
+  --font-body: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-mono: 'Consolas', 'SFMono-Regular', ui-monospace, monospace;
+  --font-size: 15px;
+  --lh: 1.75;
+  --ls: 0.005em;
+  --title-size: 1.5rem;
+  --title-weight: 500;
+  --brand-ls: 0.3em;
+  --gname-ls: 0.16em;
+}
+/* == TOKEN-SNAPSHOT-END == */
+
+/* ============================================================================
+ * 草案值 / 已选值（**都不在** docs/design/visual-tokens.md 里 —— 规范没有这些条目）
+ *   ⇒ 它们**不是**规范值。分三类标注：
+ *      [已定]   已定/已选的口径（本轮照做，不重新提问）
+ *      [草案]   本轮为「关于页怎么排」临时取的数（字号/间距/列宽）
+ *      [写回]   页面脚本量完后写回的运行时值（这里给默认值，只为不出现「用了却没声明」）
+ * ========================================================================== */
+/* == DRAFT-VALUES-BEGIN == */
+:root {
+  --edge-x: 1.05rem;        /* [已定·沿用] 行内沿（内容列**内部**那一层的内边距）＝16.8px */
+  --col-top: 1.25rem;       /* [草案] 块顶部留白 */
+  --col-bottom: 1rem;       /* [草案] 块底部留白 */
+  --row-gap: 0.5rem;        /* [草案] 同组内两行之间 */
+  --sec-gap: 0.9rem;        /* [草案] 两块之间（分组之间、更新块与上面之间） */
+  --kcol: 5.2em;            /* [草案] 「一行一条」里 label 列的固定宽（右对齐 ⇒ 冒号对齐、值左沿对齐） */
+  --k-gap: 0.5rem;          /* [草案] label 列 → 值 之间的固定缝 */
+  --grp-size: 0.8rem;       /* [草案] 分组小标题（应用／内容）—— 字距用规范的 --gname-ls */
+  --label-size: 0.82rem;    /* [草案] label（应用版本：） */
+  --value-size: 0.88rem;    /* [草案] 值（0.1.1） */
+  --mono-size: 0.86rem;     /* [草案] 仓库链接（等宽） */
+  --ctl-size: 0.82rem;      /* [草案] 控件（检查内容更新） */
+  --ctl-ls: 0.06em;         /* [草案] 控件字距 */
+  --status-size: 0.82rem;   /* [草案] 状态行 */
+  --upd-pad: 0.8rem;        /* [草案] 更新块内边距 */
+  --screen-h: 480px;        /* [原型取的] 「一块屏」的高度：只为看底栏落在哪，**不是设备高度** */
+  --proto-pad: 12px;        /* [草案] 原型脚手架（说明／标注）的左右内边距，不是应用页面的值 */
+  --cw: 100%;               /* [写回] 本块在本视口下的**内容宽 C**（公式算出的 px 值） */
+  --col-l: 0px;             /* [写回] 内容列左沿（原型标注用） */
+  --col-r: 0px;             /* [写回] 内容列右沿（原型标注用） */
+}
+/* == DRAFT-VALUES-END == */
+
+/* ── 底：颜色与字体只用令牌 ─────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background-color: var(--bg);
+  background-image: var(--bg-pattern);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--font-size);
+  line-height: var(--lh);
+  letter-spacing: var(--ls);
+}
+a { color: var(--accent-text); }
+:focus-visible { outline: 1px solid var(--test-line); outline-offset: 2px; }
+
+/* ── 原型脚手架（**不是**被评审的那一层）───────────────────────── */
+.phead { padding: 1.4rem var(--proto-pad) 0; overflow-wrap: anywhere; }
+.phead .ptag {
+  display: inline-block; margin: 0 0 0.9rem; padding: 0.25rem 0.6rem;
+  border: 1px dashed var(--test-line); background: var(--test-soft); color: var(--test-text);
+  border-radius: var(--radius-s); font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.08em;
+}
+.phead h1 { font-size: 1.02rem; font-weight: 500; letter-spacing: 0.05em; margin: 0 0 0.8rem; line-height: 1.6; }
+.phead h2 { font-size: 0.92rem; font-weight: 500; color: var(--text); margin: 1.1rem 0 0.4rem; letter-spacing: 0.04em; }
+.phead p, .phead li { color: var(--text-dim); margin: 0.45rem 0; }
+.phead b { color: var(--text); font-weight: 500; }
+.phead code {
+  font-family: var(--font-mono); font-size: 0.85em; color: var(--text);
+  border: 1px solid var(--line); border-radius: var(--radius-s); padding: 0 0.25rem;
+}
+.pok { border-left: 2px solid var(--test-line); background: var(--test-soft); color: var(--text); padding: 0.6rem 0.8rem; border-radius: var(--radius-s); }
+.pwarn { border-left: 2px solid var(--line-warn); background: var(--warn-soft); color: var(--warn-text); padding: 0.5rem 0.7rem; border-radius: var(--radius-s); }
+.pwarn b { color: var(--warn-text); }
+.pfix {
+  border: 1px dashed var(--test-line); background: var(--test-soft); color: var(--test-text);
+  border-radius: var(--radius-s); padding: 0.55rem 0.7rem; margin: 0.7rem 0;
+  font-family: var(--font-mono); font-size: 0.76rem; line-height: 1.65; letter-spacing: 0.02em;
+}
+.pfix button {
+  font: inherit; font-size: 0.78rem; margin-top: 0.4rem; padding: 0.25rem 0.6rem;
+  color: var(--test-text); background: var(--test-soft);
+  border: 1px solid var(--test-line); border-radius: var(--radius-s); cursor: pointer;
+}
+table.fx { border-collapse: collapse; margin: 0.5rem 0; font-family: var(--font-mono); font-size: 0.76rem; }
+table.fx th, table.fx td { border: 1px solid var(--line); padding: 0.25rem 0.45rem; text-align: left; color: var(--text-dim); }
+table.fx th { color: var(--text); font-weight: 500; }
+
+/* 块区（截图范围）。⚠ 容器**不带左右内边距**：里面的 .pg 是「满视口宽」的块，
+ *   容器一旦有左右 padding，内容列就会越出视口（这是上一轮真踩过的坑）。文字元素自己带 padding。 */
+.deck { margin-top: 1.2rem; }
+.imgban {
+  display: block;
+  background: var(--test-soft); border: 1px dashed var(--test-line); color: var(--test-text);
+  border-radius: var(--radius-s); font-family: var(--font-mono); font-size: 0.74rem; line-height: 1.65;
+  letter-spacing: 0.03em; padding: 0.6rem 0.7rem; margin: 0 var(--proto-pad) 0.9rem; overflow-wrap: anywhere;
+}
+.group { }
+.ghead2 {
+  font-family: var(--font-mono); font-size: 0.78rem; line-height: 1.55; letter-spacing: 0.03em;
+  color: var(--warn-text); padding: 0.8rem var(--proto-pad) 0.1rem; margin: 0; overflow-wrap: anywhere;
+}
+.ghead2 b { color: var(--warn-text); font-weight: 500; }
+.gdesc { font-family: var(--font-mono); font-size: 0.75rem; line-height: 1.6; letter-spacing: 0.02em; color: var(--text-dim); padding: 0 var(--proto-pad); margin: 0; overflow-wrap: anywhere; }
+.demo {
+  border-top: 1px dashed var(--test-line); border-bottom: 1px dashed var(--test-line);
+  padding: 0.55rem 0 0.65rem; margin: 0 0 0.85rem; overflow-wrap: anywhere;
+}
+.dhead { font-family: var(--font-mono); font-size: 0.75rem; line-height: 1.5; letter-spacing: 0.03em; color: var(--test-text); padding: 0 var(--proto-pad); margin-bottom: 0.25rem; }
+.dhead .dname { display: inline-block; padding: 0.12rem 0.45rem; border: 1px solid var(--test-line); background: var(--test-soft); color: var(--test-text); border-radius: var(--radius-s); font-size: 0.74rem; letter-spacing: 0.05em; }
+.dhead .dplat { display: inline-block; margin-left: 0.35rem; padding: 0.12rem 0.45rem; border: 1px solid var(--line-warn); background: var(--warn-soft); color: var(--warn-text); border-radius: var(--radius-s); font-size: 0.72rem; letter-spacing: 0.05em; }
+.dhead .dknob { display: block; margin-top: 0.2rem; color: var(--text-dim); }
+.cap { font-family: var(--font-mono); font-size: 0.72rem; line-height: 1.55; letter-spacing: 0.01em; color: var(--text-dim); padding: 0 var(--proto-pad); margin: 0.3rem 0 0; overflow-wrap: anywhere; }
+.cap b { color: var(--text); font-weight: 500; }
+.cap .hit { color: var(--test-text); }
+.pbar { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.03em; color: var(--test-text); padding: 0.35rem var(--proto-pad); border-top: 1px dashed var(--test-line); }
+
+/* ── 应用页面（被评审的那一层）──────────────────────────────────
+ * 结构：.pg（满视口宽，＝一块屏幕宽）> .col（内容列，宽 C）
+ *   内容宽用**已选口径**：C = min(V, max(320, 0.88 × (V − 24)))
+ *   ⚠ 「24」是**一次性从视口宽扣掉的总量**（只用来得到基准 A），**不是**左右各 12px 的外层页边。
+ *     列外余白＝(V−C)/2（V=320 时恰为 0）；行内沿（--edge-x 16.8px）是**列内**的一层，两者不是一回事。
+ */
+.pg { position: relative; background: transparent; }
+.pg.is-screen { display: flex; flex-direction: column; height: var(--screen-h); }
+.col {
+  width: var(--cw); margin-inline: auto;
+  padding-top: var(--col-top); padding-bottom: var(--col-bottom);
+  display: flex; flex-direction: column;
+}
+.pg.is-screen .col { height: 100%; padding-bottom: 0; }
+/* 原型标注：青色虚线＝内容列左右沿（不是应用页面的东西） */
+.guide { position: absolute; top: 0; bottom: 0; width: 0; pointer-events: none; }
+.guide.c { border-left: 1px dashed var(--test-line); }
+.guide.c-l { left: var(--col-l); }
+.guide.c-r { left: calc(var(--col-r) - 1px); }
+
+/* 应用名行 */
+.brand {
+  margin: 0 0 var(--sec-gap); padding: 0 var(--edge-x);
+  font-size: var(--title-size); font-weight: var(--title-weight); letter-spacing: var(--brand-ls);
+  color: var(--text);
+}
+/* 「一行一条」：label 列定宽右对齐 ⇒ 冒号对齐、值左沿对齐 */
+.kv { display: flex; align-items: baseline; padding: 0 var(--edge-x); }
+.kv + .kv { margin-top: var(--row-gap); }
+.kv > .k { flex: 0 0 var(--kcol); text-align: right; color: var(--text-dim); font-size: var(--label-size); letter-spacing: 0.02em; }
+.kv > .v { margin-left: var(--k-gap); font-size: var(--value-size); color: var(--text); overflow-wrap: anywhere; }
+.kv > .v > .src { color: var(--text-faint); }
+.kv > .v > .faint { color: var(--text-faint); font-size: var(--label-size); }
+.kv > .v > .ver { font-family: var(--font-mono); font-size: var(--mono-size); }
+/* 「紧凑两行」 */
+.compact { padding: 0 var(--edge-x); }
+.cl { margin: 0; font-size: var(--value-size); }
+.cl + .cl { margin-top: var(--row-gap); }
+.cl > .ck { color: var(--text-dim); font-size: var(--label-size); margin-right: var(--k-gap); }
+.cl > .cs { color: var(--text-faint); font-size: var(--label-size); margin-left: 0.35rem; }
+.cl > .ver { font-family: var(--font-mono); font-size: var(--mono-size); }
+/* 仓库链接 */
+.repo {
+  font-family: var(--font-mono); font-size: var(--mono-size); letter-spacing: 0.01em;
+  color: var(--accent-text); text-decoration: none;
+  border-bottom: 1px solid transparent; transition: var(--row-transition);
+}
+.repo:hover { border-bottom-color: var(--accent-line); background-color: var(--surface-hover); }
+.hint { margin-left: 0.6rem; font-size: var(--label-size); color: var(--text-faint); white-space: nowrap; }
+/* 分组 */
+.grp + .grp { margin-top: var(--sec-gap); }
+.gtitle { margin: 0 0 var(--row-gap); padding: 0 var(--edge-x); font-size: var(--grp-size); letter-spacing: var(--gname-ls); color: var(--text-dim); }
+/* 「版本对」相邻成一组（A3 用）：只靠留白，不加小标题 */
+.pair { display: block; }
+.pair + .grp, .grp + .pair { margin-top: var(--sec-gap); }
+.spacer { margin-top: var(--sec-gap); }
+/* 更新块（Android 才有的那一块） */
+.upd {
+  margin-top: var(--sec-gap); padding: var(--upd-pad);
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-s);
+  box-shadow: var(--shadow);
+}
+.upd.is-bottom {
+  margin-top: auto; margin-bottom: 0;
+  padding-bottom: calc(var(--upd-pad) + 0.2rem);
+  border: 0; border-top: 1px solid var(--line-strong);
+  border-radius: 0; background: transparent;
+}
+.upd-head { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; }
+.upd-title { font-size: var(--grp-size); letter-spacing: var(--gname-ls); color: var(--text-dim); }
+.ctl {
+  font: inherit; font-size: var(--ctl-size); letter-spacing: var(--ctl-ls);
+  padding: 0.3rem 0.7rem; color: var(--accent-text);
+  background: var(--accent-soft); border: 1px solid var(--accent-line); border-radius: var(--radius-s);
+  cursor: pointer; transition: var(--row-transition);
+}
+.ctl:hover { background-color: var(--surface-hover); }
+.status {
+  margin: var(--row-gap) 0 0; padding: 0.55rem 0.7rem;
+  background: var(--surface-sunken); border: 1px solid var(--line); border-radius: var(--radius-s);
+  font-size: var(--status-size); color: var(--text-dim); overflow-wrap: anywhere;
+}
+.status.is-warn { background: var(--warn-soft); border-color: var(--line-warn); color: var(--warn-text); }
+.status .ver { font-family: var(--font-mono); }
+/* 原型标注（**在块内**，所以必须自己声明「不属于应用页面」） */
+.runmark {
+  display: block; margin-top: 0.35rem; padding: 0.2rem 0.4rem;
+  border: 1px dashed var(--test-line); background: var(--test-soft); color: var(--test-text);
+  border-radius: var(--radius-s); font-family: var(--font-mono); font-size: 0.7rem; line-height: 1.6;
+  letter-spacing: 0.02em; overflow-wrap: anywhere;
+}
+.tagfx {
+  display: inline-block; margin: 0 0 0 0.4rem; padding: 0 0.3rem;
+  border: 1px dashed var(--test-line); background: var(--test-soft); color: var(--test-text);
+  border-radius: var(--radius-s); font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.04em;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="phead">
+    <p class="ptag">讨论原型 · 不是产品实施 · 不是发布 · 不是整页规格</p>
+    <h1>「关于页表达」讨论原型 —— 这一页<b>怎么排</b>、每条信息<b>怎么呈现</b>（候选 <b>并列、不排序、不写推荐</b>）</h1>
+
+    <p class="pok">✓ <b>内容范围已定（固定，本页不扩）</b>：<br>
+      ① 这一页<b>只做「内容更新」</b> —— <b>不做应用安装包的更新检查／下载</b>；<br>
+      ② <b>应用版本信息仍保留</b>：应用名（索斐）／应用版本／内容版本与来源／仓库链接；<br>
+      ③ <b>Android 多一块「更新」</b>（检查内容更新 ＋ 状态／结果），<b>Web 没有这一块</b>；<b>两端其余内容一致</b>；<br>
+      ④ ⚠ <b>「介绍」与「长篇限制说明」未被采纳</b> ⇒ <b>本页不写</b>（也不在别处补一段说明文字）；<br>
+      ⑤ 本页<b>不决定</b> JSON／MD 的分界，也<b>不决定</b>产物字段。</p>
+
+    <p class="pwarn">⚠ <b>页面里的数字都是「当前值」，不是页面文案定稿</b>：应用版本 <code>0.1.1</code>、内容版本 <code>2026.10.16.20</code>、仓库 <code>https://github.com/WSQS/suofei</code>。
+      状态行里出现的版本号／字节数是<b>运行时值</b>，块内也用虚线小标标出这一点。</p>
+
+    <p><b>宽度用已选口径</b>（不重新提问）：<code>C = min(V, max(320, 0.88 × (V − 24)))</code>，<code>V</code>＝视口宽、<code>V−24</code>＝基准 A、上界＝视口 V（<b>不夹</b> 660／860）。
+      ⚠ <code>24</code> 是<b>一次性从视口宽扣掉的总量</b>，<b>不是</b>左右各 12px 的外层页边 ⇒ <b>列外余白＝(V−C)/2</b>（320 上恰为 0），而行内沿 <code>1.05rem</code>＝16.8px 是<b>列内</b>的一层、照旧存在。</p>
+
+    <h2>本页只探索四件事（四组并列候选）</h2>
+    <ul>
+      <li><b>A 组 · 整页结构</b>：各块<b>顺序与分组</b>（只改这一件事；每条信息的写法在 A 组里固定不动）。</li>
+      <li><b>B 组 · 「版本」两类信息怎么区分</b>（应用版本 vs 内容版本）：一行一条（<code>label：value</code>）／紧凑两行／带来源后缀 —— <b>来源都要能看出是「内置」还是「已下载」</b>。</li>
+      <li><b>C 组 · 仓库链接的呈现</b>：完整 URL ／短名；以及要不要给「会打开浏览器」这类<b>预期提示</b>。</li>
+      <li><b>D 组 · Android 的「更新」块</b>：检查按钮的<b>位置</b>（页内／底部）＋ <b>状态行的四种结果文案</b>（只画形态，不写实现）。</li>
+    </ul>
+
+    <h2>固定不变（已定项，本轮不重新提问）</h2>
+    <ul>
+      <li>视觉＝<b>静默终端</b>令牌（唯一来源 <code>docs/design/visual-tokens.md</code>，快照来自 <code>prototype/css/theme-tech.css</code>，blob <code>e395a54b…</code>／记录时 HEAD <code>9c1e2b6</code>）：<b>无阴影、无关键帧、只有 0.15s 的颜色过渡</b>，任何视口都不缩放字号／行高／字距。</li>
+      <li>两端<b>同一批字段</b>（应用名／应用版本／内容版本与来源／仓库链接）；<b>只有 Android 多一块「更新」</b>。</li>
+      <li>块按<b>内容列 C</b> 排；行在列内带行内沿 16.8px。</li>
+      <li>⚠ <b>本页不表达</b>：顶栏／返回入口（共有外壳，不在本轮）、笔记与详情页、搜索、应用 APK 的更新检查／下载、安装包版本升级提示的位置。</li>
+    </ul>
+
+    <div class="pfix" data-test="fixture-panel">
+      <b>原型夹具开关（不属于应用页面）</b>：本页在应用层<b>没有任何可折叠的说明块</b>（「介绍」「长篇限制说明」都未被采纳 ⇒ 本页不写）⇒ 自检里那对「收起／展开」状态在这里的落地方式是
+      <b>收起态＝默认文案</b>／<b>展开态＝「最长的如实报错」文案夹具</b>，用来检查<b>最坏情况下的横向溢出</b>。
+      <b>这不是我给页面加了一个折叠功能。</b><br>
+      <button type="button" data-test="fixture-toggle" aria-pressed="false">切到「展开态」（最长如实报错文案）</button>
+    </div>
+
+    <h2>怎么读图</h2>
+    <p>块区（虚线框内）就是截图范围：一条 = 一档候选 = 一个满视口宽的「块」（宽＝视口宽、左沿 0），块上方是该档的说明与实测数字，块下方（或上方）是原型标注。
+      青色的字与虚线、<b>块内的虚线小标</b>、以及各档的标题与数字行，<b>都不属于应用页面</b>。</p>
+    <p>实测数字见同目录 <code>q-about.md</code>；行为由 <code>check-about.mjs</code> 可复跑自证（失败断言 0）。</p>
+  </div>
+
+  <div class="deck" data-shotframe data-test="shotframe">
+    <div class="imgban" data-test="imgban">
+      <b>原型说明 ／ 夹具标注，不属于应用页面。</b>本图＝本讨论原型在<b>一个</b>真实视口宽（<span data-test="shotinfo">…</span>）下的截图，按真实 CSS px @DPR 2 拍摄，<b>没有</b>把不同宽度拼成缩放对照图。<br>
+      图中青色文字与虚线、每档上方的标题与实测数字行、<b>块内的虚线小标</b>（运行时值／夹具标注）都是<b>原型的说明与标注</b>；页面里的应用版本 <code>0.1.1</code>、内容版本 <code>2026.10.16.20</code>、仓库地址是<b>当前值</b>，<b>不是页面文案定稿</b>；状态行里的版本号／字节数是<b>运行时值</b>。<br>
+      本图是<b>候选并列（不排序、不写推荐）</b>的材料：<b>选其中某一块 ≠ 采纳整页规格</b>，也<b>不决定</b> JSON／MD 分界与产物字段。<b>不是产品实施、不是发布。</b>
+    </div>
+
+    <div class="group" data-axis="A">
+      <div class="ghead2">A 组 · 整页结构（各块<b>顺序与分组</b>；每条信息的写法在本组里固定不动，只改分组／顺序这一件事）</div>
+      <div class="gdesc">A 组里固定不动：应用名＝<code>索斐</code>；两条版本＝「一行一条」（label 列右对齐）；来源＝单独一条「内容来源：已下载」；仓库＝完整 URL 的可点链接；更新块＝按钮在页内。</div>
+    </div>
+    <div data-test="rack-A"></div>
+
+    <div class="group" data-axis="B">
+      <div class="ghead2">B 组 · 「版本」两类信息怎么区分（应用版本 vs 内容版本）</div>
+      <div class="gdesc">结构固定＝A1（一列到底），仓库固定＝完整 URL，平台固定＝Web（不画「更新」块）⇒ <b>只改版本信息的写法</b>；四档都看得出来源是内置还是已下载（第 4 档画另一个取值）。</div>
+    </div>
+    <div data-test="rack-B"></div>
+
+    <div class="group" data-axis="C">
+      <div class="ghead2">C 组 · 仓库链接的呈现</div>
+      <div class="gdesc">结构固定＝A1，版本固定＝「一行一条」，平台固定＝Web ⇒ <b>只改仓库这一条</b>。第 3 档多一个 6 字短提示：它不是「长篇限制说明」，但仍然只是候选（见 <code>q-about.md</code>）。</div>
+    </div>
+    <div data-test="rack-C"></div>
+
+    <div class="group" data-axis="D">
+      <div class="ghead2">D 组 · Android 的「更新」块（检查按钮的位置 ＋ 状态行的四种结果文案）</div>
+      <div class="gdesc">「页内 · 尚未检查」这一格＝<b>A1 块里那一个更新块</b>（不重复画）。其余四块＝按钮在<b>底部</b>（别的不动）＋ 另外三种结果文案。⚠ 只画形态、<b>不写实现</b>；版本号／字节数是运行时值；<b>「检查中」不在这四种里 ⇒ 本页没画</b>。</div>
+    </div>
+    <div data-test="rack-D"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── 已选宽度口径（页面这一侧的实现；自检脚本会**独立**再实现一遍，两边必须逐档一致）──
+   *   A = V − 24 ； C = min(V, max(320, 0.88 × A)) ； 上界＝视口宽 V（不夹 660／860）。
+   *   ⚠ 24 是「从视口宽一次性扣除的总量」，不是左右各 12px 的外层页边。 */
+  var DEDUCT = 24, PCT = 88, FLOOR = 320;
+  function cwFor(V) { return Math.min(V, Math.max(FLOOR, (PCT / 100) * (V - DEDUCT))); }
+
+  /* ── 页面里的值：**当前值**，不是文案定稿 ───────────────────────────── */
+  var APP = {
+    name: '索斐',
+    appVersion: '0.1.1',
+    contentVersion: '2026.10.16.20',
+    repoFull: 'https://github.com/WSQS/suofei',
+    repoShort: 'github.com/WSQS/suofei'
+  };
+  var SRC_DL = '已下载';
+  var SRC_IN = '内置';
+
+  /* ── 状态行的四种结果文案（**候选**，不是定稿；版本号是运行时值）───────
+   * 只画这四种：尚未检查 / 已是最新 / 已下载并切换 / 失败。
+   * ⚠ 「检查中」不在这四种里 ⇒ 本页**不画**（不偷偷补第五种）。 */
+  function S(t, v) { return [['t', t], ['v', v]]; }
+  var STATUS_LINES = {
+    idle: { key: 'idle', warn: false,
+      parts: [['t', '尚未检查内容更新。']] },
+    fresh: { key: 'fresh', warn: false,
+      parts: [['t', '已是最新内容（远端 '], ['v', APP.contentVersion], ['t', '）。']] },
+    switched: { key: 'switched', warn: false,
+      parts: [['t', '新内容 '], ['v', APP.contentVersion], ['t', ' 已下载、校验通过并已切换生效；回到目录后采用。']] },
+    failed: { key: 'failed', warn: true,
+      parts: [['t', '更新失败：内容校验未通过；旧内容保留（仍是 '], ['v', APP.contentVersion], ['t', '）。']] }
+  };
+  /* 展开态（夹具）：最长的如实报错文案。数字一律用**运行时占位**，不写死。 */
+  var FIXTURE_LONG = { key: 'fixture-long', warn: true,
+    parts: [['t', '更新失败：下载内容的大小与清单不符（清单 '], ['v', '⟨清单字节数⟩'], ['t', ' 字节，实际收到 '], ['v', '⟨实收字节数⟩'],
+            ['t', ' 字节）；已保留当前内容，版本仍是 '], ['v', APP.contentVersion], ['t', '。']] };
+
+  function statusText(spec) { return spec.parts.map(function (p) { return p[1]; }).join(''); }
+
+  /* ── 各档定义 ──────────────────────────────────────────────────── */
+  var TIERS = [
+    /* A 组：只改「分组／顺序」这一件事 */
+    { axis: 'A', id: 'A1', platform: 'android', kind: 'flat', versions: 'kv', repo: 'full', upd: 'inline', status: 'idle',
+      title: 'A1 · 一列到底（不分组）',
+      knob: '顺序：应用名 → 应用版本 → 内容版本 → 内容来源 → 仓库 → 更新块' },
+    { axis: 'A', id: 'A2', platform: 'android', kind: 'grouped', versions: 'kv', repo: 'full', upd: 'inline', status: 'idle',
+      title: 'A2 · 两个小标题分组（「应用」／「内容」）',
+      knob: '分组：应用组＝应用名＋应用版本＋仓库；内容组＝内容版本＋内容来源；更新块独立在最后' },
+    { axis: 'A', id: 'A2w', platform: 'web', kind: 'grouped', versions: 'kv', repo: 'full', upd: null, status: null,
+      title: 'A2w · 同 A2 的 Web 形态',
+      knob: '平台对照（不是第四个结构候选）：其余内容与 A2 逐项相同，只少「更新」块' },
+    { axis: 'A', id: 'A3', platform: 'android', kind: 'titleTop', versions: 'kv', repo: 'fullBottom', upd: 'inline', status: 'idle',
+      title: 'A3 · 应用名当页标题，两条版本相邻成一组，仓库置底',
+      knob: '顺序与分组：应用名（页标题）→ 版本对（应用版本＋内容版本＋来源，相邻）→ 更新块 → 仓库链接（底部）' },
+
+    /* B 组：只改「版本两类信息怎么区分」这一件事 */
+    { axis: 'B', id: 'B1', platform: 'web', kind: 'flat', versions: 'kv', repo: 'full', upd: null, status: null,
+      title: 'B1 · 一行一条（label：value）＋ 来源单独一条',
+      knob: '两条版本各占一行，label 列右对齐；「内容来源：已下载」单独一条' },
+    { axis: 'B', id: 'B2', platform: 'web', kind: 'flat', versions: 'compact', repo: 'full', upd: null, status: null,
+      title: 'B2 · 紧凑两行',
+      knob: '两类版本压成两行：行首一个字（应用／内容）区分；来源跟在内容那一行的后面' },
+    { axis: 'B', id: 'B3', platform: 'web', kind: 'flat', versions: 'suffix', repo: 'full', upd: null, status: null,
+      title: 'B3 · 带来源后缀（来源＝已下载）',
+      knob: '来源写成内容版本的括号后缀：「内容版本：2026.10.16.20（来源：已下载）」' },
+    { axis: 'B', id: 'B3i', platform: 'web', kind: 'flat', versions: 'suffix', srckey: 'builtin', repo: 'full', upd: null, status: null,
+      title: 'B3i · 同 B3，来源＝内置（另一个取值）',
+      knob: '只换来源这一个取值的写法（内置），用来证明两种来源都看得出来' },
+
+    /* C 组：只改仓库链接的呈现 */
+    { axis: 'C', id: 'C1', platform: 'web', kind: 'flat', versions: 'kv', repo: 'full', upd: null, status: null,
+      title: 'C1 · 完整 URL 当链接文字',
+      knob: '链接文字＝https://github.com/WSQS/suofei；不给「会打开浏览器」的提示' },
+    { axis: 'C', id: 'C2', platform: 'web', kind: 'flat', versions: 'kv', repo: 'short', upd: null, status: null,
+      title: 'C2 · 短名当链接文字',
+      knob: '链接文字＝github.com/WSQS/suofei（去掉协议头）；不给提示' },
+    { axis: 'C', id: 'C3', platform: 'web', kind: 'flat', versions: 'kv', repo: 'shortHint', upd: null, status: null,
+      title: 'C3 · 短名 ＋ 「会打开浏览器」的预期提示',
+      knob: '链接右边加一个 6 字短提示（它本身不可点，只有链接可点）' },
+
+    /* D 组：按钮位置 ＋ 四种状态文案（页内·尚未检查＝A1 里那一块） */
+    { axis: 'D', id: 'D2', platform: 'android', kind: 'flat', versions: 'kv', repo: 'full', upd: 'bottom', status: 'idle',
+      title: 'D2 · 检查按钮在底部（状态＝尚未检查）',
+      knob: '与 A1 的更新块只差「位置」这一件事：同一块被放到页面底部的一条栏里；上方留白是原型取的「一块屏」高度造成的' },
+    { axis: 'D', id: 'D3', platform: 'android', kind: 'flat', versions: 'kv', repo: 'full', upd: 'inline', status: 'fresh',
+      title: 'D3 · 状态＝已是最新（远端版本号）',
+      knob: '按钮位置＝页内（与 A1 同）；只换状态行文案' },
+    { axis: 'D', id: 'D4', platform: 'android', kind: 'flat', versions: 'kv', repo: 'full', upd: 'inline', status: 'switched',
+      title: 'D4 · 状态＝已下载并切换',
+      knob: '按钮位置＝页内；只换状态行文案' },
+    { axis: 'D', id: 'D5', platform: 'android', kind: 'flat', versions: 'kv', repo: 'full', upd: 'inline', status: 'failed',
+      title: 'D5 · 状态＝失败（如实报错且旧内容保留）',
+      knob: '按钮位置＝页内；只换状态行文案（这一行在 430 上会折行 —— 事实，不是已定行为）' }
+  ];
+
+  /* ── 小工具 ────────────────────────────────────────────────────── */
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined && text !== null) e.textContent = text;
+    return e;
+  }
+  function px(v) { return Math.round(v * 100) / 100; }
+  function rect(e) { return e.getBoundingClientRect(); }
+  function n(v) { return String(Math.round(v * 100) / 100); }
+
+  function vspan(kind, text) {
+    var s;
+    if (kind === 'src') { s = el('span', 'src', text); s.dataset.test = 'srcval'; }
+    else if (kind === 'faint') { s = el('span', 'faint', text); s.dataset.test = 'faintval'; }
+    else if (kind === 'ver') { s = el('span', 'ver', text); s.dataset.test = 'verval'; }
+    else { s = el('span', null, text); }
+    return s;
+  }
+  function brandRow() {
+    var p = el('p', 'brand', APP.name); p.dataset.test = 'brand'; return p;
+  }
+  function kvRow(label, parts) {
+    var row = el('div', 'kv'); row.dataset.test = 'kv';
+    var k = el('span', 'k', label); k.dataset.test = 'k';
+    var v = el('span', 'v'); v.dataset.test = 'v';
+    parts.forEach(function (p) { v.appendChild(vspan(p[0], p[1])); });
+    row.appendChild(k); row.appendChild(v);
+    return row;
+  }
+  function compactLine(label, parts) {
+    var p = el('p', 'cl'); p.dataset.test = 'cl';
+    p.appendChild(el('span', 'ck', label));
+    parts.forEach(function (x) { p.appendChild(vspan(x[0], x[1])); });
+    return p;
+  }
+  function repoRow(tier) {
+    var row = el('div', 'kv'); row.dataset.test = 'kv'; row.dataset.role = 'repo';
+    var k = el('span', 'k', '仓库：'); k.dataset.test = 'k';
+    var v = el('span', 'v'); v.dataset.test = 'v';
+    var mode = tier.repo === 'fullBottom' ? 'full' : tier.repo;
+    var text = (mode === 'full') ? APP.repoFull : APP.repoShort;
+    var a = el('a', 'repo', text);
+    a.dataset.test = 'repolink';
+    a.href = APP.repoFull;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    v.appendChild(a);
+    if (mode === 'shortHint') {
+      var hint = el('span', 'hint', '↗ 在浏览器打开');
+      hint.dataset.test = 'repohint';
+      v.appendChild(hint);
+    }
+    row.appendChild(k); row.appendChild(v);
+    return row;
+  }
+  function groupBlock(title, children) {
+    var g = el('div', 'grp'); g.dataset.test = 'grp';
+    var h = el('p', 'gtitle', title); h.dataset.test = 'gtitle';
+    g.appendChild(h);
+    children.forEach(function (c) { g.appendChild(c); });
+    return g;
+  }
+  function statusPanel(tier) {
+    var wrap = el('div', 'upd' + (tier.upd === 'bottom' ? ' is-bottom' : ''));
+    wrap.dataset.test = 'upd';
+    wrap.dataset.pos = tier.upd;
+    var head = el('div', 'upd-head');
+    head.appendChild(el('span', 'upd-title', '内容更新'));
+    var btn = el('button', 'ctl', '检查内容更新');
+    btn.type = 'button';
+    btn.dataset.test = 'checkbtn';
+    head.appendChild(btn);
+    wrap.appendChild(head);
+    var st = el('p', 'status'); st.dataset.test = 'status';
+    wrap.appendChild(st);
+    return { el: wrap, status: st };
+  }
+
+  /* ── 一档 ＝ 一个满视口宽的块 ────────────────────────────────── */
+  var INSTANCES = [];
+  function buildTier(tier, rack) {
+    var demo = el('div', 'demo');
+    demo.dataset.test = 'demo';
+    demo.dataset.block = tier.id;
+    demo.dataset.axis = tier.axis;
+    var dhead = el('div', 'dhead'); dhead.dataset.test = 'dhead';
+    dhead.appendChild(el('span', 'dname', tier.title));
+    dhead.appendChild(el('span', 'dplat', tier.platform === 'android' ? 'Android（多一块「更新」）' : 'Web（没有「更新」块）'));
+    dhead.appendChild(el('span', 'dknob', '只改：' + tier.knob));
+    demo.appendChild(dhead);
+    var cap = el('div', 'cap'); cap.dataset.test = 'cap';
+    demo.appendChild(cap);
+
+    var pg = el('section', 'pg pg-about');
+    pg.dataset.test = 'page';
+    pg.dataset.block = tier.id;
+    pg.dataset.axis = tier.axis;
+    pg.dataset.platform = tier.platform;
+    if (tier.upd === 'bottom') pg.classList.add('is-screen');
+    var col = el('div', 'col'); col.dataset.test = 'col';
+
+    var verApp, verContent;
+    if (tier.versions === 'kv') {
+      verApp = [kvRow('应用版本：', [['ver', APP.appVersion]])];
+      verContent = [kvRow('内容版本：', [['ver', APP.contentVersion]]),
+                    kvRow('内容来源：', [['src', tier.srckey === 'builtin' ? SRC_IN : SRC_DL]])];
+    } else if (tier.versions === 'compact') {
+      verApp = [compactLine('应用', [['ver', APP.appVersion]])];
+      verContent = [compactLine('内容', [['ver', APP.contentVersion],
+                                        ['src', '· ' + (tier.srckey === 'builtin' ? SRC_IN : SRC_DL)]])];
+    } else { /* suffix */
+      verApp = [kvRow('应用版本：', [['ver', APP.appVersion]])];
+      verContent = [kvRow('内容版本：', [['ver', APP.contentVersion],
+                                        ['faint', '（来源：' + (tier.srckey === 'builtin' ? SRC_IN : SRC_DL) + '）']])];
+    }
+    var upd = tier.upd ? statusPanel(tier) : null;
+    var inst = { tier: tier, demo: demo, cap: cap, pg: pg, col: col, upd: upd };
+
+    if (tier.kind === 'flat') {
+      col.appendChild(brandRow());
+      verApp.forEach(function (r) { col.appendChild(r); });
+      verContent.forEach(function (r) { col.appendChild(r); });
+      col.appendChild(repoRow(tier));
+      if (upd) col.appendChild(upd.el);
+    } else if (tier.kind === 'grouped') {
+      col.appendChild(groupBlock('应用', [brandRow()].concat(verApp, [repoRow(tier)])));
+      col.appendChild(groupBlock('内容', verContent));
+      if (upd) col.appendChild(upd.el);
+    } else { /* titleTop */
+      col.appendChild(brandRow());
+      var pair = el('div', 'pair'); pair.dataset.test = 'pair';
+      verApp.concat(verContent).forEach(function (r) { pair.appendChild(r); });
+      col.appendChild(pair);
+      if (upd) col.appendChild(upd.el);
+      col.appendChild(repoRow(tier));  /* 仓库置底 */
+    }
+    pg.appendChild(col);
+    demo.appendChild(pg);
+    rack.appendChild(demo);
+    INSTANCES.push(inst);
+    return inst;
+  }
+
+  ['A', 'B', 'C', 'D'].forEach(function (ax) {
+    var rack = document.querySelector('[data-test="rack-' + ax + '"]');
+    TIERS.filter(function (t) { return t.axis === ax; })
+         .forEach(function (t) { buildTier(t, rack); });
+  });
+
+  /* ── 状态行（默认文案／展开态夹具）───────────────────────────── */
+  function fillStatus(inst, long) {
+    if (!inst.upd) return;
+    var spec = long ? FIXTURE_LONG : STATUS_LINES[inst.tier.status];
+    var st = inst.upd.status;
+    st.textContent = '';
+    st.classList.toggle('is-warn', !!spec.warn);
+    spec.parts.forEach(function (p) {
+      if (p[0] === 'v') { st.appendChild(vspan('ver', p[1])); }
+      else { st.appendChild(document.createTextNode(p[1])); }
+    });
+    /* 原型标注：这一行里的版本号／字节数是运行时值（虚线小标 = 不属于应用页面） */
+    var old = inst.upd.el.querySelector('[data-test="runmark"]');
+    if (old) old.remove();
+    var rm = el('span', 'runmark', long
+      ? '原型夹具标注（不属于应用页面）：这段「最长的如实报错」是夹具，⟨…⟩ 是运行时占位；展开态只为检查最坏情况的横向溢出。'
+      : '原型标注（不属于应用页面）：这一行里的版本号／字节数是运行时值（当前值 ' + APP.contentVersion + '），不是页面文案定稿。');
+    rm.dataset.test = 'runmark';
+    inst.upd.el.appendChild(rm);
+  }
+  function applyStatus() {
+    var long = document.documentElement.dataset.fixture === 'long';
+    INSTANCES.forEach(function (it) { fillStatus(it, long); });
+  }
+  applyStatus();
+
+  /* ── 量测 ＋ 写回 ＋ 打数字 ──────────────────────────────────── */
+  function hit(V) {
+    var A = V - DEDUCT, raw = (PCT / 100) * A;
+    if (FLOOR > raw) return 'floor';
+    return 'pct';
+  }
+  function inkBox(e) {
+    var r = document.createRange();
+    r.selectNodeContents(e);
+    var rs = r.getClientRects(), l = 1e9, rr = -1e9;
+    for (var i = 0; i < rs.length; i++) { l = Math.min(l, rs[i].left); rr = Math.max(rr, rs[i].right); }
+    if (l > rr) return { left: 0, right: 0, w: 0, boxes: 0 };
+    return { left: px(l), right: px(rr), w: px(rr - l), boxes: rs.length };
+  }
+  function cs(e, p) { return getComputedStyle(e)[p]; }
+  /* 真实行数（**块级元素**）：内容高 ÷ 行高。
+   * ⚠ 不用「Range 行盒的不同 top 个数」：同一行里会有字号不同的内联片段（值用等宽、标签用正文字号），
+   * 它们的 top 会差 1px，会被误数成两行（第一版就踩了这个，已改）。内联元素用 elBoxes()。 */
+  function linesOf(e) {
+    var c = getComputedStyle(e);
+    var h = e.clientHeight - parseFloat(c.paddingTop || 0) - parseFloat(c.paddingBottom || 0);
+    var lh = parseFloat(c.lineHeight) || parseFloat(c.fontSize) * 1.2;
+    return Math.max(1, Math.round(h / lh));
+  }
+  /* 内联元素（如 <a>）的行盒个数：一行一个盒 */
+  function elBoxes(e) { return e.getClientRects().length; }
+
+  function layout() {
+    var V = window.innerWidth, H = window.innerHeight;
+    var C = cwFor(V);
+    INSTANCES.forEach(function (it) {
+      var pg = it.pg, col = it.col, tier = it.tier;
+      pg.style.setProperty('--cw', n(C) + 'px');
+      var rPg = rect(pg), rCol = rect(col);
+      pg.style.setProperty('--col-l', n(rCol.left) + 'px');
+      pg.style.setProperty('--col-r', n(rCol.right) + 'px');
+
+      var rows = [].slice.call(pg.querySelectorAll('[data-test="kv"]'));
+      var kRight = [], vLeft = [];
+      rows.forEach(function (row) {
+        var k = row.querySelector('[data-test="k"]'), v = row.querySelector('[data-test="v"]');
+        kRight.push(px(rect(k).right - rCol.left));
+        vLeft.push(px(rect(v).left - rCol.left));
+      });
+      var kmax = Math.max.apply(null, kRight.concat([0])), kmin = Math.min.apply(null, kRight.concat([1e9]));
+      var vmax = Math.max.apply(null, vLeft.concat([0])), vmin = Math.min.apply(null, vLeft.concat([1e9]));
+      var kvWrapped = 0;
+      rows.forEach(function (row) {
+        var k = row.querySelector('[data-test="k"]'), v = row.querySelector('[data-test="v"]');
+        if (linesOf(k) > 1 || linesOf(v) > 1) kvWrapped += 1;
+      });
+
+      var repoA = pg.querySelector('[data-test="repolink"]');
+      var repoInk = repoA ? inkBox(repoA) : null;
+      var hint = pg.querySelector('[data-test="repohint"]');
+      var st = pg.querySelector('[data-test="status"]');
+      var stInk = st ? inkBox(st) : null;
+      var btn = pg.querySelector('[data-test="checkbtn"]');
+      var updEl = pg.querySelector('[data-test="upd"]');
+      var rowEl = pg.querySelector('[data-test="kv"], [data-test="compact"], [data-test="brand"]');
+      /* 行内沿是**行元素自己**的内边距 ⇒ 从实际行上取，不写死 */
+      var edge = rowEl ? parseFloat(cs(rowEl, 'paddingLeft')) : 0;
+      var ctlCount = pg.querySelectorAll('a, button, [tabindex], [onclick]').length;
+      var ctlBad = 0;
+      [].slice.call(pg.querySelectorAll('a, button, [tabindex], [onclick]')).forEach(function (e2) {
+        var ok = (e2.tagName === 'A' && e2.hasAttribute('href')) ||
+                 (e2.tagName === 'BUTTON' && e2.getAttribute('type') === 'button');
+        if (!ok) ctlBad++;
+      });
+
+      var m = {
+        V: V, H: H, block: tier.id,
+        pgLeft: px(rPg.left), pgW: px(rPg.width), pgH: px(rPg.height), isScreen: pg.classList.contains('is-screen'),
+        colLeft: px(rCol.left), colW: px(rCol.width), colH: px(rCol.height),
+        cwFormula: px(C), gutLeft: px(rCol.left), gutRight: px(V - rCol.right),
+        edge: px(edge), avail: px(rCol.width - 2 * edge),
+        kRightMin: px(kmin === 1e9 ? 0 : kmin), kRightMax: px(kmax), vLeftMin: px(vmin === 1e9 ? 0 : vmin), vLeftMax: px(vmax),
+        rows: rows.length, kvWrapped: kvWrapped,
+        repoText: repoA ? repoA.textContent : null,
+        repoInkLeft: repoInk ? repoInk.left : null, repoInkW: repoInk ? repoInk.w : null, repoBoxes: repoA ? elBoxes(repoA) : null,
+        hintText: hint ? hint.textContent : null,
+        statusKey: tier.status || null,
+        statusText: st ? st.textContent : null,
+        statusW: stInk ? px(stInk.w) : null, statusBoxes: st ? linesOf(st) : null,
+        statusWarns: st ? st.classList.contains('is-warn') : null,
+        statusLeft: st ? px(rect(st).left - rCol.left) : null, statusRight: st ? px(rCol.right - rect(st).right) : null,
+        updTop: updEl ? px(rect(updEl).top - rPg.top) : null,
+        updBottomFromBlock: updEl ? px(rPg.bottom - rect(updEl).bottom) : null,
+        updH: updEl ? px(rect(updEl).height) : null,
+        btnText: btn ? btn.textContent : null,
+        btnInCol: btn ? px(rect(btn).left - rCol.left) : null,
+        ctlCount: ctlCount, ctlBad: ctlBad,
+        hasRunmark: !!pg.querySelector('[data-test="runmark"]'),
+        guides: pg.querySelectorAll('[data-test="guide"]').length
+      };
+      /* 状态行上方的内容 = 「更新块之前的最后一个内容元素」的底边，用来说明按钮落在「页内」 */
+      if (updEl && tier.upd === 'inline') {
+        var prev = updEl.previousElementSibling;
+        m.updGapFromPrev = prev ? px(rect(updEl).top - rect(prev).bottom) : null;
+      }
+      writeCap(it, m);
+      it.m = m;
+    });
+    document.documentElement.dataset.ready = '1';
+    var info = document.querySelector('[data-test="shotinfo"]');
+    if (info) info.textContent = V + '×' + H + '（innerWidth ' + V + ' ／ innerHeight ' + H + ' ／ DPR 2）';
+  }
+
+  function writeCap(it, m) {
+    var cap = it.cap, t = it.tier, d = cap.dataset;
+    var bits = [];
+    bits.push('<b>块</b> ' + m.pgW + '×' + m.pgH + '·左' + m.pgLeft);
+    bits.push('<b>列</b> C <b>' + m.colW + '</b>（复算 ' + m.cwFormula + '）·余白 ' + m.gutLeft);
+    bits.push('内沿 ' + m.edge + '·可用 <b>' + m.avail + '</b>');
+    if (m.rows) bits.push('label↦' + m.kRightMin + '／值↦' + m.vLeftMin + '（' + m.rows + ' 条' + (m.kvWrapped ? '，值折行 ' + m.kvWrapped + ' 条' : '') + '）');
+    if (m.repoText) bits.push('仓库 ' + m.repoInkW + '·' + m.repoBoxes + '行' + (m.hintText ? '＋提示' + m.hintText : ''));
+    if (m.statusText) bits.push('状态 <b>' + m.statusKey + '</b> ' + m.statusBoxes + '行·宽' + m.statusW + (m.statusWarns ? '(warn)' : ''));
+    if (m.updTop !== null) {
+      bits.push('更新块 距顶' + m.updTop + '·距底' + m.updBottomFromBlock + (t.upd === 'bottom' ? '（<b>底部栏</b>）' : '（<b>页内</b>·距上文' + m.updGapFromPrev + '）'));
+    }
+    bits.push('可点 <b>' + m.ctlCount + '</b>（不合法 ' + m.ctlBad + '）');
+    cap.innerHTML = bits.join(' ｜ ');
+    d.mSrc = 'dom';
+    d.mV = m.V; d.mBlock = m.block; d.mPgW = m.pgW; d.mPgLeft = m.pgLeft; d.mPgH = m.pgH;
+    d.mColW = m.colW; d.mColLeft = m.colLeft; d.mCwFormula = m.cwFormula;
+    d.mGutLeft = m.gutLeft; d.mGutRight = m.gutRight; d.mEdge = m.edge; d.mAvail = m.avail;
+    d.mKRightMin = m.kRightMin; d.mKRightMax = m.kRightMax; d.mVLeftMin = m.vLeftMin; d.mVLeftMax = m.vLeftMax;
+    d.mRows = m.rows; d.mRepoText = m.repoText || ''; d.mRepoBoxes = m.repoBoxes === null ? '' : m.repoBoxes;
+    d.mRepoW = m.repoInkW === null ? '' : m.repoInkW;
+    d.mHint = m.hintText || ''; d.mStatusKey = m.statusKey || ''; d.mStatusText = m.statusText || '';
+    d.mStatusBoxes = m.statusBoxes === null ? '' : m.statusBoxes; d.mStatusW = m.statusW === null ? '' : m.statusW;
+    d.mUpdTop = m.updTop === null ? '' : m.updTop; d.mUpdBottom = m.updBottomFromBlock === null ? '' : m.updBottomFromBlock;
+    d.mUpdPos = it.tier.upd || ''; d.mCtl = m.ctlCount; d.mCtlBad = m.ctlBad;
+    d.mIsScreen = String(m.isScreen); d.mPlatform = it.tier.platform;
+  }
+
+  /* ── 夹具开关（展开态）────────────────────────────────────────── */
+  var toggle = document.querySelector('[data-test="fixture-toggle"]');
+  if (toggle) {
+    toggle.addEventListener('click', function () {
+      var long = document.documentElement.dataset.fixture !== 'long';
+      document.documentElement.dataset.fixture = long ? 'long' : 'short';
+      toggle.setAttribute('aria-pressed', long ? 'true' : 'false');
+      toggle.textContent = long ? '切回「收起态」（默认文案）' : '切到「展开态」（最长如实报错文案）';
+      applyStatus();
+      layout();
+    });
+  }
+
+  /* ── 自证用的只读出口（脚本读它，不写页面）────────────────────── */
+  window.__ABOUT_PROTO__ = {
+    deduct: DEDUCT, pct: PCT, floor: FLOOR,
+    app: APP,
+    statusLines: { idle: statusText(STATUS_LINES.idle), fresh: statusText(STATUS_LINES.fresh),
+                   switched: statusText(STATUS_LINES.switched), failed: statusText(STATUS_LINES.failed) },
+    fixtureLine: statusText(FIXTURE_LONG),
+    cwFor: function (V) { return Math.min(V, Math.max(FLOOR, (PCT / 100) * (V - DEDUCT))); },
+    hit: hit
+  };
+
+  window.addEventListener('resize', layout);
+  window.addEventListener('orientationchange', layout);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(layout);
+  layout();
+})();
+</script>
+</body>
+</html>
