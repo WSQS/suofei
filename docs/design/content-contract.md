@@ -69,7 +69,7 @@ YAML front matter（`---` 包围）字段（`formatVersion=2`）：
 
 > **机器可读的唯一来源＝`schema/markdown-subset.json`**（`constructs[].id` ＝ 上表 8 样；`excluded[].code` ＝ 下面那批越界码；夹具路径也在里面）。
 > 两端的**范围定义**都必须与它逐项一致（Android `MarkdownTest` **真读该文件**；Web 侧见 `tests/`）。
-> ⚠ 2026-10-16 建立：此前 Android 单测直接读**会被归档的原型目录** `items/content-format/prototypes/rules-v4/expectations.json`——归档即断；已迂回稳定契约位置。
+> ⚠ 2026-10-16 建立：此前 Android 单测直接读原型目录 `items/content-format/prototypes/rules-v4/expectations.json`——那个目录**会被归档，归档即断**；现已迁到上面这个稳定契约位置（原型那份随 `items/content-format/history/round-2026-10-16-rules-v4/` 归档，仅作历史快照）。
 
 **闭集之外出现即报错**（码见 §3.1）：表格／图片／链接／行内代码／代码围栏／行首任务列表／脚注／行首 HTML／`* ` 星号列表／`# ` 与 `#### ` 及更深（`### ` 是**恰好三级**）。**未闭合的行内强调**（落单 `**`／`*`）也报错（`MD_EMPHASIS_UNCLOSED`，负责人 2026-10-16 落定；闭集不含转义写法）。
 开闭两个「围栏」行本身报 `MD_CODE_FENCE`，**未闭合**再报 `MD_FENCE_UNCLOSED`；但解析**先跟踪围栏**——围栏内的 `## x` **不算节分界**（否则一个未闭合围栏会静默吞掉后面所有内容）。

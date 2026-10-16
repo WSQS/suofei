@@ -185,9 +185,9 @@
       - **源字段 vs 产物派生字段**（上一稿的硬要求）已成独立材料 `source-vs-derived.md`：v1 里作者写的 `dynasty` **从不进产物**（产物那三份全是查表得来的）⇒ 现在产物里只剩一个值，于是它是「**源值透传**」还是「**按注册表规范化的快照**」成为**新暴露的未定项**；`key` 在诗对象里**已无引用**；`dynastyOrder` **降级为只在编译期**；`variants` 从「结构化派生」变成「**文本透传**」（编译器对考据内容**不再做语义解析**）；`stanzas` 仍是派生。
       - **它只读核出的受影响读取路径**（本材料不改它们）：Web `render.js:93-98`（按 `dynastyKey` 建组、组名/组序用另两键）、`render.js:292-293`（身份行 `[dynastyLabel, author]`＋`era` 追加在末）、`content.js:51-74`；Android `ContentParser.kt:62-75`、`Domain.kt:51`、`ScreenContent.kt:20`。⇒ **无论顶层方案选哪个，这几处都要动**（代价已写清、未动手）。⚠ 它还查到：**现在诗页身份行顺序是「朝代·作者·era·genre」，而已定口径是「作者·朝代·体裁」⇒ 顺序也要改**。
       - ⚠ **用户 2026-10-15 又确认 4 条内容格式规则**（**取代 v2 里那些并列**，别再并列旧选择/别追问同一问题）：① 产物顶层带**有序朝代列表（中文数组）**、客户端**照序**、**不从 `poems` 首次出现推断** ② **ID 由文件名生成**（去 `.md`）、**MD 不再手填 `id`** ③ **`notes`／`detail` 缺失可 `null`（保留键）**、界面不显示 `null`、**无笔记隐藏规则照旧** ④ **固定分界**：前元数据／后原文，`## 详情`／`## 笔记` 为节、**缺节可不写**。
-      - **由此派新轮**（会话 `f068345b`，`items/content-format/prototypes/rules-v3/`）：出**完整（不省略）的 MD → 顶层 JSON 样例对＋规则稿**；对**用户未逐项批准**的细则（未知节／重复节／**围栏里的 `##`**／**空节**／**支持的最小 Markdown 范围**）**给清楚的单一建议＋理由**，**不再拆微问题**；并把**文件名 ID 迁移核查**做出来。
+      - **由此派新轮**（会话 `f068345b`，材料现 `items/content-format/history/round-2026-10-16-rules-v3/`）：出**完整（不省略）的 MD → 顶层 JSON 样例对＋规则稿**；对**用户未逐项批准**的细则（未知节／重复节／**围栏里的 `##`**／**空节**／**支持的最小 Markdown 范围**）**给清楚的单一建议＋理由**，**不再拆微问题**；并把**文件名 ID 迁移核查**做出来。
       - ✅ **负责人自己核过 ID 迁移**（一手）：19 个源文件名去掉 `.md` 与「文件里手填的 `id:`」**逐字相同**，产物里 19 个 `id` 与源文件名集合也**逐字相同** ⇒ **迁移前后 ID 不变 ⇒ 旧深链接与路由（`#/p/<id>`）不受影响**。
-      - **`rules-v3` 已交付**（会话 `f068345b`，已归档；**38 个文件全在 `items/content-format/prototypes/rules-v3/`**）：把 4 条确认**写成规范语句**（含「顶层 `dynasties` **不得**写成 `[{key,label,order}]`、只含实际有内容的组」「源里写 `id:` ⇒ 报 `forbidden-id-key`」「`detail`/`notes` 缺失**必须写 `null` 并保留键**」「三段固定：front matter → 原文（空行＝分段）→ 具名节，边界到下一个 `## ` 或 EOF」）；顶层键序 `formatVersion,contentVersion,generatedAt,dynasties,poems`，每首 10 键**始终存在**。
+      - **`rules-v3` 已交付**（会话 `f068345b`；**2026-10-16 整轮归档到 `items/content-format/history/round-2026-10-16-rules-v3/`**）：把 4 条确认**写成规范语句**（含「顶层 `dynasties` **不得**写成 `[{key,label,order}]`、只含实际有内容的组」「源里写 `id:` ⇒ 报 `forbidden-id-key`」「`detail`/`notes` 缺失**必须写 `null` 并保留键**」「三段固定：front matter → 原文（空行＝分段）→ 具名节，边界到下一个 `## ` 或 EOF」）；顶层键序 `formatVersion,contentVersion,generatedAt,dynasties,poems`，每首 10 键**始终存在**。
       - ✅ **我复跑核过**：正常路径 **EXIT 0**；故意非法夹具 `--parse` ⇒ **EXIT 1**；`--scan` 在正确路径下与它自报一致（`exclusions-ok` ⇒ 排除 4 项＋空目录 1）；**ID 我独立核了三方**：文件名去 `.md` == 源里 `id:` == **产物 id**（用**已提交的 Android 资产副本**与**本树未跟踪的 `dist/content.json`** 两份各核一次，都 **true**）⇒ **案 A（basename）零迁移**，源只删 `id:` 一行、产物一字不变、`#/p/<id>` 不断。（它自报「本树无 dist」是指**它的工作树**：gitignore 的 `dist/` 不进工作树 ⇒ 说法成立，我这边另有一份可核。）
       - ⚠ **它同时核出一条字段事实**：现在产物顶层是 `dynasties: [{key,label,order}]` ⇒ 规则①（有序**中文数组**）是一次**真实的字段集变化** ⇒ 按 B 判据采纳时**必须升 `formatVersion`、不可逆**（材料里只提一次，未执行）。
       - **它的未批细则建议**（每条带理由与代价，等用户拍板）：① 未知节／重复节 ⇒ **报错并非零退出** ② 围栏里的 `##` ⇒ 先跟踪围栏、且最小范围不含围栏 ⇒ **出现围栏即报错** ③ **空节 ⇒ 视为缺失 ⇒ `null`** ④ **最小 Markdown 闭集**（段落／换行／`- `／`1. `／粗体／斜体／`### `／`> `；**排除**表格·图片·行内代码·围栏·`#`/`##`/`####` 等）——两端代价：**Web 缺三级标题与引用 ⇒ 要扩**；**Android 现在完全没有 Markdown 渲染 ⇒ 要从零新增**，两端需共用一份范围定义＋对照测试。
@@ -262,7 +262,7 @@
 
 ⚠ **一处必须统一（现状不一致）**：契约写**精确匹配**，而 `tools/lib/dynasties.mjs` 仍对输入 `trim()` ⇒ **要改成精确匹配（去 trim）**，并让它与契约同一份说法；**不得对外说「当前工具已符合」**。
 
-⚠ **本材料的处置**：`items/content-format/prototypes/rules-v4/` 标为**已通过 · 未归档**（**它有活依赖**：S1/S2 实施要照它做）⇒ **先不搬**；搬的时机＝S2 完成、契约与码表已吸收其内容之后。
+✅ **本材料的处置（2026-10-16 完成）**：`rules-v4` 原标为**已通过 · 未归档**（活依赖：S1/S2 实施要照它做）。**S2 已完成、契约与码表已吸收其内容，且运行期测试读的定义已先迁到稳定契约位置（`1a84e86`：`schema/markdown-subset.json` ＋ `tests/fixtures/contract/`）** ⇒ **已整轮归档**到 **`items/content-format/history/round-2026-10-16-rules-v4/`**（含 `ARCHIVE.md`）。同批把 `rules-v3` 也整轮归档了。
 
 ### 下一步实施/迁移/核验计划（按逻辑拆；**阶段出口可判**）
 
@@ -305,7 +305,8 @@
 | **诗歌详情页轮**（**采纳锚**：D0＝诗题①左对齐／来源①正文前带标签／小标题①eyebrow 真标题；**2px 装饰竖线已删、小标题回到 16.8 正文左沿**；L2／L3②③ 未选；1180 行长未决；两端渲染未做） | **`items/app-ui/history/round-2026-10-16-detail/`** |
 | **关于页极简更新块轮**（**采纳锚**：初态只按钮无占位；**V3 标签左对齐**＝版本标签文字／按钮外沿／状态 label／内容左沿 同一条 16.8；值列仍 93.02；无区域框；六态文案逐字） | **`items/app-ui/history/round-2026-10-16-about-min/`** |
 | **关于页更新块轮**（U1–U5 组织候选**未被采纳**；**极简版新轮** `q-about-min.*` 在制；**状态真实性审计留档**：5 条真实协议／5 条未批准功能原型表达；U1「放不下第二动作」只关未批动作组合） | **`items/app-ui/history/round-2026-10-16-about-update/`** |
-| 规则稿 v3（**已通过·未归档**：用户 2026-10-16 审阅通过**中文路径 ID 收口稿**＝中文目录/文件名·任意层级·完整相对路径去 .md·`/`→`-`·判重·**直接换不兼容**；19 首清单不再写未审。⚠ 通过 ≠ 已迁移/已发布；**未表达的最小 Markdown 子集与未知/重复/空节细则仍独立**） | `items/content-format/prototypes/rules-v3/` | ⚠ **〔已定 2026-10-16〕**：19 首的具体层级与清单**已随 `id-final.md` ＋ `manifest/19-changes.json` 审阅通过**（`古诗十九首/<诗题>.md`，ID＝`古诗十九首-<诗题>`）⇒ **不再列为未决**。
+| **规则稿 v3 轮**（**已通过**：用户 2026-10-16 审阅通过**中文路径 ID 收口稿**＝中文目录/文件名·任意层级·完整相对路径去 .md·`/`→`-`·判重·**直接换不兼容**；19 首层级与清单已随 `id-final.md` ＋ `manifest/19-changes.json` 通过（`古诗十九首/<诗题>.md`，ID＝`古诗十九首-<诗题>`）⇒ **不再列为未决**。⚠ 通过 ≠ 已发布） | **`items/content-format/history/round-2026-10-16-rules-v3/`**（2026-10-16 整轮归档，含 `ARCHIVE.md`） |
+| **规则稿 v4 轮**（**已通过**：Markdown 闭集 **8 样**／未知节与重复节**报错**／空节⇒`null` **保键**／组名**精确匹配**／闭集外**越界诊断**／围栏**不误切但报错**；负责人落定**未闭合强调报错**·**诊断码进契约**·**断行与闭集分开**。机器可读范围定义已迁 `schema/markdown-subset.json`） | **`items/content-format/history/round-2026-10-16-rules-v4/`**（2026-10-16 整轮归档，含 `ARCHIVE.md`） |
 
 ## 已交付（均经负责人复跑验收，不只信报告）
 
@@ -369,7 +370,7 @@
 - **发布线的 `sw-shell-files` 检查与 E 的 `sw.js` 内部结构耦合**（E 重写后它就报红）——已派回 F 改成按自己的必需文件清单断言，SW 行为交给 E 的 e2e。
 - **`reclaim_worktree` 的合并判据在本项目的运作模式下永远不成立（2026-10-16 我归档两条工单时实测）**：该工具把「分支已并入 `origin/master`（否则回落 `master`）」当作**拒绝条件** (d)，而本项目**被明令不许 push** ⇒ `origin/master` **永远停在 `eb33f11`**，本地 `master` 领先 6+ 个提交且**永远不会被推上去**。实测后果：两条已完全并入本地 master（`a4602fd`）的工单，工具仍报**「未并入 origin/master 的提交 7 个」**。⇒ **任何回收都只能 `force:true`**，而 `force` 恰恰**关掉的就是内容检查** —— 这正对上本项目已记录的那次「按错误判据回收、删掉别人没提交的活」事故的形状。**处置（现在）**：**不回收**，工作树留着（`wt/web-a3v3-fa338b82`、`wt/child-a4ed5a79`）；**真要回收时**先自己用**本地 master** 而非 `origin/master` 判「这些提交的改动是否已在 master 里」并看 `git status` 干不干净，**不拿 force 当默认手段**。⚠ **不是工具 bug**：「远端基准」在任何正常 push 的项目里都是对的判据；**是我们的运作模式与它不匹配**。
 
-- **「最小 Markdown 范围」曾只有 Android 一端钉住共用定义（2026-10-16 由我核出；定义已迁稳定契约、Android 已接上，**Web 侧仍缺**）**：`docs/design/implementation-plan.md` S2 要求「**两端同一份范围定义＋对照测试**」。实际：**Android** `MarkdownTest` 真读 `items/content-format/prototypes/rules-v4/expectations.json` 的 `constructs[].id`，与 `Markdown.CONSTRUCT_IDS` **逐项比**（读不到即失败、不跳过），并解析**共用合法夹具** `json/md-subset-legal-fixture.json` 的 `notes`（`TestRepoFiles.read`）；**Web 端一条都没有** —— `grep -rn "md-subset\|expectations" web/` **零命中**，Web e2e 用的是**自己内联的夹具与期望值**（例：`web/tests/e2e-cdp.mjs` 的 `eq('`### ` 三级标题渲染成小标题块', fxMd.h3, ['夹具详情'])`、`eq('`1. ` 有序列表逐项渲染', fxMd.ol, [...])`）。
+- **「最小 Markdown 范围」曾只有 Android 一端钉住共用定义（2026-10-16 由我核出；定义已迁稳定契约、Android 已接上，**Web 侧仍缺**）**：`docs/design/implementation-plan.md` S2 要求「**两端同一份范围定义＋对照测试**」。实际：**Android** `MarkdownTest` 真读**稳定契约** `schema/markdown-subset.json` 的 `constructs[].id`（**2026-10-16 `1a84e86` 前的旧路径是 `items/content-format/prototypes/rules-v4/expectations.json`，即那个已归档的原型目录**），与 `Markdown.CONSTRUCT_IDS` **逐项比**（读不到即失败、不跳过），并解析**共用合法夹具** `tests/fixtures/contract/md-subset-legal.json` 的 `notes`（`TestRepoFiles.read`）；**Web 端一条都没有** —— `grep -rn "md-subset\|expectations" web/` **零命中**，Web e2e 用的是**自己内联的夹具与期望值**（例：`web/tests/e2e-cdp.mjs` 的 `eq('`### ` 三级标题渲染成小标题块', fxMd.h3, ['夹具详情'])`、`eq('`1. ` 有序列表逐项渲染', fxMd.ol, [...])`）。
   ⚠ **风险形状**：将来在 `expectations.json` 里加/删一样构造（那份文件曾是**跨端唯一范围定义**），**Android 报红、Web 静默不动** —— 正是本项目已记录三次的那类「看起来有保障、其实没有」。
   **已做一半（2026-10-16，`1a84e86`）**：**定义与夹具已迁到稳定契约位置**（`schema/markdown-subset.json`＋`tests/fixtures/contract/`），**Android 端已改读稳定位置**（不再读会被归档的原型目录）。**Web 端仍是零命中**（`web/app/render.js:140` 至今只是一句注释指向原型 `md-subset.md`）⇒ **给 Web 侧补上「读同一份定义」的对照**仍待做。
 

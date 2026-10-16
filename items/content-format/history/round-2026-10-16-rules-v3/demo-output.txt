@@ -1,0 +1,303 @@
+================ 运行 1：无参数（自检 + 自证，含目录组织候选）================
+命令：node items/content-format/prototypes/rules-v3/demo.mjs
+
+========================================================================================================
+rules-v3 规则稿材料 —— 演示脚本输出（**演示用，不是编译器**；样例 JSON 不是正式产物）
+========================================================================================================
+仓库根（从脚本目录向上查找 prototype\css\theme-tech.css 得到）：.
+
+① 自检：逐行正文切分不污染／顶层与每首键序／ID 由文件名／dynasties 中文数组／缺省 null／逐字节比对
+--------------------------------------------------------------------------------------------------------
+文件                          诗行 段数 顶层键序 每首键序 ID=文件名 dynasties 规则③无旧键 详情 笔记 告警 JSON
+real-01-with-note.md        8    1    是        是        是         ["汉"]     是         null 文本   0    一致
+real-01-full.md             8    1    是        是        是         ["汉"]     是         文本   null 0    一致
+real-01-text-only.md        8    1    是        是        是         ["汉"]     是         null null 0    一致
+--------------------------------------------------------------------------------------------------------
+自检：通过（真实《行行重行行》8 行逐行相等、单段；键序＝本稿；缺省如预期；样例 0 告警；3 份 json 逐字节一致）
+
+② 规则 ① 自证：顶层 `dynasties` 是**中文值数组**，紧随其后才是 `poems`（客户端照数组序，从不首次出现推断）
+--------------------------------------------------------------------------------------------------------
+  顶层键序：formatVersion, contentVersion, generatedAt, dynasties, poems
+  dynasties＝["汉"]（元素类型：string）
+  说明：元素是**中文字符串**，不是 {key,label,order} 对象；`dynasty` 是**源值**，`dynasties` 是**编译期产出的有序数组**。
+
+③ 规则 ② 自证：ID 由文件名生成、源里不再手填 `id`
+--------------------------------------------------------------------------------------------------------
+  real-01-with-note.md         ⇒ id＝real-01-with-note
+  real-01-full.md              ⇒ id＝real-01-full
+  real-01-text-only.md         ⇒ id＝real-01-text-only
+  （源样本 front matter **没有** `id:` 键；多写一个 `id:` 会踩 ④ 的 forbidden-id-key 而非静默采信）
+
+④ 故意非法的输入必须「响」并**非零退出**
+--------------------------------------------------------------------------------------------------------
+  响  invalid-unknown-section.md  ⇒ 告警 1 条：unknown-section
+        - [unknown-section] 未知的节「## 小结」（不是 详情/笔记）⇒ 建议＝报错
+  响  invalid-duplicate-section.md  ⇒ 告警 1 条：duplicate-section
+        - [duplicate-section] 重复的节「## 详情」⇒ 建议＝报错（绝不静默覆盖）
+  响  invalid-fence-heading.md  ⇒ 告警 3 条：fence-present, fence-heading, md-out-of-range
+        - [fence-present] 出现代码围栏（最小 Markdown 范围**不含**围栏）："```text"
+        - [fence-heading] 代码围栏内部出现形如「## 围栏里的假标题（夹具）」的节标题 —— **不算分界**，但必须响
+        - [md-out-of-range] ## 详情 节内第 5 行用了声明范围之外的写法（行内代码（`` ` ``））："⚠ 夹具：围栏内的 `##` 不算分界，且最小范围不含围栏 ⇒ 两件事都要响。"
+  响  invalid-unclosed-fence.md  ⇒ 告警 2 条：fence-present, unclosed-fence
+        - [fence-present] 出现代码围栏（最小 Markdown 范围**不含**围栏）："```text"
+        - [unclosed-fence] 代码围栏没有闭合（会静默吞节 ⇒ 必须响）
+  响  invalid-md-out-of-range.md  ⇒ 告警 4 条：md-out-of-range, md-out-of-range, md-out-of-range, md-out-of-range
+        - [md-out-of-range] ## 详情 节内第 3 行用了声明范围之外的写法（表格行（`| … |`））："| 本子 | 异文 |"
+        - [md-out-of-range] ## 详情 节内第 4 行用了声明范围之外的写法（表格行（`| … |`））："| --- | --- |"
+        - [md-out-of-range] ## 详情 节内第 6 行用了声明范围之外的写法（标题层级超过 `###`）："#### 四级标题（夹具）"
+        - [md-out-of-range] ## 详情 节内第 8 行用了声明范围之外的写法（链接（`[文字](url)`））："见 [某站](https://example.invalid/x)（夹具）。"
+  响  invalid-has-id-key.md  ⇒ 告警 1 条：forbidden-id-key
+        - [forbidden-id-key] front matter 写了 `id`（规则 ② 已改为**由文件名生成 ID**，源 MD 不再手填 `id`）
+  实跑单份（见 README §4 与 demo-output.txt）：`--parse <夹具>` 会打印上面这些告警并**非零退出**。
+
+⑤ 目录组织候选自证（见 rules-v3.md §7）：目录树 → 文件名 → ID（真相：`--scan` 打的就是这一套）
+--------------------------------------------------------------------------------------------------------
+  【layout-1-cn-dir】（--scan name-tree-fixture/layout-1-cn-dir 可复跑）
+      └─ 汉/
+         ├─ gushi-shijiu-shou-01.md
+         ├─ gushi-shijiu-shou-02.md
+         └─ gushi-shijiu-shou-06.md
+      → 案A id / 案B id：
+        汉/gushi-shijiu-shou-01.md  ⇒  A=gushi-shijiu-shou-01   B=汉/gushi-shijiu-shou-01
+        汉/gushi-shijiu-shou-02.md  ⇒  A=gushi-shijiu-shou-02   B=汉/gushi-shijiu-shou-02
+        汉/gushi-shijiu-shou-06.md  ⇒  A=gushi-shijiu-shou-06   B=汉/gushi-shijiu-shou-06
+  【layout-2-flat】（--scan name-tree-fixture/layout-2-flat 可复跑）
+      ├─ gushi-shijiu-shou-01.md
+      ├─ gushi-shijiu-shou-02.md
+      └─ gushi-shijiu-shou-06.md
+      → 案A id / 案B id：
+        gushi-shijiu-shou-01.md  ⇒  A=gushi-shijiu-shou-01   B=gushi-shijiu-shou-01
+        gushi-shijiu-shou-02.md  ⇒  A=gushi-shijiu-shou-02   B=gushi-shijiu-shou-02
+        gushi-shijiu-shou-06.md  ⇒  A=gushi-shijiu-shou-06   B=gushi-shijiu-shou-06
+  【layout-3-pinyin-dir】（--scan name-tree-fixture/layout-3-pinyin-dir 可复跑）
+      └─ han/
+         ├─ gushi-shijiu-shou-01.md
+         ├─ gushi-shijiu-shou-02.md
+         └─ gushi-shijiu-shou-06.md
+      → 案A id / 案B id：
+        han/gushi-shijiu-shou-01.md  ⇒  A=gushi-shijiu-shou-01   B=han/gushi-shijiu-shou-01
+        han/gushi-shijiu-shou-02.md  ⇒  A=gushi-shijiu-shou-02   B=han/gushi-shijiu-shou-02
+        han/gushi-shijiu-shou-06.md  ⇒  A=gushi-shijiu-shou-06   B=han/gushi-shijiu-shou-06
+  【layout-4-cn-basename】（--scan name-tree-fixture/layout-4-cn-basename 可复跑）
+      └─ 汉/
+         └─ 行行重行行.md
+      → 案A id / 案B id：
+        汉/行行重行行.md  ⇒  A=行行重行行   B=汉/行行重行行
+  小结：四个候选布局都扫得通；案A 的 ID ＝ 旧 ID（零迁移）
+
+⑤b 三种变化（具体示例）
+--------------------------------------------------------------------------------------------------------
+  ① 移动目录：gushi-shijiu-shou-01.md 从平铺移入 汉/ ⇒ 案A id gushi-shijiu-shou-01（不变＝旧链接不断）／案B id gushi-shijiu-shou-01 → 汉/gushi-shijiu-shou-01（变＝旧链接断）  （实测：案A id 不变）
+  ② 改文件名：gushi-shijiu-shou-01.md → gushi-shijiu-shou-001.md ⇒ 案A id gushi-shijiu-shou-01 → gushi-shijiu-shou-001（ID 跟着变 ⇒ 旧深链接 断）
+  ③ 重复 basename：invalid-dup-basename/{汉,魏晋}/行行重行行.md ⇒ 案A 报错 1 条（案B 会给两个不同 ID）
+
+⑤c 安全边界（每条一个建议；真实夹具 + 合成条目列表走同一函数）
+--------------------------------------------------------------------------------------------------------
+  排除并计数（exclusions-ok）：错误 0 条，排除 4 项，空目录 1 个
+        - 排除 README.md  [README/说明文件]
+        - 排除 汉/.DS_Store  [隐藏文件/目录（点开头）]
+        - 排除 汉/_草稿.md  [下划线开头＝非内容约定]
+        - 排除 汉/空占位/.gitkeep  [隐藏文件/目录（点开头）]
+        - 空目录（忽略并计数）汉/空占位
+  非 .md（invalid-nonmd）：non-md-in-content
+  符号链接（合成条目）：symlink-in-content
+  仅大小写不同（合成条目）：当作重复并报错
+  Unicode 形不同（NFC/NFD，合成条目）：当作重复并报错
+  小结：边界规则自证通过
+
+========================================================================================================
+全部自检通过。
+提醒：本演示**只覆盖本稿已约定/已建议的写法**；未批细则的**单一建议**见 unapproved-details.md，
+      源/派生分工见 source-vs-derived.md，文件名 ID 迁移核查见 id-migration.md。
+========================================================================================================
+EXIT=0
+
+================ 运行 2：故意非法（未知节）⇒ 必须非零退出 ================
+命令：node items/content-format/prototypes/rules-v3/demo.mjs --parse items/content-format/prototypes/rules-v3/fixtures-invalid/invalid-unknown-section.md
+
+# --parse items/content-format/prototypes/rules-v3/fixtures-invalid/invalid-unknown-section.md
+
+{
+  "formatVersion": 2,
+  "contentVersion": "0.0.0-dev+000000000000",
+  "generatedAt": "2026-10-16T00:00:00Z",
+  "dynasties": [
+    "汉"
+  ],
+  "poems": [
+    {
+      "id": "invalid-unknown-section",
+      "title": "行行重行行",
+      "author": "佚名",
+      "dynasty": "汉",
+      "genre": "五言古诗",
+      "source": "夹具：不是真实数据。",
+      "orderInSource": 1,
+      "detail": "### 异文\n\n- 夹具用的一行校语。",
+      "stanzas": [
+        [
+          "行行重行行，与君生别离。"
+        ]
+      ],
+      "notes": null
+    }
+  ]
+}
+
+告警 1 条：
+  - [unknown-section] 未知的节「## 小结」（不是 详情/笔记）⇒ 建议＝报错
+⇒ 有告警：进程非零退出（宁可响，不许静默）。
+EXIT=1
+
+================ 运行 3：源里写了 id（规则②已改为由文件名生成）⇒ 必须非零退出 ================
+命令：node items/content-format/prototypes/rules-v3/demo.mjs --parse items/content-format/prototypes/rules-v3/fixtures-invalid/invalid-has-id-key.md
+
+# --parse items/content-format/prototypes/rules-v3/fixtures-invalid/invalid-has-id-key.md
+
+{
+  "formatVersion": 2,
+  "contentVersion": "0.0.0-dev+000000000000",
+  "generatedAt": "2026-10-16T00:00:00Z",
+  "dynasties": [
+    "汉"
+  ],
+  "poems": [
+    {
+      "id": "invalid-has-id-key",
+      "title": "行行重行行",
+      "author": "佚名",
+      "dynasty": "汉",
+      "genre": "五言古诗",
+      "source": "夹具：不是真实数据。",
+      "orderInSource": 1,
+      "detail": null,
+      "stanzas": [
+        [
+          "行行重行行，与君生别离。"
+        ],
+        [
+          "⚠ 夹具：规则 2 已改为**ID 由文件名生成**，源 MD **不再手填 `id`** ⇒ 出现 `id:` 应响亮报错。"
+        ]
+      ],
+      "notes": null
+    }
+  ]
+}
+
+告警 1 条：
+  - [forbidden-id-key] front matter 写了 `id`（规则 ② 已改为**由文件名生成 ID**，源 MD 不再手填 `id`）
+⇒ 有告警：进程非零退出（宁可响，不许静默）。
+EXIT=1
+
+================ 运行 4：正常样例 ⇒ EXIT=0 ================
+命令：node items/content-format/prototypes/rules-v3/demo.mjs --parse items/content-format/prototypes/rules-v3/samples/real-01-full.md
+
+# --parse items/content-format/prototypes/rules-v3/samples/real-01-full.md
+
+{
+  "formatVersion": 2,
+  "contentVersion": "0.0.0-dev+000000000000",
+  "generatedAt": "2026-10-16T00:00:00Z",
+  "dynasties": [
+    "汉"
+  ],
+  "poems": [
+    {
+      "id": "real-01-full",
+      "title": "行行重行行",
+      "author": "佚名",
+      "dynasty": "汉",
+      "genre": "五言古诗",
+      "source": "《文选》卷二十九·杂诗上「古诗一十九首」（李善注本）。电子文本：汉典古籍 gj.zdic.net/jibu/1224/34173.html，2026-10-14 访问；以四库全书本《六臣注文选》卷二十九对校。异文校记见 docs/sources/gushi-shijiu-shou.md。",
+      "orderInSource": 1,
+      "detail": "### 异文\n\n- **游子不顾返** —— 四库全书本《六臣注文选》卷二十九、《玉台新咏》卷一「枚乘杂诗」其三，此句均作「返」；底本（李善注本）作「反」。反、返古通用。\n- **胡马嘶北风** —— 《玉台新咏》宋刻本作「嘶」，见清·纪容舒《玉台新咏考异》卷一（四库全书本）校语：「依，宋刻作嘶。按：此二句乃以一南一北申足『各天一涯』之意，以起下『相去日远』，作依为是。今从文选。」纪昀校正本《玉台新咏》卷一影印本同此校语；二手转录站古文岛亦作「嘶」。底本《文选》李善注本、四库全书本《六臣注文选》、明《诗纪》两刻本均作「依」；宋本影像本工作线未目验。\n- **会面安可期** —— 明·冯惟讷《诗纪》卷二十（汉第十·古诗十九首）于「会面安可知」下出校语「一作期」，另一明刻本《诗纪》卷之十同；底本作「知」。\n\n### 分段依据\n\n底本（《文选》卷二十九李善注本、四库全书本《六臣注文选》、宋刻《玉台新咏》）通篇连排、篇内无空行 ⇒ 依底本不分段（本首正文＝单一 stanza）。",
+      "stanzas": [
+        [
+          "行行重行行，与君生别离。",
+          "相去万余里，各在天一涯。",
+          "道路阻且长，会面安可知？",
+          "胡马依北风，越鸟巢南枝。",
+          "相去日已远，衣带日已缓。",
+          "浮云蔽白日，游子不顾反。",
+          "思君令人老，岁月忽已晚。",
+          "弃捐勿复道，努力加餐饭。"
+        ]
+      ],
+      "notes": null
+    }
+  ]
+}
+
+告警 0 条：
+⇒ 0 告警。
+EXIT=0
+
+================ 运行 5：目录扫描（重复 basename 夹具）⇒ 必须非零退出 ================
+命令：node items/content-format/prototypes/rules-v3/demo.mjs --scan items/content-format/prototypes/rules-v3/name-tree-fixture/invalid-dup-basename
+
+# --scan items/content-format/prototypes/rules-v3/name-tree-fixture/invalid-dup-basename
+
+内容文件 2 份：
+  汉/行行重行行.md  ⇒ 案A id=行行重行行 / 案B id=汉/行行重行行
+  魏晋/行行重行行.md  ⇒ 案A id=行行重行行 / 案B id=魏晋/行行重行行
+
+排除（忽略并计数）0 项：
+
+空目录/只剩被排除项的目录 0 个：（无）
+
+错误 1 条：
+  - [duplicate-basename] 汉/行行重行行.md 与 魏晋/行行重行行.md: 案 A 下 basename「行行重行行」重复（NFC＋小写后）：2 处 ⇒ 案 A 无法为它们生成不同 ID
+⇒ 有错误：进程非零退出（宁可响，不许静默）。
+EXIT=1
+
+================ 运行 6：目录扫描（排除项/空目录夹具）⇒ EXIT=0（排除并计数）================
+命令：node items/content-format/prototypes/rules-v3/demo.mjs --scan items/content-format/prototypes/rules-v3/name-tree-fixture/exclusions-ok
+
+# --scan items/content-format/prototypes/rules-v3/name-tree-fixture/exclusions-ok
+
+内容文件 1 份：
+  汉/gushi-shijiu-shou-01.md  ⇒ 案A id=gushi-shijiu-shou-01 / 案B id=汉/gushi-shijiu-shou-01
+
+排除（忽略并计数）4 项：
+  README.md  [README/说明文件]
+  汉/.DS_Store  [隐藏文件/目录（点开头）]
+  汉/_草稿.md  [下划线开头＝非内容约定]
+  汉/空占位/.gitkeep  [隐藏文件/目录（点开头）]
+
+空目录/只剩被排除项的目录 1 个：汉/空占位
+
+错误 0 条：
+⇒ 0 错误。
+EXIT=0
+
+================ 运行 7：目录扫描（非 .md 夹具）⇒ 必须非零退出 ================
+命令：node items/content-format/prototypes/rules-v3/demo.mjs --scan items/content-format/prototypes/rules-v3/name-tree-fixture/invalid-nonmd
+
+# --scan items/content-format/prototypes/rules-v3/name-tree-fixture/invalid-nonmd
+
+内容文件 1 份：
+  汉/gushi-shijiu-shou-01.md  ⇒ 案A id=gushi-shijiu-shou-01 / 案B id=汉/gushi-shijiu-shou-01
+
+排除（忽略并计数）0 项：
+
+空目录/只剩被排除项的目录 0 个：（无）
+
+错误 1 条：
+  - [non-md-in-content] 汉/notes.txt: 内容树里出现非 .md 文件「notes.txt」⇒ 报错（多半是笔误，忽略会静默丢内容）
+⇒ 有错误：进程非零退出（宁可响，不许静默）。
+EXIT=1
+
+================ 运行 8a：整棵目录复制到仓库内【另一位置】后跑（模拟整轮搬进 history/）⇒ EXIT=0，仍能算仓库根 ================
+命令：node items/content-format/prototypes/__reloc-tmp/demo.mjs
+
+EXIT=0
+仓库根（从脚本目录向上查找 prototype\css\theme-tech.css 得到）：.
+
+================ 运行 8b：复制到仓库【之外】后跑 ⇒ 抛「找不到仓库根」并 EXIT=1（不静默、不猜）================
+命令：node <仓库外路径>/demo.mjs
+
+file:///C:/Users/wsqsy/AppData/Local/Temp/rules-v3-reloc-out/demo.mjs:73
+      throw new Error(`找不到仓库根：从 ${startDir} 一路上溯都没有 ${ROOT_MARKER}（本脚本不写死层级）`);
+            ^
+(stderr 首行如上；完整为抛错栈)
+EXIT=1

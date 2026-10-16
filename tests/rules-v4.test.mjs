@@ -5,8 +5,8 @@
 //   ③ 闭集 8 样；④ 未知节/重复节报错；⑤ 空节 ⇒ null 保键；⑥ 围栏先跟踪（围栏里的 `##` 不误切）；
 //   ⑦ 朝代组名精确匹配（不去 trim）；⑧ 未闭合强调报错（负责人落定）。
 //
-// 夹具来源＝`items/content-format/prototypes/rules-v4/`（会被归档的原型目录），所以**复制**到
-// `tests/fixtures/rules-v4-{legal,invalid}/`，测试不依赖原型目录。
+// 夹具来源＝原型轮 rules-v4（现 `items/content-format/history/round-2026-10-16-rules-v4/`，**已归档**），所以**复制**到
+// `tests/fixtures/rules-v4-{legal,invalid}/`，测试**不依赖原型目录**。
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';

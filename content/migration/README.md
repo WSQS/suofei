@@ -1,7 +1,7 @@
 # S3 迁移：19 首 v1 平铺 ASCII 源 → v2 中文相对路径布局
 
 > 一次性迁移（2026-10-16，S3）。**内容不变，只搬家与改源格式**。
-> 迁移范围：`content/poems/`。清单：`items/content-format/prototypes/rules-v3/manifest/19-changes.json`（只读）。
+> 迁移范围：`content/poems/`。清单：`content/migration/19-changes.json`（只读；**稳定副本**——原稿随 `rules-v3` 轮已归档）。
 
 ## 1. 两个脚本
 

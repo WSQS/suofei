@@ -27,7 +27,7 @@
 
 ## rules-v4（用户 2026-10-16 已通过的语法/细则）
 
-- `rules-v4-legal/`：**5 份合法样例**（复制自 `items/content-format/prototypes/rules-v4/`），
+- `rules-v4-legal/`：**5 份合法样例**（复制自 `items/content-format/history/round-2026-10-16-rules-v4/` —— 该原型轮**已归档**，2026-10-16），
   逐条对应 `node tools/build-content.mjs --check` **EXIT 0**。
 - `rules-v4-invalid/`：**12 份故意非法夹具**（同一来源），每份一个目录（`content/poems/<名字>.md`）；
   逐条诊断的**码 + 行号 + 文案**账本在 `rules-v4-invalid/expected-diagnostics.json`，

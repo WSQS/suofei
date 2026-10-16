@@ -1,5 +1,5 @@
 {
-  "_note": "12 份故意非法夹具的**逐条**诊断账本（码 + 行号 + 文案逐字）。夹具来源＝items/content-format/prototypes/rules-v4/fixtures-invalid/（用户 2026-10-16 已通过），复制到此处以免测试依赖会被归档的原型目录。文案与行号已逐字比对过 rules-v4 演示输出与它引用的文档段落（sections.md / md-subset.md / dynasty-groups.md）；改编译器文案时这里必须一起改。",
+  "_note": "12 份故意非法夹具的**逐条**诊断账本（码 + 行号 + 文案逐字）。夹具来源＝原型轮 rules-v4 的 `fixtures-invalid/`（现 `items/content-format/history/round-2026-10-16-rules-v4/`，**2026-10-16 已归档**；用户同日已通过），复制到此处以免测试依赖原型目录。文案与行号已逐字比对过 rules-v4 演示输出与它引用的文档段落（sections.md / md-subset.md / dynasty-groups.md）；改编译器文案时这里必须一起改。",
   "_generatedBy": "node tools/lib/{scan,content-build}.mjs（一次性生成，之后由 tests/rules-v4.test.mjs 钉住）",
   "field": "每项：code / line / message（message 不含“file:line: ”前缀）",
   "cases": {

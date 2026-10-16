@@ -1,6 +1,6 @@
 // 契约线 C：内容根的**目录扫描**（递归、排除、按路径派生 ID、全库判重）。
 //
-// 用户 2026-10-16 已定 C2 收口稿（`items/content-format/prototypes/rules-v3/id-final.md`）：
+// 用户 2026-10-16 已定 C2 收口稿（原 `…/prototypes/rules-v3/id-final.md`，现 `items/content-format/history/round-2026-10-16-rules-v3/id-final.md`，已归档）：
 //   ID ＝ 相对内容根（`content/poems/`）的**完整相对路径**、去 `.md`、**`/` 统一写成 `-`**；
 //   层级任意（根直接文件 / 一层 / 多层）；目录纯整理，分组只由 `dynasty` 决定。
 //

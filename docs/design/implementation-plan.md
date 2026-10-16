@@ -38,7 +38,7 @@
 | 关于页：**A3 次序／无来源／C1 完整 URL／无框**／更新处**V3 标签左对齐**／**初态只按钮无占位**／状态文案取自 `UpdateStatusText` | `round-2026-10-16-about`／`about-min`／`about-update` | `render.js`、`styles.css` | `ui/Screens.kt`、`ui/UpdateStatusText.kt` |
 | 分组/身份行随字段变 | — | `content.js`（组名精确匹配）、`render.js`（身份行＝作者·朝代·体裁） | `data/ContentParser.kt`、`data/Domain.kt`（`groupBy` 用中文 `dynasty`）、`ui/ScreenContent.kt`（身份行顺序） |
 
-**两端一致**：**同一份最小范围定义**＋**对照测试**（同一 MD 两端渲染结果对照）；Markdown 渲染范围见 `items/content-format/prototypes/rules-v4/md-subset.md`。
+**两端一致**：**同一份最小范围定义**＋**对照测试**（同一 MD 两端渲染结果对照）；机器可读的范围定义＝ `schema/markdown-subset.json`（人类可读＝ `docs/design/content-contract.md` §1.0）；原型轮 `items/content-format/history/round-2026-10-16-rules-v4/md-subset.md`（已归档）。
 
 ### 2.3 **不自动纳入**（用户未选／未授权）
 「来源」是否显示；失败态是否换色；1180 行长是否设限；U1–U5/折叠/步骤/分区/多动作；未批准的新状态功能（有新内容可用／下载中+进度／校验中／待切换／延后）。

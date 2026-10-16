@@ -1,0 +1,613 @@
+# rules-v4 演示脚本的真实输出（一次生成，逐条带退出码）
+#
+# 生成方式：在仓库根下按顺序跑下列命令，每条命令 stdout+stderr 一起收进本文件，并在其后回显真实退出码。
+# 重要：demo.mjs **自身不写任何文件**；json/*.json 是用 --emit 的 stdout 在 **shell 里**重定向生成的：
+#   node $D/demo.mjs --emit $D/samples/real-01-full.md            > $D/json/real-01-full.json
+#   node $D/demo.mjs --emit $D/samples/real-01-text-only.md       > $D/json/real-01-text-only.json
+#   node $D/demo.mjs --emit $D/fixtures/md-subset-legal-fixture.md > $D/json/md-subset-legal-fixture.json
+#   node $D/demo.mjs --emit $D/fixtures/empty-and-blank-sections.md > $D/json/empty-and-blank-sections.json
+#   node $D/demo.mjs --emit $D/fixtures/nested/夹具集/夹具首.md    > $D/json/夹具集-夹具首.json
+
+═══ ① 正常路径：自检 + 自证（必须 EXIT=0） ═══
+
+$ node items/content-format/prototypes/rules-v4/demo.mjs
+══ rules-v4 自检：合法样例 / 非法夹具 / 两端预期覆盖 / 依据文件 / EXIT 码 ══
+
+仓库根（由 prototype/css/theme-tech.css 向上查找，不写死层级）：.（就是工作树根）
+本目录：items/content-format/prototypes/rules-v4
+
+① 合法样例：解析、逐字节比对 json/*.json、块覆盖
+  ✓ items/content-format/prototypes/rules-v4/samples/real-01-full.md 解析无错误
+  ✓ items/content-format/prototypes/rules-v4/samples/real-01-full.md ↔ json/real-01-full.json 逐字节一致
+  ✓ items/content-format/prototypes/rules-v4/samples/real-01-text-only.md 解析无错误
+  ✓ items/content-format/prototypes/rules-v4/samples/real-01-text-only.md ↔ json/real-01-text-only.json 逐字节一致
+  ✓ items/content-format/prototypes/rules-v4/fixtures/md-subset-legal-fixture.md 解析无错误
+  ✓ items/content-format/prototypes/rules-v4/fixtures/md-subset-legal-fixture.md ↔ json/md-subset-legal-fixture.json 逐字节一致
+  ✓ items/content-format/prototypes/rules-v4/fixtures/empty-and-blank-sections.md 解析无错误
+  ✓ items/content-format/prototypes/rules-v4/fixtures/empty-and-blank-sections.md ↔ json/empty-and-blank-sections.json 逐字节一致
+  ✓ items/content-format/prototypes/rules-v4/fixtures/nested/夹具集/夹具首.md 解析无错误
+  ✓ items/content-format/prototypes/rules-v4/fixtures/nested/夹具集/夹具首.md ↔ json/夹具集-夹具首.json 逐字节一致
+
+② 「每个块都有两端预期」双向覆盖
+  ✓ 合法样例里出现的块 frontmatter 在 expectations.json 有条目
+  ✓ 合法样例里出现的块 stanza 在 expectations.json 有条目
+  ✓ 合法样例里出现的块 section:详情 在 expectations.json 有条目
+  ✓ 合法样例里出现的块 section:笔记 在 expectations.json 有条目
+  ✓ expectations.json 的块 frontmatter 在合法样例里真出现过
+  ✓ expectations.json 的块 stanza 在合法样例里真出现过
+  ✓ expectations.json 的块 section:详情 在合法样例里真出现过
+  ✓ expectations.json 的块 section:笔记 在合法样例里真出现过
+
+③ 最小闭集：每样语法都有合法样例、且样例里的语法都在闭集里
+  ✓ 闭集 8 样与 expectations.json 的 constructs 一一对应
+  ✓ 样例里用到的 h3 在闭集里
+  ✓ 样例里用到的 ul-dash 在闭集里
+  ✓ 样例里用到的 bold 在闭集里
+  ✓ 样例里用到的 paragraph 在闭集里
+  ✓ 样例里用到的 line-break 在闭集里
+  ✓ 样例里用到的 italic 在闭集里
+  ✓ 样例里用到的 ol-number 在闭集里
+  ✓ 样例里用到的 quote 在闭集里
+  ✓ 闭集里的 paragraph 至少在一份合法样例里被真正行使
+  ✓ 闭集里的 line-break 至少在一份合法样例里被真正行使
+  ✓ 闭集里的 ul-dash 至少在一份合法样例里被真正行使
+  ✓ 闭集里的 ol-number 至少在一份合法样例里被真正行使
+  ✓ 闭集里的 bold 至少在一份合法样例里被真正行使
+  ✓ 闭集里的 italic 至少在一份合法样例里被真正行使
+  ✓ 闭集里的 h3 至少在一份合法样例里被真正行使
+  ✓ 闭集里的 quote 至少在一份合法样例里被真正行使
+  ✓ expectations.json 说 paragraph 在 samples/real-01-full.md 里 ⇒ 该样例真的行使了它
+  ✓ expectations.json 说 paragraph 在 fixtures/md-subset-legal-fixture.md 里 ⇒ 该样例真的行使了它
+  ✓ expectations.json 说 line-break 在 fixtures/md-subset-legal-fixture.md 里 ⇒ 该样例真的行使了它
+  ✓ expectations.json 说 ul-dash 在 samples/real-01-full.md 里 ⇒ 该样例真的行使了它
+  ✓ expectations.json 说 ul-dash 在 fixtures/md-subset-legal-fixture.md 里 ⇒ 该样例真的行使了它
+  ✓ expectations.json 说 ol-number 在 fixtures/md-subset-legal-fixture.md 里 ⇒ 该样例真的行使了它
+  ✓ expectations.json 说 bold 在 samples/real-01-full.md 里 ⇒ 该样例真的行使了它
+  ✓ expectations.json 说 bold 在 fixtures/md-subset-legal-fixture.md 里 ⇒ 该样例真的行使了它
+  ✓ expectations.json 说 italic 在 fixtures/md-subset-legal-fixture.md 里 ⇒ 该样例真的行使了它
+  ✓ expectations.json 说 h3 在 samples/real-01-full.md 里 ⇒ 该样例真的行使了它
+  ✓ expectations.json 说 h3 在 fixtures/md-subset-legal-fixture.md 里 ⇒ 该样例真的行使了它
+  ✓ expectations.json 说 quote 在 fixtures/md-subset-legal-fixture.md 里 ⇒ 该样例真的行使了它
+
+④ 故意非法的夹具：诊断码集必须与账本逐条相等
+  ✓ fixtures-invalid/forbidden-id-key.md 码集 = FORBIDDEN_ID_KEY
+  ✓ fixtures-invalid/removed-keys.md 码集 = REMOVED_KEY,REMOVED_KEY,REMOVED_KEY
+  ✓ fixtures-invalid/missing-required-key.md 码集 = MISSING_REQUIRED_KEY
+  ✓ fixtures-invalid/unknown-section.md 码集 = UNKNOWN_SECTION
+  ✓ fixtures-invalid/duplicate-section.md 码集 = DUPLICATE_SECTION
+  ✓ fixtures-invalid/fence-with-heading.md 码集 = MD_CODE_FENCE
+  ✓ fixtures-invalid/fence-unclosed.md 码集 = MD_CODE_FENCE,MD_FENCE_UNCLOSED
+  ✓ fixtures-invalid/heading-levels.md 码集 = MD_HEADING,MD_HEADING
+  ✓ fixtures-invalid/out-of-range-inline-and-block.md 码集 = MD_FOOTNOTE,MD_HTML,MD_IMAGE,MD_INLINE_CODE,MD_LINK,MD_STAR_LIST,MD_TABLE,MD_TABLE,MD_TASK_LIST
+  ✓ fixtures-invalid/dynasty-unknown.md 码集 = DYNASTY_UNDECLARED
+  ✓ fixtures-invalid/dynasty-traditional.md 码集 = DYNASTY_UNDECLARED
+  ✓ fixtures-invalid/dynasty-space.md 码集 = DYNASTY_UNDECLARED
+  ✓ 码表里的 FORBIDDEN_ID_KEY 确有夹具产生它
+  ✓ 码表里的 REMOVED_KEY 确有夹具产生它
+  ✓ 码表里的 MISSING_REQUIRED_KEY 确有夹具产生它
+  ✓ 码表里的 UNKNOWN_SECTION 确有夹具产生它
+  ✓ 码表里的 DUPLICATE_SECTION 确有夹具产生它
+  ✓ 码表里的 MD_CODE_FENCE 确有夹具产生它
+  ✓ 码表里的 MD_FENCE_UNCLOSED 确有夹具产生它
+  ✓ 码表里的 MD_HEADING 确有夹具产生它
+  ✓ 码表里的 MD_TASK_LIST 确有夹具产生它
+  ✓ 码表里的 MD_TABLE 确有夹具产生它
+  ✓ 码表里的 MD_IMAGE 确有夹具产生它
+  ✓ 码表里的 MD_LINK 确有夹具产生它
+  ✓ 码表里的 MD_INLINE_CODE 确有夹具产生它
+  ✓ 码表里的 MD_FOOTNOTE 确有夹具产生它
+  ✓ 码表里的 MD_HTML 确有夹具产生它
+  ✓ 码表里的 MD_STAR_LIST 确有夹具产生它
+  ✓ 码表里的 DYNASTY_UNDECLARED 确有夹具产生它
+  ✓ 越界语法 star-list 的码 MD_STAR_LIST 在码表里
+  ✓ 越界语法 star-list 的 MD_STAR_LIST 确有夹具产生它
+  ✓ 越界语法 star-list 的夹具存在：fixtures-invalid/out-of-range-inline-and-block.md
+  ✓ 越界语法 table 的码 MD_TABLE 在码表里
+  ✓ 越界语法 table 的 MD_TABLE 确有夹具产生它
+  ✓ 越界语法 table 的夹具存在：fixtures-invalid/out-of-range-inline-and-block.md
+  ✓ 越界语法 image 的码 MD_IMAGE 在码表里
+  ✓ 越界语法 image 的 MD_IMAGE 确有夹具产生它
+  ✓ 越界语法 image 的夹具存在：fixtures-invalid/out-of-range-inline-and-block.md
+  ✓ 越界语法 link 的码 MD_LINK 在码表里
+  ✓ 越界语法 link 的 MD_LINK 确有夹具产生它
+  ✓ 越界语法 link 的夹具存在：fixtures-invalid/out-of-range-inline-and-block.md
+  ✓ 越界语法 inline-code 的码 MD_INLINE_CODE 在码表里
+  ✓ 越界语法 inline-code 的 MD_INLINE_CODE 确有夹具产生它
+  ✓ 越界语法 inline-code 的夹具存在：fixtures-invalid/out-of-range-inline-and-block.md
+  ✓ 越界语法 code-fence 的码 MD_CODE_FENCE 在码表里
+  ✓ 越界语法 code-fence 的 MD_CODE_FENCE 确有夹具产生它
+  ✓ 越界语法 code-fence 的夹具存在：fixtures-invalid/fence-with-heading.md
+  ✓ 越界语法 heading-other 的码 MD_HEADING 在码表里
+  ✓ 越界语法 heading-other 的 MD_HEADING 确有夹具产生它
+  ✓ 越界语法 heading-other 的夹具存在：fixtures-invalid/heading-levels.md
+  ✓ 越界语法 task-list 的码 MD_TASK_LIST 在码表里
+  ✓ 越界语法 task-list 的 MD_TASK_LIST 确有夹具产生它
+  ✓ 越界语法 task-list 的夹具存在：fixtures-invalid/out-of-range-inline-and-block.md
+  ✓ 越界语法 footnote 的码 MD_FOOTNOTE 在码表里
+  ✓ 越界语法 footnote 的 MD_FOOTNOTE 确有夹具产生它
+  ✓ 越界语法 footnote 的夹具存在：fixtures-invalid/out-of-range-inline-and-block.md
+  ✓ 越界语法 html 的码 MD_HTML 在码表里
+  ✓ 越界语法 html 的 MD_HTML 确有夹具产生它
+  ✓ 越界语法 html 的夹具存在：fixtures-invalid/out-of-range-inline-and-block.md
+  关键结构断言（靠结构而不是靠码名）：
+  ✓ 围栏里写了 `## 假标题` ⇒ **只报 1 条**（不另报未知节 ⇒ 证明围栏内不算分界）
+  ✓ 围栏里的 `## 假标题` 仍留在详情正文里（没有被当成节切走）
+  ✓ 重复节诊断落在第二次出现的那一行（第 16 行）
+  ✓ 空节 ⇒ 值写 null（键仍在）
+  ✓ 空节时产物里 detail/notes 两个键仍然存在
+  ✓ 真实《行行重行行》：8 行、单段（正文切分不被 `## 详情` 污染）
+  ✓ 逐行相等：首行与末行逐字一致
+  ✓ 产物每首只有 10 个新键（没有 era/variants/dynastyKey）
+  ✓ 每首键序 = id,title,author,dynasty,genre,orderInSource,detail,stanzas,notes
+  ✓ 顶层键序正确
+  ✓ 顶层 dynasties 是中文值数组（只含有内容的组）
+  ✓ 详情节正文按原文取（含 `### 异文`）
+  ✓ 真实样例的 `## 笔记` 是空节 ⇒ notes = null（现状 0/19 有笔记）
+
+⑤ 合成字符串检查（**不是文件**：文件里保不住不可见字符）
+  ✓ 笔记节里只有空白字符 ⇒ 无诊断且 notes = null
+  ✓ `##` 后面缺空格 ⇒ 1 条 MD_HEADING
+  ✓ `##` 后面缺空格 ⇒ 那一行仍留在正文里（不是新节）
+  ✓ 原文里的 `**` 不是粗体 ⇒ 无诊断、诗行原样保留
+  ✓ 组名是另一个字（繁体） ⇒ 1 条 DYNASTY_UNDECLARED
+
+⑥ ID 派生（沿用用户 2026-10-16 已通过的 C2 收口稿；本材料不重开）
+  ✓ 一层：古诗十九首/行行重行行.md ⇒ 古诗十九首-行行重行行
+  ✓ 多层：古诗十九首/甲/青青河畔草.md ⇒ 古诗十九首-甲-青青河畔草
+  ✓ 连字符碰撞：路径拼出的 `-` 与文件名里的 `-` 同形 ⇒ 必须靠判重报错（已通过稿的结论）
+  ✓ 嵌套夹具的 id 由相对路径派生（夹具集-夹具首）
+
+⑦ 「两端预期」引用的依据文件确实存在（只做存在性检查，不读内容）
+  ✓ 依据文件存在：web/app/render.js
+  ✓ 依据文件存在：web/app/content.js
+  ✓ 依据文件存在：android/app/src/main/java/dev/sopho/suofei/ui/ScreenContent.kt
+  ✓ 依据文件存在：android/app/src/main/java/dev/sopho/suofei/data/ContentParser.kt
+  ✓ 依据文件存在：android/app/src/main/java/dev/sopho/suofei/data/Domain.kt
+  ✓ 依据文件存在：android/app/src/main/java/dev/sopho/suofei/ui/Screens.kt
+  ✓ 依据文件存在：tools/lib/dynasties.mjs
+  ✓ 依据文件存在：docs/design/content-contract.md
+
+⑧ EXIT 码自证（另起子进程真跑，不是嘴上说）
+  ✓ --parse items/content-format/prototypes/rules-v4/samples/real-01-full.md ⇒ EXIT 0
+  ✓ --parse fixtures-invalid/forbidden-id-key.md ⇒ EXIT 1
+  ✓ --parse fixtures-invalid/forbidden-id-key.md 把诊断原文打在 stderr 上
+  ✓ --parse fixtures-invalid/removed-keys.md ⇒ EXIT 1
+  ✓ --parse fixtures-invalid/removed-keys.md 把诊断原文打在 stderr 上
+  ✓ --parse fixtures-invalid/missing-required-key.md ⇒ EXIT 1
+  ✓ --parse fixtures-invalid/missing-required-key.md 把诊断原文打在 stderr 上
+  ✓ --parse fixtures-invalid/unknown-section.md ⇒ EXIT 1
+  ✓ --parse fixtures-invalid/unknown-section.md 把诊断原文打在 stderr 上
+  ✓ --parse fixtures-invalid/duplicate-section.md ⇒ EXIT 1
+  ✓ --parse fixtures-invalid/duplicate-section.md 把诊断原文打在 stderr 上
+  ✓ --parse fixtures-invalid/fence-with-heading.md ⇒ EXIT 1
+  ✓ --parse fixtures-invalid/fence-with-heading.md 把诊断原文打在 stderr 上
+  ✓ --parse fixtures-invalid/fence-unclosed.md ⇒ EXIT 1
+  ✓ --parse fixtures-invalid/fence-unclosed.md 把诊断原文打在 stderr 上
+  ✓ --parse fixtures-invalid/heading-levels.md ⇒ EXIT 1
+  ✓ --parse fixtures-invalid/heading-levels.md 把诊断原文打在 stderr 上
+  ✓ --parse fixtures-invalid/out-of-range-inline-and-block.md ⇒ EXIT 1
+  ✓ --parse fixtures-invalid/out-of-range-inline-and-block.md 把诊断原文打在 stderr 上
+  ✓ --parse fixtures-invalid/dynasty-unknown.md ⇒ EXIT 1
+  ✓ --parse fixtures-invalid/dynasty-unknown.md 把诊断原文打在 stderr 上
+  ✓ --parse fixtures-invalid/dynasty-traditional.md ⇒ EXIT 1
+  ✓ --parse fixtures-invalid/dynasty-traditional.md 把诊断原文打在 stderr 上
+  ✓ --parse fixtures-invalid/dynasty-space.md ⇒ EXIT 1
+  ✓ --parse fixtures-invalid/dynasty-space.md 把诊断原文打在 stderr 上
+  ✓ 目录外路径 ⇒ 用法错误 EXIT 2（本演示不读本目录之外）
+
+══ 结果：PASS 162 / FAIL 0 ══
+EXIT=0
+
+═══ ② 错误码表（每个码配哪份夹具） ═══
+
+$ node items/content-format/prototypes/rules-v4/demo.mjs --codes
+── 错误码表（本稿口径；`配的夹具` 列就是「这个码的可跑样例」）──
+code                      | 何时触发
+FRONT_MATTER_MISSING      | 文件第一行不是 `---`（没有 front matter）（本稿不配夹具：防崩用：起始/结束行的规则沿用既有契约，本稿不重开）
+FRONT_MATTER_UNTERMINATED | front matter 没有结束行 `---`（本稿不配夹具：同上）
+YAML_UNSUPPORTED          | front matter 出现子集外写法（行内集合 `{}` / `[a, b]`、非法转义等）（本稿不配夹具：沿用契约 §1.1，本稿不重开 front matter 语法）
+UNKNOWN_KEY               | front matter 出现声明之外的键（本稿不配夹具：沿用契约 §1.2（`UNKNOWN_KEY`））
+BODY_EMPTY                | 正文区（原文）为空 ⇒ 没有可读的诗行（本稿不配夹具：防崩用：沿用契约 §3 的 `BODY_EMPTY`）
+FORBIDDEN_ID_KEY          | 源 MD 写了 `id:`（规则 ② 已改为由相对路径生成）（夹具：fixtures-invalid/forbidden-id-key.md）
+REMOVED_KEY               | 源 MD 写了新格式已去掉的旧键（dynastyOrder / era / variants / …）（夹具：fixtures-invalid/removed-keys.md）
+MISSING_REQUIRED_KEY      | 必填键缺失（title / author / dynasty / source）（夹具：fixtures-invalid/missing-required-key.md）
+UNKNOWN_SECTION           | `## 名字` 不在 {详情, 笔记} 里（夹具：fixtures-invalid/unknown-section.md）
+DUPLICATE_SECTION         | 同一个节名出现 ≥ 2 次（夹具：fixtures-invalid/duplicate-section.md）
+MD_CODE_FENCE             | 节内出现代码围栏行（最小范围不含围栏）（夹具：fixtures-invalid/fence-with-heading.md）
+MD_FENCE_UNCLOSED         | 围栏没有闭合（必须先跟踪围栏才能报出来）（夹具：fixtures-invalid/fence-unclosed.md）
+MD_HEADING                | 行首标题不是恰好三级（`# `、`#### `、`##没空格` 等）（夹具：fixtures-invalid/heading-levels.md）
+MD_TASK_LIST              | 任务列表（`- [ ]` / `- [x]`）（夹具：fixtures-invalid/out-of-range-inline-and-block.md）
+MD_TABLE                  | 表格（行首 `|`）（夹具：fixtures-invalid/out-of-range-inline-and-block.md）
+MD_IMAGE                  | 图片（`![`）（夹具：fixtures-invalid/out-of-range-inline-and-block.md）
+MD_LINK                   | 链接（`](`）（夹具：fixtures-invalid/out-of-range-inline-and-block.md）
+MD_INLINE_CODE            | 行内代码（反引号）（夹具：fixtures-invalid/out-of-range-inline-and-block.md）
+MD_FOOTNOTE               | 脚注（`[^…]`）（夹具：fixtures-invalid/out-of-range-inline-and-block.md）
+MD_HTML                   | 行首 HTML 标签（`<br>` 等）（夹具：fixtures-invalid/out-of-range-inline-and-block.md）
+MD_STAR_LIST              | `* ` 星号列表（闭集只收 `- `；现状 Web 会把它当列表）（夹具：fixtures-invalid/out-of-range-inline-and-block.md）
+DYNASTY_UNDECLARED        | `dynasty` 的值不等于注册表里任何一个中文组名（夹具：fixtures-invalid/dynasty-unknown.md）
+EXIT=0
+
+═══ ③ 合法样例：解析（必须 EXIT=0） ═══
+
+$ node items/content-format/prototypes/rules-v4/demo.mjs --parse items/content-format/prototypes/rules-v4/samples/real-01-full.md
+── 解析 items/content-format/prototypes/rules-v4/samples/real-01-full.md ──
+   id（由内容根 items/content-format/prototypes/rules-v4/samples 下的相对路径派生）: real-01-full
+   blocks:
+     [1..8] frontmatter  8 行
+     [10..17] stanza#1  8 行
+     [19..30] section:详情  11 行内容（第 20–30 行）
+     [31..32] section:笔记  1 行内容（第 32–32 行）
+   product（中间结果，仅供参考；有错误时不会写产物）：
+  {
+    "formatVersion": 2,
+    "contentVersion": "0.0.0-dev+rules-v4",
+    "generatedAt": "2026-10-16T00:00:00Z",
+    "dynasties": [
+      "汉"
+    ],
+    "poems": [
+      {
+        "id": "real-01-full",
+        "title": "行行重行行",
+        "author": "佚名",
+        "dynasty": "汉",
+        "genre": "五言古诗",
+        "orderInSource": 1,
+        "detail": "### 异文\n\n- **游子不顾返** —— 四库全书本《六臣注文选》卷二十九、《玉台新咏》卷一「枚乘杂诗」其三，此句均作「返」；底本（李善注本）作「反」。反、返古通用。\n- **胡马嘶北风** —— 《玉台新咏》宋刻本作「嘶」，见清·纪容舒《玉台新咏考异》卷一（四库全书本）校语：「依，宋刻作嘶。按：此二句乃以一南一北申足『各天一涯』之意，以起下『相去日远』，作依为是。今从文选。」纪昀校正本《玉台新咏》卷一影印本同此校语；二手转录站古文岛亦作「嘶」。底本《文选》李善注本、四库全书本《六臣注文选》、明《诗纪》两刻本均作「依」；宋本影像本工作线未目验。\n- **会面安可期** —— 明·冯惟讷《诗纪》卷二十（汉第十·古诗十九首）于「会面安可知」下出校语「一作期」，另一明刻本《诗纪》卷之十同；底本作「知」。\n\n### 分段依据\n\n底本（《文选》卷二十九李善注本、四库全书本《六臣注文选》、宋刻《玉台新咏》）通篇连排、篇内无空行 ⇒ 依底本不分段（本首正文＝单一 stanza）。",
+        "stanzas": [
+          [
+            "行行重行行，与君生别离。",
+            "相去万余里，各在天一涯。",
+            "道路阻且长，会面安可知？",
+            "胡马依北风，越鸟巢南枝。",
+            "相去日已远，衣带日已缓。",
+            "浮云蔽白日，游子不顾反。",
+            "思君令人老，岁月忽已晚。",
+            "弃捐勿复道，努力加餐饭。"
+          ]
+        ],
+        "notes": null
+      }
+    ]
+  }
+
+✓ 0 项错误
+EXIT=0
+
+═══ ④ 故意非法：未知节（必须 EXIT=1 且打印诊断原文） ═══
+
+$ node items/content-format/prototypes/rules-v4/demo.mjs --parse items/content-format/prototypes/rules-v4/fixtures-invalid/unknown-section.md
+── 解析 items/content-format/prototypes/rules-v4/fixtures-invalid/unknown-section.md ──
+   id（由内容根 items/content-format/prototypes/rules-v4/fixtures-invalid 下的相对路径派生）: unknown-section
+   blocks:
+     [1..8] frontmatter  8 行
+     [10..10] stanza#1  1 行
+     [12..17] section:详情  5 行内容（第 13–17 行）
+     [18..21] section:小结  3 行内容（第 19–21 行）
+   product（中间结果，仅供参考；有错误时不会写产物）：
+  {
+    "formatVersion": 2,
+    "contentVersion": "0.0.0-dev+rules-v4",
+    "generatedAt": "2026-10-16T00:00:00Z",
+    "dynasties": [
+      "汉"
+    ],
+    "poems": [
+      {
+        "id": "unknown-section",
+        "title": "行行重行行",
+        "author": "佚名",
+        "dynasty": "汉",
+        "genre": "五言古诗",
+        "orderInSource": 1,
+        "detail": "### 异文\n\n- 夹具用的一行校语。",
+        "stanzas": [
+          [
+            "行行重行行，与君生别离。"
+          ]
+        ],
+        "notes": null
+      }
+    ]
+  }
+
+✗ 1 项错误（不写产物、非零退出）：
+  items/content-format/prototypes/rules-v4/fixtures-invalid/unknown-section.md:18: [UNKNOWN_SECTION] 未知的节标题：`## 小结`（第 18 行）。本格式只认两个节：`## 详情`、`## 笔记`；本文件已出现的已知节：`## 详情`（第 12 行）。若确实要新增一个节，请先把它加进契约与两端的节名清单，不要只改源文件。
+EXIT=1
+
+═══ ⑤ 12 份故意非法的夹具一次跑完（必须 EXIT=1） ═══
+
+$ node items/content-format/prototypes/rules-v4/demo.mjs --all-invalid
+── fixtures-invalid/forbidden-id-key.md  期望码集：FORBIDDEN_ID_KEY ──
+  items/content-format/prototypes/rules-v4/fixtures-invalid/forbidden-id-key.md:2: [FORBIDDEN_ID_KEY] 源 MD 不得写 `id`：ID 由内容根下的相对路径生成（去 `.md`、`/` 统一写成 `-`）。删掉这一行，产物里的 `id` 键仍会保留。
+
+── fixtures-invalid/removed-keys.md  期望码集：REMOVED_KEY, REMOVED_KEY, REMOVED_KEY ──
+  items/content-format/prototypes/rules-v4/fixtures-invalid/removed-keys.md:5: [REMOVED_KEY] 新格式已去掉源字段 `dynastyOrder`（旧格式 formatVersion=1 的写法）。本稿不把它静默转成新字段：请删掉它；要保留的内容改写进 `## 详情`。
+  items/content-format/prototypes/rules-v4/fixtures-invalid/removed-keys.md:6: [REMOVED_KEY] 新格式已去掉源字段 `era`（旧格式 formatVersion=1 的写法）。本稿不把它静默转成新字段：请删掉它；要保留的内容改写进 `## 详情`。
+  items/content-format/prototypes/rules-v4/fixtures-invalid/removed-keys.md:10: [REMOVED_KEY] 新格式已去掉源字段 `variants`（旧格式 formatVersion=1 的写法）。本稿不把它静默转成新字段：请删掉它；要保留的内容改写进 `## 详情`。
+
+── fixtures-invalid/missing-required-key.md  期望码集：MISSING_REQUIRED_KEY ──
+  items/content-format/prototypes/rules-v4/fixtures-invalid/missing-required-key.md:1: [MISSING_REQUIRED_KEY] 必填键 `source` 缺失或为空。允许的键：title / author / dynasty / source / genre / orderInSource。
+
+── fixtures-invalid/unknown-section.md  期望码集：UNKNOWN_SECTION ──
+  items/content-format/prototypes/rules-v4/fixtures-invalid/unknown-section.md:18: [UNKNOWN_SECTION] 未知的节标题：`## 小结`（第 18 行）。本格式只认两个节：`## 详情`、`## 笔记`；本文件已出现的已知节：`## 详情`（第 12 行）。若确实要新增一个节，请先把它加进契约与两端的节名清单，不要只改源文件。
+
+── fixtures-invalid/duplicate-section.md  期望码集：DUPLICATE_SECTION ──
+  items/content-format/prototypes/rules-v4/fixtures-invalid/duplicate-section.md:16: [DUPLICATE_SECTION] 重复的节标题：`## 详情` 出现 2 次（第 12 行、第 16 行）。本工具不取「后者覆盖前者」也不拼接（两者都会静默丢内容）：请合并成一段，或删掉多余的那一个。
+
+── fixtures-invalid/fence-with-heading.md  期望码集：MD_CODE_FENCE ──
+  items/content-format/prototypes/rules-v4/fixtures-invalid/fence-with-heading.md:18: [MD_CODE_FENCE] 正文里出现代码围栏："```text"。① 围栏内不算节分界（所以不会另报未知节）；② 最小范围不含围栏，所以这里报错。若确实要贴代码，请先把围栏加进范围并同步两端渲染。
+
+── fixtures-invalid/fence-unclosed.md  期望码集：MD_CODE_FENCE, MD_FENCE_UNCLOSED ──
+  items/content-format/prototypes/rules-v4/fixtures-invalid/fence-unclosed.md:14: [MD_CODE_FENCE] 正文里出现代码围栏："```text"。① 围栏内不算节分界（所以不会另报未知节）；② 最小范围不含围栏，所以这里报错。若确实要贴代码，请先把围栏加进范围并同步两端渲染。
+  items/content-format/prototypes/rules-v4/fixtures-invalid/fence-unclosed.md:14: [MD_FENCE_UNCLOSED] 第 14 行打开的围栏到文件末尾都没有闭合。必须先跟踪围栏状态才能报出这一条（否则后面所有内容都会被吞进当前节，静默丢内容）。
+
+── fixtures-invalid/heading-levels.md  期望码集：MD_HEADING, MD_HEADING ──
+  items/content-format/prototypes/rules-v4/fixtures-invalid/heading-levels.md:14: [MD_HEADING] 节正文里出现不在最小范围里的标题："# 一级标题（夹具）"。最小范围只收行首恰好 `### `（三级标题）；`# `、`#### ` 及更深都要报错。
+  items/content-format/prototypes/rules-v4/fixtures-invalid/heading-levels.md:18: [MD_HEADING] 节正文里出现不在最小范围里的标题："#### 四级标题（夹具）"。最小范围只收行首恰好 `### `（三级标题）；`# `、`#### ` 及更深都要报错。
+
+── fixtures-invalid/out-of-range-inline-and-block.md  期望码集：MD_TASK_LIST, MD_TABLE, MD_TABLE, MD_IMAGE, MD_LINK, MD_INLINE_CODE, MD_FOOTNOTE, MD_HTML, MD_STAR_LIST ──
+  items/content-format/prototypes/rules-v4/fixtures-invalid/out-of-range-inline-and-block.md:16: [MD_TASK_LIST] 详情/笔记里出现任务列表："- [ ] 任务列表（夹具）"。最小范围不含任务列表；请改成普通列表项（`- `）或去掉复选框。
+  items/content-format/prototypes/rules-v4/fixtures-invalid/out-of-range-inline-and-block.md:17: [MD_TABLE] 详情/笔记里出现表格（行首 `|`）："| 本子 | 异文 |"。最小范围不含表格（Compose 端要自绘）；请改成段落或列表。
+  items/content-format/prototypes/rules-v4/fixtures-invalid/out-of-range-inline-and-block.md:18: [MD_TABLE] 详情/笔记里出现表格（行首 `|`）："| --- | --- |"。最小范围不含表格（Compose 端要自绘）；请改成段落或列表。
+  items/content-format/prototypes/rules-v4/fixtures-invalid/out-of-range-inline-and-block.md:19: [MD_IMAGE] 详情/笔记里出现图片："![图片](x.png)（夹具）"。最小范围不含图片（离线应用没有图片资源通道）；请改成文字说明。
+  items/content-format/prototypes/rules-v4/fixtures-invalid/out-of-range-inline-and-block.md:20: [MD_LINK] 详情/笔记里出现链接："[某站](https://example.invalid/x)（夹具）"。最小范围不含链接（离线应用里点外链的行为未定）；请把地址写成纯文本。
+  items/content-format/prototypes/rules-v4/fixtures-invalid/out-of-range-inline-and-block.md:21: [MD_INLINE_CODE] 详情/笔记里出现反引号（行内代码或代码围栏）："行内代码：`x`（夹具）"。最小范围不含行内代码与围栏；请改成普通文字。
+  items/content-format/prototypes/rules-v4/fixtures-invalid/out-of-range-inline-and-block.md:22: [MD_FOOTNOTE] 详情/笔记里出现脚注写法："脚注写法[^1]（夹具）"。最小范围不含脚注；请把注释直接写进正文。
+  items/content-format/prototypes/rules-v4/fixtures-invalid/out-of-range-inline-and-block.md:23: [MD_HTML] 详情/笔记行首出现 HTML 标签："<br>（夹具：行首 HTML 标签）"。最小范围不含 HTML（两端都不会执行它）；请删掉标签。
+  items/content-format/prototypes/rules-v4/fixtures-invalid/out-of-range-inline-and-block.md:24: [MD_STAR_LIST] 详情/笔记出现 `* ` 星号列表项："* 星号列表项（夹具）"。闭集只收 `- `（现状 Web 会把 `* ` 当列表、Android 不会 ⇒ 两端不一致）；请改用 `- `。
+
+── fixtures-invalid/dynasty-unknown.md  期望码集：DYNASTY_UNDECLARED ──
+  items/content-format/prototypes/rules-v4/fixtures-invalid/dynasty-unknown.md:4: [DYNASTY_UNDECLARED] dynasty 的值 `东汉` 不等于任何一个组名（不做别名归一，也不做繁简折叠：「漢」与「汉」在编码上是两个字）。可用组名（按显示次序）：先秦 / 汉 / 魏晋 / 南北朝 / 唐 / 宋 / 元 / 明 / 清 / 近现代 / 未详。不做别名映射（`东汉` 不会静默归到 `汉`，`三国` 不会归到 `魏晋`）；要新增一个组，必须显式登记进注册表（tools/lib/dynasties.mjs）并同步契约 §1.3 与两端的组名清单。
+
+── fixtures-invalid/dynasty-traditional.md  期望码集：DYNASTY_UNDECLARED ──
+  items/content-format/prototypes/rules-v4/fixtures-invalid/dynasty-traditional.md:4: [DYNASTY_UNDECLARED] dynasty 的值 `漢` 不等于任何一个组名（不做别名归一，也不做繁简折叠：「漢」与「汉」在编码上是两个字）。可用组名（按显示次序）：先秦 / 汉 / 魏晋 / 南北朝 / 唐 / 宋 / 元 / 明 / 清 / 近现代 / 未详。不做别名映射（`东汉` 不会静默归到 `汉`，`三国` 不会归到 `魏晋`）；要新增一个组，必须显式登记进注册表（tools/lib/dynasties.mjs）并同步契约 §1.3 与两端的组名清单。
+
+── fixtures-invalid/dynasty-space.md  期望码集：DYNASTY_UNDECLARED ──
+  items/content-format/prototypes/rules-v4/fixtures-invalid/dynasty-space.md:4: [DYNASTY_UNDECLARED] dynasty 的值 `汉\u0020` 不等于任何一个组名：去掉首尾空白并按 NFC 归一后是 `汉`（源里有不可见字符或非 NFC 写法），请把源值照抄成 `汉`。可用组名（按显示次序）：先秦 / 汉 / 魏晋 / 南北朝 / 唐 / 宋 / 元 / 明 / 清 / 近现代 / 未详。不做别名映射（`东汉` 不会静默归到 `汉`，`三国` 不会归到 `魏晋`）；要新增一个组，必须显式登记进注册表（tools/lib/dynasties.mjs）并同步契约 §1.3 与两端的组名清单。
+
+合计 24 条诊断，覆盖 12 份夹具 ⇒ 本模式按「故意非法输入必须非零退出」返回 1。
+EXIT=1
+
+═══ ⑥ 演示能产生的全部诊断原文（文档逐字引用它） ═══
+
+$ node items/content-format/prototypes/rules-v4/demo.mjs --dump-diagnostics
+夹具 fixtures-invalid/forbidden-id-key.md
+  items/content-format/prototypes/rules-v4/fixtures-invalid/forbidden-id-key.md:2: [FORBIDDEN_ID_KEY] 源 MD 不得写 `id`：ID 由内容根下的相对路径生成（去 `.md`、`/` 统一写成 `-`）。删掉这一行，产物里的 `id` 键仍会保留。
+夹具 fixtures-invalid/removed-keys.md
+  items/content-format/prototypes/rules-v4/fixtures-invalid/removed-keys.md:5: [REMOVED_KEY] 新格式已去掉源字段 `dynastyOrder`（旧格式 formatVersion=1 的写法）。本稿不把它静默转成新字段：请删掉它；要保留的内容改写进 `## 详情`。
+夹具 fixtures-invalid/removed-keys.md
+  items/content-format/prototypes/rules-v4/fixtures-invalid/removed-keys.md:6: [REMOVED_KEY] 新格式已去掉源字段 `era`（旧格式 formatVersion=1 的写法）。本稿不把它静默转成新字段：请删掉它；要保留的内容改写进 `## 详情`。
+夹具 fixtures-invalid/removed-keys.md
+  items/content-format/prototypes/rules-v4/fixtures-invalid/removed-keys.md:10: [REMOVED_KEY] 新格式已去掉源字段 `variants`（旧格式 formatVersion=1 的写法）。本稿不把它静默转成新字段：请删掉它；要保留的内容改写进 `## 详情`。
+夹具 fixtures-invalid/missing-required-key.md
+  items/content-format/prototypes/rules-v4/fixtures-invalid/missing-required-key.md:1: [MISSING_REQUIRED_KEY] 必填键 `source` 缺失或为空。允许的键：title / author / dynasty / source / genre / orderInSource。
+夹具 fixtures-invalid/unknown-section.md
+  items/content-format/prototypes/rules-v4/fixtures-invalid/unknown-section.md:18: [UNKNOWN_SECTION] 未知的节标题：`## 小结`（第 18 行）。本格式只认两个节：`## 详情`、`## 笔记`；本文件已出现的已知节：`## 详情`（第 12 行）。若确实要新增一个节，请先把它加进契约与两端的节名清单，不要只改源文件。
+夹具 fixtures-invalid/duplicate-section.md
+  items/content-format/prototypes/rules-v4/fixtures-invalid/duplicate-section.md:16: [DUPLICATE_SECTION] 重复的节标题：`## 详情` 出现 2 次（第 12 行、第 16 行）。本工具不取「后者覆盖前者」也不拼接（两者都会静默丢内容）：请合并成一段，或删掉多余的那一个。
+夹具 fixtures-invalid/fence-with-heading.md
+  items/content-format/prototypes/rules-v4/fixtures-invalid/fence-with-heading.md:18: [MD_CODE_FENCE] 正文里出现代码围栏："```text"。① 围栏内不算节分界（所以不会另报未知节）；② 最小范围不含围栏，所以这里报错。若确实要贴代码，请先把围栏加进范围并同步两端渲染。
+夹具 fixtures-invalid/fence-unclosed.md
+  items/content-format/prototypes/rules-v4/fixtures-invalid/fence-unclosed.md:14: [MD_CODE_FENCE] 正文里出现代码围栏："```text"。① 围栏内不算节分界（所以不会另报未知节）；② 最小范围不含围栏，所以这里报错。若确实要贴代码，请先把围栏加进范围并同步两端渲染。
+夹具 fixtures-invalid/fence-unclosed.md
+  items/content-format/prototypes/rules-v4/fixtures-invalid/fence-unclosed.md:14: [MD_FENCE_UNCLOSED] 第 14 行打开的围栏到文件末尾都没有闭合。必须先跟踪围栏状态才能报出这一条（否则后面所有内容都会被吞进当前节，静默丢内容）。
+夹具 fixtures-invalid/heading-levels.md
+  items/content-format/prototypes/rules-v4/fixtures-invalid/heading-levels.md:14: [MD_HEADING] 节正文里出现不在最小范围里的标题："# 一级标题（夹具）"。最小范围只收行首恰好 `### `（三级标题）；`# `、`#### ` 及更深都要报错。
+夹具 fixtures-invalid/heading-levels.md
+  items/content-format/prototypes/rules-v4/fixtures-invalid/heading-levels.md:18: [MD_HEADING] 节正文里出现不在最小范围里的标题："#### 四级标题（夹具）"。最小范围只收行首恰好 `### `（三级标题）；`# `、`#### ` 及更深都要报错。
+夹具 fixtures-invalid/out-of-range-inline-and-block.md
+  items/content-format/prototypes/rules-v4/fixtures-invalid/out-of-range-inline-and-block.md:16: [MD_TASK_LIST] 详情/笔记里出现任务列表："- [ ] 任务列表（夹具）"。最小范围不含任务列表；请改成普通列表项（`- `）或去掉复选框。
+夹具 fixtures-invalid/out-of-range-inline-and-block.md
+  items/content-format/prototypes/rules-v4/fixtures-invalid/out-of-range-inline-and-block.md:17: [MD_TABLE] 详情/笔记里出现表格（行首 `|`）："| 本子 | 异文 |"。最小范围不含表格（Compose 端要自绘）；请改成段落或列表。
+夹具 fixtures-invalid/out-of-range-inline-and-block.md
+  items/content-format/prototypes/rules-v4/fixtures-invalid/out-of-range-inline-and-block.md:18: [MD_TABLE] 详情/笔记里出现表格（行首 `|`）："| --- | --- |"。最小范围不含表格（Compose 端要自绘）；请改成段落或列表。
+夹具 fixtures-invalid/out-of-range-inline-and-block.md
+  items/content-format/prototypes/rules-v4/fixtures-invalid/out-of-range-inline-and-block.md:19: [MD_IMAGE] 详情/笔记里出现图片："![图片](x.png)（夹具）"。最小范围不含图片（离线应用没有图片资源通道）；请改成文字说明。
+夹具 fixtures-invalid/out-of-range-inline-and-block.md
+  items/content-format/prototypes/rules-v4/fixtures-invalid/out-of-range-inline-and-block.md:20: [MD_LINK] 详情/笔记里出现链接："[某站](https://example.invalid/x)（夹具）"。最小范围不含链接（离线应用里点外链的行为未定）；请把地址写成纯文本。
+夹具 fixtures-invalid/out-of-range-inline-and-block.md
+  items/content-format/prototypes/rules-v4/fixtures-invalid/out-of-range-inline-and-block.md:21: [MD_INLINE_CODE] 详情/笔记里出现反引号（行内代码或代码围栏）："行内代码：`x`（夹具）"。最小范围不含行内代码与围栏；请改成普通文字。
+夹具 fixtures-invalid/out-of-range-inline-and-block.md
+  items/content-format/prototypes/rules-v4/fixtures-invalid/out-of-range-inline-and-block.md:22: [MD_FOOTNOTE] 详情/笔记里出现脚注写法："脚注写法[^1]（夹具）"。最小范围不含脚注；请把注释直接写进正文。
+夹具 fixtures-invalid/out-of-range-inline-and-block.md
+  items/content-format/prototypes/rules-v4/fixtures-invalid/out-of-range-inline-and-block.md:23: [MD_HTML] 详情/笔记行首出现 HTML 标签："<br>（夹具：行首 HTML 标签）"。最小范围不含 HTML（两端都不会执行它）；请删掉标签。
+夹具 fixtures-invalid/out-of-range-inline-and-block.md
+  items/content-format/prototypes/rules-v4/fixtures-invalid/out-of-range-inline-and-block.md:24: [MD_STAR_LIST] 详情/笔记出现 `* ` 星号列表项："* 星号列表项（夹具）"。闭集只收 `- `（现状 Web 会把 `* ` 当列表、Android 不会 ⇒ 两端不一致）；请改用 `- `。
+夹具 fixtures-invalid/dynasty-unknown.md
+  items/content-format/prototypes/rules-v4/fixtures-invalid/dynasty-unknown.md:4: [DYNASTY_UNDECLARED] dynasty 的值 `东汉` 不等于任何一个组名（不做别名归一，也不做繁简折叠：「漢」与「汉」在编码上是两个字）。可用组名（按显示次序）：先秦 / 汉 / 魏晋 / 南北朝 / 唐 / 宋 / 元 / 明 / 清 / 近现代 / 未详。不做别名映射（`东汉` 不会静默归到 `汉`，`三国` 不会归到 `魏晋`）；要新增一个组，必须显式登记进注册表（tools/lib/dynasties.mjs）并同步契约 §1.3 与两端的组名清单。
+夹具 fixtures-invalid/dynasty-traditional.md
+  items/content-format/prototypes/rules-v4/fixtures-invalid/dynasty-traditional.md:4: [DYNASTY_UNDECLARED] dynasty 的值 `漢` 不等于任何一个组名（不做别名归一，也不做繁简折叠：「漢」与「汉」在编码上是两个字）。可用组名（按显示次序）：先秦 / 汉 / 魏晋 / 南北朝 / 唐 / 宋 / 元 / 明 / 清 / 近现代 / 未详。不做别名映射（`东汉` 不会静默归到 `汉`，`三国` 不会归到 `魏晋`）；要新增一个组，必须显式登记进注册表（tools/lib/dynasties.mjs）并同步契约 §1.3 与两端的组名清单。
+夹具 fixtures-invalid/dynasty-space.md
+  items/content-format/prototypes/rules-v4/fixtures-invalid/dynasty-space.md:4: [DYNASTY_UNDECLARED] dynasty 的值 `汉\u0020` 不等于任何一个组名：去掉首尾空白并按 NFC 归一后是 `汉`（源里有不可见字符或非 NFC 写法），请把源值照抄成 `汉`。可用组名（按显示次序）：先秦 / 汉 / 魏晋 / 南北朝 / 唐 / 宋 / 元 / 明 / 清 / 近现代 / 未详。不做别名映射（`东汉` 不会静默归到 `汉`，`三国` 不会归到 `魏晋`）；要新增一个组，必须显式登记进注册表（tools/lib/dynasties.mjs）并同步契约 §1.3 与两端的组名清单。
+合成 `##` 后面缺空格（分界要求「行首恰好 `## ` 后跟非空节名」⇒ 缺空格的 `##详情` 不是节，而是正文里的一句话）
+  items/content-format/prototypes/rules-v4/fixtures/<合成字符串>.md:10: [MD_HEADING] 这一行看起来是节标题，但 `##` 后面缺一个空格（分界要求「行首恰好 `## ` 后跟非空节名」）："##详情"。它会原样留在正文里（不是新节，也不报未知节）—— 请补上空格，或把 `##` 删掉。
+合成 组名是另一个字（繁体）（繁简是两个字、不是编码差异 ⇒ 报错（与 dynasty-traditional.md 同口径，这里证明它对合成输入同样成立））
+  items/content-format/prototypes/rules-v4/fixtures/<合成字符串>.md:4: [DYNASTY_UNDECLARED] dynasty 的值 `漢` 不等于任何一个组名（不做别名归一，也不做繁简折叠：「漢」与「汉」在编码上是两个字）。可用组名（按显示次序）：先秦 / 汉 / 魏晋 / 南北朝 / 唐 / 宋 / 元 / 明 / 清 / 近现代 / 未详。不做别名映射（`东汉` 不会静默归到 `汉`，`三国` 不会归到 `魏晋`）；要新增一个组，必须显式登记进注册表（tools/lib/dynasties.mjs）并同步契约 §1.3 与两端的组名清单。
+EXIT=0
+
+═══ ⑦ 断言：文档里逐字引用的诊断原文确实由本演示产生 ═══
+
+$ node items/content-format/prototypes/rules-v4/demo.mjs --verify-docs
+文档里逐字引用的诊断原文共 22 条；对不上的 0 条。（演示一共能产生 26 条诊断：夹具 24 条 + 合成 2 条。）
+EXIT=0
+
+═══ ⑧ 两端预期投影（块 → 两端；每样语法 → 两端） ═══
+
+$ node items/content-format/prototypes/rules-v4/demo.mjs --effects
+── 两端预期投影：items/content-format/prototypes/rules-v4/samples/real-01-full.md（幂等、只读）──
+── 块 → 两端预期（每条预期都指向只读核到的依据文件；文件的『存在性』由 --verify 检查）──
+
+【块 frontmatter】第 1–8 行（8 行）
+  源     : 文件第 1 行 `---` 起，到下一个 `---`（真实样例＝第 9 行）为止的键值对
+  产物   : 不渲染成任何界面元素；变成 title / author / dynasty / genre / orderInSource / source 六个键（`id` 由内容根下的相对路径派生，源里不写；`detail` / `stanzas` / `notes` 来自后面的正文与节）
+  Web    : 诗页题下一行由 `poem.dynastyLabel` / `poem.author` / `poem.era` / `poem.genre` 拼成（web/app/render.js:295，空值靠 filter(Boolean) 自动省略）；目录分组把每首归到 `poem.dynastyKey` 并在缺失时用 `poem.dynastyLabel` 造组（web/app/render.js:90-116）；产物校验要求它们是字符串（web/app/content.js:65-75）
+           要改：改成读 `poem.dynasty`（单个中文值）：题下一行 = `author · dynasty · genre`（genre 为 null 时省略，与现状同一套省略逻辑）；分组按 `poem.dynasty` 匹配顶层 `dynasties` 里的中文名，`dynasties` 元素从对象变字符串 ⇒ web/app/content.js:43-75 的校验也要同步
+  Android: 题下一行 = `poem.dynastyLabel` / `poem.author` / `poem.era` / `poem.genre`（android/app/src/main/java/dev/sopho/suofei/ui/ScreenContent.kt:19-20）；产物解析要求每首有 `dynastyKey` / `dynastyLabel` / `dynastyOrder`，且 `dynastyKey` 必须在 `dynasties` 里声明（android/app/src/main/java/dev/sopho/suofei/data/ContentParser.kt:62-75）；`dynasties` 存成 `Dynasty(key,label,order)`（android/app/src/main/java/dev/sopho/suofei/data/Domain.kt:10）；分组按 `dynastyKey` 并 `sortedBy { it.dynasty.order }`（android/app/src/main/java/dev/sopho/suofei/data/Domain.kt:49-60）
+           要改：`Poem` 去掉 dynastyKey/dynastyLabel/dynastyOrder/era，加一个 `dynasty: String`；`Dynasty` 只需一个中文 label（order 只活在编译期）；`ContentParser.kt` 按字符串读 `dynasties` 数组、按字符串读每首 `dynasty`；题下一行与分组排序都改成按顶层数组的次序（不再靠每首自带 order）
+  依据   : web/app/render.js ; web/app/content.js ; android/app/src/main/java/dev/sopho/suofei/ui/ScreenContent.kt ; android/app/src/main/java/dev/sopho/suofei/data/ContentParser.kt ; android/app/src/main/java/dev/sopho/suofei/data/Domain.kt
+
+【块 stanza #1】第 10–17 行（8 行）
+  源     : front matter 结束行之后、第一个 `## ` 之前的所有非空行；空行是段边界（真实样例＝8 行、单段）
+  产物   : `stanzas`：段的数组、每段是行的数组（真实样例 ⇒ [[8 行]]）
+  Web    : 已有：每段一个 `<section class="stanza">`、每行一个独立 `<p class="line">`，逐行 textContent（web/app/render.js:203-228）
+           要改：不改（产物形状 stanzas 不变）。要点是**正文不走 Markdown**：诗行里的 `**` / `#` 原样显示，两端都不得当语法渲染 —— 需要一条两端断言钉住这件事
+  Android: 已有：每段一个 Column（段间 Spacer），段内每行一个 `Text(line)`（android/app/src/main/java/dev/sopho/suofei/ui/Screens.kt:270-278）
+           要改：不改（同上：正文不解析 Markdown）
+  依据   : web/app/render.js ; android/app/src/main/java/dev/sopho/suofei/ui/Screens.kt
+
+【块 section:详情】第 19–30 行（11 行内容（第 20–30 行））
+  源     : `## 详情` 这一行之后，到下一个 `## ` 或文件末尾；内容是 Markdown 文本
+  产物   : `detail`：字符串（或 null）；本稿的建议是整段 Markdown 文本，不再拆成 variants / source 等结构化字段
+  Web    : 详情页现在渲染**结构化**数据：`poem.source` 与逐条 `poem.variants[].text/.note`（web/app/render.js:335-380）。笔记用的最小渲染器 `renderNotesBody` 只认段落、`<br>`、`- `（或 `* `）列表、行内粗体/斜体 —— `### ` 与 `> ` **不支持**，会落进段落、把 `### 异文` 字面显示出来（web/app/render.js:149-201）
+           要改：详情页改成一整段 `detail` 走同一个渲染器；渲染器要**扩两样**：行首 `### `（渲染成标题元素）与行首 `> `（引用块）。理由是真实样例的详情正用 `### 异文` / `### 分段依据` 分块，`> ` 用来引校语
+  Android: 详情页是**结构化**渲染：硬编码小标题「底本与来源」「异文」＋ 逐条 `poem.variants`（android/app/src/main/java/dev/sopho/suofei/ui/Screens.kt:339-380）。**整个 Android 端没有任何 Markdown 渲染能力**（笔记也是纯 `Text`）
+           要改：**从零新增最小 Markdown 渲染**：逐行解析成 Compose 块（段落 / 无序列表 / 有序列表 / 三级标题 / 引用），行内用 AnnotatedString 的 SpanStyle 做粗体与斜体；然后详情页整段渲染 `detail`，替换掉现在那段结构化渲染。这是本稿里两端工作量最大的一处
+  依据   : web/app/render.js ; android/app/src/main/java/dev/sopho/suofei/ui/Screens.kt
+  这块用到的语法（各一条两端预期见 md-subset.md）: paragraph / ul-dash / bold / h3
+
+【块 section:笔记】第 31–32 行（1 行内容（第 32–32 行））
+  源     : `## 笔记` 这一行之后，到下一个 `## ` 或文件末尾；内容是 Markdown 文本；空节（或只有空白行）＝缺失
+  产物   : `notes`：字符串或 null（键始终保留；空节写 null，不写空字符串）
+  Web    : 有笔记时用 `<details>` 折叠（summary「我的笔记」）并走 `renderNotesBody`（web/app/render.js:298-303）；`hasNotes()` 判「非空字符串」（web/app/render.js:128-130）。**没有笔记时现在渲染一句「这首诗还没有笔记（未记录）。」**（web/app/render.js:305-311）
+           要改：① 渲染器同「详情」要扩 `### ` 与 `> `（两端共用同一份范围定义）；② 与规则 ③「无笔记时隐藏整个笔记区」对齐 ⇒ 现在那句空状态文案**要撤掉**（整块 notes 区不出现）。这一条是**现状与已定规则不一致**，不是新增功能
+  Android: 有一个「笔记」折叠按钮，展开后 `Text(poem.notes ?: "（无笔记）")` —— **纯文本、不解析任何 Markdown**（android/app/src/main/java/dev/sopho/suofei/ui/Screens.kt:281-320）；**没有笔记时按钮与「（无笔记）」照旧显示**
+           要改：① 新增最小 Markdown 渲染（与「详情」同一份实现，两端共用同一份范围定义）；② 与规则 ③ 对齐 ⇒ notes 为 null 时**连折叠入口一起不出现**；③ 现状那句「（无笔记）」不是「显示 null」，但「整块隐藏」仍要落地
+  依据   : web/app/render.js ; android/app/src/main/java/dev/sopho/suofei/ui/Screens.kt
+  这块用到的语法（各一条两端预期见 md-subset.md）: （无：这一节是空的或只有纯文本）
+
+── 最小 Markdown 闭集：每样语法的两端预期（汇总；逐条细节见 md-subset.md）──
+
+【paragraph】连续非空行 = 一段（段与段之间用空行分开）
+  渲染       : 渲染成一整段：段内不折成多段
+  合法样例   : samples/real-01-full.md、fixtures/md-subset-legal-fixture.md
+  Web 现状   : 已支持：`renderNotesBody` 把连续非空行合成一个 `<p data-test="notes-paragraph">`（web/app/render.js:166-201）
+  Web 要改   : 不改
+  Android现状: **没有 Markdown 渲染**：整段 notes 是一个 Text
+  Android要改: 从零新增（Compose 的一个 `Text` 块，段间留白）
+
+【line-break】段内换行：段落里的一行 = 一次换行（不是新段落）
+  渲染       : 同一段里换行显示（Web `<br>`；Android 段内 `\n`），段间距不变大
+  合法样例   : fixtures/md-subset-legal-fixture.md
+  Web 现状   : 已支持：同一段里第 2 行起插入 `<br>`（web/app/render.js:174-178）
+  Web 要改   : 不改
+  Android现状: 没有 Markdown 渲染
+  Android要改: 从零新增（段内 `\n`）
+
+【ul-dash】行首 `- `（连字符 + 一个空格）
+  渲染       : 无序列表：连续 `- ` 行合成一个列表，每行一个列表项
+  合法样例   : samples/real-01-full.md、fixtures/md-subset-legal-fixture.md
+  Web 现状   : 已支持：`/^[-*]\s+/` ⇒ `<ul data-test="notes-list">` + `<li>`（web/app/render.js:188-194）；⚠ 它同时收 `* `，比闭集宽（见 excluded 里的 star-list）
+  Web 要改   : 收窄或明确允许：闭集只收 `- `（`* ` 建议报错，否则两端不一致）
+  Android现状: 没有 Markdown 渲染
+  Android要改: 从零新增（Compose 列表：项目符号 + 文本）
+
+【ol-number】行首 `数字. `（如 `1. `、`2. `）
+  渲染       : 有序列表：按出现次序编号（源里的数字不决定显示编号）
+  合法样例   : fixtures/md-subset-legal-fixture.md
+  Web 现状   : **不支持**：`1. ` 不匹配现有的 `/^[-*]\s+/` ⇒ 落进段落，`1. ` 字面显示出来（web/app/render.js:188）
+  Web 要改   : 要扩：加一条有序列表分支（`<ol>` + `<li>`）
+  Android现状: 没有 Markdown 渲染
+  Android要改: 从零新增
+
+【bold】行内 `**文字**`
+  渲染       : 加粗（行内，不改变块结构）
+  合法样例   : samples/real-01-full.md、fixtures/md-subset-legal-fixture.md
+  Web 现状   : 已支持：`<strong>`（web/app/render.js:149-162）
+  Web 要改   : 不改
+  Android现状: 没有 Markdown 渲染
+  Android要改: 从零新增（AnnotatedString 的 SpanStyle fontWeight）
+
+【italic】行内 `*文字*`
+  渲染       : 斜体（行内）
+  合法样例   : fixtures/md-subset-legal-fixture.md
+  Web 现状   : 已支持：`<em>`（web/app/render.js:149-162）
+  Web 要改   : 不改
+  Android现状: 没有 Markdown 渲染
+  Android要改: 从零新增（SpanStyle fontStyle）
+
+【h3】行首 `### `（三级标题）
+  渲染       : 块级小标题：整行成为一个标题块，不与前后段落合并
+  合法样例   : samples/real-01-full.md、fixtures/md-subset-legal-fixture.md
+  Web 现状   : **不支持**：`### 异文` 会落进段落、字面显示 `### `（web/app/render.js:166-201 里没有任何标题分支）
+  Web 要改   : 要扩：行首 `### ` ⇒ 标题元素。真实样例的详情依赖它分块（`### 异文` / `### 分段依据`），所以这一样是**必补**的
+  Android现状: 没有 Markdown 渲染（详情页的「异文」「底本与来源」是硬编码的固定标题，不是从文本解析出来的）
+  Android要改: 从零新增：解析出的标题块用既有的 notesTitle 样式渲染
+
+【quote】行首 `> `（引用）
+  渲染       : 引用块：连续 `> ` 行合成一个引用块，缩进/左侧竖线区分
+  合法样例   : fixtures/md-subset-legal-fixture.md
+  Web 现状   : **不支持**：`> ` 落进段落、字面显示 `> `
+  Web 要改   : 要扩：加一条引用分支（`<blockquote>`）；理由是本稿的考据文本会引原校语
+  Android现状: 没有 Markdown 渲染
+  Android要改: 从零新增（引用块＝缩进 + 左侧竖线，可复用 StructuralMarks 里的竖线画法）
+
+── 明确排除（出现即报错 ⇒ 两端不需要渲染分支）──
+
+【star-list】行首 `* `（星号列表） ⇒ [MD_STAR_LIST]（夹具：fixtures-invalid/out-of-range-inline-and-block.md）
+  Web 现状   : 现状**当列表收下**（`/^[-*]\s+/`，web/app/render.js:188）⇒ 两端不一致
+  Web 要改   : 收窄成只收 `- `（出现 `* ` 报错）
+  Android现状: 没有 Markdown 渲染 ⇒ `* ` 现在就是字面文本
+  Android要改: 无需渲染分支（出现即报错）
+
+【table】行首 `|`（表格） ⇒ [MD_TABLE]（夹具：fixtures-invalid/out-of-range-inline-and-block.md）
+  Web 现状   : 不支持（不会被解析，字面显示）
+  Web 要改   : 无需渲染分支（出现即报错）
+  Android现状: 不支持
+  Android要改: 无需渲染分支（Compose 端表格要自绘，正是排除它的理由）
+
+【image】`![`（图片） ⇒ [MD_IMAGE]（夹具：fixtures-invalid/out-of-range-inline-and-block.md）
+  Web 现状   : 不支持（字面显示）
+  Web 要改   : 无需渲染分支（离线应用没有图片资源通道）
+  Android现状: 不支持
+  Android要改: 无需渲染分支
+
+【link】`](`（行内链接） ⇒ [MD_LINK]（夹具：fixtures-invalid/out-of-range-inline-and-block.md）
+  Web 现状   : 不支持（字面显示，不会变成可点的链接）
+  Web 要改   : 无需渲染分支（离线应用点外链的行为未定）
+  Android现状: 不支持
+  Android要改: 无需渲染分支
+
+【inline-code】行内反引号 `` ` `` ⇒ [MD_INLINE_CODE]（夹具：fixtures-invalid/out-of-range-inline-and-block.md）
+  Web 现状   : 不支持（字面显示反引号）
+  Web 要改   : 无需渲染分支
+  Android现状: 不支持
+  Android要改: 无需渲染分支
+
+【code-fence】行首 ``` 或 ~~~（代码围栏） ⇒ [MD_CODE_FENCE]（夹具：fixtures-invalid/fence-with-heading.md）
+  Web 现状   : 不支持（字面显示）
+  Web 要改   : 无需渲染分支；但**解析端必须先跟踪围栏**，否则围栏里的 `##` 会被当分界（见 sections.md §4）
+  Android现状: 不支持
+  Android要改: 无需渲染分支；两端都不引入围栏状态机
+
+【heading-other】行首 `# ` / `#### ` 及更深（以及 `##` 后缺空格的写法） ⇒ [MD_HEADING]（夹具：fixtures-invalid/heading-levels.md）
+  Web 现状   : 不支持（字面显示）
+  Web 要改   : 无需渲染分支（只收 `### `）
+  Android现状: 不支持
+  Android要改: 无需渲染分支
+
+【task-list】行首 `- [ ]` / `- [x]`（任务列表） ⇒ [MD_TASK_LIST]（夹具：fixtures-invalid/out-of-range-inline-and-block.md）
+  Web 现状   : 不支持（会被当成普通 `- ` 列表项、把 `[ ]` 字面显示）
+  Web 要改   : 无需渲染分支（出现即报错，不静默降级成列表）
+  Android现状: 不支持
+  Android要改: 无需渲染分支
+
+【footnote】`[^…]`（脚注） ⇒ [MD_FOOTNOTE]（夹具：fixtures-invalid/out-of-range-inline-and-block.md）
+  Web 现状   : 不支持（字面显示）
+  Web 要改   : 无需渲染分支
+  Android现状: 不支持
+  Android要改: 无需渲染分支
+
+【html】行首 HTML 标签（`<br>` 等） ⇒ [MD_HTML]（夹具：fixtures-invalid/out-of-range-inline-and-block.md）
+  Web 现状   : 不支持作为语法；但**会原样当文字显示**（全部走 textContent，web/app/render.js:132-147 的 h() 不拼 innerHTML）
+  Web 要改   : 无需渲染分支（出现即报错；同时保住「绝不执行 HTML」这条安全约定）
+  Android现状: 不支持（字面显示）
+  Android要改: 无需渲染分支
+EXIT=0
+
+═══ ⑨ 目录外路径：用法错误（必须 EXIT=2 —— 本演示不读本目录之外） ═══
+
+$ node items/content-format/prototypes/rules-v4/demo.mjs --parse package.json
+用法错误：本演示只读本目录（items/content-format/prototypes/rules-v4），不接受目录外的路径：package.json
+EXIT=2
+
