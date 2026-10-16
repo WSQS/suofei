@@ -23,7 +23,6 @@
 :root {
   --bg: #0e1315;
   --bg-pattern: linear-gradient(to right, rgba(255, 255, 255, 0.028) 1px, transparent 1px), linear-gradient(to bottom, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
-  --surface: #141b1e;
   --surface-hover: #182124;
   --text: #dde5e4;
   --text-dim: #98a8a6;
@@ -38,9 +37,7 @@
   --test-line: rgba(79, 179, 165, 0.36);
   --test-soft: rgba(79, 179, 165, 0.07);
   --test-text: #7fd4c6;
-  --radius: 4px;
   --radius-s: 3px;
-  --shadow: none;
   --row-transition: border-color 0.15s ease, background 0.15s ease;
   --font-body: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
   --font-mono: 'Consolas', 'SFMono-Regular', ui-monospace, monospace;
@@ -75,7 +72,6 @@
   --ctl-size: 0.82rem;      /* [草案] 唯一的按钮（检查更新） */
   --ctl-ls: 0.06em;         /* [草案] 按钮字距 */
   --status-size: 0.82rem;   /* [草案] 状态说明文本 */
-  --upd-pad: 0.8rem;        /* [草案] 更新块内边距 */
   --proto-pad: 12px;        /* [草案] 原型脚手架（说明／标注）的左右内边距，不是应用页面的值 */
   --cw: 100%;               /* [写回] 本块在本视口下的**内容宽 C**（公式算出的 px 值） */
 }
@@ -160,7 +156,8 @@ button { font: inherit; }
  * 结构（A3，用户已定）：应用名当页标题 → 版本相邻组（**没有来源行**）→ 更新块 → 仓库链接置底
  *   内容宽用**已选口径**：C = min(V, max(320, 0.88 × (V − 24)))
  *   ⚠ 「24」是**一次性从视口宽扣掉的总量**（只用来得到基准 A），**不是**左右各 12px 的外层页边。
- *   ⚠ 更新块里**只有两样东西**：上方一个按钮「检查更新」＋下方一段状态说明文本。
+ *   ⚠ 更新区里**只有两样东西**：上方一个按钮「检查更新」＋下方一段状态说明文本，
+ *     **不框出来**（没有容器边框／底色／阴影／标题／分隔线；两者直接在内容流里）。
  *     没有小标题、没有分区、没有第二条动作、没有「上次检查／历史结果」、没有来源、不折叠。
  */
 .pg { position: relative; background: transparent; }
@@ -181,16 +178,14 @@ button { font: inherit; }
 .kv > .v { margin-left: var(--k-gap); font-size: var(--value-size); color: var(--text); overflow-wrap: anywhere; }
 .kv > .v > .ver { font-family: var(--font-mono); font-size: var(--mono-size); }
 
-/* 更新块（这一块就是本次要评审的东西：按钮在上、状态文本在下，只有这两样）
- *   ⚠ 用 flex column：按钮与文本各自成块，按钮不会被行高的半个行距往下推（几何可验：按钮距块顶＝块内边距）。*/
-.upd {
-  display: flex; flex-direction: column; align-items: stretch;
-  margin-top: var(--sec-gap); padding: var(--upd-pad);
-  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
-  box-shadow: var(--shadow);
-}
+/* 更新区（这一块就是本次要评审的东西：按钮在上、状态文本在下，只有这两样）
+ *   ⚠ **不把它框出来**（用户 2026-10-15 返修要求：安卓就是简单按钮加 label，不需要框出来一个区域）：
+ *     没有容器边框／底色／阴影／标题／分隔线；按钮与状态文本就是**内容流里的两个元素**
+ *     （跟应用名、版本组、仓库链接同一层、同一条流），父级就是 .col。
+ *   ⚠ 用 flex column：按钮不会被行高的半个行距往下推（几何可验）。*/
 .ctl {
-  display: inline-block; align-self: flex-start;   /* 按钮只占自己的宽度，且从块内沿起 */
+  display: inline-block; align-self: flex-start;   /* 按钮只占自己的宽度，且从行内沿起 */
+  margin-top: var(--sec-gap); margin-left: var(--edge-x);   /* 与上一节同一节间距；与版本行同一左沿 */
   font-size: var(--ctl-size); letter-spacing: var(--ctl-ls);
   padding: 0.3rem 0.7rem; color: var(--accent-text);
   background: var(--accent-soft); border: 1px solid var(--accent-line); border-radius: var(--radius-s);
@@ -198,9 +193,10 @@ button { font: inherit; }
 }
 .ctl:hover { background-color: var(--surface-hover); }
 .ctl[disabled] { color: var(--text-faint); background: transparent; border-color: var(--line); cursor: default; }
-/* 状态说明文本：**在按钮下方**、**原地替换**（换字，不换结构）；五种状态同一形态。 */
+/* 状态说明文本：**在按钮下方**、**原地替换**（换字，不换结构）；六种状态同一形态。
+ *   ⚠ 它也是内容流里的一行，没有自己的框。*/
 .status {
-  margin: var(--row-gap) 0 0; font-size: var(--status-size); color: var(--text-dim);
+  margin: var(--row-gap) var(--edge-x) 0; font-size: var(--status-size); color: var(--text-dim);
   overflow-wrap: anywhere;
 }
 
@@ -208,9 +204,11 @@ button { font: inherit; }
 .repo {
   font-family: var(--font-mono); font-size: var(--mono-size); letter-spacing: 0.01em;
   color: var(--accent-text); text-decoration: none;
-  border-bottom: 1px solid transparent; transition: var(--row-transition);
+  transition: var(--row-transition);
 }
-.repo:hover { border-bottom-color: var(--accent-line); background-color: var(--surface-hover); }
+/* ⚠ 悬停的下划线只在 :hover 上出现：静止态**不声明 border-bottom**，
+ *   否则产品区里就多了一条（透明的）1px 边框 —— 去框这件事要能逐项查计算值。 */
+.repo:hover { text-decoration: underline; text-decoration-color: var(--accent-line); }
 </style>
 </head>
 <body>
@@ -227,7 +225,11 @@ button { font: inherit; }
       ⑤ <b>仓库链接＝完整 URL（C1）</b>，<b>不给</b>「会打开浏览器」的提示；<br>
       ⑥ <b>宽度口径</b> <code>C = min(V, max(320, 0.88 × (V − 24)))</code>；<b>24 是一次性扣除总量</b>，不是左右各 12px；<br>
       ⑦ 视觉＝<b>静默终端令牌</b>（权威 <code>docs/design/visual-tokens.md</code>）；<b>这一页只做内容更新，不做 APK 更新</b>；<br>
-      ⑧ <b>「来源（内置／已下载）」不画</b>：它已被排除出两端共用的版本信息，而「放进更新块要不要显示」<b>仍未定</b> ⇒ 不画、也不假装已定。</p>
+      ⑧ <b>「来源（内置／已下载）」不画</b>：它已被排除出两端共用的版本信息，而「放进更新块要不要显示」<b>仍未定</b> ⇒ 不画、也不假装已定；<br>
+      ⑨ <b>不把它框出来</b>（用户 2026-10-15 返修：安卓就是简单按钮加 label，不需要框出来一个区域）：这一处<b>没有容器边框／底色／阴影／标题／分隔线</b>，
+      按钮与状态文本<b>直接在页面内容流里</b>（跟版本组、仓库链接同一条流）；<b>按钮自身的边框／底色／圆角照旧保留</b>（没把它也抹平）。</p>
+
+    <p class="pwarn">⚠ <b>图里那圈青色虚线是原型标注，不是产品 UI</b>（产品区已经真的去框了）：截图范围线、每块上方的标题行、以及最上面那条「原型说明」横幅都属于原型，<b>都不属于应用页面</b>。</p>
 
     <p class="pwarn">⚠ <b>页面里的版本号是「当前值」，不是页面文案定稿</b>：应用版本 <code>0.1.1</code>、内容版本 <code>2026.10.16.20</code>、仓库 <code>https://github.com/WSQS/suofei</code>。
       <b>状态说明文本里的版本号／字节数／原因都是运行时值</b>（<code>⟨…⟩</code> 是运行时占位），块的外面用虚线小标标出这一点。</p>
@@ -235,8 +237,7 @@ button { font: inherit; }
     <p><b>宽度用已选口径</b>：<code>C = min(V, max(320, 0.88 × (V − 24)))</code>，<code>V</code>＝视口宽、<code>V−24</code>＝基准 A、上界＝视口 V（<b>不夹</b> 660／860）。
       ⚠ <code>24</code> 是<b>一次性从视口宽扣掉的总量</b>，<b>不是</b>左右各 12px 的外层页边 ⇒ <b>列外余白＝(V−C)/2</b>（320 上恰为 0），行内沿 <code>1.05rem</code>＝16.8px 是<b>列内</b>的一层。</p>
 
-    <h2>五种状态（<b>同一形态</b>，只换文本与按钮可用性）</h2>
-    <p>文案逐字来自真实实现 <code>android/app/src/main/java/dev/sopho/suofei/ui/UpdateStatusText.kt</code>：
+    <h2>五种状态（<b>同一形态</b>，只换文本与按钮可用性）</h2>    <p>文案逐字来自真实实现 <code>android/app/src/main/java/dev/sopho/suofei/ui/UpdateStatusText.kt</code>：
       <code>尚未检查。</code>／<code>正在检查…</code>／<code>已是最新内容（远端 ⟨内容版本⟩）。</code>／
       <code>新内容 ⟨内容版本⟩ 已下载、校验通过并已切换生效（⟨字节数⟩ 字节）；返回目录后采用。</code>／
       <code>更新未生效，旧内容保留：⟨原因⟩</code>。
@@ -262,12 +263,13 @@ button { font: inherit; }
       块宽恰＝视口宽、块左沿 0、不缩放。<br>
       图中青色／黄色的文字与虚线、每块上方的标题行与数字、以及最上面这条横幅，都是<b>原型的说明与标注</b>（青／黄＝夹具与标注用色，不是产品谱）；
       应用版本 <code>0.1.1</code>、内容版本 <code>2026.10.16.20</code>、仓库地址是<b>当前值</b>，<b>不是页面文案定稿</b>；状态文本里的版本号／字节数／原因是<b>运行时值</b>。<br>
+      <b>产品区没有卡片框</b>：更新处就是一个按钮＋一段状态文本，直接在页面内容流里（无边框／底色／阴影／标题／分隔线；按钮自身的边框与底色保留）。<br>
       本图是<b>材料</b>：<b>选其中某一块的形态 ≠ 采纳整页规格</b>，也<b>不决定</b> JSON／MD 分界与任何产物字段。<b>不是产品实施、不是发布。</b>
     </div>
 
-    <div class="ghead2">关于页 · 更新块极简版 —— 五种状态同一形态（按钮在上，状态文本在下，原地替换）</div>
-    <p class="gdesc">固定不动：应用名＝<code>索斐</code>（页标题）／版本相邻组＝「一行一条」的应用版本＋内容版本（<b>无来源行、无小标题</b>）／更新块位置＝版本组与仓库链接之间／仓库链接＝<b>完整 URL</b> 且置底。
-      只有更新块里的<b>字</b>和<b>按钮可用性</b>随状态变。</p>
+    <div class="ghead2">关于页 · 更新块极简版 —— 五种状态同一形态（按钮在上，状态文本在下，原地替换；<b>产品区不框出来</b>）</div>
+    <p class="gdesc">固定不动：应用名＝<code>索斐</code>（页标题）／版本相邻组＝「一行一条」的应用版本＋内容版本（<b>无来源行、无小标题</b>）／更新位置＝版本组与仓库链接之间／仓库链接＝<b>完整 URL</b> 且置底。
+      <b>没有包裹按钮与状态文本的卡片</b>（无边框／底色／阴影／标题／分隔线）；只有两者的<b>字</b>和<b>按钮可用性</b>随状态变。</p>
     <div data-test="rack"></div>
   </div>
 </div>
@@ -326,10 +328,8 @@ button { font: inherit; }
       + '<div class="kv" data-test="kv"><span class="k" data-test="k">应用版本</span><span class="v" data-test="v"><span class="ver">' + esc(APP.appVersion) + '</span></span></div>'
       + '<div class="kv" data-test="kv"><span class="k" data-test="k">内容版本</span><span class="v" data-test="v"><span class="ver">' + esc(APP.contentVersion) + '</span></span></div>'
       + '</div>'
-      + '<section class="upd" data-test="upd">'
       + '<button type="button" class="ctl" data-test="primarybtn"' + (st.btnEnabled ? '' : ' disabled') + '>检查更新</button>'
       + '<p class="status" data-test="status">' + esc(st.text) + '</p>'
-      + '</section>'
       + '<div class="repoWrap" data-test="repowrap"><a class="repo" data-test="repolink" href="' + esc(APP.repo) + '">' + esc(APP.repo) + '</a></div>'
       + '</div></div>';
   }
@@ -344,7 +344,7 @@ button { font: inherit; }
       + '</div>'
       + blockHTML(st)
       + '<p class="cap" data-test="cap">' + esc('按钮文字＝「检查更新」（唯一动作）；状态文本＝' + st.text)
-      + '　｜　<b>上方＝按钮、下方＝状态文本，只有这两样</b>（无小标题／分区／第二动作／上次检查／来源）。'
+      + '　｜　<b>上方＝按钮、下方＝状态文本，只有这两样</b>（<b>没有把它们框起来</b>：无边框／底色／阴影／标题／分隔线／分区／第二动作／上次检查／来源）；两者直接在内容流里，只有按钮自身带边框与底色。'
       + '青色与黄色是本原型标注用色，不属于应用页面。</p>'
       + '</div>';
   }

@@ -21,17 +21,23 @@
  *      · innerWidth／innerHeight 精确等于目标；docW ＝ bodyW ＝ **visualViewport.width** ＝ 视口宽（防 shrink-to-fit）；
  *      · **六块每块恰＝视口宽、块左沿 0**；内容列宽＝公式复算值（±0.02）；列外余白＝(V−C)/2；行内沿 16.8px；
  *      · **无横向溢出**（所有可见元素都在 0…视口宽 内）；可点元素**只有** <a href> 与 <button type=button>；
- *      · 每块都有 应用名／版本相邻组／更新块／仓库链接四条，**版本相邻组里没有「来源」**（无 来源／已下载／内置 字样）；
- *        仓库文字＝完整 URL、无「在浏览器打开」提示、是内容列最后一条；更新块夹在版本组与仓库之间；
- *      · **更新块里只有两样**（1 个 <button> ＋ 1 段文本）：没有第二动作、没有小标题、没有分区、没有折叠、
- *        没有「上次检查／上次结果」；页面里没有 <details>/<summary>（可点元素被限定为 a／button）；
+ *      · 每块都有 应用名／版本相邻组／按钮／状态文本／仓库链接，**版本相邻组里没有「来源」**（无 来源／已下载／内置 字样）；
+ *        仓库文字＝完整 URL、无「在浏览器打开」提示、是内容列最后一条；
+ *      · **产品区真的去框（用户 2026-10-15 返修）**：
+ *        ① 扫内容列这一层（排除按钮自己的子树——按钮自身的边框/底色是要保留的）逐项查**计算值**：
+ *           有边框的元素 0、有底色的 0、有阴影的 0、有圆角的 0、标题元素 0、<hr> 0、只有上/下边框的「分隔线」0、来源元素 0；
+ *           内容列自身 border 上/右/下/左＝0px、background＝rgba(0,0,0,0)、box-shadow＝none、border-radius＝0px；
+ *        ② **按钮与 label 的父级就是内容流**：btn.parentElement === status.parentElement === .col，
+ *           且 .col 的直接子元素恰是 [应用名, 版本相邻组, 按钮, 状态文本, 仓库]（没有任何 panel/card 包裹层）；
+ *        ③ 间距：版本组→按钮 14.4px（0.9rem）、按钮→状态文本 8px（0.5rem）、状态文本→仓库 14.4px（0.9rem）；
+ *        ④ 按钮自身的边界照旧可识别（底色非透明、边框>0、圆角>0、无阴影）；
+ *      · 页面里的 <details>/<summary> 数 0（可点元素被限定为 a／button）；
  *      · 状态选择器在**截图范围之外**、不在块内；「原型说明／不属于应用页面」横幅在截图范围之内且可见；
  *      · 无外部请求；无 JS 报错；字号/行高/字距在各视口完全一致（不随视口缩放）。
  *  [T] 状态真实性（**逐字**）：把 **5 个真实状态 ＋ 1 格最长失败夹具** 与脚本独立期望比对 ——
  *      先比页面导出的定义（window.__ABOUT_MIN__），再比 DOM 真的渲染出来的那一串；
  *      · **检查中 ⇒ 唯一按钮 disabled**；其余五个状态按钮**必须可用**（这就是「按钮可用性」的全部差别）；
- *      · 五种状态的块**形态完全相同**（更新块的子元素序列＝[BUTTON, P]，块内 data-test 元素序列逐项相同）
- *        ⇒ 「原地替换：换文字，不换结构、不新增行／块」是可机器查的；
+ *      · 五种状态的块**形态完全相同**（内容列的直接子元素序列逐项相同）⇒ 「原地替换：换文字，不换结构、不新增行／块」是可机器查的；
  *      · 五种状态的状态文本**样式完全相同**（用户原话：同一形态，只换文本与按钮可用性 ⇒ 失败态也不换色）。
  *  [M] 单态模式：真鼠标点状态选择器 ⇒ 截图范围里**只剩那一块**（其余 hidden），仍无横向溢出、剩下那块仍恰＝视口宽；
  *      点「全部并列」⇒ 六块回来。夹具态（最长失败文案）在**每个视口**都查一遍无横向溢出。
@@ -155,7 +161,7 @@ const BLOCK_IDS = ALLS.map((s) => 'B-' + s.key);
 const SHAPE_EXPECT = [
   'DIV|col', 'P|brand', 'DIV|verpair', 'DIV|kv', 'SPAN|k', 'SPAN|v',
   'DIV|kv', 'SPAN|k', 'SPAN|v',
-  'SECTION|upd', 'BUTTON|primarybtn', 'P|status',
+  'BUTTON|primarybtn', 'P|status',
   'DIV|repowrap', 'A|repolink',
 ];
 
@@ -173,6 +179,10 @@ const FIXED_NOTES = [
   ['静默终端令牌 + 权威仍是 visual-tokens.md', /静默终端令牌/],
   ['只做内容更新，不做 APK 更新', /只做内容更新，不做 APK 更新/],
   ['「来源」不画、也不假装已定', /「来源（内置／已下载）」不画/],
+  ['产品区不框出来（用户返修要求）', /不把它框出来/],
+  ['产品区没有容器边框／底色／阴影／标题／分隔线', /这一处没有容器边框／底色／阴影／标题／分隔线/],
+  ['按钮与状态文本直接在页面内容流里', /按钮与状态文本直接在页面内容流里（跟版本组、仓库链接同一条流）/],
+  ['按钮自身的边框／底色／圆角照旧保留', /按钮自身的边框／底色／圆角照旧保留/],
   ['这是材料、不是实施／功能批准', /不是产品实施 · 不是功能批准/],
   ['选某档 ≠ 采纳整页规格', /≠ 采纳整页规格/],
   ['不决定 JSON／MD 分界与产物字段', /不决定 JSON／MD 分界与任何产物字段/],
@@ -276,8 +286,8 @@ say('── [G] 静态契约 ──');
   ok(!/\banimation\s*:/i.test(HTML), '没有 animation 声明');
   const trans = [...HTML.matchAll(/(?<![\w-])transition\s*:\s*([^;]+);/gi)].map((m) => m[1].trim());
   ok(trans.length > 0 && trans.every((t) => t === 'var(--row-transition)'), 'transition 只允许 var(--row-transition)（实测 ' + trans.length + ' 处：' + JSON.stringify(trans) + '）');
-  const shadows = [...HTML.matchAll(/box-shadow\s*:\s*([^;]+);/gi)].map((m) => m[1].trim());
-  ok(shadows.every((s) => s === 'var(--shadow)'), 'box-shadow 只允许 var(--shadow)（实测 ' + shadows.length + ' 处）');
+  const shadows = [...HTML.matchAll(/(?<![\w-])box-shadow\s*:\s*([^;]+);/gi)].map((m) => m[1].trim());
+  ok(shadows.length === 0, '页面里**没有 box-shadow 声明**（产品区真的没框、无阴影；实测 ' + shadows.length + ' 处：' + JSON.stringify(shadows) + '）');
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -417,23 +427,55 @@ function probeFn() {
     var rp = R(pg);
     var col = pg.querySelector('[data-test=col]');
     var rc = R(col);
-    var upd = pg.querySelector('[data-test=upd]');
     var st = pg.querySelector('[data-test=status]');
     var btn = pg.querySelector('[data-test=primarybtn]');
     var verpair = pg.querySelector('[data-test=verpair]');
     var repoa = pg.querySelector('[data-test=repolink]');
+    var repoWrap = repoa.closest('[data-test=repowrap]');
     var rows = [].slice.call(pg.querySelectorAll('[data-test=kv]'));
     var kRight = [], vLeft = [];
     rows.forEach(function (row) {
       kRight.push(P(R(row.querySelector('[data-test=k]')).right - rc.left));
       vLeft.push(P(R(row.querySelector('[data-test=v]')).left - rc.left));
     });
-    var updKids = [].slice.call(upd.children).map(function (e) { return e.tagName + '|' + (e.getAttribute('data-test') || ''); });
+    /* ── 产品区去框：扫内容列这一层（含 .col 自己），**排除按钮子树**（按钮自身的边框/底色是要保留的）── */
+    var scan = { borderEls: [], bgEls: [], shadowEls: [], radiusEls: [], headings: [], hrs: [], dividerEls: [], sourceRows: col.querySelectorAll('[data-test=source]').length };
+    [col].concat([].slice.call(col.querySelectorAll('*'))).forEach(function (e) {
+      if (e === btn || (btn && btn.contains(e))) return;
+      var c = getComputedStyle(e);
+      var t = (e.className || '') + '|' + e.tagName;
+      var bw = [parseFloat(c.borderTopWidth), parseFloat(c.borderRightWidth), parseFloat(c.borderBottomWidth), parseFloat(c.borderLeftWidth)];
+      if (bw[0] > 0 || bw[1] > 0 || bw[2] > 0 || bw[3] > 0) scan.borderEls.push(t + '=' + bw.join('/'));
+      if (bw[0] > 0 || bw[2] > 0) scan.dividerEls.push(t + '=' + bw[0] + '/' + bw[2]);
+      if (c.backgroundColor !== 'rgba(0, 0, 0, 0)' && c.backgroundColor !== 'transparent') scan.bgEls.push(t + '=' + c.backgroundColor);
+      if (c.boxShadow !== 'none') scan.shadowEls.push(t + '=' + c.boxShadow);
+      if (parseFloat(c.borderTopLeftRadius) > 0) scan.radiusEls.push(t + '=' + c.borderTopLeftRadius);
+      if (/^H[1-6]$/.test(e.tagName)) scan.headings.push(t);
+      if (e.tagName === 'HR') scan.hrs.push(t);
+    });
+    var colKids = [].slice.call(col.children).map(function (e) { return e.tagName + '|' + (e.getAttribute('data-test') || ''); });
+    var bt = R(btn), stt = R(st), vp = R(verpair), rw = R(repoWrap);
     var b = {
       id: pg.dataset.block, state: pg.dataset.state,
       visible: !pg.hidden && rp.width > 0,
       left: P(rp.left), w: P(rp.width), h: P(rp.height),
       colLeft: P(rc.left), colW: P(rc.width),
+      colPadL: P(parseFloat(CS(col, 'paddingLeft'))), colPadR: P(parseFloat(CS(col, 'paddingRight'))),
+      colStyle: {
+        borderTop: CS(col, 'borderTopWidth'), borderRight: CS(col, 'borderRightWidth'),
+        borderBottom: CS(col, 'borderBottomWidth'), borderLeft: CS(col, 'borderLeftWidth'),
+        bg: CS(col, 'backgroundColor'), shadow: CS(col, 'boxShadow'), radius: CS(col, 'borderTopLeftRadius'),
+      },
+      colKids: colKids,
+      scan: scan,
+      btnOwn: {
+        bg: CS(btn, 'backgroundColor'), borderW: CS(btn, 'borderTopWidth'),
+        radius: CS(btn, 'borderTopLeftRadius'), shadow: CS(btn, 'boxShadow'),
+        padL: P(parseFloat(CS(btn, 'paddingLeft'))),
+      },
+      sameParent: btn.parentElement === st.parentElement,
+      btnParentIsCol: btn.parentElement === col,
+      statusParentIsCol: st.parentElement === col,
       edge: P(parseFloat(CS(pg.querySelector('[data-test=kv]'), 'paddingLeft'))),
       shape: shape(pg),
       brandText: txt(pg.querySelector('[data-test=brand]')),
@@ -441,29 +483,23 @@ function probeFn() {
       kvRows: rows.length,
       kRightSpread: rows.length ? P(Math.max.apply(null, kRight) - Math.min.apply(null, kRight)) : null,
       vLeftSpread: rows.length ? P(Math.max.apply(null, vLeft) - Math.min.apply(null, vLeft)) : null,
-      updTop: P(R(upd).top - rp.top),
-      updAppH: P(R(upd).height),
-      updGapPrev: P(R(upd).top - R(verpair).bottom),
-      updKids: updKids,
-      updBtnCount: upd.querySelectorAll('button,a').length,
-      updTitles: upd.querySelectorAll('h1,h2,h3,h4,.title,.upd-title').length,
-      updZones: upd.querySelectorAll('[data-zone],[data-test=zone]').length,
-      updSteps: upd.querySelectorAll('[data-test=step]').length,
-      updLast: upd.querySelectorAll('[data-test=lastcheck],[data-test=lastresult]').length,
-      updFold: upd.querySelectorAll('[data-test=foldpanel],[data-test=foldsummary]').length,
-      updSource: /来源|内置/.test(upd.innerText.replace(/\s+/g, ' ')),
-      updSourceRow: upd.querySelectorAll('[data-test=source]').length,
+      /* 间距：版本组 → 按钮；按钮 → 状态文本；状态文本 → 仓库链接 */
+      gapVerToBtn: P(bt.top - vp.bottom),
+      gapBtnToStatus: P(stt.top - bt.bottom),
+      gapStatusToRepo: P(rw.top - stt.bottom),
+      /* 「更新处」＝按钮顶 → 状态文本底（去框后这就是这一处的全部高度）*/
+      areaTop: P(bt.top - rp.top), areaH: P(stt.bottom - bt.top),
       statusText: txt(st), statusLines: linesOf(st), statusW: inkW(st),
       statusFontSize: st ? CS(st, 'fontSize') : null,
       statusLineHeight: st ? CS(st, 'lineHeight') : null,
       statusColor: st ? CS(st, 'color') : null,
       statusWrap: st ? CS(st, 'overflowWrap') : null,
       statusBoxW: st ? P(R(st).width) : null,
-      statusTop: P(R(st).top - R(upd).top), statusBottom: P(R(st).bottom - R(upd).top),
+      statusTop: P(stt.top - rp.top), statusBottom: P(stt.bottom - rp.top),
       btnText: txt(btn), btnDisabled: btn ? btn.disabled : null, btnTag: btn ? btn.tagName : null,
       btnType: btn ? btn.getAttribute('type') : null, btnCls: btn ? btn.className : null,
-      btnTop: P(R(btn).top - R(upd).top), btnBottom: P(R(btn).bottom - R(upd).top),
-      btnW: P(R(btn).width),
+      btnTop: P(bt.top - rp.top), btnBottom: P(bt.bottom - rp.top),
+      btnW: P(bt.width), btnH: P(bt.height),
       btnFontSize: btn ? CS(btn, 'fontSize') : null,
       repoText: txt(repoa), repoTag: repoa ? repoa.tagName : null, repoHref: repoa ? repoa.getAttribute('href') : null,
       repoIsLastInCol: !!(repoa && repoa.closest('[data-test=repowrap]') === col.lastElementChild),
@@ -573,6 +609,24 @@ async function runViewport(vp) {
     ok(g.over.length === 0, tag + ' 默认态无横向溢出（越界元素 ' + g.over.length + ' 个：' + JSON.stringify(g.over.slice(0, 4)) + '）');
     ok(g.headsOutsidePg === true, tag + ' 各块上方的标题行与数字行都在块外（不属于应用页面）');
 
+    /* ── 去框：逐项打印计算值（给人看的那一串数）── */
+    {
+      const z = g.blocks.filter((b) => b.visible)[0];
+      if (z) {
+      say('  ' + tag + ' 产品区去框（逐项计算值，以块 ' + z.id + ' 为例）：');
+      say('      内容列 .col：border ' + [z.colStyle.borderTop, z.colStyle.borderRight, z.colStyle.borderBottom, z.colStyle.borderLeft].join('／')
+        + '（上／右／下／左）｜background ' + z.colStyle.bg + '｜box-shadow ' + z.colStyle.shadow + '｜border-radius ' + z.colStyle.radius
+        + '｜padding-left/right ' + z.colPadL + '／' + z.colPadR);
+      say('      列内非按钮元素扫一遍：有边框的元素 ' + z.scan.borderEls.length + ' 个｜有底色的 ' + z.scan.bgEls.length + ' 个｜有阴影的 ' + z.scan.shadowEls.length
+        + ' 个｜有圆角的 ' + z.scan.radiusEls.length + ' 个｜标题元素 ' + z.scan.headings.length + ' 个｜<hr> ' + z.scan.hrs.length + ' 个｜上下分隔线 ' + z.scan.dividerEls.length + ' 个｜来源元素 ' + z.scan.sourceRows + ' 个');
+      say('      按钮自身（保留）：background ' + z.btnOwn.bg + '｜border-top-width ' + z.btnOwn.borderW + '｜border-radius ' + z.btnOwn.radius + '｜box-shadow ' + z.btnOwn.shadow + '｜padding-left ' + z.btnOwn.padL);
+      say('      父级：button.parentElement === .col = ' + z.btnParentIsCol + '；status.parentElement === .col = ' + z.statusParentIsCol
+        + '；同一个父级 = ' + z.sameParent + '；.col 的直接子元素 = ' + JSON.stringify(z.colKids));
+      say('      几何：按钮 ' + z.btnW + '×' + z.btnH + '（距块顶 ' + z.btnTop + '）｜按钮→文本缝 ' + z.gapBtnToStatus + '｜版本组→按钮 ' + z.gapVerToBtn + '｜文本→仓库 ' + z.gapStatusToRepo
+        + '｜这一处（按钮顶→文本底）高 ' + z.areaH);
+      }
+    }
+
     const badReq = [...new Set(state.requests)].filter((u) => !u.startsWith('file://'));
     ok(badReq.length === 0, tag + ' 没有外部请求（非 file:// 的 ' + badReq.length + ' 个：' + badReq.slice(0, 3).join(',') + '）');
     const badCtl = g.ctls.filter((c) => !((c.tag === 'A' && c.href) || (c.tag === 'BUTTON' && c.type === 'button')));
@@ -614,29 +668,45 @@ async function runViewport(vp) {
       ok(b.kvRows === 2, tag + ' ' + b.id + ' 版本相邻组恰两行（实测 ' + b.kvRows + '）');
       near(b.kRightSpread, 0, 0.6, tag + ' ' + b.id + ' label 右沿同一条竖线');
       near(b.vLeftSpread, 0, 0.6, tag + ' ' + b.id + ' 值左沿同一条竖线');
-      ok(b.updTop > 0 && b.updGapPrev > 0 && b.repoBottomFromBlock >= 0,
-        tag + ' ' + b.id + ' 更新块夹在版本相邻组与仓库链接之间（更新块距顶 ' + b.updTop + '）');
+      ok(b.gapVerToBtn > 0 && b.gapStatusToRepo > 0 && b.repoBottomFromBlock >= 0,
+        tag + ' ' + b.id + ' 按钮与状态文本夹在版本相邻组与仓库链接之间（版本组→按钮 ' + b.gapVerToBtn + '，文本→仓库 ' + b.gapStatusToRepo + '）');
       ok(b.repoText === REPO && b.repoTag === 'A' && b.repoHref === REPO, tag + ' ' + b.id + ' 仓库链接＝完整 URL 的 <a>（实测 ' + JSON.stringify(b.repoText) + '）');
       ok(b.hintCount === 0, tag + ' ' + b.id + ' 没有「在浏览器打开」提示（C1 口径）');
       ok(b.repoIsLastInCol, tag + ' ' + b.id + ' 仓库链接是内容列的最后一条');
       ok(!/笔记|测试笔记|假笔记/.test(b.text), tag + ' ' + b.id + ' 块内没有笔记夹具');
       ok(b.ctlCount === expectCtl, tag + ' ' + b.id + ' 块内可点元素数＝2（仓库链接＋唯一按钮；实测 ' + b.ctlCount + '）');
-      /* 更新块＝**只有两样** */
-      ok(JSON.stringify(b.updKids) === JSON.stringify(['BUTTON|primarybtn', 'P|status']),
-        tag + ' ' + b.id + ' 更新块里只有 [按钮, 状态文本] 两样（实测 ' + JSON.stringify(b.updKids) + '）');
-      ok(b.updBtnCount === 1, tag + ' ' + b.id + ' 更新块里恰 1 个可点元素（没有第二动作；实测 ' + b.updBtnCount + '）');
-      ok(b.updTitles === 0, tag + ' ' + b.id + ' 更新块里没有小标题（实测 ' + b.updTitles + '）');
-      ok(b.updZones === 0, tag + ' ' + b.id + ' 更新块里没有分区（实测 ' + b.updZones + '）');
-      ok(b.updSteps === 0, tag + ' ' + b.id + ' 更新块里没有步骤（实测 ' + b.updSteps + '）');
-      ok(b.updLast === 0, tag + ' ' + b.id + ' 更新块里没有「上次检查／上次结果」（实测 ' + b.updLast + '）');
-      ok(b.updFold === 0, tag + ' ' + b.id + ' 更新块不折叠（没有摘要行／面板；实测 ' + b.updFold + '）');
-      ok(b.updSource === false, tag + ' ' + b.id + ' 更新块里没有画「来源」行（须注意：状态文案里的「已下载」是改写内容，不是来源行）');
-      ok(b.updSourceRow === 0, tag + ' ' + b.id + ' 更新块里没有 data-test=source 的来源元素');
-      /* 按钮在上、状态文本在下（用户原话：重点在上方） */
-      ok(b.btnBottom <= b.statusTop + 0.5, tag + ' ' + b.id + ' 状态文本在按钮**下方**（按钮底 ' + b.btnBottom + '，文本顶 ' + b.statusTop + '）');
+      /* ══ ① 产品区**真的去框**：逐项查计算值（不含按钮自己的子树——按钮自身的边框/底色是要保留的）══ */
+      ok(b.scan.borderEls.length === 0, tag + ' ' + b.id + ' 产品区**没有边框**（实测 ' + JSON.stringify(b.scan.borderEls) + '）');
+      ok(b.scan.bgEls.length === 0, tag + ' ' + b.id + ' 产品区**没有底色**（实测 ' + JSON.stringify(b.scan.bgEls) + '）');
+      ok(b.scan.shadowEls.length === 0, tag + ' ' + b.id + ' 产品区**没有阴影**（实测 ' + JSON.stringify(b.scan.shadowEls) + '）');
+      ok(b.scan.radiusEls.length === 0, tag + ' ' + b.id + ' 产品区**没有圆角容器/卡片**（实测 ' + JSON.stringify(b.scan.radiusEls) + '）');
+      ok(b.scan.headings.length === 0, tag + ' ' + b.id + ' 产品区**没有标题元素**（实测 ' + JSON.stringify(b.scan.headings) + '）');
+      ok(b.scan.hrs.length === 0, tag + ' ' + b.id + ' 产品区**没有 <hr>**（实测 ' + JSON.stringify(b.scan.hrs) + '）');
+      ok(b.scan.dividerEls.length === 0, tag + ' ' + b.id + ' 产品区**没有上下分隔线**（实测 ' + JSON.stringify(b.scan.dividerEls) + '）');
+      ok(b.scan.sourceRows === 0, tag + ' ' + b.id + ' 产品区里没有「来源」元素（用户口径：不画；实测 ' + b.scan.sourceRows + '）');
+      ok(b.colStyle.borderTop === '0px' && b.colStyle.borderRight === '0px' && b.colStyle.borderBottom === '0px' && b.colStyle.borderLeft === '0px'
+        && b.colStyle.bg === 'rgba(0, 0, 0, 0)' && b.colStyle.shadow === 'none' && b.colStyle.radius === '0px',
+        tag + ' ' + b.id + ' 内容列自身的计算值＝无边框 ' + [b.colStyle.borderTop, b.colStyle.borderRight, b.colStyle.borderBottom, b.colStyle.borderLeft].join('/')
+        + '／底色 ' + b.colStyle.bg + '／阴影 ' + b.colStyle.shadow + '／圆角 ' + b.colStyle.radius);
+      ok(parseFloat(b.btnOwn.borderW) > 0 && parseFloat(b.btnOwn.radius) > 0 && b.btnOwn.shadow === 'none'
+        && (b.btnDisabled ? b.btnOwn.bg === 'rgba(0, 0, 0, 0)' : b.btnOwn.bg !== 'rgba(0, 0, 0, 0)'),
+        tag + ' ' + b.id + ' **按钮自身的边界照旧可识别**（' + (b.btnDisabled ? '禁用态：底色透明但边框仍在 ' : '底色 ') + b.btnOwn.bg + '，边框 ' + b.btnOwn.borderW + '，圆角 ' + b.btnOwn.radius + '，阴影 ' + b.btnOwn.shadow + '）');
+      /* ══ ② 按钮与 label 的父级就是内容流（不是任何 panel/card 容器）══ */
+      ok(b.sameParent && b.btnParentIsCol && b.statusParentIsCol,
+        tag + ' ' + b.id + ' 按钮与状态文本的父级＝**同一个内容列 .col**（parentElement：btn=' + b.btnParentIsCol + '，status=' + b.statusParentIsCol + '，相同=' + b.sameParent + ' ⇒ 不是 panel/card 容器）');
+      ok(JSON.stringify(b.colKids) === JSON.stringify(['P|brand', 'DIV|verpair', 'BUTTON|primarybtn', 'P|status', 'DIV|repowrap']),
+        tag + ' ' + b.id + ' 内容列的**直接子元素**恰是这五个（应用名／版本相邻组／按钮／状态文本／仓库；实测 ' + JSON.stringify(b.colKids) + '）');
+      near(b.colPadL, 0, 0.01, tag + ' ' + b.id + ' 内容列自身没有左侧内边距（实测 ' + b.colPadL + '）');
+      near(b.colPadR, 0, 0.01, tag + ' ' + b.id + ' 内容列自身没有右侧内边距（实测 ' + b.colPadR + '）');
+      /* ══ 间距：就按页面正常的节间距／行间距 ══ */
+      near(b.gapVerToBtn, 14.4, 0.05, tag + ' ' + b.id + ' 版本相邻组 → 按钮 的间距＝0.9rem＝14.4px');
+      near(b.gapBtnToStatus, 8, 0.05, tag + ' ' + b.id + ' 按钮 → 状态文本 的间距＝0.5rem＝8px');
+      near(b.gapStatusToRepo, 14.4, 0.05, tag + ' ' + b.id + ' 状态文本 → 仓库链接 的间距＝0.9rem＝14.4px（两端同为节间距）');
+      /* 按钮在上、状态文本在下（文档流顺序，不是靠定位画出来的） */
+      ok(b.btnBottom <= b.statusTop + 0.5, tag + ' ' + b.id + ' 状态文本紧跟在按钮**下方**（按钮底 ' + b.btnBottom + '，文本顶 ' + b.statusTop + '）');
       ok(b.statusBottom > b.statusTop, tag + ' ' + b.id + ' 状态文本可见（高 ' + (b.statusBottom - b.statusTop) + '）');
-      near(b.btnTop, 13.8, 0.05, tag + ' ' + b.id + ' 按钮在更新块顶内沿起（距更新块顶＝1px 边框＋0.8rem 内边距 12.8px）');
-      ok(b.btnW > 40 && b.btnW < b.colW - 2 * b.edge, tag + ' ' + b.id + ' 按钮只占自己那一小块宽（实测 ' + b.btnW + '，可用 ' + Math.round((b.colW - 2 * b.edge) * 100) / 100 + ' ⇒ 不是满宽条）');
+      ok(b.btnTop > 0 && b.statusTop > b.btnTop, tag + ' ' + b.id + ' 按钮是这一处文档流里的第一个元素（距块顶 ' + b.btnTop + '）');
+      ok(b.btnW > 40 && b.btnW < b.colW - 2 * b.edge, tag + ' ' + b.id + ' 按钮只占自己那一小块宽（实测 ' + b.btnW + '，行文本可用 ' + Math.round((b.colW - 2 * b.edge) * 100) / 100 + ' ⇒ 不是满宽条）');
       ok(b.statusWrap === 'anywhere', tag + ' ' + b.id + ' 状态文本 overflow-wrap=' + b.statusWrap + '（长原因也不会横向溢出）');
       ok(b.hasRunmark === false, tag + ' ' + b.id + ' 块内没有原型小标（原型标注都在块外）');
       ok(JSON.stringify(b.shape) === JSON.stringify(SHAPE_EXPECT), tag + ' ' + b.id + ' 块内元素形态＝脚本期望（实测 ' + JSON.stringify(b.shape) + '）');
@@ -665,8 +735,10 @@ async function runViewport(vp) {
       ok(colors.size === 1, tag + ' 六块的状态文本**颜色完全相同**（用户原话「同一形态，只换文本」；实测 ' + colors.size + ' 种：' + [...colors].join('／') + '）');
       const fonts = new Set(g.blocks.map((b) => b.statusFontSize + '|' + b.statusLineHeight));
       ok(fonts.size === 1, tag + ' 六块的状态文本字号／行高完全相同（实测 ' + [...fonts].join('／') + '）');
-      const kids = new Set(g.blocks.map((b) => JSON.stringify(b.updKids)));
-      ok(kids.size === 1, tag + ' 六块的更新块子元素序列完全相同（实测 ' + [...kids].join('／') + '）');
+      const kids = new Set(g.blocks.map((b) => JSON.stringify(b.colKids)));
+      ok(kids.size === 1, tag + ' 六块的内容列直接子元素序列完全相同（实测 ' + [...kids].join('／') + '）');
+      const g2 = new Set(g.blocks.map((b) => JSON.stringify([b.gapVerToBtn, b.gapBtnToStatus, b.gapStatusToRepo])));
+      ok(g2.size === 1, tag + ' 六块的三个间距完全相同（版本组→按钮／按钮→文本／文本→仓库；实测 ' + [...g2].join('／') + '）');
     }
     Object.keys(g.fonts || {}).forEach((k) => { (fontProfile[k] = fontProfile[k] || new Set()).add(g.fonts[k]); });
     ok(Object.keys(g.fonts || {}).length === FONT_KEYS.length, tag + ' 字号剖面收集到 ' + FONT_KEYS.length + ' 个位置（实测 ' + Object.keys(g.fonts || {}).length + '）');
@@ -698,8 +770,8 @@ async function runViewport(vp) {
         if (s.key === 'failed-long') {
           ok(b.statusText.indexOf('⟨') >= 0, tag + ' 夹具文案里保留了运行时占位 ⟨…⟩（实测 ' + JSON.stringify(b.statusText.slice(0, 40)) + '…）');
           ok(!/[0-9a-f]{64}/.test(b.statusText), tag + ' 夹具文案里**没有写死** 64 位哈希（两个哈希都是占位）');
-          /* 状态文本在卡片里自己的可用宽＝C − 2×(1px 边框 ＋ 0.8rem 内边距)；最长行墨宽必须在它之内 */
-          near(b.statusBoxW, C - 2 * 13.8, 0.02, tag + ' 夹具态：状态文本的可用宽＝C − 2×(1px＋0.8rem)');
+          /* 状态文本就是内容流里的一行：可用宽＝C − 2×行内沿 16.8；最长行墨宽必须在它之内 */
+          near(b.statusBoxW, C - 2 * 16.8, 0.02, tag + ' 夹具态：状态文本的可用宽＝C − 2×16.8（行内沿）');
           ok(b.statusW <= b.statusBoxW, tag + ' 夹具态：最长行墨宽 ' + b.statusW + ' ≤ 状态文本可用宽 ' + b.statusBoxW + '（放得下）');
           say('  ' + tag + ' 夹具态：最长失败文案 ' + b.statusLines + ' 行，最长行墨宽 ' + b.statusW + '，状态文本可用宽 ' + b.statusBoxW + '，块高 ' + b.h);
         }
@@ -761,12 +833,13 @@ async function runViewport(vp) {
         TABLE.push({
           id: b.id, state: b.state, V: vp.w, block: b.w + '×' + b.h, left: b.left, C: b.colW, gutter: b.colLeft,
           avail: Math.round((b.colW - 2 * b.edge) * 100) / 100,
-          updH: b.updAppH, updTop: b.updTop,
+          areaH: b.areaH, areaTop: b.areaTop, gapVer: b.gapVerToBtn, gapBtn: b.gapBtnToStatus, gapRepo: b.gapStatusToRepo,
           statusText: b.statusText, statusLines: b.statusLines, statusW: b.statusW,
-          btn: b.btnText, btnDisabled: b.btnDisabled, btnTop: b.btnTop, statusTop: b.statusTop, btnW: b.btnW,
-          btnH: Math.round((b.btnBottom - b.btnTop) * 100) / 100,
-          statusH: Math.round((b.statusBottom - b.statusTop) * 100) / 100,
-          gap: Math.round((b.statusTop - b.btnBottom) * 100) / 100,
+          btn: b.btnText, btnDisabled: b.btnDisabled,
+          btnW: b.btnW, btnH: b.btnH, btnTop: b.btnTop, statusTop: b.statusTop,
+          borderEls: b.scan.borderEls.length, bgEls: b.scan.bgEls.length, shadowEls: b.scan.shadowEls.length,
+          radiusEls: b.scan.radiusEls.length, headings: b.scan.headings.length, hrs: b.scan.hrs.length, divs: b.scan.dividerEls.length,
+          sameParent: b.sameParent, colKids: b.colKids.join(','),
         });
       });
     }
@@ -808,13 +881,15 @@ say('── 跨视口：字号／行高／字距不随视口缩放 ──');
 say('');
 say('── 每块实测几何（视口 ' + (TABLE.length ? TABLE[0].V : '?') + '；默认态＝六块并列）──');
 if (TABLE.length) {
-  say('| 块 | 状态 | 块宽×高 | 更新块高 | 更新块距块顶 | C | 列外余白 | 可用 | 状态文案 | 行数 | 最长行宽 | 按钮文字(距块内顶／高／宽) | 状态文本(距块内顶／高／缝) |');
+  say('| 块 | 状态 | 块宽×高 | 这一处高 | C | 列外余白 | 行文本可用 | 状态文案 | 行数 | 最长行宽 | 按钮(距块顶／高／宽) | 去框扫描(框/底/影/圆/标/hr/线) | 父级 |');
   say('| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
   TABLE.forEach((t) => {
-    say('| ' + t.id + ' | ' + t.state + ' | ' + t.block + ' | ' + t.updH + ' | ' + t.updTop + ' | ' + t.C + ' | ' + t.gutter + ' | ' + t.avail
+    say('| ' + t.id + ' | ' + t.state + ' | ' + t.block + ' | ' + t.areaH + ' | ' + t.C + ' | ' + t.gutter + ' | ' + t.avail
       + ' | "' + t.statusText + '" | ' + t.statusLines + ' | ' + t.statusW + ' | ' + t.btn + (t.btnDisabled ? '(禁用)' : '') + '（' + t.btnTop + '／' + t.btnH + '／' + t.btnW + '）'
-      + ' | ' + t.statusTop + '／' + t.statusH + '／' + t.gap + ' |');
+      + ' | ' + [t.borderEls, t.bgEls, t.shadowEls, t.radiusEls, t.headings, t.hrs, t.divs].join('/') + ' | ' + (t.sameParent ? '同一 .col' : '不是') + ' |');
   });
+  say('');
+  say('间距（430）：版本组→按钮 ' + (TABLE[0] ? TABLE[0].gapVer : '?') + '｜按钮→状态文本 ' + (TABLE[0] ? TABLE[0].gapBtn : '?') + '｜状态文本→仓库 ' + (TABLE[0] ? TABLE[0].gapRepo : '?') + '（单位 px）');
 }
 
 say('');
