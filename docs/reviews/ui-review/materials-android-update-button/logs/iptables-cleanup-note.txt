@@ -1,0 +1,12 @@
+本会话为「一次点击 = 几个请求」的可点区实测，临时用 root 建了一条**只计数、不改判决**的链：
+    iptables -N SOPHO_CNT
+    iptables -A SOPHO_CNT -p tcp --dport 443 --syn -m owner --uid-owner 10217 -j RETURN   # 只数 SYN
+    iptables -A SOPHO_CNT -p tcp --dport 443 -m owner --uid-owner 10217 -j RETURN         # 数其余出向包
+    iptables -I OUTPUT 1 -j SOPHO_CNT        # 每个包进链后立刻 RETURN 回 OUTPUT 原位置 ⇒ 原有规则顺序不变
+测完已删除：
+    iptables -D OUTPUT -j SOPHO_CNT ; iptables -F SOPHO_CNT ; iptables -X SOPHO_CNT
+核对：`iptables-save` 的 **规则集合**与建链前完全一致（diff 只剩包计数、时间戳、以及 netd 自己会变的
+idletimer label / routectrl mark / nflog prefix 这三处动态值），OUTPUT 链恢复为原 4 条：
+oem_out / fw_OUTPUT / st_OUTPUT / bw_OUTPUT。
+（对照文件：iptables-before.txt = 建链前；iptables-after-cleanup.txt = 删链后。）
+随后 `adb -s emulator-5556 unroot` 把 adbd 恢复成 shell（uid=2000）。

@@ -217,6 +217,52 @@ class ScreenInventoryTest {
         assertFalse("不得再拼「来源：」", code.contains("来源："))
     }
 
+    @Test
+    fun aboutScreen_putsTheButtonAboveTheStatusLine() {
+        // 用户 2026-10-16 确认的次序：**上方按钮＋下方一段状态文本**（原地替换）。
+        // 本轮任务书曾把这条写成「label 在按钮上方」并由用户当场纠正 ⇒ 在此钉死，防倒过来。
+        val about = body("AboutScreen")
+        val button = about.indexOf("UpdateButton(")
+        val status = about.indexOf("update-status")
+        assertTrue("关于页必须同时有按钮与状态行", button >= 0 && status >= 0)
+        assertTrue("按钮必须在上、状态文本在下（不许颠倒）", button < status)
+    }
+
+    /**
+     * 「检查更新」按钮的**边框与底色必须画在同一个 box 上**。
+     *
+     * 背景（用户在看页面上报的真实缺陷）：背景矩形与外框之间**上下各有一条暗缝**。
+     * 已核的根因（本机缓存里 `material3-android-1.3.2` 的 `SurfaceKt$Surface$2` 字节码 + 模拟器实测）：
+     * 可点 `Surface` 的链是 `modifier.minimumInteractiveComponentSize().surface(shape, color, border, …)`，
+     * 而 `surface(...)` 内部是 `border(border, shape) → background(color, shape) → clip(shape)`
+     * ——**底色与边框同一个 draw 节点、同一 bounds**。所以把边框写在按钮**外面的**
+     * `Modifier.border(...)` 上时，它会跟着 `minimumInteractiveComponentSize()` 被撑到最小交互高度
+     * 48dp，而按钮自己的 Surface 只有内容高度 40dp（`ButtonDefaults.MinHeight`）
+     * ⇒ 上下各露出约 4dp 页面底色 = 那两条暗缝（实测：边框盒 126px、底色盒 105px，density 2.625）。
+     *
+     * 这是**源码级守卫**——屏幕观感本身在设备上看，取证与像素测量见
+     * `docs/reviews/ui-review/materials-android-update-button/`。
+     */
+    @Test
+    fun updateButton_drawsItsBorderOnTheSameBoxAsItsBackground() {
+        val button = body("UpdateButton")
+        assertTrue(
+            "边框必须交给按钮自己的 Surface（border = BorderStroke(...)，与 containerColor 同节点）",
+            button.contains("border = BorderStroke("),
+        )
+        assertFalse(
+            "边框不得画在外层 Modifier 链上：那会跟着最小交互尺寸被撑到 48dp，露出暗缝",
+            button.contains(".border("),
+        )
+        // 不许用的手段（用户明确不要）：外卡片／双边框（外层再加底色），也不许硬裁
+        assertFalse("不得在外层再加一层底色／外卡片", button.contains(".background("))
+        assertFalse("不得硬裁（clip）", button.contains(".clip("))
+        // 行为不许退化：检查中禁用仍由 enabled 参数接线；四个字与唯一一次 onClick 不变
+        assertTrue("检查中禁用必须仍由 enabled 传入", button.contains("enabled = enabled"))
+        assertTrue("按钮文字仍是「检查更新」", button.contains("\"检查更新\""))
+        assertEquals("onClick 只接一次", 1, Regex("""onClick = onClick""").findAll(button).count())
+    }
+
     // ── 系统返回（BackHandler，用户 2026-10-16 实测「按返回直接退出 app」）───────────────
 
     /**
