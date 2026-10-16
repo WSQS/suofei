@@ -21,7 +21,7 @@
 
 ## 相关材料
 
-- `items/content-format/prototypes/a-route/`（A 路线整合待审稿：详情＝一个 Markdown 文本字段）
+- 当前内容规则稿：`items/content-format/prototypes/rules-v3/`（补中文目录/文件名及路径ID的后继材料）。A首稿、v2分别在 `items/content-format/history/round-2026-10-15-a-route-draft/`、`round-2026-10-15-a-route-v2/`，不继续当待审稿。
 - 候选实现（未采纳）：`#/p/<id>/detail`
 
 ⚠ **理解与采纳锚由对话侧维护**（本文件由调度侧建骨架）。

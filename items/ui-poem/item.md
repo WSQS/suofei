@@ -10,7 +10,7 @@
 
 本轮用户明确选择 P1基线与P2选项A（见下表），但又明确要求进一步看水平对齐与宽度自适应原型。因此垂直主次与顶部入口方向可作为下一轮输入，不能外推为整页或所有宽度已获批准。
 
-采纳材料：父项 `items/app-ui/prototypes/q-poem.md` 与 `q-poem.head.*`／`q-poem.entries.*`。具体内容字段仍在 `content-format` 讨论，本页原型不替它决定。
+采纳材料：`items/app-ui/history/round-2026-10-15-poem-expression/` 内的 `q-poem.md`、`q-poem.head.*`、`q-poem.entries.*`。具体内容字段仍在 `content-format` 讨论，本页原型不替它决定。
 
 ## 已选（采纳锚，2026-10-15）
 
@@ -30,9 +30,9 @@
 
 ## 最新采纳：诗页全部居中
 
-用户看补充原型后明确：「诗页全部居中就挺好的」。**采纳 `items/app-ui/prototypes/q-poem-align.html#d4-all`（维度四④a）**：题名、身份行、诗文每一行均居中；不是只把容器居中而文字左齐，也不是仅题头居中。顶部工具栏继承已选返回左/详情右，不参与居中。P1字号/字距/行高/竖向间距继续有效。
+用户看补充原型后明确：「诗页全部居中就挺好的」。**采纳 `items/app-ui/history/round-2026-10-15-poem-align/q-poem-align.html#d4-all`（维度四④a）**：题名、身份行、诗文每一行均居中；不是只把容器居中而文字左齐，也不是仅题头居中。顶部工具栏继承已选返回左/详情右，不参与居中。P1字号/字距/行高/竖向间距继续有效。
 
-该选择收口原型中的主要水平表达方向，不把夹具长题名/长诗句的具体断行算法、所有宽度的行为或有笔记入口位置自动当作已选；长行/窄屏需与宽度原型联合核验。旧的水平备选保留为历史比较，不继续要求用户在它们之间重选。该轮由负责人在后继材料接管后整轮归档、修引用与依赖；此处指针暂指实际当前路径。
+该选择收口原型中的主要水平表达方向，不把夹具长题名/长诗句的具体断行算法、所有宽度的行为或有笔记入口位置自动当作已选；长行/窄屏需与宽度原型联合核验。旧的水平备选保留为历史比较，不继续要求用户在它们之间重选。该轮已整轮归档；与宽度合并的效果在 `items/app-ui/history/round-2026-10-16-width-pct/q-width-pct.html`，不再使用归档前路径。
 
 ## 上轮反馈（已由上述采纳收口）：水平轮需补充全部居中
 
@@ -49,7 +49,7 @@
 ## 相关轮次与材料
 
 - 已定轮（记录）：`items/app-ui/history/round-2026-10-15-poem-expression/`
-- 在 `items/app-ui/prototypes/`：`q-poem.head.*`、`q-poem.entries.*`、`check-poem.mjs`；下一轮 `q-poem-align.*`
+- 主次/入口轮：`items/app-ui/history/round-2026-10-15-poem-expression/`；对齐轮：`items/app-ui/history/round-2026-10-15-poem-align/`；合并宽度轮：`items/app-ui/history/round-2026-10-16-width-pct/`。完整位置查 `docs/status.md` 归档轮次索引。
 - 相关：`IF-45`（返回目录恢复滚动位置）；详情页见 `ui-detail`
 
 ⚠ **理解与采纳锚由对话侧维护**（本文件由调度侧建骨架）。

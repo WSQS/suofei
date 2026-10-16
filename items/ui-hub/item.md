@@ -28,7 +28,7 @@
 ## 相关轮次与材料
 
 - 已归档（记录）：`items/app-ui/history/round-2026-10-15-hub-hierarchy/`、`…/round-2026-10-15-hub-horizontal/`、`…/round-2026-10-15-hub-align/`
-- 在 `items/app-ui/prototypes/`：`q-hub-align.*`（对齐轮材料，用户未要求搬）、`q-visual-direction.md`
+- 目录对齐材料：`items/app-ui/history/round-2026-10-15-hub-align/q-hub-align.*`；与宽度合并材料：`items/app-ui/history/round-2026-10-16-width-pct/q-width-pct.html`。完整位置查 `docs/status.md` 的归档轮次索引。
 - 接口：`IF-44`（组层可折叠）
 
 ⚠ **理解与采纳锚由对话侧维护**（本文件由调度侧建骨架）。
