@@ -13,7 +13,7 @@ import {
 } from './content.js';
 import { APP_VERSION, HONEST_STORAGE_NOTE, ROUTES, resourceCacheName } from './config.js';
 import {
-  productOrderStatus, renderAboutPage, renderDetailPage, renderIndex, renderPoemPage,
+  productOrderStatus, relayoutPoemBody, renderAboutPage, renderDetailPage, renderIndex, renderPoemPage,
 } from './render.js';
 
 const els = {
@@ -48,6 +48,29 @@ const state = {
 };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** 目录页「组」展开状态（IF-44）。
+ *  存在会话里而不是 DOM 里：从诗页返回目录时重新渲染目录，展开状态不能丢
+ *  ——否则 IF-45「返回目录恢复原滚动位置」会因为内容高度突然变矮而失效。 */
+const indexExpanded = new Set();
+
+/** 列宽口径（用户 2026-10-15/16 选定，采纳锚 round-2026-10-16-width-pct）：
+ *  `C = min(V, max(320, 0.88 × (V − 24)))`，`24` 是**一次性扣除总量**（不是左右各 12）。
+ *  这里用 JS 算成 `--c` 写进根元素（CSS 里那份是 JS 未跑时的兜底）；
+ *  `V` 取 **`window.innerWidth`＝视口宽**（与原型量测口径一致）。
+ *  ⚠ 刻意**不用** `documentElement.clientWidth`：那个值会在页面长到出现滚动条时变小，
+ *    导致列宽随“是否需要滚动条”而跳（且与原型口径不同）。 */
+function applyColumnWidth() {
+  const v = window.innerWidth;
+  const c = Math.min(v, Math.max(320, 0.88 * (v - 24)));
+  document.documentElement.style.setProperty('--c', `${c}px`);
+}
+
+/** 视口变化：先重算列宽，再重算当前诗页的视觉折行（纯重排）。 */
+function onViewportResize() {
+  applyColumnWidth();
+  relayoutPoemBody();
+}
 
 const ERROR_HINTS = {
   network: '首次访问必须联网；联网后重试即可。已经缓存过本站的浏览器离线也能读。',
@@ -208,7 +231,12 @@ function renderView() {
       onBack: () => navigate(ROUTES.index),
     }));
   } else {
-    els.view.append(renderIndex(state.doc, { onOpen, onAbout: () => navigate(ROUTES.about) }));
+    els.view.append(renderIndex(state.doc, {
+      onOpen,
+      onAbout: () => navigate(ROUTES.about),
+      isExpanded: (key) => indexExpanded.has(key),
+      onToggle: (key, open) => { if (open) indexExpanded.add(key); else indexExpanded.delete(key); },
+    }));
   }
 }
 
@@ -349,6 +377,8 @@ function renderChrome() {
 function render() {
   renderView();
   renderChrome();
+  // 诗页刚挂进 DOM，此时才算得出真实列宽 ⇒ 在这里做一次语义折行（挂前进 DOM 时 clientWidth = 0）。
+  relayoutPoemBody();
 }
 
 // ---------------------------------------------------------------- 内容装载
@@ -546,6 +576,7 @@ async function refreshPersist() {
 // ---------------------------------------------------------------- 启动
 
 async function boot() {
+  applyColumnWidth();
   state.view = parseHash();
   state.loading = true;
   render();                       // 外壳 + 「正在取内容…」先出来，不被内容阻塞
@@ -569,6 +600,13 @@ window.addEventListener('hashchange', () => {
 });
 window.addEventListener('online', () => { state.online = true; renderChrome(); });
 window.addEventListener('offline', () => { state.online = false; renderChrome(); });
+// 视口变化：列宽与语义折行都要重算（字号/行高/字距不随宽度变，只重排列）。
+let resizeScheduled = false;
+window.addEventListener('resize', () => {
+  if (resizeScheduled) return;
+  resizeScheduled = true;
+  requestAnimationFrame(() => { resizeScheduled = false; onViewportResize(); });
+});
 
 // 测试钩子：给无头浏览器断言用（不影响正常阅读）。
 window.__app = {
@@ -588,7 +626,7 @@ window.__app = {
       hasDoc: Boolean(state.doc),
       contentVersion: state.doc?.contentVersion ?? null,
       poems: state.doc ? state.doc.poems.length : 0,
-      dynasties: state.doc ? state.doc.dynasties.map((d) => d.key) : [],
+      dynasties: state.doc ? state.doc.dynasties : [],
       formatVersion: state.doc?.formatVersion ?? null,
       error: state.error,
       view: state.view,

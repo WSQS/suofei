@@ -29,9 +29,10 @@ import {
 } from '../app/content.js';
 import { ABOUT, APP_VERSION, CONTENT_URL, HONEST_STORAGE_NOTE, ROUTES, resourceCacheName } from '../app/config.js';
 import {
-  comparePoems, groupPoems, hasProductOrder, isUnknownAuthor, productOrderStatus, UNKNOWN_AUTHORS,
+  breakPoemLine, comparePoems, groupPoems, hasProductOrder, isUnknownAuthor, productOrderStatus, UNKNOWN_AUTHORS,
 } from '../app/render.js';
 import { buildVariants } from '../scripts/lib/variants.mjs';
+import { isFormatV2, upgradeToFormatV2 } from '../scripts/lib/upgrade-content.mjs';
 import { DEPLOY_FILES, DEPLOY_TEXT_FILES, makeDeployment } from './lib/deploy.mjs';
 
 const webRoot = fileURLToPath(new URL('..', import.meta.url));
@@ -122,11 +123,11 @@ async function fetchOk(url, timeoutMs = 15000) {
 
 // ------------------------------------------------------------------ oracle（独立于 app 代码）
 
-/** 期望的目录次序：组的次序照产物 dynasties 数组，组内照产物 poems 数组次序。 */
+/** 期望的目录次序：组的次序照顶层 `dynasties`（有序中文值数组），组内照 `poems` 数组次序。 */
 function expectedDomOrder(doc) {
   const out = [];
   for (const d of doc.dynasties) {
-    for (const p of doc.poems) if (p.dynastyKey === d.key) out.push(p.id);
+    for (const p of doc.poems) if (p.dynasty === d) out.push(p.id);
   }
   return out;
 }
@@ -135,11 +136,11 @@ function expectedDomOrder(doc) {
 function fallbackOrder(doc) {
   const byD = new Map();
   for (const p of doc.poems) {
-    if (!byD.has(p.dynastyKey)) byD.set(p.dynastyKey, []);
-    byD.get(p.dynastyKey).push(p);
+    if (!byD.has(p.dynasty)) byD.set(p.dynasty, []);
+    byD.get(p.dynasty).push(p);
   }
   const out = [];
-  for (const d of doc.dynasties) out.push(...(byD.get(d.key) ?? []).slice().sort(comparePoems).map((p) => p.id));
+  for (const d of doc.dynasties) out.push(...(byD.get(d) ?? []).slice().sort(comparePoems).map((p) => p.id));
   return out;
 }
 
@@ -234,6 +235,21 @@ async function waitFor(expression, { label = expression, timeout = 25000, interv
 
 const APP_READY = 'Boolean(window.__app && window.__app.ready)';
 const waitForIndex = () => waitFor(`Boolean(document.querySelector('[data-test="view-index"]'))`, { label: '目录视图' });
+
+/** 目录首态**全部收起**（IF-44）⇒ 需要读诗目的地方先把各组展开。幂等。 */
+async function expandAllGroups() {
+  await waitFor(`Boolean(document.querySelector('[data-test="dynasty-group-title"]'))`, { label: '目录里有组头' });
+  await evaluate(`(() => {
+    for (const b of document.querySelectorAll('[data-test="dynasty-group-title"]')) {
+      if (b.getAttribute('aria-expanded') !== 'true') b.click();
+    }
+    return true;
+  })()`);
+  await waitFor(`[...document.querySelectorAll('[data-test="dynasty-group"]')]`
+    + `.every(g => !g.querySelector('[data-test="poem-list"]').hidden)`, { label: '目录各组已展开' });
+}
+
+const waitForIndexExpanded = async () => { await waitForIndex(); await expandAllGroups(); };
 const waitForPoemView = (id) => waitFor(
   `Boolean(document.querySelector('[data-test="view-poem"][data-poem-id=${JSON.stringify(id)}]'))`,
   { label: `诗页 ${id}` },
@@ -386,20 +402,38 @@ function unitTests(baseDoc, variants) {
   check('结构不合法的内容被拒（并给出可读条目）', bad.ok === false && bad.errors.length >= 2, bad.errors.join(' / '));
   check('非对象内容被拒', validateContent('nope').ok === false);
 
-  // variants：解析 + 结构校验照旧；渲染位置在 2026-10-15 变了 ——
-  //    诗页**不得**出现（反向断言在 §1c）；**详情页必须逐条出现**（正断言在 §1c-2）。
-  const withVariants = baseDoc.poems.filter((p) => (p.variants ?? []).length > 0);
-  check('真实产物里确实带着异文（只校验解析；渲染位置见 §1c / §1c-2）', withVariants.length > 0,
-    `${withVariants.length} 首有异文，共 ${withVariants.reduce((a, p) => a + p.variants.length, 0)} 条`);
-  const badVariants = structuredClone(baseDoc);
-  badVariants.poems[0].variants = [{ text: '' }, 'nope'];
-  const bv = validateContent(badVariants);
-  check('variants 形状不对 → 结构校验仍然失败（只是不渲染，不是不校验）',
+  // 字段集（formatVersion 2）：顶层 dynasties ＝有序中文值数组；每首 10 键。
+  //    诗页**不得**出现详情文本（反向断言在 §1c）；**详情页必须渲染**（正断言在 §1c-2）。
+  const KEY_SET = ['id', 'title', 'author', 'dynasty', 'genre', 'source', 'orderInSource', 'detail', 'stanzas', 'notes'];
+  const keySetOk = baseDoc.poems.every((p) => Object.keys(p).length === KEY_SET.length && KEY_SET.every((k) => k in p));
+  check('每首恰好 10 键（id/title/author/dynasty/genre/source/orderInSource/detail/stanzas/notes）', keySetOk,
+    dump(baseDoc.poems.map((p) => Object.keys(p)).filter((ks) => ks.length !== KEY_SET.length || !KEY_SET.every((k) => ks.includes(k)))));
+  check('顶层 dynasties 是**有序中文值数组**',
+    baseDoc.dynasties.length > 0 && baseDoc.dynasties.every((d) => typeof d === 'string' && d !== ''), dump(baseDoc.dynasties));
+  check('组名精确匹配：每首 dynasty 都在顶层 dynasties 里',
+    baseDoc.poems.every((p) => baseDoc.dynasties.includes(p.dynasty)),
+    dump([...new Set(baseDoc.poems.map((p) => p.dynasty).filter((d) => !baseDoc.dynasties.includes(d)))]));
+
+  const withDetail = baseDoc.poems.filter((p) => typeof p.detail === 'string' && p.detail.trim() !== '');
+  check('真实产物里确实带着详情文本（detail 字段；渲染位置见 §1c / §1c-2）', withDetail.length > 0,
+    `${withDetail.length}/${baseDoc.poems.length} 首有 detail`);
+  check('真实产物里没有任何 variants 字段（新形状已不发布它）',
+    baseDoc.poems.every((p) => !('variants' in p)), dump(baseDoc.poems.filter((p) => 'variants' in p).map((p) => p.id)));
+  const badDetail = structuredClone(baseDoc);
+  badDetail.poems[0].detail = 123;
+  badDetail.poems[1].notes = 456;
+  const bv = validateContent(badDetail);
+  check('detail/notes 形状不对 → 结构校验仍然失败（不只是不渲染）',
     bv.ok === false && bv.errors.length >= 2, bv.errors.join(' / '));
+  const badDynasty = structuredClone(baseDoc);
+  badDynasty.poems[0].dynasty = '不存在的朝代';
+  const bd = validateContent(badDynasty);
+  check('dynasty 未在顶层声明 → 结构校验失败（组名精确匹配）',
+    bd.ok === false && bd.errors.some((e) => e.includes('dynasty')), bd.errors.join(' / '));
   const future = checkCompatibility(variants.futureFormat.doc);
   check('格式版本更高 → 判定为部署不一致', future.ok === false && future.message.includes('部署不一致'), future.message);
   check('格式版本更低 → 也判不兼容', checkCompatibility({ formatVersion: 0 }).ok === false);
-  eq('支持的内容格式版本', SUPPORTED_FORMAT_VERSION, 1);
+  eq('支持的内容格式版本（字段集升版 1 → 2，用户 2026-10-15 定）', SUPPORTED_FORMAT_VERSION, 2);
 
   section('0b 次序策略：产物带了 orderInSource 时一律不重排（回归）');
   eq('真实产物被判定为「产物次序权威」', hasProductOrder(baseDoc), true);
@@ -455,10 +489,10 @@ function unitTests(baseDoc, variants) {
   // 故意只用**无论清单怎么改都确定**的名字，不依赖清单文件是否存在：
   // 苏轼/杨万里 一定是具名作者；佚名 一定是未知作者；空串一定是空白作者。
   const anonDoc = {
-    dynasties: [{ key: 'song', label: '宋', order: 500 }],
+    dynasties: ['宋'],
     poems: ['苏轼', '杨万里', '佚名', ''].map((author, i) => ({
-      id: `t-${i}`, title: `戏题${i}`, author, dynastyKey: 'song', dynastyLabel: '宋',
-      dynastyOrder: 500, orderInSource: null, stanzas: [['一']], notes: null,
+      id: `t-${i}`, title: `戏题${i}`, author, dynasty: '宋',
+      genre: null, source: null, orderInSource: null, detail: null, stanzas: [['一']], notes: null,
     })),
   };
   const orderedAuthors = groupPoems(anonDoc)[0].poems.map((p) => p.author);
@@ -487,6 +521,21 @@ function unitTests(baseDoc, variants) {
     !ROUTES.poemPattern.test('/p/abc/detail'), dump(ROUTES.poemPattern.exec('/p/abc/detail')));
   eq('详情页模式抓到的 id', ROUTES.detailPattern.exec('/p/abc/detail')?.[1], 'abc');
   check('/about 不匹配诗页模式', !ROUTES.poemPattern.test('/about'));
+
+  section('0j 语义折行（用户 2026-10-16 逐项确认的规则，纯函数钉住）');
+  // 用确定性的合成量尺（每字符 1 单位）验规则，不依赖字体度量：
+  //  1 够宽保原行・2 多标点取「放得下范围内最后那个句读」・3 无标点/半句超宽⇒行尾字符断・4 标点不起行。
+  const m1 = (t) => t.length;
+  eq('够宽就保原行（不折）', breakPoemLine('行行重行行，与君生别离。', 12, m1), ['行行重行行，与君生别离。']);
+  eq('超宽：在句读后断（标点归前句），与用户给的例子逐字一致',
+    breakPoemLine('行行重行行，与君生别离。', 8, m1), ['行行重行行，', '与君生别离。']);
+  eq('多个标点：取当前行放得下范围内**最后**那个句读',
+    breakPoemLine('甲乙丙丁；戊己庚辛，壬癸子丑', 10, m1), ['甲乙丙丁；戊己庚辛，', '壬癸子丑']);
+  eq('无标点 ⇒ 行尾字符断，余文续行', breakPoemLine('甲乙丙丁戊己庚辛壬癸', 4, m1), ['甲乙丙丁', '戊己庚辛', '壬癸']);
+  eq('避免收尾标点起行：必要时前一字连标点一起下移',
+    breakPoemLine('甲乙丙丁，戊', 4, m1), ['甲乙丙', '丁，戊']);
+  check('折行不删字/不加字（拼接后与原文逐字相同）',
+    breakPoemLine('行行重行行，与君生别离。甲乙丙丁戊', 5, m1).join('') === '行行重行行，与君生别离。甲乙丙丁戊');
 }
 
 /** 「内容必须单独取、不许内联」的自证 + 体积报告。 */
@@ -621,14 +670,25 @@ async function main() {
     const code = await new Promise((r) => child.on('exit', r));
     if (code !== 0) throw new Error('tools/build-content.mjs 编译失败');
   }
-  const baseText = await readFile(distPath, 'utf8');
-  const baseDoc = JSON.parse(baseText);
+  const baseTextRaw = await readFile(distPath, 'utf8');
+  const baseRaw = JSON.parse(baseTextRaw);
+  // 字段集升版（1 → 2）由另一条线在 tools/ 落地；在它合并进来之前，本地 dist 仍是 v1 老形状。
+  // Web 端已只认 2 ⇒ 这里用过渡适配升到 2（幂等；编译器一旦产出 v2 就是直通）。
+  let baseDoc;
+  let baseText;
+  if (isFormatV2(baseRaw)) {
+    baseDoc = baseRaw;
+    baseText = baseTextRaw;
+  } else {
+    baseDoc = upgradeToFormatV2(baseRaw);
+    baseText = `${JSON.stringify(baseDoc, null, 2)}\n`;
+    console.log('  基座是 formatVersion 1（编译器升版还没合并）⇒ 用过渡适配升到 2 再测');
+  }
   const total = baseDoc.poems.length;
   console.log(`\n基座内容：dist/content.json（真实产物）`);
   console.log(`  formatVersion=${baseDoc.formatVersion} contentVersion=${baseDoc.contentVersion} poems=${total}`
-    + ` dynasties=${baseDoc.dynasties.map((d) => d.key).join(',')}`);
-  console.log(`  基座是否还带两个拼音名次键：${baseDoc.poems.some((p) => 'authorSortKey' in p || 'titleSortKey' in p)
-    ? '还带着（C 线的移除还没到 master；客户端已不读）' : '已移除'}`);
+    + ` dynasties=${baseDoc.dynasties.join(',')}`);
+  console.log(`  基座每首键集：${Object.keys(baseDoc.poems[0]).join(',')}`);
 
   const variants = buildVariants(baseDoc);
   for (const [k, v] of Object.entries(variants)) console.log(`  变体 ${k}: ${v.note}`);
@@ -669,6 +729,8 @@ async function main() {
   await assertPortFree(DEBUG_PORT, 'CDP 调试端口');
   chrome = spawn(CHROME_BIN, [
     '--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
+    // 隐藏滚动条：与原型量测口径一致（视口宽＝布局宽），列宽公式/居中都用 V=innerWidth。
+    '--hide-scrollbars',
     '--disable-background-networking', '--disable-component-update', '--disable-sync',
     '--remote-allow-origins=*', '--window-size=900,1100',
     `--remote-debugging-port=${DEBUG_PORT}`, `--user-data-dir=${userDataDir}`,
@@ -730,6 +792,23 @@ async function main() {
 
   await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
   await waitFor(`${APP_READY} && Boolean(document.querySelector('[data-test="view-index"]'))`, { label: '内容到达并渲染目录' });
+  // IF-44（用户 2026-10-15 定）：组这一层可折叠，且**首态全部收起**（单组也收起）——先查后展开。
+  const firstState = await evaluate(`(() => {
+    const heads = [...document.querySelectorAll('[data-test="dynasty-group-title"]')];
+    return {
+      groups: heads.length,
+      allCollapsed: heads.length > 0 && heads.every(b => b.getAttribute('aria-expanded') === 'false'),
+      visibleRows: [...document.querySelectorAll('[data-test="poem-row"]')].filter(r => r.offsetParent !== null).length,
+      marks: heads.map(b => b.querySelector('[data-test="group-mark"]').textContent),
+    };
+  })()`);
+  check('目录首态：组头是 `<button type=button>` ＋ aria-expanded=false（可折叠层，IF-44）',
+    firstState.groups > 0 && firstState.allCollapsed, dump(firstState));
+  eq('目录首态：可见诗目 0 行（首态全部收起，单组也收起）', firstState.visibleRows, 0);
+  check('收起时记号＝[+]', firstState.marks.every((m) => m === '[+]'), dump(firstState.marks));
+  await expandAllGroups();
+  const expandedMarks = await evaluate(`[...document.querySelectorAll('[data-test="group-mark"]')].map(e => e.textContent)`);
+  check('展开后记号＝[−]', expandedMarks.every((m) => m === '[−]'), dump(expandedMarks));
   let s = await summary();
   eq('站点标题（用户拍板的展示名）', await evaluate('document.title'), '索斐');
   eq('站点资源版本', s.appVersion, APP_VERSION);
@@ -771,8 +850,8 @@ async function main() {
 
 
   // ------------------------------------------------ 1c 诗页渲染（真实内容）
-  section('1c 诗页渲染：正文分行/分节；**底本/来源已搬去详情页**；**异文不上诗页**（用户 2026-10-15）');
-  const p1 = baseDoc.poems[0];                                             // 行行重行行：8 行、3 条异文
+  section('1c 诗页渲染：全部居中／语义折行／无笔记整块隐藏；考据与来源搬去详情页');
+  const p1 = baseDoc.poems[0];                                             // 行行重行行：8 行
   await hashTo(`#/p/${p1.id}`);
   await waitForPoemView(p1.id);
   eq('逐行文本与 JSON 完全一致',
@@ -781,72 +860,137 @@ async function main() {
   eq('每节的行数',
     await evaluate(`[...document.querySelectorAll('[data-test="stanza"]')].map(s => s.querySelectorAll('[data-test="poem-line"]').length)`),
     p1.stanzas.map((x) => x.length));
+  eq('这些宽度下没有视觉折行（每个印刷行恰 1 个视觉行；折行规则另在 §0j 用纯函数钉住）',
+    await evaluate(`[...document.querySelectorAll('[data-test="poem-line"]')].every(e => e.dataset.visualIndex === '0')`), true);
   eq('行元素 white-space=pre-wrap（防止行内空白被折叠）',
     await evaluate(`getComputedStyle(document.querySelector('[data-test="poem-line"]')).whiteSpace`), 'pre-wrap');
-  eq('题下那行（时代 · 作者 · 年代 · 体裁）与 Android 的取值与顺序一致',
+
+  // 全部居中（用户 2026-10-15 选 q-poem-align#d4-all）：题名／身份行／正文每一行都居中；
+  // 顶部行**不参与居中**（返回左／详情右）。
+  const centerInfo = await evaluate(`(() => ({
+    title: getComputedStyle(document.querySelector('[data-test="poem-title"]')).textAlign,
+    meta: getComputedStyle(document.querySelector('[data-test="poem-meta"]')).textAlign,
+    lines: [...document.querySelectorAll('[data-test="poem-line"]')].map(e => getComputedStyle(e).textAlign),
+    topRow: getComputedStyle(document.querySelector('[data-test="top-row"]')).justifyContent,
+  }))()`);
+  eq('题名居中', centerInfo.title, 'center');
+  eq('身份行居中', centerInfo.meta, 'center');
+  check('正文每一行都居中', centerInfo.lines.length > 0 && centerInfo.lines.every((t) => t === 'center'), dump(centerInfo.lines));
+  eq('顶部行两端展开（返回左／详情右，不参与居中）', centerInfo.topRow, 'space-between');
+
+  // 「真居中」不只查 text-align：用**文字盒**（Range）量每一行的中心与列中心之差（锚实测 0px；容差 ±1px）。
+  const poemCentering = await evaluate(`(() => {
+    const host = document.getElementById('view');
+    const hr = host.getBoundingClientRect();
+    const colCenter = (hr.left + hr.right) / 2;
+    const textRect = (el) => { const r = document.createRange(); r.selectNodeContents(el); return r.getBoundingClientRect(); };
+    const dev = (el) => { const r = textRect(el); return Math.abs((r.left + r.right) / 2 - colCenter); };
+    return {
+      title: dev(document.querySelector('[data-test="poem-title"]')),
+      meta: dev(document.querySelector('[data-test="poem-meta"]')),
+      lineMax: Math.max(...[...document.querySelectorAll('[data-test="poem-line"]')].map(dev)),
+    };
+  })()`);
+  check('题名文字盒中心 == 列中心（±1px）', poemCentering.title <= 1, dump(poemCentering));
+  check('身份行文字盒中心 == 列中心（±1px）', poemCentering.meta <= 1, dump(poemCentering));
+  check('正文每一个行盒中心 == 列中心（±1px；锚实测 0px）', poemCentering.lineMax <= 1, dump(poemCentering));
+
+  eq('身份行＝作者 · 朝代 · 体裁（随新字段走）',
     await evaluate(`document.querySelector('[data-test="poem-meta"]').textContent`),
-    [p1.dynastyLabel, p1.author, p1.era, p1.genre].filter(Boolean).join(' · '));
-  check('notes: null → 如实空状态，不伪造笔记', await evaluate(`Boolean(document.querySelector('[data-test="notes-empty"]'))`));
+    [p1.author, p1.dynasty, p1.genre].filter(Boolean).join(' · '));
+
+  // 笔记②：入口在顶部行、展开在正文下方内联无框；**无笔记整块隐藏**（用户 2026-10-16 定）。
+  const noNotes = await evaluate(`({
+    entry: Boolean(document.querySelector('[data-test="notes-entry"]')),
+    panel: Boolean(document.querySelector('[data-test="notes-inline"]')),
+    text: document.querySelector('[data-test="view-poem"]').innerText,
+  })`);
+  check('无笔记 ⇒ 整块隐藏（没有入口、没有面板）', noNotes.entry === false && noNotes.panel === false, dump(noNotes));
+  check('无笔记 ⇒ 诗页可见文本里没有「笔记」二字', !noNotes.text.includes('笔记'));
 
   // 用户 2026-10-15 定：诗页**不要底本与来源**，它已搬到诗歌详情页。
-  const poemHasSource = await evaluate(`Boolean(document.querySelector('[data-test="view-poem"] [data-test="source-block"]'))`);
-  check('诗页不再有底本/来源块（已搬到详情页）', poemHasSource === false);
+  check('诗页不再有底本/来源块（已搬到详情页）',
+    await evaluate(`Boolean(document.querySelector('[data-test="view-poem"] [data-test="source-block"]'))`) === false);
   check('诗页上没有「底本」字样',
     !(await evaluate(`document.querySelector('[data-test="view-poem"]').innerText`)).includes('底本'));
-  check('诗页有「详情」入口（指向这一首的考据与来源）',
-    await evaluate(`Boolean(document.querySelector('[data-test="poem-detail-link"]'))`));
+  check('诗页有「详情」入口（在顶部行右侧，与返回同一行）',
+    await evaluate(`Boolean(document.querySelector('[data-test="view-poem"] [data-test="top-row"] [data-test="poem-detail-link"]'))`));
   eq('「详情」入口的地址是 `#/p/<id>/detail`',
     await evaluate(`document.querySelector('[data-test="poem-detail-link"]').getAttribute('href')`), `#/p/${p1.id}/detail`);
 
-  // 关键反向断言：诗页不得出现异文文本（上线实测就是这条没覆盖到）。
-  // 这里对**每一首有异文的诗**都跑一遍（13 首；不是抽查），并加元素级断言：
-  // 诗页上不许有详情页那套 variant 元素（即使文本恰好与底本重合，也不利用子串蒙过）。
-  const poemsWithVariants = baseDoc.poems.filter((p) => (p.variants ?? []).length > 0);
-  for (const poem of poemsWithVariants) {
+  // 关键反向断言：诗页**不得出现详情正文**（detail 只在详情页渲染）。
+  // 对**每一首有 detail 的诗**都跑一遍（不是抽查），并加元素级断言。
+  const poemsWithDetail = baseDoc.poems.filter((p) => typeof p.detail === 'string' && p.detail.trim() !== '');
+  for (const poem of poemsWithDetail) {
     await hashTo(`#/p/${poem.id}`);
     await waitForPoemView(poem.id);
     const viewText = await evaluate(`document.querySelector('[data-test="view-poem"]').innerText`);
-    const variantTexts = (poem.variants ?? []).map((v) => v.text);
-    check(`[${poem.title}] 诗页上没有 variant 元素（${poem.variants.length} 条）`,
-      await evaluate(`document.querySelectorAll('[data-test="view-poem"] [data-test="detail-variant"]').length`) === 0);
-    check(`[${poem.title}] 诗页页面上没有任何 variants[].text（${variantTexts.join('、')}）`,
-      variantTexts.every((t) => !viewText.includes(t)), dump(variantTexts));
-    check(`[${poem.title}] 诗页不出现底本/来源原文`,
-      !viewText.includes(poem.source), dump([poem.source]));
-    // 用户 2026-10-15 拍板：诗的 id 不上界面（此前 Web 单方面多出「id」一行，跨端不一致）。
-    check(`[${poem.title}] 页面上不出现诗的 id（${poem.id}）`,
-      !viewText.includes(poem.id), dump({ id: poem.id }));
+    check(`[${poem.title}] 诗页上没有详情正文元素`,
+      await evaluate(`document.querySelectorAll('[data-test="view-poem"] [data-test="detail-body"]').length`) === 0);
+    check(`[${poem.title}] 诗页页面上没有详情里的「异文」小标题`, !viewText.includes('异文'), dump(poem.detail.slice(0, 24)));
+    check(`[${poem.title}] 诗页不出现底本/来源原文`, !viewText.includes(poem.source), dump([poem.source]));
+    // 用户 2026-10-15 拍板：诗的 id 不上界面。
+    check(`[${poem.title}] 页面上不出现诗的 id（${poem.id}）`, !viewText.includes(poem.id), dump({ id: poem.id }));
   }
   await hashTo(`#/p/${p1.id}`);
   await waitForPoemView(p1.id);
-  await pushDump('诗页（真实内容；底本/来源与异文都不在这页）');
-  await screenshot('03-poem-no-variants.png');
+  await pushDump('诗页（真实内容；考据/来源与详情正文都不在这页）');
+  await screenshot('03-poem-centered.png');
 
   // ------------------------------------------------ 1c-2 诗歌详情页（第四页）
-  section('1c-2 诗歌详情页：底本与来源 + **每一条** variants[].text（逐条、按序比对 24 条／13 首）');
-  eq('产物事实：带异文的诗 13 首、共 24 条',
-    [poemsWithVariants.length, poemsWithVariants.reduce((a, p) => a + p.variants.length, 0)], [13, 24]);
-  let seenVariants = 0;
-  for (const poem of poemsWithVariants) {
+  section('1c-2 诗歌详情页：诗题①左对齐 + 底本与来源①正文前带标签 + detail 的最小 Markdown 渲染');
+  const noDetailPoems = baseDoc.poems.filter((p) => !(typeof p.detail === 'string' && p.detail.trim() !== ''));
+  eq('产物事实：带 detail 的诗 13 首、没有 detail 的诗 6 首（升版时由 variants 合成）',
+    [poemsWithDetail.length, noDetailPoems.length], [13, 6]);
+  let seenH3 = 0;
+  let seenLi = 0;
+  for (const poem of poemsWithDetail) {
     await hashTo(`#/p/${poem.id}/detail`);
     await waitFor(
       `Boolean(document.querySelector('[data-test="view-detail"]'))`
       + ` && document.querySelector('[data-test="view-detail"]').dataset.poemId === ${JSON.stringify(poem.id)}`,
       { label: `详情页就位（${poem.title}）` },
     );
-    eq(`[${poem.title}] 详情页渲染的异文文本 == 产物 variants[].text（逐条、按序）`,
-      await evaluate(`[...document.querySelectorAll('[data-test="detail-variant-text"]')].map(e => e.textContent)`),
-      poem.variants.map((v) => v.text));
-    eq(`[${poem.title}] 每条异文的 note 也照产物渲染（逐条、按序）`,
-      await evaluate(`[...document.querySelectorAll('[data-test="detail-variant-note"]')].map(e => e.textContent)`),
-      poem.variants.map((v) => v.note || '（未记录）'));
     eq(`[${poem.title}] 详情页的底本与来源 == 产物 poem.source`,
       await evaluate(`document.querySelector('[data-test="detail-source"]').textContent`), poem.source || '未记录');
-    eq(`[${poem.title}] 详情页异文条目数 == 产物条数`,
-      await evaluate(`document.querySelectorAll('[data-test="detail-variant"]').length`), poem.variants.length);
-    seenVariants += await evaluate(`document.querySelectorAll('[data-test="detail-variant"]').length`);
+    const expectedH3 = [...poem.detail.matchAll(/^###\s+(.*)$/gm)].map((m) => m[1]);
+    const gotH3 = await evaluate(`[...document.querySelectorAll('[data-test="detail-body"] [data-test="md-h3"]')].map(e => e.textContent)`);
+    eq(`[${poem.title}] “### ”小标题逐条渲染`, gotH3, expectedH3);
+    const expectedLi = [...poem.detail.matchAll(/^-\s+(.*)$/gm)].map((m) => m[1].replace(/\*\*/g, ''));
+    const gotLi = await evaluate(`[...document.querySelectorAll('[data-test="detail-body"] [data-test="md-li"]')].map(e => e.textContent)`);
+    eq(`[${poem.title}] “- ”列表项逐条渲染（去掉 ** 后文本一致）`, gotLi, expectedLi);
+    seenH3 += gotH3.length;
+    seenLi += gotLi.length;
   }
-  eq('逐个详情页累加出来的**渲染**条数 == 产物里的 24 条（不是「页面不为空」、也不是照产物数组重数一遍）', seenVariants, 24);
+  check('逐个详情页累加出来的渲染条数 > 0（真实内容真的画出来了）', seenH3 > 0 && seenLi > 0, `h3=${seenH3} li=${seenLi}`);
+
+  // D0（用户 2026-10-16 定）：诗题左对齐；来源在正文前；不重复身份信息；小标题无装饰竖线。
+  await hashTo(`#/p/${p1.id}/detail`);
+  await waitFor(`Boolean(document.querySelector('[data-test="view-detail"]'))`, { label: '详情页' });
+  const d0 = await evaluate(`(() => {
+    const body = document.querySelector('[data-test="detail-body"]');
+    const h3 = body.querySelector('[data-test="md-h3"]');
+    const src = document.querySelector('[data-test="source-block"]');
+    const cs = (el) => getComputedStyle(el);
+    return {
+      titleAlign: cs(document.querySelector('[data-test="detail-title"]')).textAlign,
+      hasMeta: Boolean(document.querySelector('[data-test="view-detail"] [data-test="poem-meta"]')),
+      srcBeforeBody: Boolean(src.compareDocumentPosition(body) & Node.DOCUMENT_POSITION_FOLLOWING),
+      srcLabel: src.querySelector('dt').textContent,
+      h3Border: cs(h3).borderLeftWidth,
+      h3Pad: cs(h3).paddingLeft,
+      h3Size: cs(h3).fontSize,
+      bodySize: cs(body).fontSize,
+    };
+  })()`);
+  eq('D0① 诗题左对齐（与正文同一条左沿）', d0.titleAlign, 'left');
+  eq('不重复身份信息（详情页没有身份行元素）', d0.hasMeta, false);
+  eq('来源块在详情正文之前（正文前带标签）', d0.srcBeforeBody, true);
+  eq('来源块的标签是「底本与来源」', d0.srcLabel, '底本与来源');
+  eq('小标题无装饰竖线（border-left 0）', d0.h3Border, '0px');
+  eq('小标题无竖线附带的左内边距（padding-left 0）', d0.h3Pad, '0px');
+  eq('小标题是 eyebrow（13.5px）', d0.h3Size, '13.5px');
+  eq('详情正文＝17px', d0.bodySize, '17px');
 
   // 行为：详情页的「返回」落到**那首诗**（不是目录）；深链接直开也一样（用户 2026-10-15 定）。
   await hashTo(`#/p/${p1.id}/detail`);
@@ -868,16 +1012,16 @@ async function main() {
   eq('深链接直开详情页后返回 == 那首诗',
     await evaluate(`document.querySelector('[data-test="view-poem"]').dataset.poemId`), deepDetail.id);
 
-  // 没有异文的诗：详情页仍有底本/来源，异文处如实说明（不编内容）
-  const noVariantPoem = baseDoc.poems.find((p) => (p.variants ?? []).length === 0);
-  await hashTo(`#/p/${noVariantPoem.id}/detail`);
-  await waitFor(`Boolean(document.querySelector('[data-test="view-detail"]'))`, { label: '无异议诗的详情页' });
-  check(`[${noVariantPoem.title}] 没有异文时如实说明`,
-    await evaluate(`Boolean(document.querySelector('[data-test="detail-variants-empty"]'))`));
-  eq(`[${noVariantPoem.title}] 没有异文时条目数为 0`,
-    await evaluate(`document.querySelectorAll('[data-test="detail-variant"]').length`), 0);
-  eq(`[${noVariantPoem.title}] 底本与来源仍在详情页`,
-    await evaluate(`document.querySelector('[data-test="detail-source"]').textContent`), noVariantPoem.source || '未记录');
+  // 没有 detail 的诗：详情页仍有底本/来源，详情处如实说明（不编内容）
+  const noDetailPoem = noDetailPoems[0];
+  await hashTo(`#/p/${noDetailPoem.id}/detail`);
+  await waitFor(`Boolean(document.querySelector('[data-test="view-detail"]'))`, { label: '无 detail 诗的详情页' });
+  check(`[${noDetailPoem.title}] 没有 detail 时如实说明`,
+    await evaluate(`Boolean(document.querySelector('[data-test="detail-empty"]'))`));
+  eq(`[${noDetailPoem.title}] 没有 detail 时详情正文里没有块元素`,
+    await evaluate(`document.querySelectorAll('[data-test="detail-body"] [data-test="md-h3"], [data-test="detail-body"] [data-test="md-li"]').length`), 0);
+  eq(`[${noDetailPoem.title}] 底本与来源仍在详情页`,
+    await evaluate(`document.querySelector('[data-test="detail-source"]').textContent`), noDetailPoem.source || '未记录');
   await pushDump('诗歌详情页（第 1 首）');
   await hashTo(`#/p/${p1.id}/detail`);
   await waitFor(`Boolean(document.querySelector('[data-test="view-detail"]'))`, { label: '详情页（截图）' });
@@ -885,7 +1029,7 @@ async function main() {
 
   // 回到目录：让后面的小节从已知状态开始（以前因为停在诗页 hash 上、reload 后等目录超时过）。
   await hashTo('#/');
-  await waitForIndex();
+  await waitForIndexExpanded();
 
   // ------------------------------------------------ 1c-3 「关于」页（第四页之一）
   section('1c-3 「关于」页：与 Android 同一批字段（唯一来源 web/about-fields.json）+ 目录入口 + 返回');
@@ -917,17 +1061,25 @@ async function main() {
   includes('内容版本与来源写明内容版本', aboutInfo.contentVersion, baseDoc.contentVersion);
   includes('内容版本与来源写明来源是本次站点部署', aboutInfo.contentVersion, '本次站点部署');
   eq('诚实的限制与页脚那份是同一段原文（不新写）', aboutInfo.limits, HONEST_STORAGE_NOTE);
+  const aboutBox = await evaluate(`(() => {
+    const cs = getComputedStyle(document.querySelector('[data-test="about-fields"]'));
+    const dt = document.querySelector('[data-test="about-fields"] dt');
+    return { borderTopWidth: cs.borderTopWidth, borderTopStyle: cs.borderTopStyle, bg: cs.backgroundColor, dtAlign: getComputedStyle(dt).textAlign };
+  })()`);
+  check('关于页无区域框（无边框、无底色；采纳锚 about-min）',
+    aboutBox.borderTopWidth === '0px' && aboutBox.borderTopStyle === 'none' && aboutBox.bg === 'rgba(0, 0, 0, 0)', dump(aboutBox));
+  eq('关于页 V3：标签左对齐', aboutBox.dtAlign, 'left');
   check('关于页没有「更新」块（Web 的更新交给 SW；Android 在那页里多一块）',
     !(await evaluate(`Boolean(document.querySelector('[data-test="view-about"] [data-test="check-site-update"]'))`)));
   eq('关于页「返回」指向目录',
     await evaluate(`document.querySelector('[data-test="about-back-to-index"]').getAttribute('href')`), '#/');
   await evaluate(`document.querySelector('[data-test="about-back-to-index"]').click(); true`);
-  await waitForIndex();
+  await waitForIndexExpanded();
   await openFresh(`${BASE}#/about`);
   await waitForAboutView();
   eq('深链接直开 #/about 就是关于页', await evaluate('location.hash'), '#/about');
   await evaluate(`document.querySelector('[data-test="about-back-to-index"]').click(); true`);
-  await waitForIndex();
+  await waitForIndexExpanded();
   await pushDump('关于页');
   await hashTo('#/about');
   await waitForAboutView();
@@ -936,7 +1088,7 @@ async function main() {
   // ------------------------------------------------ 1c-4 IF-45：返回目录恢复原位置
   section('1c-4 IF-45：从诗页返回目录恢复原滚动位置；深链接直开目录仍从顶部');
   await hashTo('#/');
-  await waitForIndex();
+  await waitForIndexExpanded();
   const scrolledY = await evaluate(`(() => {
     const max = document.documentElement.scrollHeight - window.innerHeight;
     window.scrollTo(0, Math.min(400, Math.max(0, max)));
@@ -950,12 +1102,12 @@ async function main() {
   await waitForPoemView(scrollTarget.id);
   eq('进入诗页后从顶部开始（不带目录的滚动量）', await evaluate('window.scrollY'), 0);
   await evaluate(`document.querySelector('[data-test="back-to-index"]').click(); true`);
-  await waitForIndex();
+  await waitForIndexExpanded();
   await waitFor(`Math.abs(window.scrollY - ${scrolledY}) <= 2`, { label: '返回目录后恢复原位置', timeout: 5000 });
   const restoredY = await evaluate('window.scrollY');
   check('返回目录恢复了原来的滚动位置', Math.abs(restoredY - scrolledY) <= 2, `scrollY=${restoredY}（期望 ≈${scrolledY}）`);
   await openFresh(`${BASE}#/`);
-  await waitForIndex();
+  await waitForIndexExpanded();
   eq('深链接直开目录仍从顶部（IF-45 的另一半）', await evaluate('window.scrollY'), 0);
 
   // ------------------------------------------------ 1d 视觉令牌逐值对齐（静默终端）
@@ -1036,14 +1188,14 @@ async function main() {
   check('真实产物 19 首都是单节，所以段间空行的**元素级**断言在 §4e（夹具诗）上做',
     baseDoc.poems.every((p) => p.stanzas.length === 1),
     `最大节数=${Math.max(...baseDoc.poems.map((p) => p.stanzas.length))}`);
-  eq('底本小字与原型 .poem-foot 一致（0.74rem → 11.84px）',
-    (await evaluateOnDetail(p1.id, `(() => ({ font: getComputedStyle(document.querySelector('[data-test="detail-source"]')).fontSize, lineHeight: parseFloat(getComputedStyle(document.querySelector('[data-test="detail-source"]')).lineHeight) }))()`)).font,
-    '11.84px');
-  check('底本小字行高 = 1.85 × 11.84px（与 .source-block 一致）',
-    Math.abs((await evaluateOnDetail(p1.id, `parseFloat(getComputedStyle(document.querySelector('[data-test="detail-source"]')).lineHeight)`)) - 11.84 * 1.85) < 0.2);
+  eq('详情来源块字号 = --note-size（13.5px）',
+    (await evaluateOnDetail(p1.id, `getComputedStyle(document.querySelector('[data-test="detail-source"]')).fontSize`)),
+    '13.5px');
+  check('详情来源块行高 = 1.85 × 13.5px（与 .source-block 一致）',
+    Math.abs((await evaluateOnDetail(p1.id, `parseFloat(getComputedStyle(document.querySelector('[data-test="detail-source"]')).lineHeight)`)) - 13.5 * 1.85) < 0.3);
 
   await hashTo('#/');
-  await waitForIndex();
+  await waitForIndexExpanded();
   const indexVis = await evaluate(`(() => {
     const cs = (el) => getComputedStyle(el);
     const row = document.querySelector('[data-test="poem-row"]');
@@ -1063,7 +1215,7 @@ async function main() {
       sunkenRadius: cs(sunken).borderTopLeftRadius,
       groupBg: cs(groupTitle).backgroundColor,
       groupRadius: cs(groupTitle).borderTopLeftRadius,
-      labelBorder: cs(label).borderLeftColor + ' ' + cs(label).borderLeftWidth,
+      labelBorderLeftWidth: cs(label).borderLeftWidth,
       labelPadLeft: cs(label).paddingLeft,
       countText: document.querySelector('.dynasty-count').innerText.trim(),
       countBrackets: (() => {
@@ -1075,10 +1227,9 @@ async function main() {
       countFont: cs(document.querySelector('.dynasty-count')).fontFamily,
     };
   })()`);
-  eq('卡面色 = --surface（#141b1e）', indexVis.groupBg, 'rgb(20, 27, 30)');
+  eq('组头不画卡片（背景透明）', indexVis.groupBg, 'rgba(0, 0, 0, 0)');
   eq('下沉面 = --surface-sunken（#111719）', indexVis.sunkenBg, 'rgb(17, 23, 25)');
-  eq('圆角取值（下沉面/组卡片 = 4px，芯片 = --radius-pill 3px）',
-    [indexVis.sunkenRadius, indexVis.groupRadius, indexVis.chipRadius], ['4px', '4px', '3px']);
+  eq('组头无卡片/无圆角', indexVis.groupRadius, '0px');
   eq('列表行与按钮都没有阴影', [indexVis.rowShadow, indexVis.chipShadow], ['none', 'none']);
   eq('列表行没有关键帧动画', indexVis.rowAnimation, 'none');
   eq('列表行过渡属性只有颜色类', indexVis.rowTransition[0], 'border-color, background');
@@ -1090,12 +1241,66 @@ async function main() {
   check('过渡里没有 transform/opacity/all（不做位移动画）',
     [indexVis.rowTransition[0], indexVis.chipTransition[0]].every((p) => /^(border-color|background|color)(, (border-color|background|color))*$/.test(p)),
     dump([indexVis.rowTransition[0], indexVis.chipTransition[0]]));
-  check('组名左沿有发丝竖线（原型静默终端的结构记号）',
-    /2px/.test(indexVis.labelBorder) && /rgba\(79, 179, 165/.test(indexVis.labelBorder), indexVis.labelBorder);
+  check('组名没有左沿发丝竖线（与采纳锚一致：组名左沿＝题名左沿＝槽宽）',
+    indexVis.labelBorderLeftWidth === '0px' && indexVis.labelPadLeft === '0px',
+    dump({ borderLeftWidth: indexVis.labelBorderLeftWidth, paddingLeft: indexVis.labelPadLeft }));
   check('组内计数用等宽字体', /mono|Consolas/i.test(indexVis.countFont), indexVis.countFont);
 
-  // ---- 规范 §4.1「结构记号」三条（补漏：漏掉它们就与用户评审通过的那一版长得不一样）----
-  eq('结构记号 1：组名左内边距 = 0.6rem（9.6px）', indexVis.labelPadLeft, '9.6px');
+  // ---- 目录对齐口径（采纳锚 hub-align / width-pct §4，逐项量出来）----
+  const hubGeom = await evaluate(`(() => {
+    const host = document.getElementById('view');   // .view-host ＝内容列（列宽 C，居中）
+    const hostRect = host.getBoundingClientRect();
+    const head = document.querySelector('[data-test="dynasty-group-title"]');
+    const hostLeft = hostRect.left;
+    const mark = head.querySelector('[data-test="group-mark"]');
+    const label = document.querySelector('[data-test="dynasty-label"]');
+    const title = document.querySelector('[data-test="poem-row"] .poem-row-title');
+    const author = document.querySelector('[data-test="poem-row"] .poem-row-author');
+    const rowRight = document.querySelector('[data-test="poem-row"]').getBoundingClientRect().right;
+    const r = (el) => el.getBoundingClientRect();
+    return {
+      slot: r(head.querySelector('.gh-slot')).width,
+      markLeftFromColumn: r(mark).left - hostLeft,
+      labelLeftFromColumn: r(label).left - hostLeft,
+      titleLeftFromColumn: r(title).left - hostLeft,
+      seam: r(label).left - r(mark).right,
+      markCenterDelta: (r(mark).top + r(mark).bottom) / 2 - (r(label).top + r(label).bottom) / 2,
+      authorAfterTitle: r(author).left - r(title).right,
+      authorRightVsRowRight: rowRight - r(author).right,
+    };
+  })()`);
+  check('记号槽宽 ≈ 27.52px（1.72rem，不随宽度变）', Math.abs(hubGeom.slot - 27.52) < 0.6, `slot=${hubGeom.slot}`);
+  // 列宽口径（width-pct 轮已选）：C = min(V, max(320, 0.88 × (V − 24)))，24 是一次性扣除总量。
+  const colInfo = await evaluate(`(() => {
+    const v = window.innerWidth;
+    const c = Math.min(v, Math.max(320, 0.88 * (v - 24)));
+    const hr = document.getElementById('view').getBoundingClientRect();
+    return {
+      v, c,
+      cssC: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--c')),
+      hostWidth: hr.width,
+      hostLeft: hr.left,
+    };
+  })()`);
+  check('列宽口径 C=min(V,max(320,0.88×(V−24)))：实测列宽 == 公式值',
+    Math.abs(colInfo.hostWidth - colInfo.c) < 0.5, dump(colInfo));
+  check('--c 与公式一致', Math.abs(colInfo.cssC - colInfo.c) < 0.5, dump(colInfo));
+  check('列外余白 = (V−C)/2（不是两侧各 12px 页边）',
+    Math.abs(colInfo.hostLeft - (colInfo.v - colInfo.c) / 2) < 0.6,
+    dump({ hostLeft: colInfo.hostLeft, expected: (colInfo.v - colInfo.c) / 2 }));
+  check('记号左沿 ≈ 内容列左沿（悬挂在组名左沿之外）', Math.abs(hubGeom.markLeftFromColumn) < 1.5, dump(hubGeom.markLeftFromColumn));
+  check('记号右沿 → 组名左沿的固定缝 ≈ 6.39px（0.4rem）', Math.abs(hubGeom.seam - 6.39) < 2, `seam=${hubGeom.seam}`);
+  check('记号与组名首字竖直居中（盒中心差 < 1px）', Math.abs(hubGeom.markCenterDelta) < 1, `Δ=${hubGeom.markCenterDelta}`);
+  check('诗目题名与组名首字同一竖线（缩进 0，±1px）',
+    Math.abs(hubGeom.titleLeftFromColumn - hubGeom.labelLeftFromColumn) <= 1,
+    dump({ labelLeft: hubGeom.labelLeftFromColumn, titleLeft: hubGeom.titleLeftFromColumn }));
+  check('作者紧随题名、不右对齐（远达不到右内沿）',
+    hubGeom.authorAfterTitle >= 0 && hubGeom.authorRightVsRowRight > 40,
+    dump({ gap: hubGeom.authorAfterTitle, rightToRowRight: hubGeom.authorRightVsRowRight }));
+
+  // ---- 结构记号：计数方括号（规范 §4.1 记号②）与题头无下划线（记号③）。
+  // ⚠ §4.1 记号①（组名左沿发丝竖线）与采纳锚相抵，已在上面按采纳锚改为「无竖线」；
+  //    这一条差异在报告里单列请负责人裁决（Android 侧仍是旧口径）。
   // 注：`innerText` **不包含**伪元素生成的文字（实测 countText="19 首"），所以「渲染成 [19] 首」
   // 由伪元素断言 + 截图共同证明（横幅那条不是靠 innerText）。
   check('结构记号 2：计数在浏览器里渲染成 [19] 首（方括号来自伪元素）',
@@ -1116,7 +1321,7 @@ async function main() {
   const shootTheme = async (w, h, label) => {
     await cdp.send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 2, mobile: false });
     await hashTo('#/');
-    await waitForIndex();
+    await waitForIndexExpanded();
     await screenshot(`theme-tech-${label}-hub.png`);
     await hashTo(`#/p/${p1.id}`);
     await waitForPoemView(p1.id);
@@ -1126,7 +1331,7 @@ async function main() {
   await shootTheme(430, 932, 'mobile');
   await cdp.send('Emulation.clearDeviceMetricsOverride');
   await hashTo('#/');
-  await waitForIndex();
+  await waitForIndexExpanded();
   console.log('  截图：theme-tech-{desktop,mobile}-{hub,poem}.png'
     + '（与原型 screenshots/desktop-*.png、mobile-*.png 同口径）');
 
@@ -1175,7 +1380,7 @@ async function main() {
   await writeFile(resolve(v1.destDir, CONTENT_URL), baseText, 'utf8');
   await hashTo('#/');            // 显式回目录：reload 落在哪个 hash 就渲染哪个视图，不依赖上一节留下的状态
   await reload();
-  await waitForIndex();
+  await waitForIndexExpanded();
 
   // ---------------------------------------------------------------- 3. 真离线
   section('3 真离线（CDP 断网 + 关掉本地服务）下重载仍可读');
@@ -1183,7 +1388,7 @@ async function main() {
   await stopServer();
   check('本地 HTTP 服务确实已经关掉', await isServerDown());
   await reload();
-  await waitForIndex();
+  await waitForIndexExpanded();
   s = await summary();
   check('浏览器报告离线', s.online === false);
   includes('状态面板如实显示离线', await evaluate(`document.querySelector('[data-test="status-network"]').textContent`), '离线');
@@ -1203,7 +1408,7 @@ async function main() {
   await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
   console.log('（已恢复联网 + 重新起服务）');
   await reload();
-  await waitForIndex();
+  await waitForIndexExpanded();
 
   // ---------------------------------------------------------------- 4. 两版本切换
   section('4 真发两版：新 SW 安装并等待 / 不打断阅读 / 点刷新成对切换 / 旧 cache 被删');
@@ -1214,7 +1419,7 @@ async function main() {
 
   // 4a 旧 SW 还在控制：页面仍是旧壳 + 旧内容（即使服务器已经是新版本）
   await reload();
-  await waitForIndex();
+  await waitForIndexExpanded();
   s = await summary();
   eq('服务器已换成 v2，但页面仍是旧壳（cache-first：不能旧壳配新内容）', s.appVersion, APP_VERSION);
   eq('页面内容也仍是旧内容（末首仍是 明月何皎皎）', (await evaluate(`[...document.querySelectorAll('[data-test="poem-row"] .poem-row-title')].map(e => e.textContent)`)).at(-1), '明月何皎皎');
@@ -1267,7 +1472,7 @@ async function main() {
   includes('界面上的站点版本也换了', await evaluate(`document.querySelector('[data-test="app-version"]').textContent`), v2App);
   check('新版本生效后提示消失', !(await evaluate(`Boolean(document.querySelector('[data-test="update-available"]'))`)));
   await hashTo('#/');
-  await waitForIndex();
+  await waitForIndexExpanded();
   eq('切换后目录次序 == 新产物数组次序', await domPoemIds(), expectedDomOrder(variants.fixtureContent.doc));
   eq('新内容生效：末首变成测试夹具诗', (await evaluate(`[...document.querySelectorAll('[data-test="poem-row"] .poem-row-title')].map(e => e.textContent)`)).at(-1), '测试夹具诗（非诗文）');
   // 旧内容已不在：目录的可见文本里不得再出现被删掉的那一首（用户 2026-10-15 起界面已无搜索，
@@ -1282,7 +1487,7 @@ async function main() {
 
   section('4e 新版本里的渲染路径：空行分段 + 笔记按需展开（夹具诗）');
   await hashTo('#/');
-  await waitForIndex();
+  await waitForIndexExpanded();
   const fixturePoem = variants.fixtureContent.doc.poems.find((p) => p.id === 'fixture-test-poem-01');
   // 目录行「有笔记」标记已按用户 2026-10-15 的决定删掉（两端都无）。
   // 这一版内容里确实有一首带笔记（下面是牙齿），所以「目录文本里没有「有笔记」」不是空断言。
@@ -1295,15 +1500,46 @@ async function main() {
   await evaluate(`document.querySelector('[data-test="poem-row"][data-poem-id="fixture-test-poem-01"]').click()`);
   await waitForPoemView('fixture-test-poem-01');
   eq('分节数量与 JSON 一致（空行表达的分段）', await evaluate(`document.querySelectorAll('[data-test="stanza"]').length`), fixturePoem.stanzas.length);
-  eq('每节的行数', await evaluate(`[...document.querySelectorAll('[data-test="stanza"]')].map(s => s.querySelectorAll('[data-test="poem-line"]').length)`), fixturePoem.stanzas.map((x) => x.length));
+  eq('每节里的**印刷行**数与 JSON 一致（视觉折行不改变印刷行）',
+    await evaluate(`[...document.querySelectorAll('[data-test="stanza"]')].map(s => [...new Set([...s.querySelectorAll('[data-test="poem-line"]')].map(e => e.dataset.printedLine))].length)`),
+    fixturePoem.stanzas.map((x) => x.length));
+  // 把视觉折行拼回印刷行，必须与原文逐行相同（折行不删字/不加字）——
+  // 这是**浏览器里**的折行证据（纯函数的规则另在 §0j 钉住）。
+  const printedTexts = await evaluate(`(() => {
+    const out = [];
+    for (const s of document.querySelectorAll('[data-test="stanza"]')) {
+      const byLine = new Map();
+      for (const e of s.querySelectorAll('[data-test="poem-line"]')) {
+        const k = e.dataset.printedLine;
+        if (!byLine.has(k)) byLine.set(k, []);
+        byLine.get(k).push(e.textContent);
+      }
+      out.push(...[...byLine.values()].map((parts) => parts.join('')));
+    }
+    return out;
+  })()`);
+  eq('把视觉折行拼回去 == 原文逐行（折行不删字/不加字）', printedTexts, fixturePoem.stanzas.flat());
+  const foldInfo = await evaluate(`(() => {
+    const pieces = [...document.querySelectorAll('[data-test="poem-line"]')]
+      .filter(e => e.dataset.printedLine === '3')
+      .map(e => e.textContent);
+    const allCenter = [...document.querySelectorAll('[data-test="poem-line"]')].every(e => getComputedStyle(e).textAlign === 'center');
+    return { pieces, allCenter };
+  })()`);
+  check('超宽夹具行在浏览器里真的被拆成多个视觉行', foldInfo.pieces.length > 1, dump(foldInfo.pieces));
+  check('折行在句读后断（第一段以「：」结尾）', foldInfo.pieces[0].endsWith('：'), dump(foldInfo.pieces));
+  check('折出来的每个视觉行都继承居中', foldInfo.allCenter, 'ok');
   const gapPx = await evaluate(`parseFloat(getComputedStyle(document.querySelectorAll('[data-test="stanza"]')[1]).marginTop)`);
   check('第二节与第一节之间有间距（空行由 stanzas 分段表达）', gapPx > 0, `marginTop=${gapPx}px`);
   check('段间距 = --stanza-gap（1.2em × 17px = 20.4px）', Math.abs(gapPx - 17 * 1.2) < 0.2, `marginTop=${gapPx}px`);
-  eq('笔记默认折叠', await evaluate(`document.querySelector('[data-test="notes-details"]').open`), false);
-  await evaluate(`document.querySelector('[data-test="notes-summary"]').click()`);
-  await waitFor(`document.querySelector('[data-test="notes-details"]').open === true`, { label: '笔记展开' });
+  eq('笔记默认收起（面板 hidden、入口 aria-expanded=false）',
+    await evaluate(`document.querySelector('[data-test="notes-inline"]').hidden`), true);
+  eq('笔记入口在顶部行内（与返回同一行）',
+    await evaluate(`Boolean(document.querySelector('[data-test="top-row"] [data-test="notes-entry"]'))`), true);
+  await evaluate(`document.querySelector('[data-test="notes-entry"]').click(); true`);
+  await waitFor(`document.querySelector('[data-test="notes-inline"]').hidden === false`, { label: '笔记展开' });
   const notes = await evaluate(`({
-    listItems: [...document.querySelectorAll('[data-test="notes-list"] li')].length,
+    listItems: [...document.querySelectorAll('[data-test="notes-body"] [data-test="md-li"]')].length,
     bold: [...document.querySelectorAll('[data-test="notes-body"] strong')].map(e => e.textContent),
     rawHtmlShown: document.querySelector('[data-test="notes-body"]').innerText.includes('<b>不应被当作标签</b>'),
     parsedTags: document.querySelectorAll('[data-test="notes-body"] b').length,
@@ -1311,7 +1547,20 @@ async function main() {
   eq('笔记列表项数', notes.listItems, 2);
   eq('最小 Markdown 子集：**粗体** → strong', notes.bold, ['粗体']);
   check('笔记里的 HTML 原样显示（不解析、不注入）', notes.rawHtmlShown && notes.parsedTags === 0, dump(notes));
-  await pushDump('夹具诗（笔记已展开）');
+
+  // 夹具诗的 detail 行使了 `### ` / `1. ` / `> `（真实内容只有 `### ` 与 `- `）：
+  // 这是 Markdown 闭集里那三样在真实页面上的落地证据。
+  await evaluate(`document.querySelector('[data-test="poem-detail-link"]').click(); true`);
+  await waitFor(`Boolean(document.querySelector('[data-test="view-detail"]'))`, { label: '夹具诗详情页' });
+  const fxMd = await evaluate(`({
+    h3: [...document.querySelectorAll('[data-test="detail-body"] [data-test="md-h3"]')].map(e => e.textContent),
+    ol: [...document.querySelectorAll('[data-test="detail-body"] [data-test="md-ol"] li')].map(e => e.textContent),
+    quote: [...document.querySelectorAll('[data-test="detail-body"] [data-test="md-quote"]')].map(e => e.textContent),
+  })`);
+  eq('`### ` 三级标题渲染成小标题块', fxMd.h3, ['夹具详情']);
+  eq('`1. ` 有序列表逐项渲染', fxMd.ol, ['夹具有序列表第一项', '夹具有序列表第二项']);
+  check('`> ` 引用渲染成引用块', fxMd.quote.length === 1 && fxMd.quote[0].includes('夹具引用块'), dump(fxMd.quote));
+  await pushDump('夹具诗（笔记已展开；详情已渲染）');
 
   // ---------------------------------------------------------------- 5. 回目录后自动切换
   section('5 第三个版本：阅读中只有提示，回到目录后自动切换');
@@ -1331,7 +1580,7 @@ async function main() {
   const tokenBeforeBack = await docToken();
   await evaluate(`document.querySelector('[data-test="back-to-index"]').click(); true`);
   await waitForNewDocument(tokenBeforeBack, '回到目录后自动切换（刷新）');
-  await waitForIndex();
+  await waitForIndexExpanded();
   s = await summary();
   eq('回到目录后自动切到 v3', s.appVersion, v3App);
   eq('内容也回到真实产物那一版', s.contentVersion, baseDoc.contentVersion);
@@ -1405,7 +1654,7 @@ async function main() {
   const tokenBeforeV7 = await docToken();
   await evaluate(`document.querySelector('[data-test="apply-update"]').click(); true`);
   await waitForNewDocument(tokenBeforeV7, 'v7 切换后新文档');
-  await waitForIndex();
+  await waitForIndexExpanded();
   s = await summary();
   eq('恢复后的站点版本', s.appVersion, deployVersions.good);
   eq('恢复后的内容版本', s.contentVersion, baseDoc.contentVersion);
@@ -1452,7 +1701,7 @@ async function main() {
 
   section('7c 恢复服务后重新访问 → 重新缓存并正常阅读（自愈）');
   await goto(BASE);
-  await waitForIndex();
+  await waitForIndexExpanded();
   s = await summary();
   eq('重新访问后内容版本', s.contentVersion, baseDoc.contentVersion);
   eq('重新访问后有完整 19 首', s.poems, total);

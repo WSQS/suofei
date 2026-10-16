@@ -84,6 +84,18 @@
   --row-pad: 0.9rem 1.05rem;
   --pad: 1.25rem;
   --measure: 660px;
+
+  /* ---------- 排布（已选口径） ----------
+   * ① 列宽口径（round-2026-10-16-width-pct，用户已选）：
+   *    C = min(V, max(320, 0.88 × (V − 24)))，24 是**一次性扣除总量**（不是左右各 12）。
+   *    这里这份是 JS 未跑时的兜底；运行时由 main.js 用布局视口宽算成 px 覆盖。
+   * ② 内容行内边距（列内一层，照旧保留）：--edge-x ＝ 1.05rem ＝ 16.8px。
+   * ③ 目录悬挂记号槽（round-2026-10-15-hub-align/hub-horizontal 对齐轮）：
+   *    记号悬挂在组名左沿之外；组名左沿＝题名左沿＝槽宽 27.52px；记号右沿→组名左沿 0.4rem 缝。 */
+  --c: min(100vw, max(320px, calc(0.88 * (100vw - 24px))));
+  --edge-x: 1.05rem;
+  --mark-slot: 1.72rem;
+  --title-top: 1.5rem;
 }
 
 /* ---------- 基础 ---------- */
@@ -124,6 +136,11 @@ body::before {
 a {
   color: inherit;
   text-decoration: none;
+}
+
+/* `hidden` 属性一律生效（列表/面板用 display:flex 时会覆盖它，必须显式顶回去）。 */
+[hidden] {
+  display: none !important;
 }
 
 button {
@@ -200,9 +217,9 @@ button {
 .notices {
   position: relative;
   z-index: 1;
-  max-width: var(--measure);
+  width: var(--c);
   margin: 0 auto;
-  padding: 0 var(--pad);
+  padding: 0 var(--edge-x);
 }
 
 .notices:empty {
@@ -272,9 +289,9 @@ button {
 .view-host {
   position: relative;
   z-index: 1;
-  max-width: var(--measure);
+  width: var(--c);
   margin: 0 auto;
-  padding: 1.2rem var(--pad) 3rem;
+  padding: 1.2rem var(--edge-x) 3rem;
 }
 
 .view-hint {
@@ -294,40 +311,60 @@ button {
   color: var(--warn-text);
 }
 
-/* ---------- 目录：分组 ---------- */
+/* ---------- 目录：分组（组头＝可折叠层，IF-44） ---------- */
 
 .dynasty-group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--group-gap);
   margin: 0 0 1.6rem;
 }
 
+/* 组头：不画卡片（组头与页底同色）；整组头可点；记号悬挂在组名左沿之外。
+ * 头部盒从**列左沿**起（用负外边距顶出内容行内边距）⇒ 记号左沿＝列左沿。 */
 .dynasty-group-title {
   display: flex;
-  align-items: baseline;
-  gap: 0.8rem;
+  align-items: center;
   margin: 0;
-  padding: var(--row-pad);
-  padding-top: 0.35rem;
-  padding-bottom: 0.35rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow);
+  margin-left: calc(-1 * var(--edge-x));
+  width: calc(100% + var(--edge-x));
+  padding: 0.35rem var(--edge-x) 0.35rem 0;
+  background: none;
+  border: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
 }
 
-/* 组名左侧一条发丝竖线 —— 原型里「静默终端」的结构性标记 */
+/* 悬挂槽：组名左沿＝题名左沿＝此槽宽（不随宽度变）。 */
+.gh-slot {
+  flex: 0 0 var(--mark-slot);
+  display: inline-flex;
+  justify-content: flex-start;
+}
+
+/* 记号只表达状态（方括号方向已由用户局部选定）；无令牌也说得出这件事。 */
+.gh-mark {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0;
+  color: var(--text-dim);
+}
+
+.dynasty-group-title:hover .gh-mark {
+  color: var(--text);
+}
+
+/* 组名：不画卡片、也不加左沿发丝竖线（采纳锚 hub-hierarchy/hub-align/hub-horizontal 与
+ * width-pct §4 都是「组头与页底同色」「组名左沿＝题名左沿」；题名与组名首字必须同一竖线）。
+ * ⚠ visual-tokens.md §4.1 结构记号① 写的是「组名左沿一条发丝竖线」——那条与本轮采纳的目录
+ * 对齐口径相抵，已在报告里单列请负责人裁决。 */
 .dynasty-label {
   font-family: var(--font-title);
   font-size: 1.3rem;
   letter-spacing: var(--gname-ls);
   color: var(--text);
-  padding-left: 0.6rem;
-  border-left: 2px solid var(--accent-line);
 }
 
 .dynasty-count {
+  margin-left: auto;
   font-family: var(--font-mono);
   font-size: 0.76rem;
   color: var(--text-dim);
@@ -354,18 +391,19 @@ button {
   margin-left: 1px;
 }
 
-/* ---------- 目录：组内诗目 ---------- */
+/* ---------- 目录：组内诗目（题名与组名首字同一竖线，缩进 0） ---------- */
 
 .poem-list {
   display: flex;
   flex-direction: column;
+  margin-left: calc(-1 * var(--edge-x));
+  width: calc(100% + var(--edge-x));
 }
 
 .poem-row {
   display: flex;
   align-items: baseline;
-  gap: 0.7rem;
-  padding: var(--row-pad);
+  padding: 0.9rem var(--edge-x) 0.9rem var(--mark-slot);
   border-bottom: 1px solid var(--line);
   color: var(--text);
   transition: var(--row-transition);
@@ -385,7 +423,9 @@ button {
   letter-spacing: var(--ptitle-ls);
 }
 
+/* 作者紧随题名、不右对齐（缝 ≈0.45em） */
 .poem-row-author {
+  margin-left: 0.45em;
   font-family: var(--font-ui);
   font-size: 0.8rem;
   color: var(--text-dim);
@@ -400,13 +440,10 @@ button {
 .index-bar {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
+  justify-content: flex-end; /* 目录页顶部只放「关于」，右沿＝列右沿−行内边距 */
   gap: 0.75rem;
   flex-wrap: wrap;
-}
-
-.index-bar .view-hint {
-  margin: 0.4rem 0 1rem;
+  margin: 0.2rem 0 1.2rem;
 }
 
 .about-link {
@@ -422,21 +459,50 @@ button {
   color: var(--accent-strong);
 }
 
-/* ---------- 诗页 ---------- */
+/* ---------- 顶部行（返回左／笔记·详情右；不参与居中） ---------- */
+
+.top-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: var(--title-top); /* 顶部行→诗题 1.5rem */
+}
+
+.top-right {
+  display: flex;
+  align-items: baseline;
+  gap: 1.1rem;
+}
 
 .back-link {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  margin-bottom: 0.9rem;
   font-family: var(--font-ui);
-  font-size: 0.78rem;
-  color: var(--text-faint);
+  font-size: 0.82rem;
+  color: var(--text-dim);
 }
 
 .back-link:hover {
   color: var(--accent-strong);
 }
+
+.detail-link,
+.notes-entry {
+  font-family: var(--font-ui);
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+  transition: var(--chip-transition);
+}
+
+.detail-link:hover,
+.notes-entry:hover {
+  color: var(--accent-strong);
+}
+
+/* ---------- 诗页（全部居中，用户 2026-10-15 选 d4-all） ---------- */
 
 .poem-title {
   margin: 0;
@@ -446,27 +512,36 @@ button {
   letter-spacing: var(--title-ls);
   line-height: 1.4;
   color: var(--text);
+  text-align: center;
 }
 
-/* 「静默终端」下诗题下不加横线（原型 .poem-head 同名规则） */
+/* 详情页诗题改为左对齐（round-2026-10-16-detail 的 D0①：与正文同一条左沿） */
+.poem-title--left {
+  text-align: left;
+}
+
+/* 「静默终端」下诗题下不加横线（原型 .poem-head 同名规则）。
+ * 身份行＝作者 · 朝代 · 体裁（随字段变；用户 2026-10-15 定）。 */
 .poem-meta {
   margin: 0.7rem 0 0;
   font-family: var(--font-ui);
   font-size: 0.78rem;
   letter-spacing: 0.06em;
   color: var(--text-faint);
+  text-align: center;
 }
 
-/* 正文：一个 .stanza 对应契约里的一个 stanzas 元素，段内每一印刷行是独立 .line。
- * 分行靠 DOM 结构而不是 CSS 折行；空行靠 .stanza 之间的间距 —— 两者都不会被吃掉。
- * text-align 固定 left：不做两端对齐（避免标点被拉开造成纵向抖动）。 */
+/* 正文：一个 .stanza 对应契约里的一个 stanzas 元素，段内每个视觉行是独立 .line。
+ * **每一行各自居中**（真居中）；行内空白靠 white-space:pre-wrap 保留；
+ * 空行靠 .stanza 之间的间距。不做两端对齐。
+ * 超宽行由渲染层的语义折行拆成多个 .line（不改 stanzas）。 */
 .poem-body {
   padding: 2.1rem 0 0.6rem;
   font-family: var(--font-poem);
   font-size: var(--poem-size);
   line-height: var(--poem-lh);
   letter-spacing: var(--poem-ls);
-  text-align: left;
+  text-align: center;
 }
 
 .stanza {
@@ -482,100 +557,106 @@ button {
   margin: 0;
   white-space: pre-wrap; /* 保留行内空格，绝不被折叠 */
   text-indent: 0;
+  text-align: center;
 }
 
-/* ---------- 笔记 ---------- */
+/* 语义折行的量测探针：绝对定位，不参与布局、不进可读文本。 */
+.line--measure {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  visibility: hidden;
+  white-space: pre;
+  pointer-events: none;
+}
 
-.notes {
+/* ---------- 笔记②：入口在顶部行、展开在正文下方内联无框 ----------
+ * 无笔记时整块不存在（没有入口、没有面板、没有标题）——用户 2026-10-16 定。 */
+
+.notes-inline {
   margin-top: 2.6rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--line);
-}
-
-.notes-details > summary {
-  display: flex;
-  align-items: baseline;
-  gap: 0.6rem;
-  padding: 0.2rem 0;
-  cursor: pointer;
-  font-family: var(--font-ui);
-  font-size: 0.82rem;
-  letter-spacing: 0.1em;
-  color: var(--text-dim);
-}
-
-.notes-details > summary:hover {
-  color: var(--accent-strong);
-}
-
-.notes-details > summary::marker {
-  color: var(--text-faint);
+  padding: 0;
+  border: none;
+  background: none;
 }
 
 .notes-body {
-  padding: 0.6rem 0 0;
   font-family: var(--font-note);
   font-size: var(--note-size);
   line-height: 1.85;
   color: var(--text-dim);
-  max-width: var(--note-measure);
+  text-align: left;
 }
 
-.notes-body p {
-  margin: 0 0 0.85em;
-  white-space: pre-wrap;
+/* ---------- 最小 Markdown 渲染（笔记与详情共用同一份块样式） ---------- */
+
+.md-p {
+  margin: 0 0 0.9em;
 }
 
-.notes-body p:last-child {
+.md-p:last-child {
   margin-bottom: 0;
 }
 
-.notes-body ul {
+.md-ul,
+.md-ol {
   margin: 0 0 0.9em;
-  padding-left: 1.15rem;
+  padding-left: 1.3rem;
 }
 
-.notes-body li {
+.md-li {
   margin-bottom: 0.35em;
 }
 
-.notes-body strong {
+.md-h3 {
+  margin: 1.6rem 0 0.5rem;
+  font-family: var(--font-ui);
+  font-size: var(--note-size);
+  font-weight: 600;
+  letter-spacing: var(--gname-ls);
+  color: var(--accent-text);
+}
+
+.md-h3:first-child {
+  margin-top: 0;
+}
+
+.md-quote {
+  margin: 0 0 0.9em;
+  padding-left: 0.9rem;
+  border-left: 2px solid var(--line-strong);
+  color: var(--text-dim);
+}
+
+.md-quote .md-p:last-child {
+  margin-bottom: 0;
+}
+
+.md-strong,
+.md-ul strong,
+.md-p strong {
   color: var(--text);
   font-weight: 600;
 }
 
-.notes-empty {
-  margin-top: 0.7rem;
-  padding: 0.9rem 1rem;
-  border: 1px dashed var(--line);
-  border-radius: var(--radius-s);
-  background: var(--surface-sunken);
-  font-family: var(--font-ui);
-  font-size: var(--note-size);
-  line-height: 1.8;
-  color: var(--text-faint);
-}
-
-/* ---------- 页脚：底本 / id ---------- */
+/* ---------- 诗歌详情页（第四页） ---------- */
 
 .source-block {
   display: grid;
-  grid-template-columns: 5rem 1fr;
-  gap: 0.25rem 0.75rem;
-  margin: 2.2rem 0 0;
-  padding-top: 1rem;
-  border-top: 1px solid var(--line);
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 0.9rem;
+  margin: 1.6rem 0 0; /* 诗题→来源块 1.6rem */
   font-family: var(--font-ui);
-  font-size: 0.74rem;
+  font-size: var(--note-size);
   line-height: 1.85;
-  color: var(--text-faint);
+  color: var(--text-dim);
+  text-align: left;
 }
 
 .source-block dt {
-  font-family: var(--font-mono);
-  font-size: 0.62rem;
-  letter-spacing: 0.14em;
+  font-family: var(--font-ui);
   color: var(--text-faint);
+  white-space: nowrap;
 }
 
 .source-block dd {
@@ -583,14 +664,37 @@ button {
   overflow-wrap: anywhere;
 }
 
-/* ---------- 状态面板（页脚） ---------- */
+/* 详情正文：左对齐（与来源块同一条左沿）；正文 17px/行高 2/字距 0.045em。 */
+.detail-body {
+  margin-top: 1.6rem; /* 来源块→详情正文 1.6rem */
+  font-family: var(--font-poem);
+  font-size: var(--poem-size);
+  line-height: var(--poem-lh);
+  letter-spacing: var(--poem-ls);
+  color: var(--text);
+  text-align: left;
+}
+
+/* 详情正文里的小标题＝eyebrow 真标题（字号/字重/上下留白；无装饰竖线，用户 2026-10-16 定） */
+.detail-body .md-h3 {
+  font-size: var(--note-size);
+}
+
+.detail-empty {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--note-size);
+  color: var(--text-faint);
+}
+
+/* ---------- 状态面板（页脚；开发/核验用，不属于四页规格） ---------- */
 
 .status {
   position: relative;
   z-index: 1;
-  max-width: var(--measure);
+  width: var(--c);
   margin: 1.6rem auto 0;
-  padding: 1rem var(--pad) 3rem;
+  padding: 1rem var(--edge-x) 3rem;
   font-family: var(--font-ui);
   font-size: 0.74rem;
   color: var(--text-dim);
@@ -638,86 +742,30 @@ button {
   font-size: 0.85em;
 }
 
-/* ---------- 诗歌详情页（第四页，用户 2026-10-15 定） ---------- */
-
-.detail-entry {
-  margin: 2rem 0 0;
-}
-
-.variants {
-  margin-top: 2rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--line);
-}
-
-.variants-title {
-  margin: 0;
-  font-family: var(--font-ui);
-  font-size: 0.82rem;
-  letter-spacing: 0.1em;
-  color: var(--text-dim);
-}
-
-.variant-list {
-  margin: 0.9rem 0 0;
-  padding-left: 1.2rem;
-}
-
-.variant {
-  margin-bottom: 0.9rem;
-}
-
-.variant:last-child {
-  margin-bottom: 0;
-}
-
-.variant-text {
-  margin: 0;
-  font-family: var(--font-poem);
-  font-size: var(--poem-size);
-  line-height: 1.6;
-  color: var(--text);
-}
-
-.variant-note {
-  margin: 0.25rem 0 0;
-  font-family: var(--font-note);
-  font-size: var(--note-size);
-  line-height: 1.8;
-  color: var(--text-faint);
-  max-width: var(--note-measure);
-}
-
-.variants-empty {
-  margin: 0.9rem 0 0;
-  font-family: var(--font-ui);
-  font-size: var(--note-size);
-  color: var(--text-faint);
-}
-
-/* ---------- 「关于」页（原「更新页」改名，两端同一批字段） ---------- */
+/* ---------- 「关于」页（V3：标签左对齐；无区域框，用户 2026-10-16 定） ---------- */
 
 .about-fields {
   display: grid;
   grid-template-columns: 8rem 1fr;
   gap: 0.4rem 0.9rem;
   margin: 1.4rem 0 0;
-  padding: 1rem 1.1rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface-sunken);
-  box-shadow: var(--shadow);
+  padding: 0;
+  border: none;
+  background: none;
+  box-shadow: none;
   font-family: var(--font-ui);
   font-size: 0.78rem;
   line-height: 1.85;
   color: var(--text-dim);
+  text-align: left;
 }
 
 .about-fields dt {
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  letter-spacing: 0.06em;
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  letter-spacing: 0;
   color: var(--text-faint);
+  text-align: left; /* V3：标签左对齐（四条线合一） */
 }
 
 .about-fields dd {

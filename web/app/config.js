@@ -57,8 +57,13 @@ export const RESOURCE_CACHE_PREFIX = 'pc-resources-';
 export const resourceCacheName = (appVersion = APP_VERSION) => `${RESOURCE_CACHE_PREFIX}${appVersion}`;
 
 /** 本客户端能解析的内容 JSON 结构版本。内容与壳一起发布，所以不匹配属于**部署问题**：
- *  仍然如实报错、不渲染，并说明原因。 */
-export const SUPPORTED_FORMAT_VERSION = 1;
+ *  仍然如实报错、不渲染，并说明原因。
+ *  **1 → 2（不可逆，用户 2026-10-15 拍板「字段集一变就升」）**：
+ *    - 顶层 `dynasties` 由 `[{key,label,order}]` 改为**有序中文值数组**（`['汉', …]`）；
+ *    - 每首诗 10 键：`id,title,author,dynasty,genre,source,orderInSource,detail,stanzas,notes`
+ *      （`dynasty` 单值；`detail`＝一段最小 Markdown 文本；`variants`/`era` 不再发布）。
+ *  ⇒ 本壳**只认 2**：低版本内容（老产物）会被如实拒绝（老客户端也会拒绝新内容——这正是升版的代价）。 */
+export const SUPPORTED_FORMAT_VERSION = 2;
 
 /** 本版本**不使用** localStorage（所以没有键空间依赖）；也不用 IndexedDB。 */
 export const LOCAL_STORAGE_KEYS = {};

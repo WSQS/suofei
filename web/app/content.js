@@ -29,6 +29,12 @@ const isInt = (v) => typeof v === 'number' && Number.isInteger(v);
 /**
  * 结构校验（客户端侧）。与契约 §3 的编译期校验对应：这里是「收到别人产出的 JSON
  * 时要自己再把一道关」。任何一条不满足都判定内容不可用 → 界面如实报错。
+ *
+ * **本函数只认 `formatVersion: 2` 的新形状**（见 `config.js` 的 SUPPORTED_FORMAT_VERSION）：
+ *  - 顶层 `dynasties` ＝**有序中文值数组**；组名**精确匹配**（`poem.dynasty === dynasties[i]`，
+ *    不做 trim、不做别名、不做大小写折叠——与编译期 `tools/lib/dynasties.mjs` 同一口径）；
+ *  - 每首 10 键：`id,title,author,dynasty,genre,source,orderInSource,detail,stanzas,notes`
+ *    （缺值以 `null` 保键；这里把 `author` 当字符串、把其余可空字段当 null|string）。
  * @returns {{ok: boolean, errors: string[]}}
  */
 export function validateContent(doc) {
@@ -42,36 +48,41 @@ export function validateContent(doc) {
   }
   if (!Array.isArray(doc.dynasties)) {
     errors.push('dynasties 不是数组');
+  } else {
+    doc.dynasties.forEach((d, i) => {
+      if (typeof d !== 'string' || d === '') {
+        errors.push(`dynasties[${i}] 不是非空字符串（本版 dynasties 是**有序中文值数组**）`);
+      }
+    });
   }
   if (!Array.isArray(doc.poems) || doc.poems.length === 0) {
     errors.push('poems 不是数组或为空');
   }
   if (errors.length) return { ok: false, errors };
 
-  const dynastyKeys = new Set();
-  doc.dynasties.forEach((d, i) => {
-    if (!isPlainObject(d) || typeof d.key !== 'string' || !d.key) {
-      errors.push(`dynasties[${i}].key 缺失`);
-      return;
-    }
-    if (!isInt(d.order)) errors.push(`dynasties[${i}].order 不是整数`);
-    dynastyKeys.add(d.key);
-  });
-
+  const dynastyValues = new Set(doc.dynasties);
   const ids = new Set();
   doc.poems.forEach((p, i) => {
     const at = `poems[${i}]`;
     if (!isPlainObject(p)) { errors.push(`${at} 不是对象`); return; }
-    for (const key of ['id', 'title', 'author', 'dynastyKey', 'dynastyLabel']) {
+    for (const key of ['id', 'title', 'dynasty']) {
       if (typeof p[key] !== 'string' || p[key] === '') errors.push(`${at}.${key} 缺失或为空`);
     }
-    if (!isInt(p.dynastyOrder)) errors.push(`${at}.dynastyOrder 不是整数`);
+    if (typeof p.author !== 'string') errors.push(`${at}.author 不是字符串`);
+    for (const key of ['genre', 'source', 'detail', 'notes']) {
+      if (p[key] !== null && p[key] !== undefined && typeof p[key] !== 'string') {
+        errors.push(`${at}.${key} 既不是 null 也不是字符串`);
+      }
+    }
+    if (p.orderInSource !== null && p.orderInSource !== undefined && !isInt(p.orderInSource)) {
+      errors.push(`${at}.orderInSource 既不是 null 也不是整数`);
+    }
     if (p.id) {
       if (ids.has(p.id)) errors.push(`${at}.id 重复：${p.id}`);
       ids.add(p.id);
     }
-    if (p.dynastyKey && !dynastyKeys.has(p.dynastyKey)) {
-      errors.push(`${at}.dynastyKey 未在 dynasties 中声明：${p.dynastyKey}`);
+    if (typeof p.dynasty === 'string' && p.dynasty !== '' && !dynastyValues.has(p.dynasty)) {
+      errors.push(`${at}.dynasty 未在顶层 dynasties 中声明（精确匹配）：${p.dynasty}`);
     }
     if (!Array.isArray(p.stanzas) || p.stanzas.length === 0) {
       errors.push(`${at}.stanzas 不是数组或为空`);
@@ -89,30 +100,6 @@ export function validateContent(doc) {
           }
         });
       });
-    }
-    if (p.notes !== null && typeof p.notes !== 'string') {
-      errors.push(`${at}.notes 既不是 null 也不是字符串`);
-    }
-    // variants：契约要求产物里有这个字段（数组，元素 {text, note}）。
-    // **只解析与结构校验、绝不渲染**（用户 2026-10-14 拍板：异文只存档、不上界面；Android 同此）。
-    // 缺失/ null 时按「空」容忍（老手写 JSON），给了就必须形状正确。
-    if (p.variants !== undefined && p.variants !== null) {
-      if (!Array.isArray(p.variants)) {
-        errors.push(`${at}.variants 不是数组`);
-      } else {
-        p.variants.forEach((v, vi) => {
-          if (!isPlainObject(v)) {
-            errors.push(`${at}.variants[${vi}] 不是对象`);
-            return;
-          }
-          if (typeof v.text !== 'string' || v.text === '') {
-            errors.push(`${at}.variants[${vi}].text 缺失或为空`);
-          }
-          if (v.note !== undefined && v.note !== null && typeof v.note !== 'string') {
-            errors.push(`${at}.variants[${vi}].note 不是字符串`);
-          }
-        });
-      }
     }
   });
 

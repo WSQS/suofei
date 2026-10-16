@@ -1,44 +1,25 @@
 {
-  "formatVersion": 1,
+  "formatVersion": 2,
   "contentVersion": "2026.10.14.1",
   "generatedAt": "2026-10-14T12:00:00Z",
   "placeholder": true,
   "placeholderNotice": "占位夹具，非校对文本：仅用于没有 dist/content.json 时的本地开发与验证，不是发布内容。形状与产物一致（带 orderInSource，不带编译期的拼音名次键）。真实产物请用 node web/scripts/prepare-dev-content.mjs（自动优先读取 dist/content.json）。",
   "dynasties": [
-    {
-      "key": "qianqin",
-      "label": "先秦",
-      "order": 0
-    },
-    {
-      "key": "han",
-      "label": "汉",
-      "order": 100
-    },
-    {
-      "key": "weijin",
-      "label": "魏晋",
-      "order": 200
-    },
-    {
-      "key": "tang",
-      "label": "唐",
-      "order": 400
-    }
+    "先秦",
+    "汉",
+    "魏晋",
+    "唐"
   ],
   "poems": [
     {
       "id": "gushi-shijiu-shou-01",
       "title": "行行重行行",
       "author": "佚名",
-      "dynastyKey": "han",
-      "dynastyLabel": "汉",
-      "dynastyOrder": 100,
-      "era": "东汉末",
+      "dynasty": "汉",
       "genre": "五言古诗",
       "source": "占位夹具（非核对底本）",
       "orderInSource": 1,
-      "variants": [],
+      "detail": null,
       "stanzas": [
         [
           "行行重行行，与君生别离。",
@@ -55,14 +36,11 @@
       "id": "gushi-shijiu-shou-02",
       "title": "青青河畔草",
       "author": "佚名",
-      "dynastyKey": "han",
-      "dynastyLabel": "汉",
-      "dynastyOrder": 100,
-      "era": "东汉末",
+      "dynasty": "汉",
       "genre": "五言古诗",
       "source": "占位夹具（非核对底本）",
       "orderInSource": 2,
-      "variants": [],
+      "detail": null,
       "stanzas": [
         [
           "青青河畔草，郁郁园中柳。",
@@ -75,14 +53,11 @@
       "id": "gushi-shijiu-shou-06",
       "title": "涉江采芙蓉",
       "author": "佚名",
-      "dynastyKey": "han",
-      "dynastyLabel": "汉",
-      "dynastyOrder": 100,
-      "era": "东汉末",
+      "dynasty": "汉",
       "genre": "五言古诗",
       "source": "占位夹具（非核对底本）",
       "orderInSource": 6,
-      "variants": [],
+      "detail": null,
       "stanzas": [
         [
           "涉江采芙蓉，兰泽多芳草。",
@@ -95,14 +70,11 @@
       "id": "shijing-guanju",
       "title": "关雎",
       "author": "佚名",
-      "dynastyKey": "qianqin",
-      "dynastyLabel": "先秦",
-      "dynastyOrder": 0,
-      "era": "",
+      "dynasty": "先秦",
       "genre": "四言诗",
       "source": "占位夹具（非核对底本）",
       "orderInSource": 4,
-      "variants": [],
+      "detail": null,
       "stanzas": [
         [
           "关关雎鸠，在河之洲。",
@@ -115,14 +87,11 @@
       "id": "weijin-caocao-guancanghai",
       "title": "观沧海",
       "author": "曹操",
-      "dynastyKey": "weijin",
-      "dynastyLabel": "魏晋",
-      "dynastyOrder": 200,
-      "era": "东汉末·建安",
+      "dynasty": "魏晋",
       "genre": "四言乐府",
       "source": "占位夹具（非核对底本）",
       "orderInSource": 5,
-      "variants": [],
+      "detail": null,
       "stanzas": [
         [
           "东临碣石，以观沧海。",
@@ -135,14 +104,11 @@
       "id": "tang-libai-jingyesi",
       "title": "静夜思",
       "author": "李白",
-      "dynastyKey": "tang",
-      "dynastyLabel": "唐",
-      "dynastyOrder": 400,
-      "era": "盛唐",
+      "dynasty": "唐",
       "genre": "五言绝句",
       "source": "占位夹具（非核对底本）",
       "orderInSource": 7,
-      "variants": [],
+      "detail": null,
       "stanzas": [
         [
           "床前明月光，疑是地上霜。",
@@ -155,14 +121,11 @@
       "id": "tang-libai-wanglushanpubu",
       "title": "望庐山瀑布",
       "author": "李白",
-      "dynastyKey": "tang",
-      "dynastyLabel": "唐",
-      "dynastyOrder": 400,
-      "era": "盛唐",
+      "dynasty": "唐",
       "genre": "七言绝句",
       "source": "占位夹具（非核对底本）",
       "orderInSource": 8,
-      "variants": [],
+      "detail": null,
       "stanzas": [
         [
           "日照香炉生紫烟，遥看瀑布挂前川。",
@@ -175,14 +138,11 @@
       "id": "tang-zhangji-fengqiaoyebo",
       "title": "枫桥夜泊",
       "author": "张继",
-      "dynastyKey": "tang",
-      "dynastyLabel": "唐",
-      "dynastyOrder": 400,
-      "era": "中唐",
+      "dynasty": "唐",
       "genre": "七言绝句",
       "source": "占位夹具（非核对底本）",
       "orderInSource": 9,
-      "variants": [],
+      "detail": null,
       "stanzas": [
         [
           "月落乌啼霜满天，江枫渔火对愁眠。"
