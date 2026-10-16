@@ -373,7 +373,7 @@
 
 - **「最小 Markdown 范围」曾只有 Android 一端钉住共用定义（2026-10-16 由我核出；定义已迁稳定契约、Android 已接上，**Web 侧仍缺**）**：`docs/design/implementation-plan.md` S2 要求「**两端同一份范围定义＋对照测试**」。实际：**Android** `MarkdownTest` 真读**稳定契约** `schema/markdown-subset.json` 的 `constructs[].id`（**2026-10-16 `1a84e86` 前的旧路径是 `items/content-format/prototypes/rules-v4/expectations.json`，即那个已归档的原型目录**），与 `Markdown.CONSTRUCT_IDS` **逐项比**（读不到即失败、不跳过），并解析**共用合法夹具** `tests/fixtures/contract/md-subset-legal.json` 的 `notes`（`TestRepoFiles.read`）；**Web 端一条都没有** —— `grep -rn "md-subset\|expectations" web/` **零命中**，Web e2e 用的是**自己内联的夹具与期望值**（例：`web/tests/e2e-cdp.mjs` 的 `eq('`### ` 三级标题渲染成小标题块', fxMd.h3, ['夹具详情'])`、`eq('`1. ` 有序列表逐项渲染', fxMd.ol, [...])`）。
   ⚠ **风险形状**：将来在 `expectations.json` 里加/删一样构造（那份文件曾是**跨端唯一范围定义**），**Android 报红、Web 静默不动** —— 正是本项目已记录三次的那类「看起来有保障、其实没有」。
-  **已做一半（2026-10-16，`1a84e86`）**：**定义与夹具已迁到稳定契约位置**（`schema/markdown-subset.json`＋`tests/fixtures/contract/`），**Android 端已改读稳定位置**（不再读会被归档的原型目录）。**Web 端仍是零命中**（`web/app/render.js:140` 至今只是一句注释指向原型 `md-subset.md`）⇒ **给 Web 侧补上「读同一份定义」的对照**仍待做。
+  **已做两半（2026-10-16）**：① `1a84e86` **定义与夹具已迁到稳定契约位置**（`schema/markdown-subset.json` ＋ `tests/fixtures/contract/`），**Android 端已改读稳定位置**（不再读会被归档的原型目录）；② 新增 `tests/markdown-subset-contract.test.mjs` 把**编译器**也钉在契约上—— `constructs ≡ tools/lib/markdown.mjs 的 SUBSET`（逐项同序）、`excluded ≡ MD_CODES ∪ {MD_CODE_FENCE}`（**两个方向都比**）、且**契约里每一条都真被行使**（8 样构造在合法夹具里各有行内证据；10 个码各至少一份非法夹具真产生它）。**我用证伪确认它有牙齿**：删掉 `italic` ⇒ **3 条红**；删掉 `MD_TABLE` ⇒ **1 条红**；随后已还原（工作区干净）。**Web 端仍是零命中**（`web/app/render.js:140` 至今只是一句注释指向已归档的 `md-subset.md`）⇒ **给 Web 侧补上「读同一份定义」的对照**仍待做。
 
 ## 发布就绪状态（本地口径，2026-10-14）
 
