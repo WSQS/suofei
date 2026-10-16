@@ -28,8 +28,8 @@ android {
         minSdk = 26
         targetSdk = 36
         // 应用/资源版本，与内容版本（content.json 的 contentVersion）完全分开，不共用一个号。
-        versionCode = 2
-        versionName = "0.1.1"
+        versionCode = 3
+        versionName = "0.1.2"
     }
 
     // ── 正式签名（发布用）——四项环境变量见文件顶部注释 ──
@@ -101,7 +101,22 @@ gradle.taskGraph.whenReady {
 // 实测（2026-10-16）`web/about-fields.json` 已改成 4 项、单测必红，裸 `./gradlew testDebugUnitTest
 // --offline` 却照样 `BUILD SUCCESSFUL`（结果从 build cache 回放的旧绿）。所以这里把它们显式声明为
 // 输入，改这些文件时让测试**真的重跑**；不改变任何构建产物（只影响缓存/最新性判定，方向是更保守）。
-val repoRootDir = rootProject.projectDir.parentFile
+// ⚠ 2026-10-16（真实发布 0.1.2 时修）：这里原写的是 `rootProject.projectDir.parentFile` ——
+//   在**发布工作副本**（`<out>/.work/android`）里那个父目录是 `.work/`，于是下面这五个输入**全都不存在**
+//   ⇒ Gradle 在**配置阶段**直接 BUILD FAILED（发布门 `live-android-unit-tests` 因此在真实发布路径上
+//   **永远是红的**，而本机直接跑却看不出——因为那里 `android/` 的父目录恰好就是仓库根）。
+//   单测自己是用 `TestRepoFiles.repoFile` **从 cwd 逐级向上**找仓库根 ⇒ 这里改成**同一套判据**
+//   （找到同时有 `schema/markdown-subset.json` 与 `content/poems` 的祖先），两边读的才是同一个根。
+val repoRootDir: File = run {
+    var dir: File? = rootProject.projectDir.absoluteFile
+    var up = 0
+    while (dir != null && up <= 8) {
+        if (File(dir, "schema/markdown-subset.json").isFile && File(dir, "content/poems").isDirectory) return@run dir
+        dir = dir.parentFile
+        up++
+    }
+    rootProject.projectDir.parentFile
+}
 run {
     val repoInputs = listOf(
         "web/about-fields.json",

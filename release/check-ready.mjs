@@ -483,6 +483,36 @@ check('apk-identity', 'APK 的身份（包名 / versionCode）与清单一致', 
   return `${name} versionCode=${code} versionName=${ver} 应用名=${label}`;
 });
 
+// `versionCode` 递增（2026-10-16 新增，正式发布 0.1.2 时落定：**每次 +1**，不引入公式）。
+// 为何需要它：`apk-identity` 只校「APK 与清单一致」，**挡不住同号重发** —— 已装旧版的用户会因
+// `versionCode` 不大于已装值而**装不上**，而这是“看着都绿、实际发不出去”的典型形状。
+// 基线取**仓库里已有的发布 tag**：一只手源、离线可查，不依赖“上一份 manifest”（那个在 CI 从空目录
+// 构建时会缺，`app-version-bumped` 已经蹈过一次那个坑）。
+check('apk-versioncode-bumped', 'APK 的 versionCode 严格大于**已有发布 tag**里的值（防同号重发：旧的装不上新的）', (c) => {
+  const code = Number(c.manifest.app?.versionCode);
+  if (!Number.isFinite(code)) return skip('清单里没有 versionCode（上面已报）');
+  const tags = (runCapture('git', ['tag', '-l', 'v*'])?.stdout ?? '')
+    .split('\n').map((s) => s.trim()).filter(Boolean);
+  if (tags.length === 0) {
+    return { status: 'WARN', detail: '仓库里没有任何发布 tag ⇒ 拿不到上一版的值，**本门没查**（不等于查过）。' };
+  }
+  const readings = [];
+  for (const t of tags) {
+    const r = runCapture('git', ['show', `${t}:android/app/build.gradle.kts`]);
+    const m = r?.status === 0 ? /versionCode\s*=\s*(\d+)/.exec(r.stdout ?? '') : null;
+    if (m) readings.push({ tag: t, code: Number(m[1]) });
+  }
+  if (readings.length === 0) {
+    return { status: 'WARN', detail: `读不到任何发布 tag 里的 versionCode（tag：${tags.join('、')}）—— 本门没查。` };
+  }
+  const prev = readings.reduce((a, b) => (b.code > a.code ? b : a));
+  if (code <= prev.code) {
+    fail(`本版 versionCode=${code} **不大于**已发布过的 ${prev.code}（tag ${prev.tag}）：`
+      + '装了旧版的用户会因「版本不更大」而**装不上**这一版。请每次发布 +1。');
+  }
+  return `${prev.code}（tag ${prev.tag}）→ ${code}（+${code - prev.code}）`;
+});
+
 // ─────────────────────── 真跑门（慢；需要真浏览器 / 真 JVM）───────────────────────
 
 check('live-web-e2e', '真跑：用 out/web 当站点跑 E 线自己的 Web e2e（真无头 Chromium；条数不写死，取自它的输出）', (c) => {

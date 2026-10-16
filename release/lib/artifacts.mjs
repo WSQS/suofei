@@ -31,8 +31,11 @@ export const WEB_CONTENT_NAME = 'content.json';
 export const DIST_EXPECTED_FILES = [WEB_CONTENT_NAME];
 /** 显式传给编译器的排序策略（IF-16 已定：source，流水线必须显式传，不依赖默认值）。 */
 export const ORDER_STRATEGY = 'source';
-/** 本流水线与客户端共同支持的内容结构版本（IF-30）。 */
-export const SUPPORTED_FORMAT_VERSION = 1;
+/** 本流水线与客户端共同支持的内容结构版本（IF-30）。
+ * ⚠ 2026-10-16 随本次内容格式升版从 1 → **2**（发布 0.1.2 时）：两端客户端早已是 2
+ * （Web `app/config.js`、Android `ContentParser.SUPPORTED_FORMAT_VERSION`），只有这里漏改 ⇒ `format-version` 门
+ * 在真实发布前的演练里**报红把它挡下来了**（这正是该门存在的意义：改了结构就得三处一起改）。 */
+export const SUPPORTED_FORMAT_VERSION = 2;
 
 // ---------- Web 部署目录：什么该进、什么绝不能进 ----------
 

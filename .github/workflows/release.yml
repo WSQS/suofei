@@ -131,6 +131,19 @@ jobs:
           path: release/out/web
 
       # ── Release：只在真发布时建（干跑跳过）───────────────────────────
+      - name: 生成 Release 说明（把 tag 里的两个版本号注入 release/notes/release-notes.md）
+        # 说明要写清「format 2 旧 APK 保旧、需同签名新 APK 覆盖、旧 ASCII 深链接失效、未验证边界」——
+        # 一句话的 --notes 装不下（2026-10-16 发布 0.1.2 时改成真说明文件）。
+        run: |
+          set -euo pipefail
+          APP_V="${RELEASE_TAG#v}"; APP_V="${APP_V%%+*}"
+          CONTENT_V="${RELEASE_TAG##*+content-}"
+          sed -e "s/@TAG@/${RELEASE_TAG}/g" -e "s/@APP_VERSION@/${APP_V}/g" -e "s/@CONTENT_VERSION@/${CONTENT_V}/g" \
+            release/notes/release-notes.md > "$RUNNER_TEMP/release-notes.md"
+          test -s "$RUNNER_TEMP/release-notes.md"
+          echo "说明已注入：APP_VERSION=$APP_V / CONTENT_VERSION=$CONTENT_V"
+          echo "NOTES_FILE=$RUNNER_TEMP/release-notes.md" >> "$GITHUB_ENV"
+
       - name: 建 GitHub Release 并附 APK（幂等：重跑不会因「Release 已存在」失败）
         if: ${{ github.event_name == 'push' || inputs.dry_run == false }}
         env:
@@ -144,7 +157,7 @@ jobs:
           else
             gh release create "$RELEASE_TAG" "$APK" \
               --title "$RELEASE_TAG" \
-              --notes "索斐 $RELEASE_TAG（内容由 release/out/dist/content.json 编译，APK 内置同版内容；签名证书见 check-ready 回执）"
+              --notes-file "$NOTES_FILE"
           fi
           gh release view "$RELEASE_TAG" --json tagName,assets --jq '{tag:.tagName, assets:[.assets[].name]}'
 
