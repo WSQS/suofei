@@ -37,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
@@ -66,7 +67,7 @@ import dev.sopho.suofei.data.Poem
  * - **详情页**（`…-detail`）：诗题①**左对齐**／来源①**正文前带标签**／小标题**无竖线**＋
  *   `detail` 整段走最小 Markdown 渲染。
  * - **关于页**（`…-about-min`／`…-about-update`）：**V3 标签左对齐**、**无区域框**、
- *   **初态只有按钮、不生成状态文本元素**、仓库链接置底（C1 完整 URL）。
+ *   **初态只有按钮、不生成状态文本元素**、仓库链接置底（C1 完整 URL，**可点**：外部应用打开）。
  *
  * 视觉＝「静默终端」：颜色/字号/间距一律取自 [PoetryTokens]，本文件不写硬编码色值或字号。
  */
@@ -493,13 +494,18 @@ private fun PoemDetailScreen(poem: Poem, onBack: () -> Unit) {
  *   版本数值仍在右侧同一个**值列**（`edge + 5.2em + 0.5rem`）；
  * - **无框**：按钮与状态文本是内容流里的元素，没有容器边框/底色/阴影/标题/分隔线；
  * - **初态（尚未检查）只显示按钮**：不生成状态文本元素，也不用空字符串占位；
- * - 仓库链接＝**C1 完整 URL**，置底，**不给**「会打开浏览器」的提示。
+ * - 仓库链接＝**C1 完整 URL**，置底，**可点**（点了用外部应用打开同一条 URL，`LocalUriHandler` ⇒ `ACTION_VIEW`），
+ *   **不给**「会打开浏览器」的提示（用户没选 C3 那句）。
  *
  * ⚠ 2026-10-16：共享字段集已同步为 **4 项**（应用名／应用版本／内容版本／仓库链接，见 `AboutFields`）；
  * **不再渲染**「一句话说明」与「诚实的限制」两行（后者在本端**没有任何别处保留**，见 `AboutFields` 注释）。
  */
 @Composable
 private fun AboutScreen(state: AppState, onBack: () -> Unit, onCheckUpdate: () -> Unit) {
+    // 返修①：仓库链接是可点的**链接**，点了交给**外部**应用（浏览器）打开。
+    // `LocalUriHandler` 就是平台那条 `Intent.ACTION_VIEW` 通道（Compose 的标准入口），
+    // 不自己拼 Intent、也不内嵌 WebView（用户要的是「外部浏览器」）。
+    val uriHandler = LocalUriHandler.current
     ContentColumn { _ ->
         Column(
             Modifier
@@ -550,11 +556,15 @@ private fun AboutScreen(state: AppState, onBack: () -> Unit, onCheckUpdate: () -
 
                 // ④ 仓库链接置底（C1 完整 URL）。共享字段集的第 4 项；在本端就是这段 URL 文本，
                 //    同样**不另画标签行**（采纳锚 A3/V3：应用名与仓库链接都在内容左沿、都不是标签行）。
+                //    ⚠ 2026-10-16 返修①：C1＝**可点的链接**（Web 那份 C1 就是 `<a href>`，两端同锚），
+                //    所以这段文字**可点**——点了用外部应用打开同一条 URL（`LocalUriHandler` ⇒ `ACTION_VIEW`）。
                 Spacer(Modifier.height(PoetryTokens.rem(PoetryTokens.SEC_GAP_REM)))
                 Text(
                     AboutFields.REPO_URL,
                     style = PoetryTextStyles.aboutMono,
-                    modifier = Modifier.testTag("about-repo"),
+                    modifier = Modifier
+                        .testTag("about-repo")
+                        .clickable { uriHandler.openUri(AboutFields.REPO_URL) },
                 )
             }
             Spacer(Modifier.height(PoetryTokens.rem(PoetryTokens.COL_BOTTOM_REM)))

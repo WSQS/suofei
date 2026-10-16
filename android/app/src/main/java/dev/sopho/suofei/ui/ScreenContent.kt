@@ -56,7 +56,8 @@ fun poemMetaLine(poem: Poem): String =
 object AboutFields {
     const val APP_NAME = "索斐"
 
-    /** 仓库链接（用户 `q-9f9eca3d` 定的共用信息之一；C1＝显示**完整 URL**，不加「在浏览器打开」提示）。 */
+    /** 仓库链接（用户 `q-9f9eca3d` 定的共用信息之一；C1＝**完整 URL 的链接**：
+     *  文字就是这条完整 URL、**可点**，点了用外部应用（浏览器）打开；不加「在浏览器打开」提示）。 */
     const val REPO_URL = "https://github.com/WSQS/suofei"
 
     /** 共享字段集（顺序与 `web/about-fields.json` 的 `fields` 一致；单测逐个比对）。 */

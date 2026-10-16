@@ -787,24 +787,44 @@ button {
   text-align: left;
 }
 
-/* 值列：内容左沿 ＋ 标签列 68.22 ＋ 缝 0.5rem＝8 ⇒ 值列左沿 93.02px（相对内容列）。 */
+/* 值列：内容左沿 ＋ 标签列 68.22 ＋ 缝 0.5rem＝8 ⇒ 值列左沿 93.02px（相对内容列）。
+ * ⚠ 值本身是**常规字**：采纳锚里只有**版本号**是等宽（`.kv > .v > .ver`），
+ *   说明文字（「站点资源版本」四个汉字／「（尚未取到）」）不得跟着等宽。 */
 .about-kv > .about-v {
   margin-left: 0.5rem;
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 0.86rem;
   color: var(--text);
   overflow-wrap: anywhere;
 }
 
-/* ③ 仓库链接置底：C1 **完整 URL 的裸文本**（不画标签行、不给「在浏览器打开」提示）；
- * 版本组 → 仓库 ＝ 采纳锚 `--sec-gap` 0.9rem＝14.4px。 */
+/* 值里的**版本号本身**才用等宽（采纳锚 `.kv > .v > .ver` 的 `--mono-size`）；
+ * 这一段里**只能是版本号**（`v0.1.1` 之类），汉字说明文字不进到这里。 */
+.about-v > .about-v-num {
+  font-family: var(--font-mono);
+}
+
+/* ③ 仓库链接置底：C1 ＝ **完整 URL 的链接**（可见文本就是那条完整 URL；不画标签行、不给「在浏览器打开」提示）；
+ * 版本组 → 仓库 ＝ 采纳锚 `--sec-gap` 0.9rem＝14.4px。
+ * `display:block` ＋ `width:fit-content`：块级保留原来的上间距与换行口径，宽度又只圈住文字
+ * —— 可点区域＝这段文字本身，不是整行（原先是同样位置的 `<p>`，块级留白不变）。
+ * 颜色/悬停取采纳锚 `.repo`（可点就该看得出可点），不另发明样式。 */
 .about-repo {
+  display: block;
+  width: fit-content;
   margin: 0.9rem 0 0;
   font-family: var(--font-mono);
   font-size: 0.86rem;
   letter-spacing: 0.01em;
-  color: var(--text);
+  color: var(--accent-text);
+  text-decoration: none;
   overflow-wrap: anywhere;
+  transition: var(--chip-transition);
+}
+
+.about-repo:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--accent-line);
 }
 
 /* ---------- 窄屏 ---------- */
