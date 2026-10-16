@@ -137,15 +137,17 @@ class ContentParserTest {
         //   改为在 `content/poems/` 下**按题名递归查找**唯一来源（找不到即失败，不跳过）。
         // ⚠ 2026-10-16：源文根与「有 `## 详情` 的源文数」都走 `ContentSources`（同一份忽略规则，不各写一遍）。
         val poemsRoot = ContentSources.poemsRoot
-        val sourceOf = { title: String ->
-            poemsRoot.walkTopDown().firstOrNull { it.isFile && it.name == "$title.md" }
-        }
+        // ⚠ 按**路径 id** 找源文（见 ContentSources.idOf 的注释）：作者的目录层级/文件名可以自由，
+        //   例如 `杜甫/梦李白二首/其一.md`（id `杜甫-梦李白二首-其一`）也能对上。
         val withDetail = content.poems.filter { it.detail != null }
         assertTrue("至少应有带 `## 详情` 的诗（S3 迁移已进产物）", withDetail.isNotEmpty())
         assertTrue("也应有**没有** `## 详情` 的诗（否则这条对照就白做了）", withDetail.size < content.poems.size)
         for (poem in content.poems) {
-            val src = sourceOf(poem.title)
-                ?: throw AssertionError("源文应存在（content/poems/**/${poem.title}.md）：${poemsRoot.absolutePath}")
+            val src = ContentSources.byId[poem.id]
+                ?: throw AssertionError(
+                    "按路径 id 找不到源文：${poem.id}（查找基于 content/poems/ 的相对路径派生 id，" +
+                        "**不要求**文件名等于题名）",
+                )
             val hasSection = src.readText(Charsets.UTF_8).lineSequence().any { it.trim() == "## 详情" }
             assertEquals(
                 "「${poem.title}」的 detail 与源里的 `## 详情` 节不一致（有节 ⇒ 非 null；无节 ⇒ null）",

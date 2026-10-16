@@ -60,6 +60,33 @@ object ContentSources {
     }
 
     /**
+     * 源文的 **id**：与编译器同一条规则 —— 相对 `content/poems/` 的路径、去 `.md`、路径分隔符 → `-`、NFC 归一。
+     *
+     * ⚠ 2026-10-16（对话侧纠正）：查找源文要**按 id**，**不再要求「文件名 == 题名」**。
+     * 那条「文件名 == 题名」只是我先前写进单测的**查找办法**，**不是**用户的
+     * 「相对路径派生 ID / 中文任意目录」契约；把它当成对作者的文件命名约束是**越界**的
+     * （例如组诗 `梦李白二首/其一.md` 这种自然层级会被误红）。
+     */
+    fun idOf(file: File): String =
+        java.text.Normalizer.normalize(
+            file.absoluteFile.relativeTo(poemsRoot.absoluteFile).path.removeSuffix(".md").replace(File.separatorChar, '-'),
+            java.text.Normalizer.Form.NFC,
+        )
+
+    /** id → 源文（**id 撞车直接失败**：不静默取一个）。 */
+    val byId: Map<String, File> by lazy {
+        val m = HashMap<String, File>()
+        for (f in poemSources) {
+            val id = idOf(f)
+            val prev = m.put(id, f)
+            if (prev != null) {
+                throw AssertionError("源文 id 撞车：$id\n  ${prev.absolutePath}\n  ${f.absolutePath}")
+            }
+        }
+        m
+    }
+
+    /**
      * 朝代注册表 **`tools/lib/dynasties.mjs`**（组名与组序的唯一权威）解析出的 `label → order`。
      *
      * 本端**不持副本**（不在这里写死组名或 order 表）：注册表加了新朝代，这里自动跟上；
