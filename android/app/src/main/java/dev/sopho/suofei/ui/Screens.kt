@@ -1,6 +1,7 @@
 package dev.sopho.suofei.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -600,7 +601,24 @@ private fun KeyValueRow(label: String, value: String) {
     }
 }
 
-/** 唯一的动作：**检查更新**（检查中禁用）。按钮自身保留边框/底色/圆角（那不是「区域外框」）. */
+/**
+ * 唯一的动作：**检查更新**（检查中禁用）。按钮自身保留边框/底色/圆角（那不是「区域外框」）。
+ *
+ * ⚠ 2026-10-16（用户在看页面上报「背景矩形与外框之间上下各有一条暗缝」）：
+ * 原来边框画在 `TextButton` 的 **外层 `Modifier` 链**上，而底色由按钮**自己的 Surface** 画
+ * ⇒ 两个矩形不是同一个 box。material3 的 Surface 链是
+ * `modifier.minimumInteractiveComponentSize().surface(shape, color, border, …).clickable(…)`
+ * （已在本机缓存里的 `material3-android-1.3.2` 的 `SurfaceKt$Surface$2` 字节码里核过），
+ * 而 `surface(...)` 里是 `border(border, shape) → background(color, shape) → clip(shape)`
+ * ——**边框与底色由同一个 draw 节点、按同一个 bounds 画**。
+ * 所以（a）外层 `Modifier.border` 跟着 `minimumInteractiveComponentSize()` 一起被撑到最小交互高度
+ * **48dp**（`check-update` 节点实测 126px＝48dp），（b）按钮自己的 Surface 只有内容高度
+ * 40dp（material3 `ButtonDefaults.MinHeight = 40.dp`，内容行 `defaultMinSize(MinWidth, MinHeight)`，
+ * 本机实测 105px＝40dp）⇒ 上下各露出约 10.5px（4dp）的页面底色，就是那两条暗缝。
+ * 修法：把边框交给按钮自己的 `border = BorderStroke(...)`（与 `containerColor` 同一个 Surface、
+ * 同一个 `shape`）⇒ 边框与底色**同 bounds**；不改最小触控（`minimumInteractiveComponentSize`
+ * 一行没动，`check-update` 节点仍是 48dp、可点区仍是那个 40dp 的内容盒）。
+ */
 @Composable
 private fun UpdateButton(enabled: Boolean, onClick: () -> Unit) {
     TextButton(
@@ -613,17 +631,16 @@ private fun UpdateButton(enabled: Boolean, onClick: () -> Unit) {
             disabledContentColor = PoetryTokens.textFaint,
             disabledContainerColor = PoetryTokens.bg,
         ),
+        // 边框与底色画在同一个 Surface 节点上（同 bounds）——**不**放到外层 `Modifier.border`。
+        border = BorderStroke(
+            width = PoetryTokens.HAIRLINE_DP.dp,
+            color = if (enabled) PoetryTokens.accentLine else PoetryTokens.line,
+        ),
         contentPadding = PaddingValues(
             horizontal = PoetryTokens.rem(PoetryTokens.CTL_PAD_X_REM),
             vertical = PoetryTokens.rem(PoetryTokens.CTL_PAD_Y_REM),
         ),
-        modifier = Modifier
-            .border(
-                width = PoetryTokens.HAIRLINE_DP.dp,
-                color = if (enabled) PoetryTokens.accentLine else PoetryTokens.line,
-                shape = RoundedCornerShape(PoetryTokens.RADIUS_SMALL_DP.dp),
-            )
-            .testTag("check-update"),
+        modifier = Modifier.testTag("check-update"),
     ) {
         Text("检查更新", style = PoetryTextStyles.ctl)
     }
