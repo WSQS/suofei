@@ -29,7 +29,10 @@
 ## 2. 已验证据（亲眼看过的图 ＋ 与原型差异）
 
 **实拍/预览在哪**
-- **Android 四页（最新构建）**：`docs/reviews/ui-review/materials-android-latest-4pages/`（每页若干张 PNG ＋ `uiautomator` dump 原文 ＋ `apksigner` 证书输出 ＋ 构建/安装日志）。
+- **Android 四页（在最新合并后代码上复核）**：`docs/reviews/ui-review/materials-android-latest-4pages/` —— **11 张 PNG ＋ 同名 `uiautomator` dump 原文** ＋ `DEVICE-IDENTITY.txt`／`apksigner-verify-certs.txt`／三次构建日志／`check-bundled-content.log`／`install.txt`。
+  - **被测代码 ＝ 主树当前代码**：构建基底 `1291063`；其后的提交只动 `docs/`＋`tests/`（`git diff HEAD..master -- android/ content/ schema/ web/` 为空，**我核过**）。
+  - **APK 身份**：`app-debug.apk`、sha256 `a5851499…b787`、`versionCode 2`／`versionName 0.1.1`、**签名 `CN=Android Debug`**（⚠ **不是** `CN=Suofei`）。
+  - **结论：四页对照采纳锚全部命中**——目录页（悬挂记号／竖直居中差 0／**缩进 0**／《文选》原次序／无搜索无笔记标记）；诗页（全居中／8 行不折／返回左·详情右）；详情页（题名**左对齐**／来源带标签／`### ` 小标题**无竖线且同左沿**／无 detail 如实说明）；关于页（4 字段／无「来源」／无冗余副标题／**四条线合一**／初态只按钮）。**我自己亲眼看了 4 张**（目录页、诗页、无 detail 详情页、初态关于页）。
 - **Web 四页**：`web/tests/evidence/`（如 `about-after.png`／`index-after.png`，关于页修偏后的实拍）＋ `web/tests/artifacts/`（每次跑 e2e 自动刷新全套）＋ 宽度 4 图 `docs/design/width-audit/{about,detail}-{320,1180}.png`。
 - **原型（采纳锚，对照用）**：`items/app-ui/history/round-*/q-*.html` ＋ 各轮 `ARCHIVE.md`。
 
@@ -88,6 +91,8 @@
 4. 内置 `detail` 的 6 首为 `null` ⇒ **内容事实**（见 §4），非缺口。
 5. 两端少数**标记后空白边缘**（`###\t`／`-\t`／`1.\t`／`-  甲`／`### 甲 `）在**编译器+Web 用 `\s+`、Android 要字面空格**上不一致 ⇒ 只在**真实内容外的语法边缘**；我据此**未擅自放宽**任何一端（见 `docs/status.md`）。**不阻塞**。
 6. 关于页是否显示「来源」、失败态是否换色 ⇒ **用户未选**，现按「不显示／不换色」实现。
+7. **关于页「初态只按钮」那张图是 instrumented 的（引用时别弄错）**：一进应用就自动 `checkForUpdate()`，`Idle` 窗口比一次 `screencap` 还短 ⇒ 原包上截不到；该图由**临时注释一行、未提交**的构建截得，**截完已 revert ＋ 重建（位级同 sha）＋ 重装原包**；文件名与 README 均带 `INSTRUMENTED`，**不得**当成原包直接截图。旁证（不依赖该图）：源码守卫 `if (updateStatus !is Idle) { … }` ＋ 块高算术（有状态时链接 top＝708、Idle 时 638 ⇒ **Δ70px 整个消失**）。
+8. **一条未复现的观察（只记账，不当缺陷）**：复核时**第一次**冷启动后的一条 `input tap`（坐标只可能落在组头）把屏幕带到**关于页**（其 dump 与随后正常到达的关于页 dump **逐字节相同** ⇒ 是稳定页，不是半渲染态）。**受控复跑 6 次全部正常**，期间无 crash/ANR。⇒ **不据此宣称「目录页会乱跳」**；原文与产物见 `…/90-ANOMALY-first-tap-landed-on-about.*` 与 README §6。再有人复现再当缺陷追。
 
 ---
 
