@@ -5,8 +5,10 @@
 > 也移除后，本报告的数值与 4 张图已**在 `78c19ac` 上重跑重出**（基线 SHA 由脚本自取＝`78c19ac`；分支 `master`，未 push）。
 > 关于页那几行**逐格重核过**（见 §6.2）；表 B 原来那列「页脚长日期串」已删（量的是那个已移除的面板）。
 > 采纳锚：`items/app-ui/history/round-2026-10-16-width-pct/`（该锚此前**只在目录页＋诗页**上实测过，关于页/详情页它自报「本轮不含」）
-> 复跑：`CHROME_BIN='C:/Users/wsqsy/AppData/Local/Chromium/Application/chrome.exe' node web/tests/width-audit.mjs`
+> 复跑：`CHROME_BIN='<chromium 可执行文件路径>' node web/tests/width-audit.mjs`
 > 本轮实测：**EXIT 0**（口径/测量断言 **86/86** 通过，观察项 FINDING **0** 条）；原始日志 [run.log](width-audit/run.log)
+> ⚠ 公开仓库卫生：`run.log` 与本文里的**本机绝对路径已替换为占位符**（`<repo>`／`<chromium 可执行文件路径>`／`<JDK 17>`／`<临时目录>`），
+> 以免把个人目录写进公开仓库；除这些路径串外，日志与报告**逐字未改**。
 
 ---
 
@@ -283,7 +285,7 @@
 ## 10 复跑与自证
 
 ```bash
-CHROME_BIN='C:/Users/wsqsy/AppData/Local/Chromium/Application/chrome.exe' node web/tests/width-audit.mjs \
+CHROME_BIN='<chromium 可执行文件路径>' node web/tests/width-audit.mjs \
   > docs/design/width-audit/run.log 2>&1
 echo $?    # ⇒ 0
 ```

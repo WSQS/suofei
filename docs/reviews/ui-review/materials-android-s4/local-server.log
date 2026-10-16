@@ -1,4 +1,4 @@
-serving C:/Users/wsqsy/AppData/Local/Temp/s4-accept/server on 8899
+serving <临时目录>/s4-accept/server on 8899
 200 /content/latest.json 231
 200 /content/latest.json 231
 404 /content/content/2026.10.16.20/content.json

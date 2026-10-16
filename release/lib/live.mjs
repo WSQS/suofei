@@ -49,9 +49,18 @@ export const LIVE_CHECK_IDS = Object.freeze([
   'live-markdown-conformance',
 ]);
 
-/** 本机 Chromium 的实测位置（只是**兜底提示**；真正的来源是环境变量 CHROME_BIN）。 */
-const CHROME_FALLBACK = 'C:/Users/wsqsy/AppData/Local/Chromium/Application/chrome.exe';
-const CHROME_HINT = `CHROME_BIN='${CHROME_FALLBACK}'`;
+/** Chromium 的**常见安装候选**（兜底；真正的来源是环境变量 `CHROME_BIN`）。
+ *  ⚠ 2026-10-16：这里原来写死了**本机的一条绝对路径**（`C:/Users/<用户名>/...`）——
+ *  公开仓库里那既是**个人路径泄露**、又写死了某一台机器的安装位置 ⇒ 换成通用候选表。 */
+const CHROME_CANDIDATES = [
+  '/usr/bin/google-chrome',
+  '/usr/bin/google-chrome-stable',
+  '/usr/bin/chromium',
+  '/usr/bin/chromium-browser',
+  'C:/Program Files/Google/Chrome/Application/chrome.exe',
+  'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
+];
+const CHROME_HINT = "CHROME_BIN='/path/to/chrome'";
 
 /** 本机 Gradle 到不了 google()/mavenCentral()（全局代理那边不通），测试要用的 org.json 走这个镜像。 */
 const DEFAULT_EXTRA_MAVEN_MIRROR = 'https://maven.aliyun.com/repository/public';
@@ -101,13 +110,14 @@ export function findE2EDeployFiles() {
   return files.length ? files : null;
 }
 
-/** 解析 Chromium：优先 CHROME_BIN，其次本机实测默认路径；都没有就返回 null（→ 标黄）。 */
+/** 解析 Chromium：优先 CHROME_BIN，其次**常见安装位置**；都没有就返回 null（→ 标黄）。 */
 export function resolveChromeBin() {
   const fromEnv = process.env.CHROME_BIN;
   if (fromEnv && exists(fromEnv)) return { bin: fromEnv, source: `CHROME_BIN=${fromEnv}` };
   if (fromEnv) return { bin: null, source: `CHROME_BIN=${fromEnv}（这个路径不存在）` };
-  if (exists(CHROME_FALLBACK)) return { bin: CHROME_FALLBACK, source: `本机默认路径 ${CHROME_FALLBACK}` };
-  return { bin: null, source: 'CHROME_BIN 未设，且本机默认路径不存在' };
+  const found = CHROME_CANDIDATES.find((p) => exists(p));
+  if (found) return { bin: found, source: `常见安装位置 ${found}` };
+  return { bin: null, source: 'CHROME_BIN 未设，且常见安装位置都不存在' };
 }
 
 const tail = (s, n = 3) => String(s).trim().split('\n').slice(-n).join(' | ');

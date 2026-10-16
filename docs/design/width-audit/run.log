@@ -1,19 +1,19 @@
-(node:45780) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/Users/wsqsy/Documents/android/PoetryCollection/web/app/config.js is not specified and it doesn't parse as CommonJS.
+(node:45780) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///<repo>/web/app/config.js is not specified and it doesn't parse as CommonJS.
 Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
-To eliminate this warning, add "type": "module" to C:\Users\wsqsy\Documents\android\PoetryCollection\package.json.
+To eliminate this warning, add "type": "module" to <repo>\package.json.
 (Use `node --trace-warnings ...` to show where the warning was created)
 ================ 运行信息 ================
-仓库根   : C:\Users\wsqsy\Documents\android\PoetryCollection
+仓库根   : <repo>
 Commit   : 78c19ac08f79711ce50fa6149166bbbd36b32e10
 分支     : master（工作区有 4 项未提交）＋**未 push**（本任务不做远端操作）
-加载方式 : **本地静态服务 http://127.0.0.1:60349/**（C:\Users\wsqsy\Documents\android\PoetryCollection\web\scripts\serve.mjs，root=C:\Users\wsqsy\AppData\Local\Temp\width-audit-Pg2KL2\deploy）——不是 file://（与采纳锚的差别只有这一点；列宽由 JS 用 innerWidth 算，两者一致）
+加载方式 : **本地静态服务 http://127.0.0.1:60349/**（<repo>\web\scripts\serve.mjs，root=<临时目录>\width-audit-Pg2KL2\deploy）——不是 file://（与采纳锚的差别只有这一点；列宽由 JS 用 innerWidth 算，两者一致）
 内容     : dist/content.json（真实产物）；formatVersion=2 contentVersion=2026.10.16.22 诗19首
 关于页   : http://127.0.0.1:60349/#/about
 详情页   : http://127.0.0.1:60349/#/p/%E5%8F%A4%E8%AF%97%E5%8D%81%E4%B9%9D%E9%A6%96-%E8%A1%8C%E8%A1%8C%E9%87%8D%E8%A1%8C%E8%A1%8C/detail（行行重行行；detail 355 字）
-浏览器   : C:/Users/wsqsy/AppData/Local/Chromium/Application/chrome.exe（--headless=new --hide-scrollbars）
+浏览器   : <chromium 可执行文件路径>（--headless=new --hide-scrollbars）
 口径     : C = min(V, max(320, 0.88 × (V − 24)))；行内沿 16.8px ⇒ 可用宽 = C − 33.6
 视口     : 320×568 / 360×932 / 390×844 / 412×915 / 430×932 / 740×360 / 834×1112 / 1180×900（与采纳锚同一组 8 个）
-出图     : 320 / 1180 ⇒ C:\Users\wsqsy\Documents\android\PoetryCollection\docs\design\width-audit/*.png
+出图     : 320 / 1180 ⇒ <repo>\docs\design\width-audit/*.png
 
 === 320（320×568，手机 · 最小可用宽（列外余白在这一档是 0）） ===
 PASS  320·关于页与详情页的截图**确实不同**（防「两支图截了同一页」）

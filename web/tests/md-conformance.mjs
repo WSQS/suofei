@@ -67,8 +67,13 @@ const FIXTURE_PATH = resolve(repoRoot, 'tests', 'fixtures', 'contract', 'md-subs
 const BOUNDARY_PATH = resolve(repoRoot, 'tests', 'fixtures', 'contract', 'md-boundary.json');
 const artifactsDir = resolve(webRoot, 'tests', 'artifacts');
 const NODE = process.execPath;
+// 2026-10-16：原来这里写死了本机的一条绝对路径（`C:/Users/<用户名>/...`）⇒ 公开仓库里那是**个人路径泄露**、
+// 换台机器也没用 ⇒ 改为：① `CHROME_BIN` ② 常见安装位置 ③ 都没有就明确报错（不猜）。
 const CHROME_BIN = process.env.CHROME_BIN
-  || 'C:/Users/wsqsy/AppData/Local/Chromium/Application/chrome.exe';
+  || ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium',
+    '/usr/bin/chromium-browser', 'C:/Program Files/Google/Chrome/Application/chrome.exe']
+    .find((p) => existsSync(p))
+  || null;
 
 /** 取一个当前空闲的端口。**绝不写死**：并发跑同一套测试时会串台（本仓踩过）。 */
 async function freePort(exclude = []) {

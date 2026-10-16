@@ -163,7 +163,7 @@ EXIT=0
 ================ 运行 5b：复制到仓库【之外】后跑 ⇒ 抛「找不到仓库根」并 EXIT=1 ================
 命令：node <仓库外路径>/demo-id-final.mjs
 
-file:///C:/Users/wsqsy/AppData/Local/Temp/rules-v3-reloc-out3/demo-id-final.mjs:52
+file:///<临时目录>/rules-v3-reloc-out3/demo-id-final.mjs:52
     if (parent === dir) throw new Error(`找不到仓库根：从 ${startDir} 一路上溯都没有 ${ROOT_MARKER}（本脚本不写死层级）`);
                               ^
 (stderr 首行如上；完整为抛错栈)

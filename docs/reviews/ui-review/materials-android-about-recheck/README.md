@@ -32,7 +32,7 @@
 
 | 项 | 值 |
 |---|---|
-| 工作树 | `C:\Users\wsqsy\Documents\android\.sopho-wt\child-a4ed5a79`（分支 `wt/child-a4ed5a79`） |
+| 工作树 | `<worktree>`（分支 `wt/child-a4ed5a79`） |
 | **基底 sha** | **`23f4757`**（`merge(android): 关于页字段集同步为 4 项 …`）＝ 本工作树 HEAD ＝ 我构建时本地 `master` 的 tip |
 | 内核事实 | 复核时本地 `master` 已前进到 **`abc1e2b`**；`git diff --name-only 23f4757 abc1e2b` ⇒ 只动 `docs/design/implementation-plan.md`、`docs/status.md`、`items/graph.md`，**`android/` 一个字没动** ⇒ 构建输入与我这次用的完全相同 |
 | `origin/master` | **`eb33f11`**（落后本地 6 个提交）—— 本轮**没有 push**，所以「最新合并代码」目前**只存在于本地** |
@@ -222,7 +222,7 @@ adb -s emulator-5556 shell getprop ro.boot.qemu.avd_name     # -> Pixel_6
 adb -s emulator-5556 shell dumpsys window | grep mCurrentFocus
 
 # 用最新合并代码重建（基底 23f4757）
-cd android && JAVA_HOME='C:\Users\wsqsy\.jdks\ms-17.0.17' ./gradlew assembleDebug --offline
+cd android && JAVA_HOME='<JDK 17>' ./gradlew assembleDebug --offline
 
 # 安装（vc2 < 设备上原有 vc3 ⇒ 必须先卸载，见差异 D3）
 adb -s emulator-5556 uninstall dev.sopho.suofei

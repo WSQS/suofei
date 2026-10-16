@@ -35,9 +35,12 @@ mCurrentFocus: dev.sopho.suofei/dev.sopho.suofei.MainActivity
 ## 复跑
 
 ```bash
-cd web && CHROME_BIN='C:/Users/wsqsy/AppData/Local/Chromium/Application/chrome.exe' node tests/e2e-cdp.mjs
-cd android && JAVA_HOME='C:/Users/wsqsy/.jdks/ms-17.0.17' ./gradlew testDebugUnitTest --offline --no-build-cache --rerun-tasks
+cd web && CHROME_BIN=/path/to/chrome node tests/e2e-cdp.mjs
+cd android && JAVA_HOME=/path/to/jdk17 ./gradlew testDebugUnitTest --offline --no-build-cache --rerun-tasks
 ```
+
+> ⚠ 公开仓库卫生：本文件里的**本机绝对路径已替换为占位符**（仓库、浏览器、JDK），
+> 以免把个人目录写进公开仓库；图与结论逐字未改。
 
 ---
 

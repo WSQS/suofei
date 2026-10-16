@@ -16,10 +16,10 @@ S4 的四页验收跑在**旧基底 `eb33f11` ＋ debug 签名**上；S4-b 只�
 
 | 项 | 值 |
 |---|---|
-| 本会话工作树 | `C:/Users/wsqsy/Documents/android/.sopho-wt/child-f25f0b74`（分支 `wt/child-f25f0b74`） |
+| 本会话工作树 | `<worktree>`（分支 `wt/child-f25f0b74`） |
 | **构建基底 SHA** | **`1291063985f42d8ed57b8bb51a63ca05b8736093`**（`1291063`）＝ 构建时 `git rev-parse HEAD` |
 | 与主树最新（`master`）的关系 | 构建后 `master` 已前进到 `ffb324d99cddff533ef82c1049cd72f7ed9fb2b0`（3 个提交）。`git diff HEAD..master -- android/ items/app-ui/ content/ schema/ web/` **全部为空** ⇒ 本轮被复核的**应用代码与内容就是 master 当前的样子**；唯一差异是 `docs/`、`tests/` 三处文档/测试。 |
-| 构建命令（**真 exit**） | `cd android && JAVA_HOME='C:/Users/wsqsy/.jdks/ms-17.0.17' ./gradlew assembleDebug --offline > 日志 2>&1; echo $?` ⇒ **EXIT=0**（原文见 `assembleDebug.log` 末行 `BUILD SUCCESSFUL in 12s`） |
+| 构建命令（**真 exit**） | `cd android && JAVA_HOME='<JDK 17>' ./gradlew assembleDebug --offline > 日志 2>&1; echo $?` ⇒ **EXIT=0**（原文见 `assembleDebug.log` 末行 `BUILD SUCCESSFUL in 12s`） |
 | 产物 | `android/app/build/outputs/apk/debug/app-debug.apk`（9,623,839 字节） |
 | `versionCode`／`versionName` | **2** ／ **0.1.1**（`output-metadata.json` 与 `dumpsys package` 两侧一致） |
 | `applicationId` | `dev.sopho.suofei` |

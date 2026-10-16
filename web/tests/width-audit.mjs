@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /* Web「关于页 ＋ 详情页」宽度口径实测（**真实应用** `web/`，8 视口 × 2 页；含横向溢出与元素级折行）
  *
- *   CHROME_BIN='C:/Users/wsqsy/AppData/Local/Chromium/Application/chrome.exe' node web/tests/width-audit.mjs
+ *   CHROME_BIN=/path/to/chrome node web/tests/width-audit.mjs
  *   … --only=320,1180     只跑其中几个视口（排查用）
  *   … --no-shot           不重出 PNG（复跑时用：已提交的图不该被复跑重写）
  *   … --strict            把「观察项 FINDING」也计入 exit code
@@ -42,8 +42,17 @@ const webRoot = fileURLToPath(new URL('..', import.meta.url));     // web/
 const repoRoot = resolve(webRoot, '..');
 const shotDir = resolve(repoRoot, 'docs', 'design', 'width-audit');
 const NODE = process.execPath;
+// 2026-10-16：原来这里写死了本机的一条绝对路径（`C:/Users/<用户名>/...`）⇒ 公开仓库里那是**个人路径泄露**、
+// 换台机器也没用 ⇒ 改为：① `CHROME_BIN` ② 常见安装位置 ③ 都没有就明确报错（不猜）。
 const CHROME_BIN = process.env.CHROME_BIN
-  || 'C:/Users/wsqsy/AppData/Local/Chromium/Application/chrome.exe';
+  || ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium',
+    '/usr/bin/chromium-browser', 'C:/Program Files/Google/Chrome/Application/chrome.exe']
+    .find((p) => existsSync(p))
+  || null;
+if (!CHROME_BIN) {
+  console.error('找不到浏览器：请设 CHROME_BIN，或装一个常见位置的 google-chrome / chromium。');
+  process.exit(2);
+}
 
 const argv = process.argv.slice(2);
 const onlyKeys = (argv.find((a) => a.startsWith('--only=')) || '').slice('--only='.length)
