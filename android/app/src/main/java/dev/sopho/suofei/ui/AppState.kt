@@ -3,7 +3,6 @@ package dev.sopho.suofei.ui
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import dev.sopho.suofei.data.ContentOrigin
 import dev.sopho.suofei.data.ContentRepository
 import dev.sopho.suofei.data.LoadedContent
 import dev.sopho.suofei.data.Poem
@@ -55,7 +54,12 @@ class AppState(
     var loadError: String? by mutableStateOf(null)
         private set
 
-    val manifestUrlForDisplay: String get() = UpdateEndpoint.displayUrl()
+    /**
+     * 更新清单地址（真实站点）。⚠ 2026-10-16：用户 `q-9f9eca3d` 定的关于页共用信息是
+     * 应用名/应用版本/内容版本/仓库链接 —— **更新源地址没有被一并采纳**，所以它不再显示在界面上，
+     * 只作为检查更新的实际入口；地址本身仍由 `UpdateEndpointTest` 逐字钉住。
+     */
+    val manifestUrl: String get() = UpdateEndpoint.displayUrl()
 
     suspend fun initialLoad() {
         val result = withContext(Dispatchers.IO) {
@@ -126,7 +130,7 @@ class AppState(
         val outcome = withContext(Dispatchers.IO) {
             try {
                 ContentUpdater.checkAndUpdate(
-                    manifestUrl = manifestUrlForDisplay,
+                    manifestUrl = manifestUrl,
                     currentVersion = current,
                     appVersionCode = appVersionCode,
                     store = store,
@@ -147,12 +151,11 @@ class AppState(
         }
     }
 
-    fun contentVersionLine(): String = loaded?.let {
-        "${it.content.contentVersion}（来源：${
-            when (it.origin) {
-                ContentOrigin.BUNDLED_ASSET -> "APK 内置"
-                ContentOrigin.INSTALLED -> "已下载"
-            }
-        }）"
-    } ?: "尚未载入"
+    /**
+     * 共享的「内容版本」值：**只有版本号本身**。
+     * ⚠ 按用户 2026-10-16 的 `q-9f9eca3d` 与 about-update ①：「内容来源：已下载／内置」
+     * **不该出现在两端共用的版本信息里**（Android 若要呈现来源，只能放进更新块，而那也尚未采纳）——
+     * 所以这一行不再拼「（来源：…）」。
+     */
+    fun contentVersionText(): String = loaded?.content?.contentVersion ?: "尚未载入"
 }

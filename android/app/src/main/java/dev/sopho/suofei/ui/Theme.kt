@@ -197,6 +197,119 @@ object PoetryTokens {
     /** 笔记展开开关 0.76rem（原型 `.notes-head .n-toggle`）. */
     const val NOTES_TOGGLE_REM = 0.76f
 
+    // ── 宽度口径（用户 2026-10-15 选定；采纳锚 `round-2026-10-16-width-pct`）──
+    /** `C = min(V, max(320, 0.88 × (V − 24)))` 里的 88%。 */
+    const val CONTENT_WIDTH_PCT = 0.88f
+    /** 基准 `A = V − 24`：**24 是一次性从视口宽扣掉的总量**，不是「左右各 12px 的外层页边」。
+     *  可机器查的形式：V=320 时 C=320 > A=296（若真是两侧各 12，内容宽不可能超过 296）。 */
+    const val CONTENT_WIDTH_DEDUCT = 24f
+    /** 内容宽下限 320px（最小内容宽）。 */
+    const val CONTENT_WIDTH_FLOOR = 320f
+    /** 行内沿 `1.05rem`＝16.8px：**列内**的一层（与列外余白 `(V−C)/2` 不是同一件事）。
+     *  与令牌 `row-pad` 的横向分量同值（原型写的就是 `--edge-x: 1.05rem`）。 */
+    const val EDGE_X_REM = 1.05f
+
+    /**
+     * 内容列宽 `C = min(V, max(320, 0.88 × (V − 24)))`；`V`＝视口/窗口宽（dp）。
+     *
+     * 上界是**视口 V**（不是 A），且**不夹** 660／860 这类上限：320 上列外余白恰好 0，
+     * 1180 上 `C=1017.28 > 860` 说明它没有被夹住。列外余白＝`(V−C)/2`。
+     */
+    fun contentColumnWidth(viewportWidthDp: Float): Float = minOf(
+        viewportWidthDp,
+        maxOf(CONTENT_WIDTH_FLOOR, CONTENT_WIDTH_PCT * (viewportWidthDp - CONTENT_WIDTH_DEDUCT)),
+    )
+
+    /** 正文可用宽＝`C − 2 × 16.8`（列内左右各一条行内沿）。 */
+    fun bodyAvailableWidth(contentColumnDp: Float): Float =
+        contentColumnDp - 2f * remToDpValue(EDGE_X_REM)
+
+    // ── 顶部行 / 题头（诗页与详情页共用；原型草案值，见 `round-2026-10-16-poem-note`／`…-detail`）──
+    /** 顶部行上内边距 `--ctl-top-pad` 0.7rem. */
+    const val CTL_TOP_PAD_REM = 0.7f
+    /** 顶部行 → 诗题 `--head-pad-top` / `--d-head-top` 1.5rem. */
+    const val HEAD_PAD_TOP_REM = 1.5f
+    /** 题名 → 身份行 `--title-gap` 0.7rem（本轮任务书固定值）. */
+    const val TITLE_GAP_REM = 0.7f
+    /** 控件（返回／详情／笔记入口）字号 `--ctl-size` 0.82rem＝13.12px. */
+    const val CTL_REM = 0.82f
+    /** 控件与身份行的字距 `--ctl-ls` 0.06em. */
+    const val CTL_LETTER_SPACING = 0.06f
+    /** 顶部行右侧「笔记」与「详情」的缝 `--ctl-gap` 1.1rem（笔记②内部的一个草案值）. */
+    const val CTL_GAP_REM = 1.1f
+
+    // ── 目录页（采纳锚 `round-2026-10-15-hub-align`：**悬挂 ＋ 竖直居中**，槽 27.52px／固定缝 0.4rem）──
+    /** 悬挂槽宽 27.52px＝1.72rem＝（记号自身宽 21.13px ＋ 固定缝 0.4rem）。
+     *  槽从**内容列左沿**量起 ⇒ 组名左沿＝题名左沿＝槽宽（不随宽度变）。 */
+    const val MARKER_SLOT_REM = 1.72f
+    /** 记号右沿 → 组名左沿的**固定缝** 0.4rem（＝槽内剩下的那一段）. */
+    const val MARKER_SEAM_REM = 0.4f
+    /** 记号字号 0.8rem、等宽、**不设字距**（设了字距会把空白算进「缝」，量出来的数失真）. */
+    const val MARKER_REM = 0.8f
+    /** 收起态记号（方括号，方向已由用户局部选定 2026-10-15）. */
+    const val MARKER_COLLAPSED = "[+]"
+    /** 展开态记号（U+2212 减号，不是连字符）. */
+    const val MARKER_EXPANDED = "[\u2212]"
+    /** 作者紧**随**题名（不右对齐）：距题名末端 ≈0.45em（实测 5.75px）. */
+    const val AUTHOR_GAP_EM = 0.45f
+
+    // ── 详情页（采纳锚 `round-2026-10-16-detail` 的 D0 三项）──
+    /** 诗题 → 来源块 `--src-gap-top` 1.6rem. */
+    const val SRC_GAP_TOP_REM = 1.6f
+    /** 「底本与来源」标签 → 来源文本 `--src-gap-in` 0.35rem. */
+    const val SRC_LABEL_GAP_REM = 0.35f
+    /** 来源块 → 详情正文 `--sec-gap-top` 1.6rem. */
+    const val SEC_GAP_TOP_REM = 1.6f
+    /** `### ` 小标题上间距 `--sub-gap-top` 1.6rem（**首个上间距＝0**）. */
+    const val SUB_GAP_TOP_REM = 1.6f
+    /** `### ` 小标题下间距 `--sub-gap-bottom` 0.5rem. */
+    const val SUB_GAP_BOTTOM_REM = 0.5f
+    /** 段落之间 `--para-gap` 0.9rem. */
+    const val PARA_GAP_REM = 0.9f
+    /** 列表项之间 `--li-gap` 0.6rem. */
+    const val LI_GAP_REM = 0.6f
+    /** 引用块（`> `）左内边距（缩进）—— 左边线复用 [GROUP_BAR_WIDTH_DP] 那条发丝竖线. */
+    const val QUOTE_PAD_LEFT_REM = 0.6f
+    /** 列表项里「记号 → 文本」的缝. */
+    const val LIST_MARKER_GAP_REM = 0.5f
+    /** 无序列表项记号（与 Web 的 `<ul>` 默认圆点同义）／有序列表项按出现次序编号. */
+    const val UL_MARKER = "•"
+
+    // ── 关于页（采纳锚 `round-2026-10-16-about-min` 的 **V3 标签左对齐**）──
+    /** 标签列固定宽 `--kcol` 5.2em＝68.22px（作用在标签字号上）⇒ 值列左沿＝16.8＋68.22＋8＝93.02px. */
+    const val KCOL_EM = 5.2f
+    /** 标签列 → 值列固定缝 `--k-gap` 0.5rem. */
+    const val K_GAP_REM = 0.5f
+    /** 节间距 `--sec-gap` 0.9rem（版本组→按钮、状态文本→仓库链接）. */
+    const val SEC_GAP_REM = 0.9f
+    /** 同组内两行之间／按钮→状态文本 `--row-gap` 0.5rem. */
+    const val ROW_GAP_REM = 0.5f
+    /** 标签字号 `--label-size` 0.82rem、字距 0.02em. */
+    const val ABOUT_LABEL_REM = 0.82f
+    const val ABOUT_LABEL_LETTER_SPACING = 0.02f
+    /** 值字号 `--value-size` 0.88rem. */
+    const val ABOUT_VALUE_REM = 0.88f
+    /** 版本号与仓库链接的等宽字号 `--mono-size` 0.86rem. */
+    const val ABOUT_MONO_REM = 0.86f
+    /** 按钮左右内边距 `--ctl-pad-x` 0.7rem＝11.2px；上下 `--ctl-pad-y` 0.3rem. */
+    const val CTL_PAD_X_REM = 0.7f
+    const val CTL_PAD_Y_REM = 0.3f
+    /** 内容列上下留白 `--col-top` 1.25rem / `--col-bottom` 1rem. */
+    const val COL_TOP_REM = 1.25f
+    const val COL_BOTTOM_REM = 1f
+
+    /** 关于页标签列宽 `--kcol` 5.2em（作用在标签字号上）＝0.82rem × 5.2 ＝ 68.22px. */
+    fun labelColumnDp(): Float = remToDpValue(ABOUT_LABEL_REM) * KCOL_EM
+
+    /**
+     * 语义折行的**字位**模型：每个汉字/全角标点占 1 个字位，推进宽＝字号 × (1 + 字距)。
+     * 与采纳锚里的口径一致（本机实测 17px×(1+0.045)＝17.766px，独立实测 17.77px）。
+     */
+    fun charAdvancePx(fontSizePx: Float, letterSpacingEm: Float): Float = fontSizePx * (1f + letterSpacingEm)
+
+    /** 笔记正文相邻两段之间 `--note-gap-p` 0.7em（相对笔记字号）. */
+    const val NOTE_PARA_GAP_EM = 0.7f
+
     // ── 间距与形状（规范 §4）──────────────────────────────────────────
     /** 段间空行 `stanza-gap` **1.2em**：正文分段靠它表达，**不得为 0**。 */
     const val STANZA_GAP_EM = 1.2f
@@ -382,11 +495,82 @@ object PoetryTextStyles {
         color = PoetryTokens.textDim,
     )
 
-    /** 笔记展开开关：0.76rem / 强调色. */
+    /** 笔记展开开关：0.76rem / 强调色（旧的「笔记」按钮样式，现由顶部行控件样式承担）。 */
     val notesToggle = TextStyle(
         fontFamily = PoetryTokens.fontSans,
         fontSize = PoetryTokens.remToDpValue(PoetryTokens.NOTES_TOGGLE_REM).sp,
         color = PoetryTokens.accentStrong,
+    )
+
+    /**
+     * 顶部行控件（返回／详情／笔记入口）：`--ctl-size` 0.82rem／0.06em／`--text-dim`，
+     * **无边框、无底色**（原型 `.ctl`）。它的字号低于正文，颜色也低于正文 ⇒ 不抢注意力。
+     */
+    val ctl = TextStyle(
+        fontFamily = PoetryTokens.fontSans,
+        fontSize = PoetryTokens.remToDpValue(PoetryTokens.CTL_REM).sp,
+        letterSpacing = PoetryTokens.CTL_LETTER_SPACING.em,
+        color = PoetryTokens.textDim,
+    )
+
+    /** 目录页悬挂记号（方括号）：等宽 0.8rem、`--text-faint`、**不设字距**. */
+    val marker = TextStyle(
+        fontFamily = PoetryTokens.fontMono,
+        fontSize = PoetryTokens.remToDpValue(PoetryTokens.MARKER_REM).sp,
+        color = PoetryTokens.textFaint,
+    )
+
+    /** 详情页「底本与来源」标签：`--note-size` / 500 / `--gname-ls` 0.16em / `--text-faint`. */
+    val provLabel = TextStyle(
+        fontFamily = PoetryTokens.fontSans,
+        fontSize = PoetryTokens.NOTE_SIZE.sp,
+        fontWeight = FontWeight(500),
+        letterSpacing = PoetryTokens.GROUP_NAME_LETTER_SPACING.em,
+        color = PoetryTokens.textFaint,
+    )
+
+    /** 详情页来源文本：`--note-size` / 界面行高 1.75 / `--text-dim`. */
+    val provText = TextStyle(
+        fontFamily = PoetryTokens.fontSans,
+        fontSize = PoetryTokens.NOTE_SIZE.sp,
+        lineHeight = (PoetryTokens.NOTE_SIZE * PoetryTokens.UI_LINE_HEIGHT).sp,
+        letterSpacing = PoetryTokens.UI_LETTER_SPACING.em,
+        color = PoetryTokens.textDim,
+    )
+
+    /**
+     * `### ` 小标题（详情页与笔记同一份 Markdown 渲染器的 heading 块）：
+     * `--note-size` 13.5px / 500 / `--gname-ls` 0.16em / `--accent-text`；
+     * **没有左侧那条装饰竖线**（返修 2026-10-16：小标题左沿回到正文共同左沿 16.8px）。
+     */
+    val subHead = TextStyle(
+        fontFamily = PoetryTokens.fontSans,
+        fontSize = PoetryTokens.NOTE_SIZE.sp,
+        fontWeight = FontWeight(500),
+        letterSpacing = PoetryTokens.GROUP_NAME_LETTER_SPACING.em,
+        color = PoetryTokens.accentText,
+    )
+
+    /** 关于页标签：`--label-size` 0.82rem / 0.02em / `--text-dim`. */
+    val aboutLabel = TextStyle(
+        fontFamily = PoetryTokens.fontSans,
+        fontSize = PoetryTokens.remToDpValue(PoetryTokens.ABOUT_LABEL_REM).sp,
+        letterSpacing = PoetryTokens.ABOUT_LABEL_LETTER_SPACING.em,
+        color = PoetryTokens.textDim,
+    )
+
+    /** 关于页值：`--value-size` 0.88rem / `--text`. */
+    val aboutValue = TextStyle(
+        fontFamily = PoetryTokens.fontSans,
+        fontSize = PoetryTokens.remToDpValue(PoetryTokens.ABOUT_VALUE_REM).sp,
+        color = PoetryTokens.text,
+    )
+
+    /** 关于页里的版本号与仓库链接：等宽 `--mono-size` 0.86rem. */
+    val aboutMono = TextStyle(
+        fontFamily = PoetryTokens.fontMono,
+        fontSize = PoetryTokens.remToDpValue(PoetryTokens.ABOUT_MONO_REM).sp,
+        color = PoetryTokens.text,
     )
 
     /** 次要说明（提示/空状态）：界面字号 + 次要色. */
