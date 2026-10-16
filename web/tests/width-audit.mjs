@@ -259,7 +259,8 @@ const HELPERS = `
   };
 `;
 
-/** 关于页量测（含页脚那条长日期串 —— 它在两页上都在，属于共享外壳，不是四页规格）。 */
+/** 关于页量测。⚠ 2026-10-16：原来还量页脚诊断面板的五条（内容生成/取到时间、体积、诚实说明）——
+ *  那个面板不属于已采纳的四页规格、已**整块从产品 UI 移除** ⇒ 这里不再量它们。 */
 const SCRIPT_ABOUT = `(() => { ${HELPERS}
   const q = (s) => document.querySelector(s);
   const labels = [...document.querySelectorAll('[data-test="about-label"]')];
@@ -280,10 +281,10 @@ const SCRIPT_ABOUT = `(() => { ${HELPERS}
     contentValue: elem(q('[data-test="about-content-version"]'), '关于·内容版本值'),
     repo: elem(q('[data-test="about-repo-url"]'), '关于·仓库链接URL'),
     repoTag: q('[data-test="about-repo-url"]') ? q('[data-test="about-repo-url"]').tagName : null,
-    footerGenerated: elem(q('[data-test="status-content-generated"]'), '页脚·内容生成时间'),
-    footerLoaded: elem(q('[data-test="status-content-loaded"]'), '页脚·内容取到时间'),
-    footerSize: elem(q('[data-test="status-content-size"]'), '页脚·内容体积/诗数'),
-    footerHonest: elem(q('[data-test="honest-storage-note"]'), '页脚·诚实说明'),
+    footerGenerated: undefined,
+    footerLoaded: undefined,
+    footerSize: undefined,
+    footerHonest: undefined,
     urlProbe,
   };
 })()`;
@@ -412,14 +413,13 @@ async function waitFor(expression, { label = expression, timeout = 25000, interv
   }
 }
 
-/** 停在一个已就绪的页面上：内容到了、视图渲染了、页脚状态面板也把内容行填上了（布局稳定）。 */
+/** 停在一个已就绪的页面上：内容到了、视图渲染了（布局稳定）。
+ *  ⚠ 2026-10-16：原先还等「页脚状态面板已填上内容行」——那个面板已从产品 UI 移除 ⇒ 不再等它。 */
 async function waitForReadyPage(viewTest) {
   await waitFor(`Boolean(window.__app && window.__app.ready) && window.__app.summary().hasDoc === true`,
     { label: '应用就绪且内容已装载' });
   await waitFor(`Boolean(document.querySelector('[data-test="view-${viewTest}"]'))`, { label: `视图 ${viewTest}` });
-  await waitFor(`Boolean(document.querySelector('[data-test="status-content-generated"]'))`,
-    { label: '页脚状态面板已填上内容行' });
-  await sleep(250); // 让 SW 报告/字体度量这类尾部渲染落定（只影响页脚行数，不影响列宽）
+  await sleep(250); // 让字体度量这类尾部渲染落定（只影响行数，不影响列宽）
 }
 
 /** 用**新文档**打开一个地址（视口先用 setDeviceMetricsOverride 定好），再量——不用「只改 hash」的
@@ -635,14 +635,6 @@ async function main() {
       console.log(`        ${u.chars} 字符${u.chars === (repo ? repo.text.length : -1) ? '（＝真实那条）' : ''}：`
         + `${u.wraps ? `折 ${u.lineCount} 行` : '单行'}，最长行 ${u.maxLineWidth}，${slackText(u)}`);
     }
-    for (const [label, e] of [['页脚·内容生成时间', a.footerGenerated], ['页脚·内容取到时间', a.footerLoaded],
-      ['页脚·内容体积/诗数', a.footerSize], ['页脚·诚实说明', a.footerHonest]]) {
-      if (e) console.log(`    · ${label.padEnd(16)} ${fmtElem(e)}`);
-      if (e && e.overflowsAvail) {
-        finding('关于页/页脚', `${label} 墨迹越出可用宽 ${e.overflowPx}px`,
-          `右沿 ${e.maxInkRight} > 可用宽 ${r2(a.page.avail)}（V=${vp.w}）`);
-      }
-    }
     for (const e of [a.appValue, a.contentValue]) {
       if (e && e.overflowsAvail) {
         finding('关于页', `版本值墨迹越出可用宽 ${e.overflowPx}px`, `${e.name} 右沿 ${e.maxInkRight}（V=${vp.w}）`);
@@ -706,9 +698,6 @@ async function main() {
     pick('关于页·仓库URL', a.repo);
     pick('关于页·应用版本值', a.appValue);
     pick('关于页·内容版本值', a.contentValue);
-    pick('页脚·内容生成时间', a.footerGenerated);
-    pick('页脚·内容体积/诗数', a.footerSize);
-    pick('页脚·诚实说明', a.footerHonest);
     pick('详情页·底本与来源', d.source);
     for (const b of d.blocks) {
       for (const r of b.lineRects) cands.push([`详情正文 ${b.tag}`, r2(d.page.avail - r.right)]);
@@ -737,8 +726,8 @@ async function main() {
   for (const line of mdA) console.log(line);
 
   const mdB = ['| V | 仓库URL（字符数／墨迹最长行／折行／顶边余量） | URL 行1 左→右 | URL 行2 左→右 '
-    + '| 应用版本值右沿 | 内容版本值右沿 | 页脚长日期串（行／右沿） |'];
-  mdB.push('| --- | --- | --- | --- | --- | --- | --- |');
+    + '| 应用版本值右沿 | 内容版本值右沿 |'];
+  mdB.push('| --- | --- | --- | --- | --- | --- |');
   for (const { vp, a } of aboutRows) {
     const repo = a.repo;
     const cell = repo
@@ -748,8 +737,7 @@ async function main() {
     const l1 = repo && repo.lineRects[0] ? `${repo.lineRects[0].left}→${repo.lineRects[0].right}` : '—';
     const l2 = repo && repo.lineRects[1] ? `${repo.lineRects[1].left}→${repo.lineRects[1].right}` : '—';
     mdB.push(`| ${vp.w} | ${cell} | ${l1} | ${l2} | ${a.appValue ? a.appValue.maxInkRight : '—'}`
-      + ` | ${a.contentValue ? a.contentValue.maxInkRight : '—'}`
-      + ` | ${a.footerGenerated ? `${a.footerGenerated.lineCount}／${a.footerGenerated.maxInkRight}` : '—'} |`);
+      + ` | ${a.contentValue ? a.contentValue.maxInkRight : '—'} |`);
   }
   console.log('\n【表 B｜关于页元素级（相对内容左沿；容器内沿＝0，可用宽右沿＝C−33.6）】');
   for (const line of mdB) console.log(line);

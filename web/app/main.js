@@ -1,7 +1,7 @@
 // 应用入口。
 //
 // 流程（用户 2026-10-14 拍板）：
-//   1. 外壳（HTML/JS/CSS）一到就先渲染框架与状态面板，并如实显示「正在取内容…」；
+//   1. 外壳（HTML/JS/CSS）一到就先渲染框架与加载状态，并如实显示「正在取内容…」；
 //   2. 内容（content.json）**单独取**，取到后渲染目录/诗页；取不到就显示失败原因，不是白屏；
 //   3. 「内容更新」= 「站点更新」：由 Service Worker 的更新生命周期负责（见 sw.js）。
 //      新版本装好后停在 waiting，**不自动刷新**，只提示「有新版本」；
@@ -11,7 +11,7 @@
 import {
   ContentError, SUPPORTED_FORMAT_VERSION, loadContent,
 } from './content.js';
-import { APP_VERSION, HONEST_STORAGE_NOTE, ROUTES, resourceCacheName } from './config.js';
+import { APP_VERSION, ROUTES, resourceCacheName } from './config.js';
 import {
   productOrderStatus, relayoutPoemBody, renderAboutPage, renderDetailPage, renderIndex, renderPoemPage,
 } from './render.js';
@@ -19,8 +19,6 @@ import {
 const els = {
   view: document.getElementById('view'),
   notices: document.getElementById('notices'),
-  status: document.getElementById('status'),
-  appVersion: document.getElementById('app-version'),
   siteHeader: document.querySelector('.site-header'),
 };
 
@@ -83,22 +81,6 @@ const ERROR_HINTS = {
 };
 
 // ---------------------------------------------------------------- 基础工具
-
-function fmtTime(iso) {
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleString('zh-CN', { hour12: false });
-  } catch {
-    return iso;
-  }
-}
-
-function fmtBytes(n) {
-  if (typeof n !== 'number' || !Number.isFinite(n)) return '—';
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / 1024 / 1024).toFixed(2)} MB`;
-}
 
 const h = (tag, props = {}, children = []) => {
   const el = document.createElement(tag);
@@ -163,7 +145,10 @@ function afterViewChange() {
     indexScroll.restore = false;
     const y = indexScroll.y;
     // 等新目录完成布局再滚，否则位置会被上一次的布局带偏。
-    requestAnimationFrame(() => window.scrollTo(0, y));
+    // ⚠ 2026-10-16 修：原来只等**一帧**；当时页脚诊断面板的 DOM 写入恰好把布局顶完，所以看起来是对的。
+    //   面板移除后，短目录在第一个 rAF 里**还没完成布局** ⇒ `scrollTo(0, y)` 被夹到 0，
+    //   表现为「从诗页返回目录不恢复位置」（e2e 实测：捕获 373、回来却 0）。⇒ 等**两帧**，第二帧布局已定。
+    requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, y)));
     return;
   }
   window.scrollTo(0, 0);
@@ -296,90 +281,18 @@ function renderNotices() {
   }
 }
 
-function renderStatus() {
-  els.status.replaceChildren();
-  const doc = state.doc;
-  const meta = state.meta;
-  const cache = state.sw.cache;
-  const rows = [];
-  const row = (k, v, test) => rows.push([k, v, test]);
-
-  row('站点资源版本', `v${APP_VERSION}`, 'status-app-version');
-  if (state.sw.supported && state.sw.secure) {
-    row('站点缓存', state.sw.registered
-      ? (cache ? `${cache.cacheName}（${cache.entries.length} 个条目${cache.hasContent ? '，含 content.json' : '，缺 content.json'}）` : '正在读取…')
-      : 'Service Worker 未注册', 'status-site-cache');
-    row('Service Worker', state.sw.error
-      ? `注册失败：${state.sw.error}`
-      : `${state.sw.controlled ? '已接管本页' : '未接管本页'}${state.update.available ? ' · 有新版本在等待' : ''}`,
-    'status-sw');
-  } else {
-    row('站点缓存', state.sw.supported ? '不可用：需要 https 或 localhost' : '不可用：浏览器不支持 Service Worker', 'status-site-cache');
-  }
-  // 内容版本只是展示：Web 的更新决策由站点/SW 负责，不比对 contentVersion。
-  row('内容版本（仅展示）', doc ? `v${doc.contentVersion}` : '（尚未取到）', 'status-content-version');
-  if (meta) {
-    row('内容体积 / 诗数', `${fmtBytes(meta.bytes)} / ${meta.poemCount} 首 / ${meta.dynastyCount} 个分组`, 'status-content-size');
-    row('内容生成时间', fmtTime(meta.generatedAt), 'status-content-generated');
-    row('内容取到时间', fmtTime(meta.loadedAt), 'status-content-loaded');
-  }
-  row('内容格式版本', doc ? `${doc.formatVersion}（本站壳支持 ${SUPPORTED_FORMAT_VERSION}）` : '—', 'status-format-version');
-  if (doc) {
-    const os = productOrderStatus(doc);
-    row('组内次序', os.productOrderAuthoritative
-      ? `照产物数组次序（编译期是唯一排序权威；${os.usable} 首带 orderInSource）`
-      : `本机拼音兜底（产物未给 orderInSource${os.wrongType ? '，现有值类型不对' : ''}）`,
-    'status-order-mode');
-  }
-  row('网络', state.online ? '浏览器报告：在线' : '浏览器报告：离线', 'status-network');
-  row('持久化存储', state.persist
-    ? (state.persist.granted ? '浏览器已授予' : '未授予（浏览器可能自动回收）')
-      + ` · 已用 ${fmtBytes(state.persist.usage)} / 配额 ${fmtBytes(state.persist.quota)}`
-    : '未知', 'status-persist');
-
-  const dl = h('dl', { class: 'status-list' });
-  for (const [k, v, test] of rows) {
-    dl.append(h('dt', { text: k }));
-    dl.append(h('dd', { dataset: { test }, text: v }));
-  }
-  els.status.append(dl);
-
-  const actions = h('div', { class: 'status-actions' });
-  actions.append(h('button', {
-    type: 'button', class: 'btn btn--primary', dataset: { test: 'check-site-update' },
-    text: '检查站点更新', onclick: () => checkForSiteUpdate(),
-  }));
-  actions.append(h('button', {
-    type: 'button', class: 'btn', dataset: { test: 'persist-storage' },
-    text: '请求持久化存储',
-    onclick: async () => {
-      try {
-        const granted = await navigator.storage.persist();
-        await refreshPersist();
-        setNotice('info', granted
-          ? '浏览器已授予持久化存储：降低被自动回收的可能，但仍不构成永久存储承诺。'
-          : '浏览器未授予持久化存储：离线副本可能被浏览器自动回收。');
-      } catch (err) {
-        setNotice('warn', `请求持久化存储失败：${err.message}`);
-      }
-    },
-  }));
-  if (doc) {
-    actions.append(h('button', {
-      type: 'button', class: 'btn', dataset: { test: 'reload-content' },
-      text: '重新取内容', onclick: () => loadContentIntoState(),
-    }));
-  }
-  els.status.append(actions);
-
-  els.status.append(h('p', { class: 'status-honest', dataset: { test: 'honest-storage-note' },
-    text: HONEST_STORAGE_NOTE }));
-}
-
+/**
+ * 刷新**通知区**（加载/失败/有新版本/夹具提示都在这里）。
+ *
+ * ⚠ 2026-10-16：**页脚诊断面板已从产品 UI 移除**（用户实际预览时看到「站点资源版本/缓存名/SW/
+ * 内容体积与时间/格式/次序/网络/配额」整块＋三个调试动作＋长诚实说明，问为什么还在）。
+ * 那整块是 Web 骨架期的开发/核验脚手架，**不属于已采纳的四页规格**（`IF-46`：只有目录/诗/详情/关于）。
+ * 现在：产品里**没有**面板、**没有**调试动作、**没有**页脚版本；版本只在「关于」页（已选）。
+ * **机制一个没删**：SW 离线缓存、后台更新检测、「有新版本→点刷新」必要提示、加载/失败可见反馈都照旧；
+ * 诊断事实仍可从 `window.__app.summary()`（测试钩子，非产品 UI）读到。
+ */
 function renderChrome() {
-  els.appVersion.textContent = `站点资源版本 ${APP_VERSION}`;
   renderNotices();
-  renderStatus();
 }
 
 function render() {
@@ -647,6 +560,10 @@ window.__app = {
         waitingVersion: state.sw.waitingVersion,
         cache: state.sw.cache,
       },
+      // 内部诊断（**不进产品 UI**）：页脚面板去掉后，测试仍要能核这些事实。
+      meta: state.meta,
+      orderMode: state.doc ? productOrderStatus(state.doc) : null,
+      supportedFormatVersion: SUPPORTED_FORMAT_VERSION,
       update: state.update,
       persist: state.persist,
       expectedCacheName: resourceCacheName(),

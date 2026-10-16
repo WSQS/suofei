@@ -27,7 +27,7 @@ import { fileURLToPath } from 'node:url';
 import {
   SUPPORTED_FORMAT_VERSION, checkCompatibility, validateContent,
 } from '../app/content.js';
-import { ABOUT, APP_VERSION, CONTENT_URL, HONEST_STORAGE_NOTE, ROUTES, resourceCacheName } from '../app/config.js';
+import { ABOUT, APP_VERSION, CONTENT_URL, ROUTES, resourceCacheName } from '../app/config.js';
 import {
   breakPoemLine, comparePoems, groupPoems, hasProductOrder, isUnknownAuthor, productOrderStatus, UNKNOWN_AUTHORS,
 } from '../app/render.js';
@@ -828,8 +828,10 @@ async function main() {
   eq('真实产物第 1 首是 行行重行行 且 orderInSource === 1', [baseDoc.poems[0].title, baseDoc.poems[0].orderInSource], ['行行重行行', 1]);
   eq('本机拼音重排会把它推到第 19 位（所以上一条断言有牙齿）', fallbackOrder(baseDoc).indexOf(baseDoc.poems[0].id), total - 1);
   eq('笔记全空：产物 19 首 notes 都是 null', baseDoc.poems.filter((p) => p.notes !== null).length, 0);
-  includes('状态面板写明次序由产物决定',
-    await evaluate(`document.querySelector('[data-test="status-order-mode"]').textContent`), '照产物数组次序');
+  // （原读页脚状态面板；面板 2026-10-16 从产品 UI 移除 ⇒ 改读内部诊断 summary()，**不减弱**：
+  //   仍要求「次序由产物决定」，并与下面的 DOM 次序断言合力。）
+  check('组内次序由产物决定（内部诊断：orderMode.productOrderAuthoritative）',
+    (await summary()).orderMode?.productOrderAuthoritative === true, dump((await summary()).orderMode));
   await pushDump('首访目录（真实内容）');
   await screenshot('02-index-real-content.png');
 
@@ -1176,22 +1178,26 @@ async function main() {
     dump({ versionCount: aboutInfo.versionCount, valueLefts: aboutInfo.valueLefts, expected: 93.02 }));
   check('关于页不再有「一句话说明」与「诚实的限制」两行（未采纳；`q-9f9eca3d`）',
     !(await evaluate(`Boolean(document.querySelector('[data-test="about-tagline"]') || document.querySelector('[data-test="about-honest-limits"]'))`)));
-  eq('「诚实的限制」原文仍只在页脚状态面板里（不新写、也不在关于页重复）',
-    await evaluate(`document.querySelector('[data-test="honest-storage-note"]')?.textContent`), HONEST_STORAGE_NOTE);
+  // ⚠ 2026-10-16：页脚诊断面板已从产品 UI 移除（用户实际预览时看到它并质问）⇒ 这条**反过来断言**：
+  //   那段长诚实说明**不许出现在任何产品页面**（措辞原文保留在 `web/README.md` §4.5）。
+  check('长诚实说明不再出现在产品 UI 里（页脚面板已移除；措辞只在 README §4.5）',
+    !(await evaluate(`Boolean(document.querySelector('[data-test="honest-storage-note"]'))`))
+      && !(await evaluate(`document.body.innerText.includes('离线副本不承诺永久保存')`)));
   check('关于页无区域框（版本组无边框、无底色；采纳锚 about-min）',
     aboutInfo.groupBorderTopWidth === '0px' && aboutInfo.groupBg === 'rgba(0, 0, 0, 0)',
     dump({ borderTopWidth: aboutInfo.groupBorderTopWidth, bg: aboutInfo.groupBg }));
-  // ⚠ 这条原先是查 `[data-test="view-about"] [data-test="check-site-update"]` —— 但那个按钮其实在**站点状态面板**里
-  //    （实测那个面板**不在** view-about 内：所以 dtCount===0 才能过），⇒ **旧断言恒真、什么都没证明**。
-  //    改成两条：① 共享**字段组**里确实没有更新控件 ② Web 的站点更新入口**确实在状态面板里**（不假装 Web 没有更新入口）。
+  // ⚠ 历史：这条曾查 `[data-test="view-about"] [data-test="check-site-update"]` —— 那个按钮当时在**页脚状态面板**里
+  //    （面板不在 view-about 内）⇒ 旧断言**恒真、什么都没证明**（我 2026-10-16 先改成查面板，后才收到用户裁决）。
+  //    面板整块移除后 ⇒ 改查**整份文档**（不是某个子树的 descendants，避免恒真）。
   const updateAffordance = await evaluate(`({
     inFieldGroup: document.querySelectorAll('[data-test="view-about"] button').length,
-    inStatusPanel: Boolean(document.querySelector('[data-test="check-site-update"]')),
+    debugActionsInDocument: ['check-site-update', 'persist-storage', 'reload-content']
+      .filter((t) => document.querySelector('[data-test="' + t + '"]')).length,
   })`);
   eq('关于页的**共享字段组**里没有更新控件（Web 的更新不在这页的字段组里；Android 在那页多一块）',
     updateAffordance.inFieldGroup, 0);
-  check('Web 的站点更新入口确实存在（在**站点状态面板**里、不在关于页字段组里）—— 如实记录它的位置，不假装 Web 没有更新入口',
-    updateAffordance.inStatusPanel === true, dump(updateAffordance));
+  eq('产品 UI 里没有任何调试动作按钮（整份文档查，不是只查关于页子树）',
+    updateAffordance.debugActionsInDocument, 0);
   eq('关于页「返回」指向目录',
     await evaluate(`document.querySelector('[data-test="about-back-to-index"]').getAttribute('href')`), '#/');
   await evaluate(`document.querySelector('[data-test="about-back-to-index"]').click(); true`);
@@ -1223,6 +1229,79 @@ async function main() {
   await hashTo('#/about');
   await waitForAboutView();
   await screenshot('03c-about.png');
+
+  // ------------------------------------------------ 1c-3 全页面负向扫描：诊断面板不得以任何形式回到产品 UI
+  //
+  // 起因（2026-10-16，**用户实际预览时发现**）：整块「站点资源版本／缓存名／SW／内容体积与取到时间／
+  // 格式／次序／网络／持久化配额」＋三个调试动作（检查站点更新／请求持久化存储／重新取内容）＋长诚实说明
+  // 在**四页都显示**；它不是已采纳的 UI（`IF-46`：只有目录／诗／详情／关于）⇒ 已整块移除（非 CSS 隐藏）。
+  // ⚠ 断言必须覆盖 **header／main／footer／notice 全页**，不能只查某个 view 子树：
+  //   此前那条查 `view-about` 后代的负向断言就**恒真**过（那个面板本来就不在 view-about 里）。
+  section('1c-3 全页面负向扫描：四页的 header/main/footer/notice 都不得出现诊断面板与调试动作');
+  // ⚠ 「站点资源版本」**不列在这里**：它是关于页采纳锚的**合法可见文字**（标签「应用版本」＋值
+  //   「站点资源版本 vX」，`render.js` 里逐字定下）⇒ 它单独按页断言（只允在关于页、且恰好一次）。
+  const DIAG_WORDS = ['站点缓存', 'Service Worker', '内容版本（仅展示）', '内容体积',
+    '内容生成时间', '内容取到时间', '内容格式版本', '组内次序', '持久化存储', '配额',
+    '检查站点更新', '请求持久化存储', '重新取内容', '诚实说明'];
+  const scanPage = () => evaluate(`(() => {
+    const body = document.body;
+    return {
+      text: body.innerText,
+      footers: body.querySelectorAll('footer').length,
+      statusNodes: document.querySelectorAll('[data-test^="status"]').length,
+      debugActions: ['check-site-update', 'persist-storage', 'reload-content']
+        .filter((t) => document.querySelector('[data-test="' + t + '"]')).length,
+      hasHeader: Boolean(document.querySelector('.site-header')),
+      hasView: Boolean(document.querySelector('[data-test="view"]')),
+      hasNotices: Boolean(document.querySelector('[data-test="notices"]')),
+      appVersionSpan: Boolean(document.getElementById('app-version')),
+    };
+  })()`);
+  const scanPoem = baseDoc.poems.find((p) => p.detail) ?? baseDoc.poems[0];
+  /** 整页截图（含视口之外）：先**滚到底**（顺便就是「滚到底也没面板」那一步）、再截、再回到顶部。 */
+  const fullPageShot = async (name) => {
+    await evaluate(`window.scrollTo(0, document.documentElement.scrollHeight); true`);
+    await sleep(200);
+    const { data } = await cdp.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true }, 20000);
+    await writeFile(resolve(artifactsDir, name), Buffer.from(data, 'base64'));
+    await evaluate('window.scrollTo(0, 0); true');
+    return name;
+  };
+  const scanPages = [
+    ['目录页', '#/', 'view-index', 'index', async () => { await waitForIndexExpanded(); }],
+    ['诗页', `#/p/${scanPoem.id}`, 'view-poem', 'poem', async () => { await waitForPoemView(scanPoem.id); }],
+    ['详情页', `#/p/${scanPoem.id}/detail`, 'view-detail', 'detail',
+      async () => { await waitFor(`Boolean(document.querySelector('[data-test="view-detail"]'))`, { label: '详情页' }); }],
+    ['关于页', '#/about', 'view-about', 'about', async () => { await waitForAboutView(); }],
+  ];
+  for (const [label, hash, viewTest, slug, ensure] of scanPages) {
+    await hashTo(hash);
+    await ensure();
+    const got = await scanPage();
+    eq(`[${label}] 全页可见文本里没有诊断面板词汇（${DIAG_WORDS.length} 个词全查）`,
+      DIAG_WORDS.filter((w) => got.text.includes(w)), []);
+    eq(`[${label}] 「站点资源版本」只允在关于页出现、且恰好一次`,
+      (got.text.match(/站点资源版本/g) ?? []).length, label === '关于页' ? 1 : 0);
+    eq(`[${label}] 页面里没有 <footer> 面板`, got.footers, 0);
+    eq(`[${label}] 文档里没有 status 元素、也没有调试动作按钮`,
+      [got.statusNodes, got.debugActions], [0, 0]);
+    eq(`[${label}] 外壳／视图区／通知区都在，且当前视图正是 ${viewTest}`,
+      [got.hasHeader, got.hasView, got.hasNotices,
+        await evaluate(`Boolean(document.querySelector('[data-test="${viewTest}"]'))`)],
+      [true, true, true, true]);
+    eq(`[${label}] 外壳里没有页脚用的版本徽标（版本只在关于页）`, got.appVersionSpan, false);
+    // 整页证据图（含滚到底）：给人看的，也是这个缺陷的回归底片。
+    await fullPageShot(`no-panel-${slug}.png`);
+  }
+  // 正向对照（防「把版本／内容整个删掉也能过」）：版本确实在关于页，目录确实渲染出 19 首。
+  await hashTo('#/about');
+  await waitForAboutView();
+  eq('正向对照：关于页确实显示应用版本（不是把版本整个删了）',
+    await evaluate(`document.querySelector('[data-test="about-app-version-num"]').textContent`), `v${APP_VERSION}`);
+  await hashTo('#/');
+  await waitForIndexExpanded();
+  eq('正向对照：目录仍渲染出 19 首（上面那组不是因页面空白才过的）',
+    await evaluate(`document.querySelectorAll('[data-test="poem-row"]').length`), 19);
 
   // ------------------------------------------------ 1c-4 IF-45：返回目录恢复原位置
   section('1c-4 IF-45：从诗页返回目录恢复原滚动位置；深链接直开目录仍从顶部');
@@ -1338,8 +1417,20 @@ async function main() {
   const indexVis = await evaluate(`(() => {
     const cs = (el) => getComputedStyle(el);
     const row = document.querySelector('[data-test="poem-row"]');
-    const chip = document.querySelector('.btn');
-    const sunken = document.querySelector('.status-list');
+    // ⚠ 2026-10-16：页脚诊断面板移除后，目录页上**没有** .btn 了（以前那个「检查站点更新」是唯一按钮），
+    //   而下面几条断言量的是 **.btn 这条样式规则**（无阴影、过渡只含颜色类）⇒ 用**临时合成节点**量、
+    //   量完立即移除。与宽度实测里量 .about-repo 同一条路，不靠「页上碰巧有个按钮」。
+    //   （注释里不能写反引号：这段整块是模板字符串，反引号会提前结束它。）
+    const probeEl = document.createElement('button');
+    probeEl.className = 'btn';
+    document.body.append(probeEl);
+    const ps = getComputedStyle(probeEl);
+    const chipStyle = {
+      transition: [ps.transitionProperty, ps.transitionDuration],
+      shadow: ps.boxShadow,
+      radius: ps.borderTopLeftRadius,
+    };
+    probeEl.remove();
     const groupTitle = document.querySelector('.dynasty-group-title');
     const label = document.querySelector('[data-test="dynasty-label"]');
     return {
@@ -1347,11 +1438,9 @@ async function main() {
       rowShadow: cs(row).boxShadow,
       rowAnimation: cs(row).animationName,
       rowTransition: [cs(row).transitionProperty, cs(row).transitionDuration],
-      chipTransition: [cs(chip).transitionProperty, cs(chip).transitionDuration],
-      chipShadow: cs(chip).boxShadow,
-      chipRadius: cs(chip).borderTopLeftRadius,
-      sunkenBg: cs(sunken).backgroundColor,
-      sunkenRadius: cs(sunken).borderTopLeftRadius,
+      chipTransition: chipStyle.transition,
+      chipShadow: chipStyle.shadow,
+      chipRadius: chipStyle.radius,
       groupBg: cs(groupTitle).backgroundColor,
       groupRadius: cs(groupTitle).borderTopLeftRadius,
       labelBorderLeftWidth: cs(label).borderLeftWidth,
@@ -1367,9 +1456,9 @@ async function main() {
     };
   })()`);
   eq('组头不画卡片（背景透明）', indexVis.groupBg, 'rgba(0, 0, 0, 0)');
-  eq('下沉面 = --surface-sunken（#111719）', indexVis.sunkenBg, 'rgb(17, 23, 25)');
+  // （原先还有一条「下沉面 = --surface-sunken」量的是页脚面板里的列表背景；面板已移除 ⇒ 随它一并去掉。）
   eq('组头无卡片/无圆角', indexVis.groupRadius, '0px');
-  eq('列表行与按钮都没有阴影', [indexVis.rowShadow, indexVis.chipShadow], ['none', 'none']);
+  eq('列表行与按钮（`.btn` 规则，用合成探针量）都没有阴影', [indexVis.rowShadow, indexVis.chipShadow], ['none', 'none']);
   eq('列表行没有关键帧动画', indexVis.rowAnimation, 'none');
   eq('列表行过渡属性只有颜色类', indexVis.rowTransition[0], 'border-color, background');
   eq('按钮过渡属性只有颜色类', indexVis.chipTransition[0], 'color, border-color');
@@ -1492,10 +1581,11 @@ async function main() {
   const iconPaths = DEPLOY_FILES.filter((f) => f.startsWith('icons/'));
   eq(`预缓存里 ${iconPaths.length} 个图标都在（离线首屏图标不会缺）`,
     iconPaths.filter((p) => !entries.some((e) => e.endsWith(`/${p}`))), []);
-  await waitFor(`document.querySelector('[data-test="status-site-cache"]').textContent.includes('含 content.json')`,
-    { label: '状态面板显示缓存里含 content.json' });
-  includes('状态面板也显示缓存里含 content.json',
-    await evaluate(`document.querySelector('[data-test="status-site-cache"]').textContent`), '含 content.json');
+  // （原读页脚面板；面板已移除 ⇒ 改读内部诊断 summary() 的 sw.cache：不减弱，仍要求「缓存里含 content.json」。）
+  await waitFor(`window.__app.summary().sw.cache && window.__app.summary().sw.cache.hasContent === true`,
+    { label: '内部诊断：缓存报告里含 content.json' });
+  check('内部诊断的缓存报告里含 content.json',
+    (await summary()).sw.cache?.hasContent === true, dump((await summary()).sw.cache));
   eq('缓存里的 content.json 就是当前渲染的这一版', JSON.parse(await cacheText(expectedCache, `/${CONTENT_URL}`)).contentVersion, baseDoc.contentVersion);
 
   section('2b 独立内容版本通道已删干净');
@@ -1530,7 +1620,9 @@ async function main() {
   await waitForIndexExpanded();
   s = await summary();
   check('浏览器报告离线', s.online === false);
-  includes('状态面板如实显示离线', await evaluate(`document.querySelector('[data-test="status-network"]').textContent`), '离线');
+  check('离线重载后目录照常渲染、且没有错误状态（缓存命中，不是白屏也不是失败页）',
+    (await evaluate(`Boolean(document.querySelector('[data-test="poem-row"]'))`))
+      && !(await evaluate(`Boolean(document.querySelector('[data-test="view-error"]'))`)));
   eq('离线仍能读到内容版本', s.contentVersion, baseDoc.contentVersion);
   eq('离线目录次序仍是产物次序', await domPoemIds(), expectedDomOrder(baseDoc));
   const offlineProbe = await evaluate(`(async () => {
@@ -1582,8 +1674,9 @@ async function main() {
   eq('新缓存里的内容是新版本（新缓存内部也是成对的）', newCacheContent.contentVersion, variants.fixtureContent.doc.contentVersion);
   eq('新缓存里有新壳', (await cacheEntries(v2.cacheName)).some((p) => p.endsWith('/app/main.js')), true);
   eq('生效的仍是旧版本（新版本只是就绪）', s.contentVersion, baseDoc.contentVersion);
-  includes('状态面板写明有新版本在等待',
-    await evaluate(`document.querySelector('[data-test="status-sw"]').textContent`), '有新版本在等待');
+  check('内部诊断：有新版本在等待（sw.waitingVersion 已问到且 update.available）',
+    s.sw.waitingVersion === v2App && s.update.available === true,
+    dump({ waiting: s.sw.waitingVersion, update: s.update }));
   await screenshot('04-update-available.png');
 
   // 4c 阅读中不自动刷新、不中途替换
@@ -1608,7 +1701,11 @@ async function main() {
   s = await summary();
   eq('切换后站点资源版本 = 新版本', s.appVersion, v2App);
   eq('切换后内容版本 = 新版本内容', s.contentVersion, variants.fixtureContent.doc.contentVersion);
-  includes('界面上的站点版本也换了', await evaluate(`document.querySelector('[data-test="app-version"]').textContent`), v2App);
+  // 版本现在**只在「关于」页**显示（页脚那个版本徽标随面板一并移除）⇒ 到关于页读它，下面现有那步会回到目录。
+  await hashTo('#/about');
+  await waitForAboutView();
+  eq('界面上的站点版本也换了（关于页显示的就是新版本）',
+    await evaluate(`document.querySelector('[data-test="about-app-version-num"]').textContent`), `v${v2App}`);
   check('新版本生效后提示消失', !(await evaluate(`Boolean(document.querySelector('[data-test="update-available"]'))`)));
   await hashTo('#/');
   await waitForIndexExpanded();
@@ -1765,9 +1862,9 @@ async function main() {
     await waitForErrorView();
     const text = await errorText();
     includes(`[${c.label}] 失败状态说清原因`, text, c.expect);
-    check(`[${c.label}] 外壳与状态面板仍然渲染（不是白屏）`,
+    check(`[${c.label}] 外壳与失败状态仍然渲染（不是白屏）`,
       (await evaluate(`document.querySelector('[data-test="site-title"]').textContent`)) === '索斐'
-      && (await evaluate(`Boolean(document.querySelector('[data-test="status-site-cache"]'))`)));
+      && (await evaluate(`Boolean(document.querySelector('[data-test="view-error"]'))`)));
     check(`[${c.label}] 给出可操作的重试入口`,
       await evaluate(`Boolean(document.querySelector('[data-test="retry-load"]'))`));
     includes(`[${c.label}] 提示里说明了可能的原因`, await evaluate(`document.querySelector('[data-test="error-hint"]').textContent`), c.hint);

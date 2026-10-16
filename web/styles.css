@@ -175,14 +175,6 @@ button {
   white-space: nowrap;
 }
 
-.app-version {
-  font-family: var(--font-mono);
-  font-size: 0.62rem;
-  letter-spacing: 0.12em;
-  color: var(--text-faint);
-  white-space: nowrap;
-}
-
 /* ---------- 按钮（环形芯片，只有颜色过渡） ---------- */
 
 .btn {
@@ -687,60 +679,7 @@ button {
   color: var(--text-faint);
 }
 
-/* ---------- 状态面板（页脚；开发/核验用，不属于四页规格） ---------- */
-
-.status {
-  position: relative;
-  z-index: 1;
-  width: var(--c);
-  margin: 1.6rem auto 0;
-  padding: 1rem var(--edge-x) 3rem;
-  font-family: var(--font-ui);
-  font-size: 0.74rem;
-  color: var(--text-dim);
-}
-
-.status-list {
-  display: grid;
-  grid-template-columns: 9rem 1fr;
-  gap: 0.3rem 0.75rem;
-  margin: 0 0 0.9rem;
-  padding: 0.9rem 1rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface-sunken);
-  box-shadow: var(--shadow);
-}
-
-.status-list dt {
-  font-family: var(--font-mono);
-  font-size: 0.66rem;
-  letter-spacing: 0.06em;
-  color: var(--text-faint);
-}
-
-.status-list dd {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
-.status-actions {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  margin-bottom: 0.9rem;
-}
-
-.status-honest {
-  margin: 0;
-  color: var(--text-faint);
-  line-height: 1.85;
-}
-
-.status-honest code {
-  font-family: var(--font-mono);
-  font-size: 0.85em;
-}
+/* ⚠ 页脚诊断面板的样式已于 2026-10-16 整块删除（那个面板不属于已采纳的四页规格，已从产品 UI 移除）。 */
 
 /* ---------- 「关于」页（采纳锚 A3／V3：应用名页标题 → 版本相邻组 → 仓库链接置底；无区域框） ----------
  * 结构／数值照 `items/app-ui/history/round-2026-10-16-about-min/`（ARCHIVE ＋ 原型 `q-about-min.html`）：
@@ -834,14 +773,6 @@ button {
     gap: 0.5rem;
   }
 
-  .status-list {
-    grid-template-columns: 1fr;
-  }
-
   /* ⚠ 关于页的版本组**不**在窄屏落成两行：采纳锚（A3／V3）在 320 视口下仍是一行一条
    *   （标签列 68.22＋值列固定在同一条竖线上），所以这里没有 `1fr` 折列规则。 */
-
-  .status-list dt {
-    margin-top: 0.35rem;
-  }
 }
