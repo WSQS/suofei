@@ -491,10 +491,15 @@ check('apk-identity', 'APK 的身份（包名 / versionCode）与清单一致', 
 check('apk-versioncode-bumped', 'APK 的 versionCode 严格大于**已有发布 tag**里的值（防同号重发：旧的装不上新的）', (c) => {
   const code = Number(c.manifest.app?.versionCode);
   if (!Number.isFinite(code)) return skip('清单里没有 versionCode（上面已报）');
+  const selfTag = c.manifest.releaseTag?.name ?? null;
   const tags = (runCapture('git', ['tag', '-l', 'v*'])?.stdout ?? '')
-    .split('\n').map((s) => s.trim()).filter(Boolean);
+    .split('\n').map((s) => s.trim())
+    // ⚠ **排除本次正在发的那个 tag**：CI 的 checkout 是 `fetch-depth: 0`，那个 tag 也在本地 ⇒
+    //   不过滤就会拿「自己这棵树里的 versionCode」当基线，永远相等、永远报红。
+    //   （这不是推演：0.1.2 首次上 CI 就报到这一步，见发布回执。）
+    .filter((t) => t && t !== selfTag);
   if (tags.length === 0) {
-    return { status: 'WARN', detail: '仓库里没有任何发布 tag ⇒ 拿不到上一版的值，**本门没查**（不等于查过）。' };
+    return { status: 'WARN', detail: `除本次 tag 外没有任何历史发布 tag ⇒ 拿不到上一版的值，**本门没查**（不等于查过）。` };
   }
   const readings = [];
   for (const t of tags) {
