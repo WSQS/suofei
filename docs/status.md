@@ -365,6 +365,9 @@
   **修法**：端口改为**系统分配的空闲端口**（起服务/起浏览器前先确认端口是空的）＋ 快照式断言全部改成**轮询等待条件成立**＋截图 20s 超时并可重试（失败只记 WARN，不影响行为断言）。**负责人已亲自复跑：147/147 通过**；E 自测在无负载与「3 个满载 node 制造 CPU 负载」下连跑 3 次均 147/147。
 - **发布线的 `sw-shell-files` 检查与 E 的 `sw.js` 内部结构耦合**（E 重写后它就报红）——已派回 F 改成按自己的必需文件清单断言，SW 行为交给 E 的 e2e。
 
+- **「最小 Markdown 范围」只有 Android 一端钉住共用定义（2026-10-16 由我核出，尚未修）**：`docs/design/implementation-plan.md` S2 要求「**两端同一份范围定义＋对照测试**」。实际：**Android** `MarkdownTest` 真读 `items/content-format/prototypes/rules-v4/expectations.json` 的 `constructs[].id`，与 `Markdown.CONSTRUCT_IDS` **逐项比**（读不到即失败、不跳过），并解析**共用合法夹具** `json/md-subset-legal-fixture.json` 的 `notes`（`TestRepoFiles.read`）；**Web 端一条都没有** —— `grep -rn "md-subset\|expectations" web/` **零命中**，Web e2e 用的是**自己内联的夹具与期望值**（例：`web/tests/e2e-cdp.mjs` 的 `eq('`### ` 三级标题渲染成小标题块', fxMd.h3, ['夹具详情'])`、`eq('`1. ` 有序列表逐项渲染', fxMd.ol, [...])`）。
+  ⚠ **风险形状**：将来在 `expectations.json` 里加/删一样构造（那个文件是**跨端唯一范围定义**），**Android 报红、Web 静默不动** —— 正是本项目已记录三次的那类「看起来有保障、其实没有」。**修法**：把共用定义与夹具也接进 Web 侧（或新增一条对照测试）。**边界**：不改已发布 `0.1.1` 的行为，纯测试覆盖。**未做**：改 `web/tests/**` 会与在跑的 Web 工单撞车（它正在改 `web/tests/e2e-cdp.mjs`），**排在它合并之后**。
+
 ## 发布就绪状态（本地口径，2026-10-14）
 
 **已就绪（本地演练全绿）**：内容 19 首 / 24 条异文；两端实现与离线更新；发布流水线（`check-ready` **exit 0、红项清零**：22 绿/1 跳/0 红，含两项真跑门：E 的 e2e **151/151**、Android 单测 **55/55**）。
