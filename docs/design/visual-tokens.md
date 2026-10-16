@@ -65,7 +65,7 @@
 
 | # | 记号 | 原型实现 | 两端怎么落 |
 |---|---|---|---|
-| 1 | **组名左沿一条发丝竖线** | `.grouprow .gname { padding-left: .6rem; border-left: 2px solid var(--accent-line) }` | Web：CSS 同写；Android：组名左侧 `2.dp` 竖条（色＝`accent-line`）+ 左内边距 |
+| 1 | **组名左沿一条发丝竖线** | `.grouprow .gname { padding-left: .6rem; border-left: 2px solid var(--accent-line) }` | Web：CSS 同写；Android：组名左侧 `2.dp` 竖条（色＝`accent-line`）+ 左内边距 | ⚠ **〔2026-10-16 被取代〕** 用户后续明确选择「**组名左沿＝题名左沿（缩进 0）**」＋「记号＝悬挂＋竖直居中」（采纳锚见 `items/app-ui/history/round-2026-10-15-hub-align/` 等）⇒ 与「组名左沿画 2px 发丝竖线」相抵（有竖线会把组名首字推右约 11.6px）⇒ **本记号作废、两端都不画**；记号②③ 照旧。
 | 2 | **计数写成 `[3] 首`**（方括号是这套视觉的记号） | `.gcount b::before { content:'[' }` / `::after { content:']' }`；括号色 `--text-faint`、字号 `0.85em`、内外各 `1px` | Web：CSS 同写；Android：计数文本拼成 `[3] 首`，括号段用 faint 色 |
 | 3 | **诗页题头不画下划线** | `.poem-head { border-bottom: none; padding-bottom: 0 }` | 两端都不加那条分隔线 |
 
