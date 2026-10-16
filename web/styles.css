@@ -742,34 +742,68 @@ button {
   font-size: 0.85em;
 }
 
-/* ---------- 「关于」页（V3：标签左对齐；无区域框，用户 2026-10-16 定） ---------- */
+/* ---------- 「关于」页（采纳锚 A3／V3：应用名页标题 → 版本相邻组 → 仓库链接置底；无区域框） ----------
+ * 结构／数值照 `items/app-ui/history/round-2026-10-16-about-min/`（ARCHIVE ＋ 原型 `q-about-min.html`）：
+ *   内容左沿＝--edge-x（1.05rem＝16.8px，由 .view-host 的行内边距给出，采纳锚 `.kv` 的 `padding: 0 var(--edge-x)` 等价）；
+ *   标签列固定宽 5.2em，作用在**标签自己的 0.82rem 字号**上 ⇒ 68.22px（与采纳锚同名字号值）；缝 0.5rem＝8px；
+ *   ⇒ **值列左沿 ＝ 内容左沿 ＋ 68.22 ＋ 8 ＝ 93.02px**（相对内容列，与标签列宽无关，只跟这两项有关）。
+ * V3 ⇒ 标签**左对齐**：标签文字左沿＝内容左沿＝页标题左沿＝仓库链接左沿（**四条线合一**）。
+ * 采纳锚里「更新控件（按钮＋状态文本）挂哪条线」是 **Android 那页才有的块**（Web 无更新块）⇒ 本节不适用。
+ * 字号取采纳锚的 [草案] 值（标签 0.82／值 0.86rem）；标签与值仍**一行一条**（不改成两行）。 */
 
-.about-fields {
-  display: grid;
-  grid-template-columns: 8rem 1fr;
-  gap: 0.4rem 0.9rem;
-  margin: 1.4rem 0 0;
-  padding: 0;
-  border: none;
-  background: none;
-  box-shadow: none;
+/* ① 应用名当页标题（采纳锚 `.brand`：1.5rem／字重 500／字距 brand-ls 0.3em）。
+ * 页标题 → 版本组 ＝ 采纳锚 `--sec-gap` 0.9rem＝14.4px。 */
+.about-brand {
+  margin: 0 0 0.9rem;
+  font-family: var(--font-title);
+  font-size: var(--title-size);
+  font-weight: var(--title-weight);
+  letter-spacing: var(--brand-ls);
+  line-height: 1.4;
+  color: var(--text);
+  text-align: left;
+}
+
+/* ② 版本相邻组：只有留白，不画小标题／不区域框；组内两行 ＝ --row-gap 0.5rem＝8px。 */
+.about-versions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.about-kv {
+  display: flex;
+  align-items: baseline;
+}
+
+/* 标签列：固定宽 5.2em（作用在本元素自己的 0.82rem 字号上 ⇒ 68.22px）。
+ * V3 ⇒ 标签**左对齐**（文字左沿＝内容左沿）；一行一条，不改成两行。 */
+.about-kv > .about-k {
+  flex: 0 0 5.2em;
   font-family: var(--font-ui);
-  font-size: 0.78rem;
-  line-height: 1.85;
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
   color: var(--text-dim);
   text-align: left;
 }
 
-.about-fields dt {
-  font-family: var(--font-ui);
-  font-size: 0.78rem;
-  letter-spacing: 0;
-  color: var(--text-faint);
-  text-align: left; /* V3：标签左对齐（四条线合一） */
+/* 值列：内容左沿 ＋ 标签列 68.22 ＋ 缝 0.5rem＝8 ⇒ 值列左沿 93.02px（相对内容列）。 */
+.about-kv > .about-v {
+  margin-left: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.86rem;
+  color: var(--text);
+  overflow-wrap: anywhere;
 }
 
-.about-fields dd {
-  margin: 0;
+/* ③ 仓库链接置底：C1 **完整 URL 的裸文本**（不画标签行、不给「在浏览器打开」提示）；
+ * 版本组 → 仓库 ＝ 采纳锚 `--sec-gap` 0.9rem＝14.4px。 */
+.about-repo {
+  margin: 0.9rem 0 0;
+  font-family: var(--font-mono);
+  font-size: 0.86rem;
+  letter-spacing: 0.01em;
+  color: var(--text);
   overflow-wrap: anywhere;
 }
 
@@ -784,9 +818,8 @@ button {
     grid-template-columns: 1fr;
   }
 
-  .about-fields {
-    grid-template-columns: 1fr;
-  }
+  /* ⚠ 关于页的版本组**不**在窄屏落成两行：采纳锚（A3／V3）在 320 视口下仍是一行一条
+   *   （标签列 68.22＋值列固定在同一条竖线上），所以这里没有 `1fr` 折列规则。 */
 
   .status-list dt {
     margin-top: 0.35rem;

@@ -173,7 +173,7 @@ android/
 │   └── res/drawable/ic_launcher_{background,foreground,monochrome}.xml   # 自适应图标三层（矢量）
 │   └── res/mipmap-anydpi-v26/ic_launcher{,_round}.xml                    # 自适应图标入口（API 26+）
 ├── tools/make-launcher-icon.mjs             # 从只读交付源生成上面五个资源（内置自检，见 §6.4）
-└── app/src/test/java/dev/sopho/suofei/      # 97 个 JVM 单测（含更新流程、视觉令牌门、更新源地址门、图标门、四页导航/清单门）```
+└── app/src/test/java/dev/sopho/suofei/      # 143 个 JVM 单测（含更新流程、视觉令牌门、更新源地址门、图标门、四页导航/清单门）```
 
 ### 5.2 四个页面与各页信息清单（⚠ **2026-10-16 已按采纳锚重排，下表是旧版描述，就地保留作留痕**）
 

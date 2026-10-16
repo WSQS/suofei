@@ -526,27 +526,47 @@ export function renderDetailPage(doc, id, { onBack } = {}) {
  * 「关于」页（原「更新页」改名，用户 2026-10-15 定）：两端都有、**同一批字段**（`web/about-fields.json`）。
  * 字段值平台相关：Web 的应用版本＝站点资源版本；内容版本＝本次站点部署的内容版本（随 SW 缓存）。
  * Web 的更新交给 Service Worker，所以这里**没有**「更新」块（Android 在那页里多一块「更新」）。
- * 排布按 `round-2026-10-16-about-min` 的 **V3（标签左对齐）＋ 无区域框**；「初态只按钮」那条
- * 针对的是更新控件（Web 无此块 ⇒ 不适用，见报告）。
+ *
+ * 排布＝采纳锚 **A3**（`items/app-ui/history/round-2026-10-16-about/` 用户结论）＋ **V3**
+ * （`…/round-2026-10-16-about-min/` 用户结论）：
+ *   ① **应用名当页标题**（共享字段集第 1 项；**不另画「应用名」标签行**）；
+ *   ② **版本相邻组**：`应用版本`／`内容版本` 两行，标签**左对齐**（标签文字左沿＝内容左沿＝页标题左沿＝
+ *      仓库链接左沿，**四条线合一**），值仍在同一条**值列**（内容左沿 ＋ 标签列 5.2em ＋ 缝 0.5rem）；
+ *   ③ 仓库链接**置底**：**C1 完整 URL 的裸文本**，**不画「仓库链接」标签行**、**不加「在浏览器打开」提示**。
+ * 采纳锚里「更新控件挂哪条线／初态只按钮」那两节针对的是 Android 的更新块（Web 无此块）⇒ Web 不适用
+ * （e2e 有反向断言：Web 关于页没有 `check-site-update`）。
  *
  * ⚠ 2026-10-16 字段集按采纳锚对齐为 **4 项**（用户 `q-9f9eca3d`：应用名／应用版本／内容版本／仓库链接）：
  * 不再有「一句话说明」与「诚实的限制」两行（后者只在页脚状态面板里保留同一段原文），
- * 标签「内容版本与来源」收成「内容版本」（值里的「来源：」也去掉），并补上「仓库链接」（C1 完整 URL，照 Android 一样只显示 URL 文本、不加「在浏览器打开」提示）。
+ * 标签「内容版本与来源」收成「内容版本」（值里的「来源：」也去掉），并补上「仓库链接」。
+ * ⚠ 2026-10-16（本线）**排布**也对齐采纳锚 A3／V3：此前 4 项都画成带标签的 `dl` 行（含「应用名」
+ * 「仓库链接」两行 `dt`），与采纳锚不符（采纳锚里这两项分别是**页标题**与**置底 URL**，都不是标签行）⇒
+ * 改为上面 ①②③ 的 A3／V3（标签左对齐＝四条线合一）。
  */
 export function renderAboutPage({ appVersion, doc, onBack } = {}) {
   const root = h('div', { class: 'view view--about', dataset: { test: 'view-about' } });
   const back = h('a', { class: 'back-link', href: ROUTES.index, dataset: { test: 'about-back-to-index' }, text: '← 目录' });
   back.addEventListener('click', () => onBack?.());
   root.append(topRow([back]));
-  const dl = h('dl', { class: 'about-fields', dataset: { test: 'about-fields' } });
+
+  // ① 应用名当页标题（共享字段集第 1 项；**不画标签行** —— 采纳锚 A3）。
+  root.append(h('h1', { class: 'about-brand', dataset: { test: 'about-app-name' }, text: ABOUT.appName }));
+
+  // ② 版本相邻组：标签列（固定 5.2em）＋ 值列。标签文字取自唯一来源（`ABOUT.fields[1]`／`[2]`，
+  //    与 Android `AboutFields.LABELS[1]/[2]` 同一取法），不在这里手写标签字面。
+  const group = h('div', { class: 'about-versions', dataset: { test: 'about-version-group' } });
   const row = (label, value, test) => {
-    dl.append(h('dt', { text: label }));
-    dl.append(h('dd', { dataset: { test }, text: value }));
+    const kv = h('div', { class: 'about-kv' });
+    kv.append(h('span', { class: 'about-k', dataset: { test: 'about-label' }, text: label }));
+    kv.append(h('span', { class: 'about-v', dataset: { test }, text: value }));
+    return kv;
   };
-  row('应用名', ABOUT.appName, 'about-app-name');
-  row('应用版本', `站点资源版本 v${appVersion}`, 'about-app-version');
-  row('内容版本', doc ? `v${doc.contentVersion}` : '（尚未取到）', 'about-content-version');
-  row('仓库链接', ABOUT.repoUrl, 'about-repo-url');
-  root.append(dl);
+  group.append(row(ABOUT.fields[1], `站点资源版本 v${appVersion}`, 'about-app-version'));
+  group.append(row(ABOUT.fields[2], doc ? `v${doc.contentVersion}` : '（尚未取到）', 'about-content-version'));
+  root.append(group);
+
+  // ③ 仓库链接置底（共享字段集第 4 项；C1 **完整 URL 的裸文本**，不画标签行、不加提示 —— 采纳锚 A3）。
+  root.append(h('p', { class: 'about-repo', dataset: { test: 'about-repo-url' }, text: ABOUT.repoUrl }));
+
   return root;
 }
