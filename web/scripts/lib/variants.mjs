@@ -5,36 +5,31 @@
 //   A) 内容形状变体：验证「次序判定 / 本机拼音兜底」（不换站点版本也能测）；
 //   B) 站点部署变体：给「两版本切换」与「失败状态」测试用，每个部署带自己的 APP_VERSION，
 //      由 tests/lib/deploy.mjs 组装（壳 + 内容一起换）。
+//
+// ⚠ 这里的形状是 **formatVersion 2**（顶层 `dynasties` ＝有序中文值数组；每首 10 键，
+//    `dynasty` 单值、`detail` 是最小 Markdown 文本）。
 
-/** 加进来的那首测试诗：自带笔记、空行分段与转义样本；分组继承基座最后一首。 */
+/** 加进来的那首测试诗：自带笔记（含空行分段、`- ` 列表、`**粗体**` 与转义样本）；
+ *  `dynasty` 由调用处覆盖为基座末首的朝代。 */
 export const FIXTURE_POEM = {
   id: 'fixture-test-poem-01',
   title: '测试夹具诗（非诗文）',
   author: '测试作者',
-  era: '测试夹具',
+  dynasty: '汉',
   genre: '测试夹具',
   source: '测试夹具（不是发布内容）',
   orderInSource: null,
-  variants: [],
+  detail: '### 夹具详情\n\n这一行是**测试夹具详情**，不是真实考据。\n\n1. 夹具有序列表第一项\n2. 夹具有序列表第二项\n\n> 夹具引用块：不是任何真实校语。',
   stanzas: [
     ['第一段第一行（测试夹具）。', '第一段第二行（测试夹具）。'],
     ['空行之后的一段（测试夹具）。'],
+    ['这是一句很长的测试夹具诗句，用来触发按句读的语义折行：甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌亥。'],
   ],
   notes: '【测试笔记·不是用户笔记】\n\n用于验证「笔记按需展开」的测试文本。\n\n- 第一点：列表与段落。\n- 第二点：换行保留。\n\n这里验证最小 Markdown 子集：**粗体**与普通文字混排。\n\n这里验证转义：<b>不应被当作标签</b>，应原样显示。',
 };
 
-/** 只留实际有内容的组，按 order 升序（与编译期同一规则）。 */
-function collectDynasties(poems) {
-  const m = new Map();
-  for (const p of poems) {
-    if (!m.has(p.dynastyKey)) {
-      m.set(p.dynastyKey, { key: p.dynastyKey, label: p.dynastyLabel, order: p.dynastyOrder });
-    }
-  }
-  return [...m.values()].sort((a, b) => a.order - b.order);
-}
-
-/** 去掉编译期的两个拼音名次键（保留 orderInSource）：模拟 C 线改完后的最小产物形状。 */
+/** 老形状（formatVersion 1）里去掉两个拼音名次键的副本：模拟 C 线改完后的最小产物形状。
+ *  ⚠ 新形状（v2）已不再发布这两个键 ⇒ 本函数在 v2 基座上基本是直通，仅为兼容老基座保留。 */
 function stripPinyinKeys(doc) {
   const out = structuredClone(doc);
   for (const p of out.poems) {
@@ -48,11 +43,11 @@ function stripPinyinKeys(doc) {
 function reverseWithinGroups(doc) {
   const byD = new Map();
   for (const p of doc.poems) {
-    if (!byD.has(p.dynastyKey)) byD.set(p.dynastyKey, []);
-    byD.get(p.dynastyKey).push(p);
+    if (!byD.has(p.dynasty)) byD.set(p.dynasty, []);
+    byD.get(p.dynasty).push(p);
   }
   const reversed = [];
-  for (const d of doc.dynasties) reversed.push(...[...(byD.get(d.key) ?? [])].reverse());
+  for (const d of doc.dynasties) reversed.push(...[...(byD.get(d) ?? [])].reverse());
   doc.poems = reversed;
   return doc;
 }
@@ -93,11 +88,8 @@ export function makeFixtureContent(base) {
   doc.poems = doc.poems.slice(0, -1);
   doc.poems.push({
     ...structuredClone(FIXTURE_POEM),
-    dynastyKey: last.dynastyKey,
-    dynastyLabel: last.dynastyLabel,
-    dynastyOrder: last.dynastyOrder,
+    dynasty: last.dynasty,   // 分组沿用基座最后一首的朝代（值数组不变）
   });
-  doc.dynasties = collectDynasties(doc.poems);
   return doc;
 }
 
@@ -107,11 +99,11 @@ export function makeBrokenText(base) {
   return full.slice(0, Math.floor(full.length * 0.6));
 }
 
-/** 合法 JSON 但结构不合法（stanzas 空 + dynastyKey 未声明）→ 客户端必须给明确失败状态。 */
+/** 合法 JSON 但结构不合法（stanzas 空 + dynasty 未声明）→ 客户端必须给明确失败状态。 */
 export function makeSchemaBrokenDoc(base) {
   const doc = structuredClone(base);
   doc.poems[0].stanzas = [[]];
-  doc.poems[1].dynastyKey = 'nonexistent-group';
+  doc.poems[1].dynasty = 'nonexistent-group';
   return doc;
 }
 
@@ -124,7 +116,7 @@ export function makeFutureFormatDoc(base) {
 
 /**
  * 生成全部测试变体。
- * @param {object} base 基座产物（真实产物优先）
+ * @param {object} base 基座产物（真实产物优先；应为 formatVersion 2）
  * @returns {Record<string, {name: string, kind: 'doc'|'text', doc?: object, text?: string, note: string}>}
  */
 export function buildVariants(base) {

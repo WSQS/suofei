@@ -31,6 +31,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { buildVariants } from './lib/variants.mjs';
+import { isFormatV2, upgradeTextToFormatV2 } from './lib/upgrade-content.mjs';
 
 const webRoot = fileURLToPath(new URL('..', import.meta.url));
 const repoRoot = resolve(webRoot, '..');
@@ -53,7 +54,7 @@ function describe(text) {
     const kind = doc.placeholder === true ? '【占位夹具】'
       : (doc.fixture === true ? '【测试夹具】' : '真实产物');
     return `formatVersion=${doc.formatVersion} contentVersion=${doc.contentVersion} poems=${doc.poems?.length} `
-      + `dynasties=${(doc.dynasties ?? []).map((d) => d.key).join(',')} ${kind}`;
+      + `dynasties=${(doc.dynasties ?? []).map((d) => (typeof d === 'string' ? d : d?.key)).join(',')} ${kind}`;
   } catch {
     return `（内容不是合法 JSON —— 变体故意造成的，${Buffer.byteLength(text, 'utf8')} 字节）`;
   }
@@ -83,6 +84,18 @@ async function main() {
 
   let text = baseText;
   let origin = baseOrigin;
+  // 过渡适配：字段集升版（1→2）由另一条线在 tools/ 落地；在它合并进来之前，把老形状的基座
+  // （本地 dist、或手写的 v1 文件）升到 v2，让本地演练/测试真的跑在新形状上。已是 v2 ⇒ 不动。
+  try {
+    if (!isFormatV2(JSON.parse(baseText))) {
+      const upgraded = upgradeTextToFormatV2(baseText);
+      if (upgraded) {
+        baseText = upgraded;
+        origin = `${origin}（字段集过渡适配 → formatVersion 2）`;
+      }
+    }
+  } catch { /* 非法 JSON 的基座：保持原样，派生 broken 变体时会如实报错 */ }
+  text = baseText;
   if (variantName && !FIXTURE_VARIANTS[variantName]) {
     let variants;
     try {
