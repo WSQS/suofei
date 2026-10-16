@@ -3,6 +3,7 @@ package dev.sopho.suofei
 import dev.sopho.suofei.ui.AboutFields
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -13,8 +14,13 @@ import org.junit.Test
  * 这里读文件与它**逐项比对**（读不到文件即失败，不跳过）。与 `UnknownAuthorsSourceTest`
  * 对着 `schema/unknown-authors.json` 是同一套纪律：改字段集＝改那个文件，然后两端同步。
  *
- * 字段的**值**是平台相关的（Android 的版本号是 APK 版本、限制写的是 Android 的限制），
- * 所以这里只比 appName / tagline / 字段标签，不比值。
+ * 字段的**值**是平台相关的（Android 的版本号是 APK 版本），所以这里只比 `appName`／`repoUrl`／
+ * 字段标签，不比值。
+ *
+ * ⚠ 2026-10-16 **同步到位**（此前本端落后一轮）：采纳锚＝用户 `q-9f9eca3d` 的 **4 项**
+ * （应用名／应用版本／内容版本／仓库链接）。原来的 5 项里有「一句话说明」与「诚实的限制」，
+ * 两条都**未采纳** ⇒ 已从 `AboutFields.LABELS` 与关于页上删掉（Web 的 `about-fields.json`
+ * 在 `3394fd5` 就已改成 4 项，本端这次跟上）。这里同时钉住「**不再**渲染那两条」。
  */
 class AboutFieldsTest {
 
@@ -26,9 +32,13 @@ class AboutFieldsTest {
     )
 
     @Test
-    fun appNameAndTagline_matchTheSharedSource() {
+    fun appNameAndRepoUrl_matchTheSharedSource() {
         assertEquals(spec.getString("appName"), AboutFields.APP_NAME)
-        assertEquals(spec.getString("tagline"), AboutFields.TAGLINE)
+        // 仓库链接＝**与 Web 同一来源**：唯一来源是该文件的 `repoUrl`，两端各持一份运行时副本
+        // （Android 是 `AboutFields.REPO_URL`，Web 是 `app/config.js` 的 `ABOUT.repoUrl`）。
+        // 本端读不到那个文件（不是 APK 资源）⇒ 只能硬编码，靠这条断言把它钉回唯一来源。
+        assertEquals(spec.getString("repoUrl"), AboutFields.REPO_URL)
+        assertTrue("应是 https 的完整 URL（C1）", AboutFields.REPO_URL.startsWith("https://"))
     }
 
     @Test
@@ -36,6 +46,10 @@ class AboutFieldsTest {
         val arr = spec.getJSONArray("fields")
         val fromFile = (0 until arr.length()).map { arr.getString(it) }
         assertEquals("字段集（顺序也要一致）", fromFile, AboutFields.LABELS)
+        assertEquals(listOf("应用名", "应用版本", "内容版本", "仓库链接"), AboutFields.LABELS)
+        // 「内容版本」是**收窄后**的标签（原「内容版本与来源」），值里也**不带**「来源：」
+        assertTrue("标签应已收成「内容版本」", AboutFields.LABELS.contains("内容版本"))
+        assertFalse("不该再有「内容版本与来源」", AboutFields.LABELS.contains("内容版本与来源"))
     }
 
     @Test
@@ -45,40 +59,40 @@ class AboutFieldsTest {
             "android/app/src/main/java/dev/sopho/suofei/ui/Screens.kt",
             "「关于」页在 Screens.kt 里",
         )
-        for (i in 2..4) {
+        // 字段集 4 项都要真的落到页面上：
+        //   ①「应用名」→ 页标题（采纳锚 A3：应用名当页标题，不另画标签行）＝ `AboutFields.APP_NAME`
+        //   ②「应用版本」③「内容版本」→ 版本相邻组的两个**标签行**，标签直接取 `LABELS[…]`
+        //   ④「仓库链接」→ 置底的**完整 URL 文本**＝ `AboutFields.REPO_URL`（采纳锚 C1，也不另画标签行）
+        assertTrue("AboutScreen 要用 AboutFields.APP_NAME 当页标题", screens.contains("AboutFields.APP_NAME"))
+        for (i in 1..2) {
             assertTrue("AboutScreen 没有渲染 AboutFields.LABELS[$i]", screens.contains("AboutFields.LABELS[$i]"))
         }
-        assertTrue("AboutScreen 要用 AboutFields.APP_NAME", screens.contains("AboutFields.APP_NAME"))
-        assertTrue("AboutScreen 要用 AboutFields.TAGLINE", screens.contains("AboutFields.TAGLINE"))
+        assertTrue("AboutScreen 要用 AboutFields.REPO_URL 置底", screens.contains("AboutFields.REPO_URL"))
         assertTrue("Android 的关于页要有检查更新动作", screens.contains("onCheckUpdate"))
-        // ⚠ 2026-10-16 起「更新源地址」不再显示（用户 `q-9f9eca3d` 没把它列进共用信息）⇒
-        // 这条旧断言改成「仓库链接（C1 完整 URL）在场」。地址本身仍由 `UpdateEndpointTest` 逐字钉住。
-        assertTrue("Android 的关于页要有仓库链接（C1 完整 URL）", screens.contains("AboutFields.REPO_URL"))
+        // ⚠ 2026-10-16 起「更新源地址」不再显示（用户 `q-9f9eca3d` 没把它列进共用信息）。
+        // 地址本身仍由 `UpdateEndpointTest` 逐字钉住（那条是**更新接口**的地址，与仓库链接不是一回事）。
     }
 
     @Test
-    fun sharedFieldSet_isStillRenderedOnBothEnds_evenThoughTwoEntriesAreNotAdopted() {
-        // ⚠ 如实记一处**已知偏离**（不是实现错，是契约文件落后）：用户 `q-9f9eca3d` 定的共用信息是
-        // 「应用名 / 应用版本 / 内容版本 / 仓库链接」，并明确「没有因此采纳介绍文案或长篇限制说明」；
-        // 而 `web/about-fields.json` 里仍有「一句话说明」与「诚实的限制」。
-        // 删它们＝改**跨端契约**（要同时改 Web 端与其 e2e）⇒ 必须先协调。所以本端**保留**这五项
-        // （与 Web 仍一致，不制造新的两端分歧），只按采纳锚改排布：V3／无框／初态只按钮／仓库链接置底。
-        // 这条断言的作用：把两件事实同时钉住 —— ① 字段集仍是文件里的那五项；② 页面确实逐项渲染它们。
-        assertEquals(
-            "共享字段集（落后于 q-9f9eca3d）：一句话说明与诚实的限制仍在里面",
-            listOf("应用名", "一句话说明", "应用版本", "内容版本与来源", "诚实的限制"),
-            AboutFields.LABELS,
-        )
+    fun aboutScreen_noLongerRendersTheTwoUnadoptedEntries() {
+        // 如实钉住「删掉的两条」：它们在共享字段集里**没有**，在关于页上也**不再**渲染。
         val screens = TestRepoFiles.read(
             "android/app/src/main/java/dev/sopho/suofei/ui/Screens.kt",
             "「关于」页在 Screens.kt 里",
         )
-        // 每一项共享字段都要真的被渲染：索引 0/1 按采纳锚（A3）当页标题与副标题，其余取 LABELS[2..4]。
-        assertTrue("AboutScreen 没有渲染应用名", screens.contains("AboutFields.APP_NAME"))
-        assertTrue("AboutScreen 没有渲染一句话说明", screens.contains("AboutFields.TAGLINE"))
-        for (i in 2..4) {
-            assertTrue("AboutScreen 没有渲染 AboutFields.LABELS[$i]", screens.contains("AboutFields.LABELS[$i]"))
-        }
-        assertTrue("AboutScreen 没有渲染诚实的限制", screens.contains("ABOUT_LIMITS_ANDROID"))
+        assertFalse("共享字段集里不该再有「一句话说明」", AboutFields.LABELS.contains("一句话说明"))
+        assertFalse("共享字段集里不该再有「诚实的限制」", AboutFields.LABELS.contains("诚实的限制"))
+        assertFalse("关于页不该再渲染「一句话说明」（TAGLINE 已删）", screens.contains("TAGLINE"))
+        assertFalse(
+            "关于页不该再渲染「诚实的限制」（ABOUT_LIMITS_ANDROID 已删）",
+            screens.contains("ABOUT_LIMITS_ANDROID"),
+        )
+        // 也钉住源文件层面：那个常量连同它的文案在本端已整体撤掉（不是留着不用）。
+        val content = TestRepoFiles.read(
+            "android/app/src/main/java/dev/sopho/suofei/ui/ScreenContent.kt",
+            "关于页的共享字段集在 ScreenContent.kt 里",
+        )
+        assertFalse("ABOUT_LIMITS_ANDROID 常量应已删除", content.contains("const val ABOUT_LIMITS_ANDROID"))
+        assertFalse("TAGLINE 常量应已删除", content.contains("const val TAGLINE"))
     }
 }

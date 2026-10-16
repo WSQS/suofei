@@ -494,6 +494,9 @@ private fun PoemDetailScreen(poem: Poem, onBack: () -> Unit) {
  * - **无框**：按钮与状态文本是内容流里的元素，没有容器边框/底色/阴影/标题/分隔线；
  * - **初态（尚未检查）只显示按钮**：不生成状态文本元素，也不用空字符串占位；
  * - 仓库链接＝**C1 完整 URL**，置底，**不给**「会打开浏览器」的提示。
+ *
+ * ⚠ 2026-10-16：共享字段集已同步为 **4 项**（应用名／应用版本／内容版本／仓库链接，见 `AboutFields`）；
+ * **不再渲染**「一句话说明」与「诚实的限制」两行（后者在本端**没有任何别处保留**，见 `AboutFields` 注释）。
  */
 @Composable
 private fun AboutScreen(state: AppState, onBack: () -> Unit, onCheckUpdate: () -> Unit) {
@@ -511,27 +514,25 @@ private fun AboutScreen(state: AppState, onBack: () -> Unit, onCheckUpdate: () -
                     .padding(horizontal = edgeX)
                     .padding(top = PoetryTokens.rem(PoetryTokens.COL_TOP_REM)),
             ) {
-                // ① 应用名当页标题（1.5rem ＋ 品牌字距）
+                // ① 应用名当页标题（1.5rem ＋ 品牌字距）。共享字段集的第 1 项就在这里，只是**不另画标签行**。
                 Text(AboutFields.APP_NAME, style = PoetryTextStyles.brand, textAlign = TextAlign.Start)
                 Spacer(Modifier.height(PoetryTokens.rem(PoetryTokens.SEC_GAP_REM)))
-                // ② 一句话说明
-                Text(AboutFields.TAGLINE, style = PoetryTextStyles.aboutValue)
-                Spacer(Modifier.height(PoetryTokens.rem(PoetryTokens.SEC_GAP_REM)))
 
-                // ③ 版本相邻组（**不含「来源」行**）：标签列 + 值列
+                // ② 版本相邻组（**不含「来源」行**；2026-10-16 起也**不再有**「一句话说明」副标题）：标签列 + 值列。
+                // LABELS[1]＝应用版本、LABELS[2]＝内容版本（字段集删掉两项后下标整体上移，不是手写标签）。
                 KeyValueRow(
-                    label = AboutFields.LABELS[2],
+                    label = AboutFields.LABELS[1],
                     value = state.appVersionName,
                     mono = true,
                 )
                 Spacer(Modifier.height(PoetryTokens.rem(PoetryTokens.ROW_GAP_REM)))
                 KeyValueRow(
-                    label = AboutFields.LABELS[3],
+                    label = AboutFields.LABELS[2],
                     value = state.contentVersionText(),
                     mono = true,
                 )
 
-                // ④ Android 额外一块「内容更新」：**上方按钮 ＋ 下方状态文本**，**无框**。
+                // ③ Android 额外一块「内容更新」：**上方按钮 ＋ 下方状态文本**，**无框**。
                 Spacer(Modifier.height(PoetryTokens.rem(PoetryTokens.SEC_GAP_REM)))
                 UpdateButton(
                     enabled = state.updateStatus !is UpdateStatus.Checking,
@@ -547,13 +548,8 @@ private fun AboutScreen(state: AppState, onBack: () -> Unit, onCheckUpdate: () -
                     )
                 }
 
-                // ⑤ 诚实的限制（沿用现有文案原文）
-                Spacer(Modifier.height(PoetryTokens.rem(PoetryTokens.SEC_GAP_REM)))
-                Text(AboutFields.LABELS[4], style = PoetryTextStyles.aboutLabel)
-                Spacer(Modifier.height(PoetryTokens.rem(PoetryTokens.ROW_GAP_REM)))
-                Text(ABOUT_LIMITS_ANDROID, style = PoetryTextStyles.meta)
-
-                // ⑥ 仓库链接置底（C1 完整 URL）
+                // ④ 仓库链接置底（C1 完整 URL）。共享字段集的第 4 项；在本端就是这段 URL 文本，
+                //    同样**不另画标签行**（采纳锚 A3/V3：应用名与仓库链接都在内容左沿、都不是标签行）。
                 Spacer(Modifier.height(PoetryTokens.rem(PoetryTokens.SEC_GAP_REM)))
                 Text(
                     AboutFields.REPO_URL,

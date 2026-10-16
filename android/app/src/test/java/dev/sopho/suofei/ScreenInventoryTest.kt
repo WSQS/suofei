@@ -157,17 +157,19 @@ class ScreenInventoryTest {
     @Test
     fun aboutScreen_carriesTheSharedFieldSet_theRepoLink_andTheAndroidUpdateBlock() {
         val about = body("AboutScreen")
-        // 共享字段集：索引 0/1 按采纳锚（A3）分别当**页标题**与**副标题**渲染（不另加标签行），
-        // 版本组的两个标签与「诚实的限制」则直接取 LABELS[…]。
-        assertTrue("关于页要有应用名", about.contains("AboutFields.APP_NAME"))
-        assertTrue("关于页要有一句话说明", about.contains("AboutFields.TAGLINE"))
-        for (i in 2..4) {
+        // 共享字段集（2026-10-16 同步为 4 项：应用名／应用版本／内容版本／仓库链接）：
+        // 索引 0「应用名」按采纳锚（A3）当**页标题**、索引 3「仓库链接」是置底的**完整 URL 文本**
+        // （两者都不另画标签行）；版本组的两个标签（LABELS[1] 应用版本、LABELS[2] 内容版本）直接取 LABELS[…]。
+        assertTrue("关于页要有应用名（当页标题）", about.contains("AboutFields.APP_NAME"))
+        for (i in 1..2) {
             assertTrue("关于页没有渲染 AboutFields.LABELS[$i]", about.contains("AboutFields.LABELS[$i]"))
         }
-        assertTrue("关于页要有诚实的限制", about.contains("ABOUT_LIMITS_ANDROID"))
         assertTrue("关于页（Android）要有检查更新动作", about.contains("onCheckUpdate"))
         assertTrue("仓库链接置底（C1 完整 URL）", about.contains("AboutFields.REPO_URL"))
         assertTrue("版本组＝标签列＋值列（V3 标签左对齐）", about.contains("KeyValueRow("))
+        // 删掉的两条（未采纳）：不再渲染
+        assertFalse("关于页不该再渲染「一句话说明」", about.contains("TAGLINE"))
+        assertFalse("关于页不该再渲染「诚实的限制」", about.contains("ABOUT_LIMITS_ANDROID"))
     }
 
     @Test

@@ -92,6 +92,35 @@ gradle.taskGraph.whenReady {
     }
 }
 
+// ── 单测的「仓库文件」输入声明 ────────────────────────────────────────────
+// 这些单测在**运行期读仓库文件**（`TestRepoFiles` 那一套）：`web/about-fields.json`、
+// `schema/unknown-authors.json`、`items/content-format/prototypes/rules-v4/json/`、`content/poems/**`，
+// 还有**用相对路径读**的内置产物 `app/src/main/assets/content/content.json`。
+// Gradle 看不到这些读取 ⇒ 文件一变，`testDebugUnitTest` 仍可能 `FROM-CACHE` **回放旧结果**：
+// 实测（2026-10-16）`web/about-fields.json` 已改成 4 项、单测必红，裸 `./gradlew testDebugUnitTest
+// --offline` 却照样 `BUILD SUCCESSFUL`（结果从 build cache 回放的旧绿）。所以这里把它们显式声明为
+// 输入，改这些文件时让测试**真的重跑**；不改变任何构建产物（只影响缓存/最新性判定，方向是更保守）。
+val repoRootDir = rootProject.projectDir.parentFile
+run {
+    val repoInputs = listOf(
+        "web/about-fields.json",
+        "schema/unknown-authors.json",
+        "items/content-format/prototypes/rules-v4/json",
+        "content/poems",
+    )
+    tasks.withType<Test>().configureEach {
+        repoInputs.forEach { rel ->
+            val f = File(repoRootDir, rel)
+            val prop = "repoInput-" + rel.replace('/', '-')
+            if (f.isDirectory) inputs.dir(f).withPropertyName(prop).optional()
+            else inputs.file(f).withPropertyName(prop).optional()
+        }
+        // 用相对路径（cwd＝模块目录）读的内置产物 —— 不在 unit test 的 classpath 上，所以也得声明。
+        inputs.dir(File(projectDir, "src/main/assets/content"))
+            .withPropertyName("bundledContent").optional()
+    }
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
