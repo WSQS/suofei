@@ -1,5 +1,6 @@
 package dev.sopho.suofei
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -214,5 +215,49 @@ class ScreenInventoryTest {
         val about = body("AboutScreen")
         assertTrue("内容版本走纯版本号的取值", about.contains("contentVersionText()"))
         assertFalse("不得再拼「来源：」", code.contains("来源："))
+    }
+
+    // ── 系统返回（BackHandler，用户 2026-10-16 实测「按返回直接退出 app」）───────────────
+
+    /**
+     * 系统返回（返回键/手势）必须**接上**导航，且与三个标题返回按钮**走同一份** `AppState.back()`。
+     *
+     * 背景（真实缺陷）：此前全工程没有 `BackHandler` 接线 ⇒ 系统返回落到 Activity 默认行为
+     * ＝`finish()`（退出 app），与用户实测吻合。本机 JVM 单测没有 Compose UI 测试依赖，跑不了
+     * Compose 的语义树/返回分发 ⇒ 这是**源码级守卫**（行为级转移在 `AppStateNavigationTest`，
+     * 真机/模拟器上的真实返回事件在交付报告里另记）。
+     */
+    @Test
+    fun appRoot_wiresSystemBack_toTheSameStateBack() {
+        val root = body("AppRoot")
+        assertTrue("AppRoot 必须接系统返回（BackHandler）", root.contains("BackHandler("))
+        // 必须复用同一份转移：BackHandler 的动作体就是 `state.back()`。
+        assertTrue(
+            "系统返回的动作必须直接调 state.back()（不另写一套转移规则）",
+            Regex("""BackHandler\([^)]*\)\s*\{\s*state\.back\(\)\s*\}""").containsMatchIn(root),
+        )
+        // 目录根不拦：enabled 必须排除 LIBRARY ⇒ 该页不注册回调，系统照旧按默认行为离开 app。
+        assertTrue(
+            "enabled 必须排除 Screen.LIBRARY（目录页让系统照旧离开 app）",
+            Regex("""BackHandler\(\s*enabled\s*=\s*state\.screen\s*!=\s*Screen\.LIBRARY\s*\)""")
+                .containsMatchIn(root),
+        )
+        // 用户没要的功能：不许加二次确认 / 双按退出 / 手势预测改造 / 导航库。
+        assertFalse("不得加二次确认弹窗", root.contains("AlertDialog"))
+        assertFalse("不得加双按退出", root.contains("Toast") || root.contains("双按"))
+        assertFalse("不得引入 NavHost/导航库", code.contains("NavHost") || code.contains("rememberNavController"))
+    }
+
+    @Test
+    fun allTitleBackButtons_goThroughTheSameStateBack_asSystemBack() {
+        // 诗页/详情页/关于页的「返回」三个按钮：全部直连 `state.back()`，与系统返回同一条逻辑。
+        val wireUps = Regex("""onBack\s*=\s*\{\s*state\.back\(\)\s*\}""").findAll(code).count()
+        assertEquals("三个页面返回按钮都应直连 state.back()", 3, wireUps)
+        // 全文件只有这一份返回逻辑的入口：3 处按钮 ＋ 1 处系统返回。
+        assertEquals(
+            "state.back() 的调用点应恰好是 3 处标题返回 ＋ 1 处系统返回",
+            4,
+            Regex("""state\.back\(\)""").findAll(code).count(),
+        )
     }
 }

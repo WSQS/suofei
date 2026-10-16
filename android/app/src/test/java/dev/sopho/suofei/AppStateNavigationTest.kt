@@ -6,7 +6,9 @@ import dev.sopho.suofei.data.ContentStore
 import dev.sopho.suofei.data.Poem
 import dev.sopho.suofei.ui.AppState
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -96,5 +98,42 @@ class AppStateNavigationTest {
         s.back()
         assertEquals("关于页返回 → 目录（不是上一首诗）", Screen.LIBRARY, s.screen)
         assertNull(s.selectedPoem)
+    }
+
+    /**
+     * 「详情 → 诗」**不得**采用等待中的新内容：只有真的回到目录（`openLibrary()`）才采用 pending。
+     *
+     * 为什么是**源码级**：`pendingVersion` 的 setter 是私有的、`manifestUrl` 也不可注入 ⇒ JVM 单测里
+     * 造不出一个 pending 状态（真造得出来要跑真实更新服务器）。所以这里钉住 `back()` 的 `POEM_DETAIL`
+     * 分支必须**直接置 `screen = Screen.POEM`**，不许经过 `openLibrary()`（后者才会采用 pending），
+     * 并用「`openLibrary()` 在 `back()` 里只出现两次（POEM、ABOUT）」把这条守住
+     * （真机/模拟器上整链验证见交付报告）。
+     */
+    @Test
+    fun backFromPoemDetail_doesNotGoThroughOpenLibrary_soPendingIsNotAdopted() {
+        val src = TestRepoFiles.read(
+            "android/app/src/main/java/dev/sopho/suofei/ui/AppState.kt",
+            "导航转移就在 AppState.kt 的 back()",
+        )
+        val backBody = src
+            .substringAfter("fun back()")
+            .substringBefore("fun openAbout()")
+            .lines()
+            .filterNot { it.trim().startsWith("//") || it.trim().startsWith("*") }
+            .joinToString("\n")
+
+        assertTrue(
+            "POEM_DETAIL 分支必须直接换屏（不经过 openLibrary）",
+            backBody.contains("Screen.POEM_DETAIL -> screen = Screen.POEM"),
+        )
+        assertEquals(
+            "back() 里只有 POEM 与 ABOUT 两个分支能采用 pending（openLibrary 恰好两次）",
+            2,
+            Regex("""openLibrary\(\)""").findAll(backBody).count(),
+        )
+        assertFalse(
+            "POEM_DETAIL 分支不得提到 openLibrary",
+            Regex("""POEM_DETAIL[^\n]*openLibrary""").containsMatchIn(backBody),
+        )
     }
 }
