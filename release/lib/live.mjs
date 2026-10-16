@@ -40,8 +40,14 @@ import {
   writeFileEnsured,
 } from './util.mjs';
 
-/** 这两个门的检查 id（check-ready 用来做「跳过/只跑真跑门」的判断）。 */
-export const LIVE_CHECK_IDS = Object.freeze(['live-web-e2e', 'live-android-unit-tests']);
+/** 这几个门的检查 id（check-ready 用来做「跳过/只跑真跑门」的判断）。 */
+export const LIVE_CHECK_IDS = Object.freeze([
+  'live-web-e2e',
+  'live-android-unit-tests',
+  // 2026-10-16 加入：Web 端「最小 Markdown 闭集」与 schema/markdown-subset.json ＋ 共用夹具的对照。
+  // ⇒ 它**要能挡住发布**：一个挡不住任何东西的门，正是本项目反复记录的那类「看起来有保障、其实没有」。
+  'live-markdown-conformance',
+]);
 
 /** 本机 Chromium 的实测位置（只是**兜底提示**；真正的来源是环境变量 CHROME_BIN）。 */
 const CHROME_FALLBACK = 'C:/Users/wsqsy/AppData/Local/Chromium/Application/chrome.exe';
@@ -486,4 +492,49 @@ export function runAndroidUnitTests({ outDir: outDirIn, androidSrc }) {
       `  副本：${display(work.projectDir)}（android/ 本身未被写；${work.recreated ? '本次重建' : '复用'}）\n` +
       `  完整输出：${display(logFile)}`,
   };
+}
+
+/**
+ * 真跑门：Web 端的「最小 Markdown 闭集」与**契约 + 共用夹具**的对照（`web/tests/md-conformance.mjs`）。
+ *
+ * 它**自带**静态服务（serves 仓库里的 `web/`）＋无头 Chromium，**不需要**先准备 out/web ——
+ * 它核的是「渲染器 ↔ schema/markdown-subset.json ↔ tests/fixtures/contract/」三者对不对得上，
+ * 不是发布产物 ⇒ 直接读仓库即可。
+ *
+ * 环境不可用（没浏览器、端口起不来、脚本崩）一律报 **黄「没跑」**，**绝不报绿**。
+ */
+export function runMarkdownConformance({ outDir } = {}) {
+  const chrome = resolveChromeBin();
+  if (!chrome.bin) {
+    return { status: 'WARN', detail: `环境不可用：找不到 Chromium（${chrome.source}）。这一门**没跑**，不是通过。` };
+  }
+  const logFile = path.join(logsDir(outDir ?? path.join(REPO_ROOT, 'release', 'out')), 'md-conformance.log');
+  const r = runCaptureFull(process.execPath, [path.resolve(REPO_ROOT, 'web/tests/md-conformance.mjs')], {
+    cwd: REPO_ROOT,
+    env: { ...process.env, CHROME_BIN: chrome.bin },
+    logFile,
+    tailLines: 12,
+  });
+  // ⚠ 汇总行有两种写法：e2e 是「通过 N / N」（带空格），md-conformance 是「通过 N/N」⇒ 容差写。
+  const summary = /通过\s*(\d+)\s*\/\s*(\d+)/.exec(r.output);
+  if (!summary) {
+    return {
+      status: 'WARN',
+      detail:
+        `md-conformance 没能跑完（没出现「通过 N/N」汇总；退出码 ${r.status}，${r.seconds.toFixed(0)}s）—— 这一门标黄，**不是通过**。\n` +
+        `完整输出：${display(logFile)}\n尾部：${tail(r.output, 4)}`,
+    };
+  }
+  const [, pass, total] = summary;
+  if (r.status !== 0 || pass !== total) {
+    return {
+      status: 'FAIL',
+      meta: { passed: Number(pass), total: Number(total) },
+      detail:
+        `md-conformance 真跑了并失败：通过 ${pass} / ${total}（退出码 ${r.status}，${r.seconds.toFixed(0)}s）。\n` +
+        `  它核的是：契约 constructs/excluded ↔ 渲染器实际支持集；共用夹具的块序列。\n` +
+        `完整输出：${display(logFile)}\n尾部：${tail(r.output, 6)}`,
+    };
+  }
+  return { status: 'PASS', meta: { passed: Number(pass), total: Number(total) }, detail: `通过 ${pass} / ${total}（浏览器：${chrome.source}）` };
 }

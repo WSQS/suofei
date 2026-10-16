@@ -25,7 +25,7 @@ import * as A from './lib/artifacts.mjs';
 import { REPO_ROOT, display, exists, listTop, runCapture, sha256 } from './lib/util.mjs';
 import { RELEASE_VERSION_RE } from './lib/version-source.mjs';
 import { compareContentVersion } from '../tools/lib/version.mjs';
-import { LIVE_CHECK_IDS, findE2EDeployFiles, runAndroidUnitTests, runWebE2E } from './lib/live.mjs';
+import { LIVE_CHECK_IDS, findE2EDeployFiles, runAndroidUnitTests, runMarkdownConformance, runWebE2E } from './lib/live.mjs';
 import { readLiveAppVersion } from './lib/live-version.mjs';
 import { decideSigning } from './lib/apksigner.mjs';
 import { listZipEntries, readZipEntry } from './lib/zip.mjs';
@@ -492,6 +492,14 @@ check('live-web-e2e', '真跑：用 out/web 当站点跑 E 线自己的 Web e2e�
 
 check('live-android-unit-tests', '真跑：Android JVM 单测（--rerun-tasks；内置内容＝本次产物）', (c) => {
   const r = runAndroidUnitTests({ outDir: c.outDir, androidSrc: path.join(REPO_ROOT, 'android') });
+  return r;
+});
+
+// 2026-10-16 新增（负责人集成步）：Web 端「最小 Markdown 闭集」与 schema/markdown-subset.json ＋ 共用夹具的对照。
+// 原由：`implementation-plan.md` S2 要求「两端同一份范围定义＋对照测试」，而 Web 侧原先**零命中**。
+// 它**计入 gating**（见 live.mjs 的 LIVE_CHECK_IDS）：挡不住任何东西的门＝本项目点名的「看起来有保障、其实没有」。
+check('live-markdown-conformance', '真跑：Web 端最小 Markdown 闭集 ↔ 契约(schema/markdown-subset.json) ＋ 共用夹具的对照（真无头 Chromium；契约一改就红）', (c) => {
+  const r = runMarkdownConformance({ outDir: c.outDir });
   return r;
 });
 
