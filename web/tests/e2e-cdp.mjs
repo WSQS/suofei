@@ -32,7 +32,6 @@ import {
   breakPoemLine, comparePoems, groupPoems, hasProductOrder, isUnknownAuthor, productOrderStatus, UNKNOWN_AUTHORS,
 } from '../app/render.js';
 import { buildVariants } from '../scripts/lib/variants.mjs';
-import { isFormatV2, upgradeToFormatV2 } from '../scripts/lib/upgrade-content.mjs';
 import { DEPLOY_FILES, DEPLOY_TEXT_FILES, makeDeployment } from './lib/deploy.mjs';
 
 const webRoot = fileURLToPath(new URL('..', import.meta.url));
@@ -670,19 +669,15 @@ async function main() {
     const code = await new Promise((r) => child.on('exit', r));
     if (code !== 0) throw new Error('tools/build-content.mjs 编译失败');
   }
-  const baseTextRaw = await readFile(distPath, 'utf8');
-  const baseRaw = JSON.parse(baseTextRaw);
-  // 字段集升版（1 → 2）由另一条线在 tools/ 落地；在它合并进来之前，本地 dist 仍是 v1 老形状。
-  // Web 端已只认 2 ⇒ 这里用过渡适配升到 2（幂等；编译器一旦产出 v2 就是直通）。
-  let baseDoc;
-  let baseText;
-  if (isFormatV2(baseRaw)) {
-    baseDoc = baseRaw;
-    baseText = baseTextRaw;
-  } else {
-    baseDoc = upgradeToFormatV2(baseRaw);
-    baseText = `${JSON.stringify(baseDoc, null, 2)}\n`;
-    console.log('  基座是 formatVersion 1（编译器升版还没合并）⇒ 用过渡适配升到 2 再测');
+  const baseText = await readFile(distPath, 'utf8');
+  const baseDoc = JSON.parse(baseText);
+  // 基座必须是**真实的 v2 产物**：过渡件 `scripts/lib/upgrade-content.mjs`（v1→v2 适配）已按
+  // `docs/design/implementation-plan.md` §4b 删除 —— 客户端只认 formatVersion 2，v1 会被**如实拒绝**
+  // （`app/content.js` 的 SUPPORTED_FORMAT_VERSION 判据），**绝不静默升版**。
+  // 基座不是 2 ⇒ 直接失败，不要在这里偷偷把 v1 升上去（那正是 §4b 禁止的事）。
+  if (Number(baseDoc.formatVersion) !== 2) {
+    throw new Error(`基座 dist/content.json 不是 formatVersion 2（实际 ${baseDoc.formatVersion}）：`
+      + '过渡适配已删除，本地演练/测试必须跑在真实 v2 产物上（先跑 node tools/build-content.mjs 生成它）');
   }
   const total = baseDoc.poems.length;
   console.log(`\n基座内容：dist/content.json（真实产物）`);
@@ -839,14 +834,22 @@ async function main() {
   await waitForPoemView(deepPoem.id);
   eq('深链接直接打开就是这一首（按稳定 id 定位）',
     await evaluate(`document.querySelector('[data-test="view-poem"]').dataset.poemId`), deepPoem.id);
-  eq('地址栏用的是契约 id', await evaluate('location.hash'), `#/p/${deepPoem.id}`);
-  check('地址栏里没有把标题当路径（所以改标题不会让老链接失效）',
-    !(await evaluate('location.hash')).includes(encodeURIComponent(deepPoem.title)));
+  // ⚠ 地址栏里是 **`ROUTES.poem(id)` ＝ `#/p/${encodeURIComponent(id)}`**（那也是浏览器对片段里非 ASCII
+  // 的规范化结果）⇒ 期望值取 `ROUTES.poem`（唯一来源）；写死 `#/p/<中文 id>` 是 ASCII id 时代的写法。
+  eq('地址栏用的是契约 id', await evaluate('location.hash'), ROUTES.poem(deepPoem.id));
+  // ⚠ 旧断言「地址栏里没有把标题当路径（所以改标题不会让老链接失效）」的**前提已被取代**：
+  // 用户 2026-10-16 已定 **C2（ID ＝ 相对内容根的完整相对路径、去 `.md`、`/`→`-`）** 并**接受旧 ASCII
+  // 链接失效**（见 `docs/status.md`）⇒ ID 就是由文件名（诗题）拼出来的，**必然包含**诗题。
+  // 改成断言「地址栏里是**整条契约 id**（含组目录前缀），不是裸诗题」—— 这才是现在还有牙的那半句。
+  eq('地址栏里是整条契约 id（含组目录前缀），不是裸诗题',
+    decodeURIComponent(await evaluate('location.hash')).slice('#/p/'.length), deepPoem.id);
+  check('契约 id 确实与裸诗题不同（所以上一条不是空洞的）',
+    deepPoem.id !== deepPoem.title, dump([deepPoem.id, deepPoem.title]));
   await reload();                                  // 刷新后仍定位到同一首
   await waitForPoemView(deepPoem.id);
   eq('刷新后仍在同一首',
     await evaluate(`document.querySelector('[data-test="view-poem"]').dataset.poemId`), deepPoem.id);
-  eq('刷新后地址栏不变', await evaluate('location.hash'), `#/p/${deepPoem.id}`);
+  eq('刷新后地址栏不变', await evaluate('location.hash'), ROUTES.poem(deepPoem.id));
 
 
   // ------------------------------------------------ 1c 诗页渲染（真实内容）
@@ -916,7 +919,7 @@ async function main() {
   check('诗页有「详情」入口（在顶部行右侧，与返回同一行）',
     await evaluate(`Boolean(document.querySelector('[data-test="view-poem"] [data-test="top-row"] [data-test="poem-detail-link"]'))`));
   eq('「详情」入口的地址是 `#/p/<id>/detail`',
-    await evaluate(`document.querySelector('[data-test="poem-detail-link"]').getAttribute('href')`), `#/p/${p1.id}/detail`);
+    await evaluate(`document.querySelector('[data-test="poem-detail-link"]').getAttribute('href')`), ROUTES.detail(p1.id));
 
   // 关键反向断言：诗页**不得出现详情正文**（detail 只在详情页渲染）。
   // 对**每一首有 detail 的诗**都跑一遍（不是抽查），并加元素级断言。
@@ -995,8 +998,8 @@ async function main() {
   // 行为：详情页的「返回」落到**那首诗**（不是目录）；深链接直开也一样（用户 2026-10-15 定）。
   await hashTo(`#/p/${p1.id}/detail`);
   await waitFor(`Boolean(document.querySelector('[data-test="view-detail"]'))`, { label: '详情页' });
-  eq('详情页地址是 #/p/<id>/detail', await evaluate('location.hash'), `#/p/${p1.id}/detail`);
-  eq('详情页「返回」指向那首诗', await evaluate(`document.querySelector('[data-test="back-to-poem"]').getAttribute('href')`), `#/p/${p1.id}`);
+  eq('详情页地址是 #/p/<id>/detail', await evaluate('location.hash'), ROUTES.detail(p1.id));
+  eq('详情页「返回」指向那首诗', await evaluate(`document.querySelector('[data-test="back-to-poem"]').getAttribute('href')`), ROUTES.poem(p1.id));
   await evaluate(`document.querySelector('[data-test="back-to-poem"]').click(); true`);
   await waitForPoemView(p1.id);
   eq('从详情页返回 == 那首诗（不是目录）',
@@ -1037,7 +1040,10 @@ async function main() {
   // （字段的**值**平台相关，不跨端比字面）。Android 端对着同一个文件比（`AboutFields`）。
   const aboutSpec = JSON.parse(readFileSync(resolve(repoRoot, 'web', 'about-fields.json'), 'utf8'));
   eq('config.ABOUT 与唯一来源 web/about-fields.json 逐字一致',
-    ABOUT, { appName: aboutSpec.appName, tagline: aboutSpec.tagline, fields: aboutSpec.fields });
+    ABOUT, { appName: aboutSpec.appName, repoUrl: aboutSpec.repoUrl, fields: aboutSpec.fields });
+  // 4 项＝采纳锚（用户 `q-9f9eca3d`：应用名／应用版本／内容版本／仓库链接）；
+  // 「一句话说明」与「诚实的限制」未采纳 ⇒ 不在共享字段集里（后者仍可在页脚状态面板里）。
+  eq('共享字段集＝采纳锚的 4 项', aboutSpec.fields, ['应用名', '应用版本', '内容版本', '仓库链接']);
   check('目录页有「关于」入口', await evaluate(`Boolean(document.querySelector('[data-test="about-link"]'))`));
   eq('「关于」入口的地址是 #/about',
     await evaluate(`document.querySelector('[data-test="about-link"]').getAttribute('href')`), '#/about');
@@ -1048,19 +1054,20 @@ async function main() {
     return {
       labels: [...dl.querySelectorAll('dt')].map(e => e.textContent),
       appName: document.querySelector('[data-test="about-app-name"]')?.textContent,
-      tagline: document.querySelector('[data-test="about-tagline"]')?.textContent,
       appVersion: document.querySelector('[data-test="about-app-version"]')?.textContent,
       contentVersion: document.querySelector('[data-test="about-content-version"]')?.textContent,
-      limits: document.querySelector('[data-test="about-honest-limits"]')?.textContent,
+      repoUrl: document.querySelector('[data-test="about-repo-url"]')?.textContent,
     };
   })()`);
   eq('关于页的字段标签 == 唯一来源里的同一批字段', aboutInfo.labels, aboutSpec.fields);
   eq('应用名', aboutInfo.appName, aboutSpec.appName);
-  eq('一句话说明', aboutInfo.tagline, aboutSpec.tagline);
   includes('应用版本 = 站点资源版本', aboutInfo.appVersion, APP_VERSION);
-  includes('内容版本与来源写明内容版本', aboutInfo.contentVersion, baseDoc.contentVersion);
-  includes('内容版本与来源写明来源是本次站点部署', aboutInfo.contentVersion, '本次站点部署');
-  eq('诚实的限制与页脚那份是同一段原文（不新写）', aboutInfo.limits, HONEST_STORAGE_NOTE);
+  includes('内容版本写明内容版本', aboutInfo.contentVersion, baseDoc.contentVersion);
+  eq('仓库链接＝采纳锚定的完整 URL（C1；不加「在浏览器打开」提示）', aboutInfo.repoUrl, aboutSpec.repoUrl);
+  check('关于页不再有「一句话说明」与「诚实的限制」两行（未采纳；`q-9f9eca3d`）',
+    !(await evaluate(`Boolean(document.querySelector('[data-test="about-tagline"]') || document.querySelector('[data-test="about-honest-limits"]'))`)));
+  eq('「诚实的限制」原文仍只在页脚状态面板里（不新写、也不在关于页重复）',
+    await evaluate(`document.querySelector('[data-test="honest-storage-note"]')?.textContent`), HONEST_STORAGE_NOTE);
   const aboutBox = await evaluate(`(() => {
     const cs = getComputedStyle(document.querySelector('[data-test="about-fields"]'));
     const dt = document.querySelector('[data-test="about-fields"] dt');

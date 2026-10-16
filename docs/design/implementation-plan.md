@@ -59,6 +59,7 @@ S4/S5 的授权见 `docs/status.md`；**S3 动真实内容、S5 对外发布，�
 ## 4b. 一条硬约束：过渡件不许冒充契约支持（2026-10-16）
 
 - Web 线为过渡引入的 `web/scripts/lib/upgrade-content.mjs`（v1→v2 幂等适配）**只是过渡件**：**S1 产出真实 v2 产物后必须二选一** —— ① **删除它**，或 ② **只留在构建/CI 的临时流程里**（不得进入发布产物或客户端运行路径）。
+- ✅ **已执行选择 ①（2026-10-16，Web 过渡件清理）：整份删除** —— 涉及 `import` 与调用（`web/scripts/prepare-dev-content.mjs`、`web/tests/e2e-cdp.mjs`）一并移除，并改回**严格断言**：基座产物的 `formatVersion` 必须是 `2`，否则直接报错（不再偷偷升版；`prepare-dev-content.mjs` 与 e2e 都是这样）。
 - ⚠ **客户端不得把 v1 静默升成 v2 后自称支持 formatVersion 2**：契约支持以「**产物本身是 v2**」为准；`SUPPORTED_FORMAT_VERSION` 只认 2，v1 内容照样**如实拒绝**（这正是「字段集一变就升」的代价）。
 
 ## 4c. 三条范围纪律（2026-10-16 更正，别泛化）

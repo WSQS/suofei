@@ -9,7 +9,7 @@
       "product": "不渲染成任何界面元素；变成 title / author / dynasty / genre / orderInSource / source 六个键（`id` 由内容根下的相对路径派生，源里不写；`detail` / `stanzas` / `notes` 来自后面的正文与节）",
       "web": {
         "current": "诗页题下一行由 `poem.dynastyLabel` / `poem.author` / `poem.era` / `poem.genre` 拼成（web/app/render.js:295，空值靠 filter(Boolean) 自动省略）；目录分组把每首归到 `poem.dynastyKey` 并在缺失时用 `poem.dynastyLabel` 造组（web/app/render.js:90-116）；产物校验要求它们是字符串（web/app/content.js:65-75）",
-        "required": "改成读 `poem.dynasty`（单个中文值）：题下一行 = `dynasty · author · genre`（genre 为 null 时省略，与现状同一套省略逻辑）；分组按 `poem.dynasty` 匹配顶层 `dynasties` 里的中文名，`dynasties` 元素从对象变字符串 ⇒ web/app/content.js:43-75 的校验也要同步",
+        "required": "改成读 `poem.dynasty`（单个中文值）：题下一行 = `author · dynasty · genre`（genre 为 null 时省略，与现状同一套省略逻辑）；分组按 `poem.dynasty` 匹配顶层 `dynasties` 里的中文名，`dynasties` 元素从对象变字符串 ⇒ web/app/content.js:43-75 的校验也要同步",
         "evidence": ["web/app/render.js", "web/app/content.js"]
       },
       "android": {
