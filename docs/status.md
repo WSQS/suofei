@@ -241,7 +241,7 @@
 | A 路线整合稿（首版） | `items/content-format/history/round-2026-10-15-a-route-draft/` |
 | A 路线字段稿 v2 | `items/content-format/history/round-2026-10-15-a-route-v2/` |
 | **关于页表达轮**（**采纳锚**：结构 A3、仓库链接完整 URL、共用信息去来源） | **`items/app-ui/history/round-2026-10-16-about/`** |
-| 规则稿 v3（**在制**） | `items/content-format/prototypes/rules-v3/` |
+| 规则稿 v3（**已通过·未归档**：用户 2026-10-16 审阅通过**中文路径 ID 收口稿**＝中文目录/文件名·任意层级·完整相对路径去 .md·`/`→`-`·判重·**直接换不兼容**；19 首清单不再写未审。⚠ 通过 ≠ 已迁移/已发布；**未表达的最小 Markdown 子集与未知/重复/空节细则仍独立**） | `items/content-format/prototypes/rules-v3/` |
 
 ## 已交付（均经负责人复跑验收，不只信报告）
 
