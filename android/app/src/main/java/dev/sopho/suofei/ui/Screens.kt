@@ -1,5 +1,6 @@
 package dev.sopho.suofei.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -73,6 +74,12 @@ import dev.sopho.suofei.data.Poem
  */
 @Composable
 fun AppRoot(state: AppState, onCheckUpdate: () -> Unit) {
+    // 系统返回（三键返回键与手势导航都走这里）：**复用同一份导航状态与转移** —— 直接调 `AppState.back()`，
+    // 不另写一套规则（详情→那首诗、诗/关于→目录就由它一份实现决定）。
+    // **目录根不拦**：`enabled = screen != LIBRARY` ⇒ 在目录页不注册回调，系统照旧按默认行为离开 app
+    // （不加二次确认、不加双按退出、不吃掉事件）。
+    BackHandler(enabled = state.screen != Screen.LIBRARY) { state.back() }
+
     val content: Content? = state.loaded?.content
 
     // 跨屏保留：目录的滚动位置（IF-45）与**各组的展开状态**（从诗页返回目录时不该被重置）。
