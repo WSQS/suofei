@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="tech"
+      data-token-blob="e395a54b6eec32f98ffd48822584401e085eb1a8"
+      data-head-sha="0ff44f2"
+      data-deduct="24" data-pct="88" data-floor="320" data-cap="viewport"
+      data-ready="0" data-mode="all" data-state="all">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>关于页 ·「更新块」极简版 —— 一个按钮 ＋ 下方一段状态文本（材料，不是实施）</title>
+<style>
+/* ============================================================================
+ * 令牌快照（**内嵌副本，不是新权威**）
+ *   来源：prototype/css/theme-tech.css（**只读**，本轮未改）
+ *   依据文件的 blob：e395a54b6eec32f98ffd48822584401e085eb1a8（git hash-object）
+ *   记录时的 HEAD：0ff44f2（git rev-parse --short HEAD）
+ *   权威仍是 docs/design/visual-tokens.md（§2 颜色 / §3 排版 / §4 间距与形状）。
+ *   这里只为「单文件自包含」复制一份快照：值逐字照抄、未做微调；**只列本页实际用到的令牌**
+ *   （自检断言：「声明了却没用」的令牌数＝0）。
+ *   ⚠ 本轮**不用** --measure（660px）：宽度用**已选口径**，上界＝视口宽 V，不设 660／860 上限。
+ * ========================================================================== */
+/* == TOKEN-SNAPSHOT-BEGIN == */
+:root {
+  --bg: #0e1315;
+  --bg-pattern: linear-gradient(to right, rgba(255, 255, 255, 0.028) 1px, transparent 1px), linear-gradient(to bottom, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+  --surface: #141b1e;
+  --surface-hover: #182124;
+  --text: #dde5e4;
+  --text-dim: #98a8a6;
+  --text-faint: #788a88;
+  --line: #233034;
+  --accent-text: #7fd4c6;
+  --accent-soft: rgba(79, 179, 165, 0.1);
+  --accent-line: rgba(79, 179, 165, 0.38);
+  --warn-soft: rgba(201, 162, 74, 0.08);
+  --warn-text: #dcc078;
+  --line-warn: rgba(201, 162, 74, 0.34);
+  --test-line: rgba(79, 179, 165, 0.36);
+  --test-soft: rgba(79, 179, 165, 0.07);
+  --test-text: #7fd4c6;
+  --radius: 4px;
+  --radius-s: 3px;
+  --shadow: none;
+  --row-transition: border-color 0.15s ease, background 0.15s ease;
+  --font-body: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-mono: 'Consolas', 'SFMono-Regular', ui-monospace, monospace;
+  --font-size: 15px;
+  --lh: 1.75;
+  --ls: 0.005em;
+  --title-size: 1.5rem;
+  --title-weight: 500;
+  --brand-ls: 0.3em;
+}
+/* == TOKEN-SNAPSHOT-END == */
+
+/* ============================================================================
+ * 草案值 / 已选值（**都不在** docs/design/visual-tokens.md 里 —— 规范没有这些条目）
+ *   ⇒ 它们**不是**规范值。分三类标注：
+ *      [已定]   已定/已选的口径（本轮照做，不重新提问）
+ *      [草案]   本轮为「这一块怎么排」临时取的数（字号/间距）
+ *      [写回]   页面脚本量完后写回的运行时值（这里给默认值，只为不出现「用了却没声明」）
+ * ========================================================================== */
+/* == DRAFT-VALUES-BEGIN == */
+:root {
+  --edge-x: 1.05rem;        /* [已定·沿用] 行内沿（内容列**内部**那一层的内边距）＝16.8px */
+  --col-top: 1.25rem;       /* [草案] 块顶部留白 */
+  --col-bottom: 1rem;       /* [草案] 块底部留白 */
+  --row-gap: 0.5rem;        /* [草案] 按钮 → 状态文本 之间的固定缝 */
+  --sec-gap: 0.9rem;        /* [草案] 两块之间（版本组 / 更新块 / 仓库） */
+  --kcol: 5.2em;            /* [草案] 「一行一条」里 label 列的固定宽（右对齐） */
+  --k-gap: 0.5rem;          /* [草案] label 列 → 值 之间的固定缝 */
+  --label-size: 0.82rem;    /* [草案] label（应用版本／内容版本） */
+  --value-size: 0.88rem;    /* [草案] 值（0.1.1） */
+  --mono-size: 0.86rem;     /* [草案] 版本号与仓库链接（等宽） */
+  --ctl-size: 0.82rem;      /* [草案] 唯一的按钮（检查更新） */
+  --ctl-ls: 0.06em;         /* [草案] 按钮字距 */
+  --status-size: 0.82rem;   /* [草案] 状态说明文本 */
+  --upd-pad: 0.8rem;        /* [草案] 更新块内边距 */
+  --proto-pad: 12px;        /* [草案] 原型脚手架（说明／标注）的左右内边距，不是应用页面的值 */
+  --cw: 100%;               /* [写回] 本块在本视口下的**内容宽 C**（公式算出的 px 值） */
+}
+/* == DRAFT-VALUES-END == */
+
+/* ── 底：颜色与字体只用令牌 ─────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background-color: var(--bg);
+  background-image: var(--bg-pattern);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--font-size);
+  line-height: var(--lh);
+  letter-spacing: var(--ls);
+}
+a { color: var(--accent-text); }
+:focus-visible { outline: 1px solid var(--test-line); outline-offset: 2px; }
+button { font: inherit; }
+
+/* ── 原型脚手架（**不是**被评审的那一层）───────────────────────── */
+.phead { padding: 1.4rem var(--proto-pad) 0; overflow-wrap: anywhere; }
+.phead .ptag {
+  display: inline-block; margin: 0 0 0.9rem; padding: 0.25rem 0.6rem;
+  border: 1px dashed var(--test-line); background: var(--test-soft); color: var(--test-text);
+  border-radius: var(--radius-s); font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.08em;
+}
+.phead h1 { font-size: 1.02rem; font-weight: 500; letter-spacing: 0.05em; margin: 0 0 0.8rem; line-height: 1.6; }
+.phead h2 { font-size: 0.92rem; font-weight: 500; color: var(--text); margin: 1.1rem 0 0.4rem; letter-spacing: 0.04em; }
+.phead p, .phead li { color: var(--text-dim); margin: 0.45rem 0; }
+.phead b { color: var(--text); font-weight: 500; }
+.phead code {
+  font-family: var(--font-mono); font-size: 0.85em; color: var(--text);
+  border: 1px solid var(--line); border-radius: var(--radius-s); padding: 0 0.25rem;
+}
+.pok { border-left: 2px solid var(--test-line); background: var(--test-soft); color: var(--text); padding: 0.6rem 0.8rem; border-radius: var(--radius-s); }
+.pwarn { border-left: 2px solid var(--line-warn); background: var(--warn-soft); color: var(--warn-text); padding: 0.5rem 0.7rem; border-radius: var(--radius-s); }
+.pwarn b { color: var(--warn-text); }
+.pfix {
+  border: 1px dashed var(--test-line); background: var(--test-soft); color: var(--test-text);
+  border-radius: var(--radius-s); padding: 0.55rem 0.7rem; margin: 0.7rem var(--proto-pad);
+  font-family: var(--font-mono); font-size: 0.76rem; line-height: 1.65; letter-spacing: 0.02em;
+  overflow-wrap: anywhere;
+}
+.pfix button {
+  font-family: var(--font-mono); font-size: 0.76rem; margin: 0.25rem 0.3rem 0 0; padding: 0.22rem 0.5rem;
+  color: var(--test-text); background: var(--test-soft);
+  border: 1px solid var(--test-line); border-radius: var(--radius-s); cursor: pointer;
+}
+.pfix button[aria-pressed="true"] { color: var(--bg); background: var(--test-text); }
+
+/* 块区（截图范围）。⚠ 容器**不带左右内边距**：里面的 .pg 是「满视口宽」的块，
+ *   容器一旦有左右 padding，内容列就会越出视口（上一轮真踩过的坑）。文字元素自己带 padding。 */
+.deck { margin-top: 1.2rem; }
+.imgban {
+  display: block;
+  background: var(--test-soft); border: 1px dashed var(--test-line); color: var(--test-text);
+  border-radius: var(--radius-s); font-family: var(--font-mono); font-size: 0.74rem; line-height: 1.65;
+  letter-spacing: 0.03em; padding: 0.6rem 0.7rem; margin: 0 var(--proto-pad) 0.9rem; overflow-wrap: anywhere;
+}
+.ghead2 {
+  font-family: var(--font-mono); font-size: 0.78rem; line-height: 1.55; letter-spacing: 0.03em;
+  color: var(--warn-text); padding: 0.2rem var(--proto-pad) 0.1rem; margin: 0; overflow-wrap: anywhere;
+}
+.gdesc { font-family: var(--font-mono); font-size: 0.75rem; line-height: 1.6; letter-spacing: 0.02em; color: var(--text-dim); padding: 0 var(--proto-pad); margin: 0 0 0.2rem; overflow-wrap: anywhere; }
+.demo {
+  border-top: 1px dashed var(--test-line); border-bottom: 1px dashed var(--test-line);
+  padding: 0.55rem 0 0.65rem; margin: 0 0 0.85rem; overflow-wrap: anywhere;
+}
+.dhead { font-family: var(--font-mono); font-size: 0.75rem; line-height: 1.5; letter-spacing: 0.03em; color: var(--test-text); padding: 0 var(--proto-pad); margin-bottom: 0.25rem; }
+.dhead .dname { display: inline-block; padding: 0.12rem 0.45rem; border: 1px solid var(--test-line); background: var(--test-soft); color: var(--test-text); border-radius: var(--radius-s); font-size: 0.74rem; letter-spacing: 0.05em; }
+.dhead .dplat { display: inline-block; margin-left: 0.35rem; padding: 0.12rem 0.45rem; border: 1px solid var(--test-line); background: var(--test-soft); color: var(--test-text); border-radius: var(--radius-s); font-size: 0.72rem; letter-spacing: 0.05em; }
+.dhead .dplat.fixture { border-color: var(--line-warn); background: var(--warn-soft); color: var(--warn-text); }
+.dhead .dnote { display: block; margin-top: 0.2rem; color: var(--text-dim); }
+.cap { font-family: var(--font-mono); font-size: 0.72rem; line-height: 1.55; letter-spacing: 0.01em; color: var(--text-dim); padding: 0 var(--proto-pad) 0.55rem; margin: 0.3rem 0 0; overflow-wrap: anywhere; }
+.cap b { color: var(--text); font-weight: 500; }
+
+/* ── 应用页面（被评审的那一层）──────────────────────────────────
+ * 结构（A3，用户已定）：应用名当页标题 → 版本相邻组（**没有来源行**）→ 更新块 → 仓库链接置底
+ *   内容宽用**已选口径**：C = min(V, max(320, 0.88 × (V − 24)))
+ *   ⚠ 「24」是**一次性从视口宽扣掉的总量**（只用来得到基准 A），**不是**左右各 12px 的外层页边。
+ *   ⚠ 更新块里**只有两样东西**：上方一个按钮「检查更新」＋下方一段状态说明文本。
+ *     没有小标题、没有分区、没有第二条动作、没有「上次检查／历史结果」、没有来源、不折叠。
+ */
+.pg { position: relative; background: transparent; }
+.col {
+  width: var(--cw); margin-inline: auto;
+  padding-top: var(--col-top); padding-bottom: var(--col-bottom);
+  display: flex; flex-direction: column;
+}
+.brand {
+  margin: 0 0 var(--sec-gap); padding: 0 var(--edge-x);
+  font-size: var(--title-size); font-weight: var(--title-weight); letter-spacing: var(--brand-ls);
+  color: var(--text);
+}
+.pair { display: block; }
+.kv { display: flex; align-items: baseline; padding: 0 var(--edge-x); }
+.kv + .kv { margin-top: var(--row-gap); }
+.kv > .k { flex: 0 0 var(--kcol); text-align: right; color: var(--text-dim); font-size: var(--label-size); letter-spacing: 0.02em; }
+.kv > .v { margin-left: var(--k-gap); font-size: var(--value-size); color: var(--text); overflow-wrap: anywhere; }
+.kv > .v > .ver { font-family: var(--font-mono); font-size: var(--mono-size); }
+
+/* 更新块（这一块就是本次要评审的东西：按钮在上、状态文本在下，只有这两样）
+ *   ⚠ 用 flex column：按钮与文本各自成块，按钮不会被行高的半个行距往下推（几何可验：按钮距块顶＝块内边距）。*/
+.upd {
+  display: flex; flex-direction: column; align-items: stretch;
+  margin-top: var(--sec-gap); padding: var(--upd-pad);
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.ctl {
+  display: inline-block; align-self: flex-start;   /* 按钮只占自己的宽度，且从块内沿起 */
+  font-size: var(--ctl-size); letter-spacing: var(--ctl-ls);
+  padding: 0.3rem 0.7rem; color: var(--accent-text);
+  background: var(--accent-soft); border: 1px solid var(--accent-line); border-radius: var(--radius-s);
+  cursor: pointer; transition: var(--row-transition);
+}
+.ctl:hover { background-color: var(--surface-hover); }
+.ctl[disabled] { color: var(--text-faint); background: transparent; border-color: var(--line); cursor: default; }
+/* 状态说明文本：**在按钮下方**、**原地替换**（换字，不换结构）；五种状态同一形态。 */
+.status {
+  margin: var(--row-gap) 0 0; font-size: var(--status-size); color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.repoWrap { margin-top: var(--sec-gap); padding: 0 var(--edge-x); }
+.repo {
+  font-family: var(--font-mono); font-size: var(--mono-size); letter-spacing: 0.01em;
+  color: var(--accent-text); text-decoration: none;
+  border-bottom: 1px solid transparent; transition: var(--row-transition);
+}
+.repo:hover { border-bottom-color: var(--accent-line); background-color: var(--surface-hover); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="phead">
+    <p class="ptag">材料 · 不是产品实施 · 不是功能批准 · 不是发布 · 不决定整页别的部分</p>
+    <h1>关于页 ·「更新块」<b>极简版</b> —— <b>上方一个按钮，下方一段状态说明文本</b></h1>
+
+    <p class="pok">✓ <b>本页照做的（用户已给的设计，不再并列方案）</b>：<br>
+      ① <b>更新块＝上方一个按钮「检查更新」＋下方一段状态说明文本</b>；<b>状态在原地替换</b>（换文字，不换结构、不新增行／块）；<br>
+      ② <b>重点在上方</b> ⇒ 按钮放这一块的顶部表达；<b>全局页面次序不动</b>；<br>
+      ③ <b>不做</b>折叠／步骤／分区／「上次检查／历史结果」／多动作／「取消」「立即切换」「稍后」；<br>
+      ④ <b>整页次序＝A3</b>：应用名当页标题 → <b>版本相邻组（不含「来源」行）</b> → 更新块 → 仓库链接置底；<br>
+      ⑤ <b>仓库链接＝完整 URL（C1）</b>，<b>不给</b>「会打开浏览器」的提示；<br>
+      ⑥ <b>宽度口径</b> <code>C = min(V, max(320, 0.88 × (V − 24)))</code>；<b>24 是一次性扣除总量</b>，不是左右各 12px；<br>
+      ⑦ 视觉＝<b>静默终端令牌</b>（权威 <code>docs/design/visual-tokens.md</code>）；<b>这一页只做内容更新，不做 APK 更新</b>；<br>
+      ⑧ <b>「来源（内置／已下载）」不画</b>：它已被排除出两端共用的版本信息，而「放进更新块要不要显示」<b>仍未定</b> ⇒ 不画、也不假装已定。</p>
+
+    <p class="pwarn">⚠ <b>页面里的版本号是「当前值」，不是页面文案定稿</b>：应用版本 <code>0.1.1</code>、内容版本 <code>2026.10.16.20</code>、仓库 <code>https://github.com/WSQS/suofei</code>。
+      <b>状态说明文本里的版本号／字节数／原因都是运行时值</b>（<code>⟨…⟩</code> 是运行时占位），块的外面用虚线小标标出这一点。</p>
+
+    <p><b>宽度用已选口径</b>：<code>C = min(V, max(320, 0.88 × (V − 24)))</code>，<code>V</code>＝视口宽、<code>V−24</code>＝基准 A、上界＝视口 V（<b>不夹</b> 660／860）。
+      ⚠ <code>24</code> 是<b>一次性从视口宽扣掉的总量</b>，<b>不是</b>左右各 12px 的外层页边 ⇒ <b>列外余白＝(V−C)/2</b>（320 上恰为 0），行内沿 <code>1.05rem</code>＝16.8px 是<b>列内</b>的一层。</p>
+
+    <h2>五种状态（<b>同一形态</b>，只换文本与按钮可用性）</h2>
+    <p>文案逐字来自真实实现 <code>android/app/src/main/java/dev/sopho/suofei/ui/UpdateStatusText.kt</code>：
+      <code>尚未检查。</code>／<code>正在检查…</code>／<code>已是最新内容（远端 ⟨内容版本⟩）。</code>／
+      <code>新内容 ⟨内容版本⟩ 已下载、校验通过并已切换生效（⟨字节数⟩ 字节）；返回目录后采用。</code>／
+      <code>更新未生效，旧内容保留：⟨原因⟩</code>。
+      「检查中」覆盖<b>检查＋下载＋校验＋切换</b>全过程（真实实现里就是这一条），此时唯一的按钮<b>禁用</b>。
+      <b>失败态不换颜色</b>：用户原话要求「同一形态，只换文本与按钮可用性」⇒ 五行状态文本样式完全相同，差别只在字。</p>
+
+    <h2>原型控件（在截图范围之外，不属于应用页面）</h2>
+    <div class="pfix" data-test="state-panel">
+      <b>状态选择器（原型夹具，不属于应用页面）</b>：点一个 ⇒ 块区里<b>只留那一块</b>；点「全部并列」⇒ 六块同时显示（默认态，图拍的就是它）。
+      这<b>不是</b>给页面加了一个功能，也不属于被评审的那一块。<br>
+      <span data-test="state-buttons"></span>
+    </div>
+
+    <h2>怎么读图</h2>
+    <p>虚线框内＝截图范围：六块＝<b>同一个关于页</b>的六种状态（五种真实状态 ＋ 一格「最长失败原因」夹具）。
+      每块上方的青色标题行、块外的青色／黄色虚线小标、以及最上面那条「原型说明」横幅，<b>都不属于应用页面</b>。</p>
+    <p>实测数字见同目录 <code>q-about-min.md</code>；行为由 <code>check-about-min.mjs</code> 可复跑自证（失败断言 0）。</p>
+  </div>
+
+  <div class="deck" data-shotframe="A" data-test="shotframe">
+    <div class="imgban" data-test="imgban">
+      <b>原型说明 ／ 不属于应用页面。</b>本图＝本原型在<b>一个</b>真实视口宽（<span data-test="shotinfo">…</span>）下的截图，按真实 CSS px @DPR 2 拍摄，<b>没有</b>缩放拼图；
+      块宽恰＝视口宽、块左沿 0、不缩放。<br>
+      图中青色／黄色的文字与虚线、每块上方的标题行与数字、以及最上面这条横幅，都是<b>原型的说明与标注</b>（青／黄＝夹具与标注用色，不是产品谱）；
+      应用版本 <code>0.1.1</code>、内容版本 <code>2026.10.16.20</code>、仓库地址是<b>当前值</b>，<b>不是页面文案定稿</b>；状态文本里的版本号／字节数／原因是<b>运行时值</b>。<br>
+      本图是<b>材料</b>：<b>选其中某一块的形态 ≠ 采纳整页规格</b>，也<b>不决定</b> JSON／MD 分界与任何产物字段。<b>不是产品实施、不是发布。</b>
+    </div>
+
+    <div class="ghead2">关于页 · 更新块极简版 —— 五种状态同一形态（按钮在上，状态文本在下，原地替换）</div>
+    <p class="gdesc">固定不动：应用名＝<code>索斐</code>（页标题）／版本相邻组＝「一行一条」的应用版本＋内容版本（<b>无来源行、无小标题</b>）／更新块位置＝版本组与仓库链接之间／仓库链接＝<b>完整 URL</b> 且置底。
+      只有更新块里的<b>字</b>和<b>按钮可用性</b>随状态变。</p>
+    <div data-test="rack"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── 已选宽度口径（页面这一侧的实现；自检脚本会**独立**再实现一遍，两边必须逐点一致）──
+   *   A = V − 24 ； C = min(V, max(320, 0.88 × A)) ； 上界＝视口宽 V（不夹 660／860）。
+   *   ⚠ 24 是「从视口宽一次性扣除的总量」，不是左右各 12px 的外层页边。 */
+  var DEDUCT = 24, PCT = 88, FLOOR = 320;
+  function cwFor(V) { return Math.min(V, Math.max(FLOOR, (PCT / 100) * (V - DEDUCT))); }
+
+  /* ── 页面里的值：**当前值**，不是文案定稿 ───────────────────────────── */
+  var APP = {
+    name: '索斐',
+    appVersion: '0.1.1',
+    contentVersion: '2026.10.16.20',
+    repo: 'https://github.com/WSQS/suofei'
+  };
+
+  /* ── 状态清单：**逐字**取自 ui/UpdateStatusText.kt（版本号/字节数/原因是运行时占位）──
+   *   btnEnabled：真实实现里唯一按钮的 `enabled = state.updateStatus !is UpdateStatus.Checking`
+   *   ⇒ **只有「检查中」禁用**，其余全部可用（这就是「按钮可用性」的全部差别）。 */
+  var STATES = [
+    { key: 'idle', label: '尚未检查', off: '', text: '尚未检查。', btnEnabled: true },
+    { key: 'checking', label: '检查中', off: '（按钮禁用）', text: '正在检查…', btnEnabled: false },
+    { key: 'uptodate', label: '已是最新', off: '', text: '已是最新内容（远端 ⟨内容版本⟩）。', btnEnabled: true },
+    { key: 'activated', label: '已下载并切换生效', off: '', text: '新内容 ⟨内容版本⟩ 已下载、校验通过并已切换生效（⟨字节数⟩ 字节）；返回目录后采用。', btnEnabled: true },
+    { key: 'failed', label: '失败·旧内容保留', off: '', text: '更新未生效，旧内容保留：⟨原因⟩', btnEnabled: true }
+  ];
+
+  /* ── 夹具：最长的一条如实失败文案 ──────────────────────────────────
+   *   形状取自真实实现里最长的那一支（ContentUpdater 的 SHA-256 校验失败 ＋ failureHint 的
+   *   「（下载/校验未通过）」）。两个哈希是**运行时值** ⇒ 这里用占位符，不写死任何 64 位哈希。
+   *   ⚠ 诚实说明：真机上这两个哈希各是 64 个十六进制字符 ⇒ 真实那一行的字会比这里**更长**；
+   *     本块用 overflow-wrap:anywhere，长度只影响折行数，不影响横向溢出（自检会断言这一点）。 */
+  var FIXTURE = {
+    key: 'failed-long', label: '失败·最长原因（夹具）', off: '（夹具，不属于产品状态）',
+    text: '更新未生效，旧内容保留：SHA-256 不符（清单 ⟨清单 SHA-256⟩，实际 ⟨实际 SHA-256⟩）；已丢弃下载结果，保留旧内容（下载/校验未通过）',
+    btnEnabled: true, fixture: true
+  };
+
+  var ALL = STATES.concat([FIXTURE]);
+
+  /* ── 块的内建（**唯一的**先上按钮、后状态文本的组织；没有第二形态）──── */
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function blockHTML(st) {
+    return '<div class="pg" data-block="B-' + st.key + '" data-state="' + st.key + '" data-test="block">'
+      + '<div class="col" data-test="col">'
+      + '<p class="brand" data-test="brand">' + esc(APP.name) + '</p>'
+      + '<div class="pair" data-test="verpair">'
+      + '<div class="kv" data-test="kv"><span class="k" data-test="k">应用版本</span><span class="v" data-test="v"><span class="ver">' + esc(APP.appVersion) + '</span></span></div>'
+      + '<div class="kv" data-test="kv"><span class="k" data-test="k">内容版本</span><span class="v" data-test="v"><span class="ver">' + esc(APP.contentVersion) + '</span></span></div>'
+      + '</div>'
+      + '<section class="upd" data-test="upd">'
+      + '<button type="button" class="ctl" data-test="primarybtn"' + (st.btnEnabled ? '' : ' disabled') + '>检查更新</button>'
+      + '<p class="status" data-test="status">' + esc(st.text) + '</p>'
+      + '</section>'
+      + '<div class="repoWrap" data-test="repowrap"><a class="repo" data-test="repolink" href="' + esc(APP.repo) + '">' + esc(APP.repo) + '</a></div>'
+      + '</div></div>';
+  }
+  /* 原型标注（**在块外**）：说明这一块是哪个状态，以及块内哪些是运行时值 */
+  function headHTML(st, i) {
+    return '<div class="demo" data-test="demo">'
+      + '<div class="dhead" data-test="dhead">'
+      + '<span class="dname">' + (i + 1) + ' · ' + esc(st.label) + '</span>'
+      + '<span class="dplat' + (st.fixture ? ' fixture' : '') + '" data-test="dplat">'
+      + (st.fixture ? '夹具：最长失败原因' : '真实状态（UpdateStatusText.kt 逐字）') + '</span>'
+      + (st.off ? '<span class="dnote">' + esc(st.off) + '</span>' : '')
+      + '</div>'
+      + blockHTML(st)
+      + '<p class="cap" data-test="cap">' + esc('按钮文字＝「检查更新」（唯一动作）；状态文本＝' + st.text)
+      + '　｜　<b>上方＝按钮、下方＝状态文本，只有这两样</b>（无小标题／分区／第二动作／上次检查／来源）。'
+      + '青色与黄色是本原型标注用色，不属于应用页面。</p>'
+      + '</div>';
+  }
+
+  var rack = document.querySelector('[data-test=rack]');
+  rack.innerHTML = ALL.map(headHTML).join('');
+
+  /* ── 原型控件：状态选择器（在截图范围之外）──────────────────────────
+   *   mode ＝ 'all'（六块并列，默认）｜某个状态 key（只留那一块）。 */
+  function setMode(mode) {
+    document.documentElement.dataset.mode = mode;
+    document.documentElement.dataset.state = mode;
+    Array.prototype.forEach.call(document.querySelectorAll('[data-test=block]'), function (b) {
+      b.hidden = (mode !== 'all' && b.dataset.block !== 'B-' + mode);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-test=demo]'), function (d) {
+      d.hidden = (mode !== 'all' && d.dataset.mode !== mode);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-test=state-btn]'), function (btn) {
+      btn.setAttribute('aria-pressed', btn.dataset.mode === mode ? 'true' : 'false');
+    });
+  }
+  var panel = document.querySelector('[data-test=state-buttons]');
+  var modes = [{ mode: 'all', label: '全部并列（默认，图上就是它）' }]
+    .concat(ALL.map(function (st) { return { mode: st.key, label: st.label }; }));
+  panel.innerHTML = modes.map(function (m) {
+    return '<button type="button" data-test="state-btn" data-mode="' + m.mode + '" aria-pressed="false">' + esc(m.label) + '</button>';
+  }).join('');
+  Array.prototype.forEach.call(panel.querySelectorAll('button'), function (btn) {
+    btn.addEventListener('click', function () { setMode(btn.dataset.mode); });
+  });
+  /* 每块挂上 demo 的 mode，便于筛选（只用 css 类之外的一个 data 属性，不是产品结构）*/
+  Array.prototype.forEach.call(document.querySelectorAll('[data-test=demo]'), function (d) {
+    var b = d.querySelector('[data-test=block]');
+    d.dataset.mode = b ? b.dataset.state : '';
+  });
+
+  /* ── 宽度的写回与「本视口下的实测」小字（原型标注用）───────────────
+   *   C 由 CSS 的 var(--cw) 决定；这里把实测值写回 --cw 的**声明**位置（:root） ，
+   *   并给说明区打一行实测（不写进块里）。 */
+  function applyWidth() {
+    var V = innerWidth;
+    var C = cwFor(V);
+    document.documentElement.style.setProperty('--cw', C + 'px');
+    var info = document.querySelector('[data-test=shotinfo]');
+    if (info) {
+      info.textContent = V + ' CSS px（D…视口高 ' + innerHeight + '）· 内容列宽 C＝' + Math.round(C * 100) / 100
+        + 'px · 列外余白＝' + Math.round(((V - C) / 2) * 100) / 100 + 'px';
+    }
+  }
+  applyWidth();
+  addEventListener('resize', applyWidth);
+
+  setMode('all');
+  document.documentElement.dataset.ready = '1';
+
+  /* ── 只读导出（自检脚本取它来与自己的独立期望逐字比对）──────────────── */
+  window.__ABOUT_MIN__ = {
+    deduct: DEDUCT, pct: PCT, floor: FLOOR, cap: 'viewport',
+    app: { name: APP.name, appVersion: APP.appVersion, contentVersion: APP.contentVersion, repo: APP.repo },
+    stateKeys: ALL.map(function (s) { return s.key; }),
+    labels: ALL.reduce(function (o, s) { o[s.key] = s.label; return o; }, {}),
+    text: ALL.reduce(function (o, s) { o[s.key] = s.text; return o; }, {}),
+    btnEnabled: ALL.reduce(function (o, s) { o[s.key] = s.btnEnabled; return o; }, {}),
+    buttonLabel: '检查更新',
+    fixtureText: FIXTURE.text,
+    cw: cwFor(innerWidth)
+  };
+}());
+</script>
+</body>
+</html>
