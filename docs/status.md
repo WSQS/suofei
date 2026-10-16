@@ -3,7 +3,10 @@
 > 只此一份台账。当前版本、阶段、并行工作线/写入范围、下一步、未决问题都在这里。
 
 - 更新时间：**2026-10-16**（承接负责人 `bff673a1-4708-41bf-ac1d-4a93f3af2800` 维护）
-- 阶段：**已发布 `0.1.2`（tag `v0.1.2+content-2026.10.16.23`，2026-10-16 S5 已执行）** —— CI 全绿（26 绿/0 黄/0 跳/0 红）、正式签名 `CN=Suofei`、Pages 已部署、Release 已建、Android 前馈清单已推进（`minAppVersionCode 3`）。读回见 [`docs/local-stage-delivery.md`](local-stage-delivery.md) §0b。
+- 阶段：**已发布 `0.1.3`（tag `v0.1.3+content-2026.10.16.24`，2026-10-16 S5 第二次）** —— CI run `38905672593` **全绿（26 绿/0 黄/0 跳/0 红）**、正式签名 `CN=Suofei`（指纹与 0.1.2 逐字相同）、Pages 已部署、Release 已建、Android 前馈清单已推进（`minAppVersionCode 3`）。读回见 [`docs/local-stage-delivery.md`](local-stage-delivery.md) §0c。
+  - **本版内容＝20 首 / 2 组**：汉 19（《古诗十九首》）＋ 近现代 1（用户自行录入并提交的《七律·和郭沫若同志》）；**未从网补诗/注**，来源与许可的**未核**事实**未改写**。
+  - 本版包含两个 Android 修复：**系统返回键/手势**按层级返回（目录根才退出）＋关于页**按钮上下暗缝**（边框与底色同 Surface）。
+  - ⚠ 为「多组」**真修了 4 处门与测试**（见交付包 §0c 末段），并把 `--min-app-version-code` 做成显式可配（本次=3：内容仍 format 2，vc3 就能读）。
 - **Android「检查更新」按钮上下两条暗缝已修（2026-10-16，本地）**：根因**已证实**（不是候选）——外层 `Modifier.border` 跟着 M3 `minimumInteractiveComponentSize()` 被撑到 **48dp**，而底色由按钮自己的 Surface 按 **40dp**（material3 `ButtonDefaults.MinHeight`）画 ⇒ 上下各露约 4dp 页面底色。
    修法：边框交给按钮自己的 `border = BorderStroke(...)`（与 `containerColor` 同一 Surface、同一 `shape`）⇒ **同 bounds、缝 0**；**最小触控一行未动**（可点区仍 48dp）。只动 `UpdateButton` 一处＋两条源码级守卫。
    我自核：diff 只这两处；复跑 **19 类 / 151 用例 / 0 失败，EXIT 0**；**亲眼看 before/after 放大图**（缝确实从有到无）；dump 里 **202×126（48dp）与 202×105（40dp）** 两个盒与它报的一致；设备已还原（`uid=2000`、飞行模式 0、默认网络 106）；instrumented 探针已 revert（全仓 0 命中）。
