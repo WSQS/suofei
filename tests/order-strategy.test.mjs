@@ -40,7 +40,7 @@ function build(strategy) {
     .sort()
     .map((name) => ({
       displayPath: `content/poems/${name}`,
-      base: name.slice(0, -3),
+      id: name.slice(0, -3), // formatVersion=2：id 由相对路径派生（夹具里就是文件名）
       text: fs.readFileSync(path.join(POEMS_DIR, name), 'utf8'),
     }));
   const { content, errors } = buildContentFromRecords({ records, explicitVersion: '2026.10.14.1', orderStrategy: strategy });
@@ -52,7 +52,7 @@ test('fixture 自洽：19 首、同一组、orderInSource = 1..19', () => {
   const c = build('source');
   assert.equal(c.poems.length, 19);
   assert.equal(c.dynasties.length, 1);
-  assert.equal(c.dynasties[0].label, '汉');
+  assert.equal(c.dynasties[0], '汉');
   assert.deepEqual(c.poems.map((p) => p.orderInSource), [...Array(19).keys()].map((i) => i + 1));
 });
 

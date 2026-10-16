@@ -14,16 +14,17 @@ import {
   DEFAULT_CONTENT_DIR,
   DEFAULT_OUT,
   DEFAULT_SCHEMA_PATH,
-  DYNASTY_KEYS,
   FORMAT_VERSION,
   ID_PATTERN,
+  ID_REGEX,
   INTERNAL_SORT_KEYS,
+  KNOWN_SECTIONS,
   OPTIONAL_FRONT_MATTER_KEYS,
   POEM_KEYS,
+  REMOVED_FRONT_MATTER_KEYS,
   REQUIRED_FRONT_MATTER_KEYS,
   UNKNOWN_AUTHOR_MARKERS,
   UNKNOWN_AUTHORS_RELATIVE_PATH,
-  VARIANT_KEYS,
 } from '../tools/lib/interface.mjs';
 import { buildContentFromRecords, isUnknownAuthor } from '../tools/lib/content-build.mjs';
 
@@ -44,12 +45,30 @@ test('schema：每首诗的键集与顺序 = POEM_KEYS', () => {
   assert.equal(item.additionalProperties, false);
 });
 
-test('schema：分组与异文对象的键序', () => {
-  assert.deepEqual(schema.properties.dynasties.items.required, [...DYNASTY_KEYS]);
-  assert.deepEqual(Object.keys(schema.properties.dynasties.items.properties), [...DYNASTY_KEYS]);
-  const variant = schema.properties.poems.items.properties.variants.items;
-  assert.deepEqual(variant.required, [...VARIANT_KEYS]);
-  assert.equal(variant.additionalProperties, false);
+test('schema：顶层 dynasties 是**有序中文值数组**（不再是 [{key,label,order}]）', () => {
+  assert.deepEqual(schema.properties.dynasties.items, {
+    type: 'string',
+    minLength: 1,
+    description: schema.properties.dynasties.items.description,
+  });
+  assert.equal(schema.properties.dynasties.minItems, 1);
+  assert.equal('key' in schema.properties.dynasties.items, false);
+  assert.equal('order' in schema.properties.dynasties.items, false);
+});
+
+test('schema：id 的正面约束与 interface.mjs 的 ID_REGEX / ID_PATTERN 一致', () => {
+  assert.equal(schema.properties.poems.items.properties.id.pattern, ID_PATTERN);
+  assert.equal(new RegExp(ID_PATTERN).source, ID_REGEX.source);
+  // 正面约束：非空、不含 `/`、不含控制字符与反斜杠；中文合法
+  assert.equal(ID_REGEX.test(''), false);
+  assert.equal(ID_REGEX.test('古诗十九首-行行重行行'), true);
+  assert.equal(ID_REGEX.test('a/b'), false);
+  assert.equal(ID_REGEX.test('a\u0000b'), false);
+  assert.equal(ID_REGEX.test('a\\b'), false);
+});
+
+test('schema / 源格式：两个节名只有 详情 与 笔记', () => {
+  assert.deepEqual([...KNOWN_SECTIONS], ['详情', '笔记']);
 });
 
 // 2026-10-14 用户拍板：两个拼音名次只在编译期内部用，**不发布**。
@@ -68,20 +87,20 @@ test('schema / POEM_KEYS：不发布 authorSortKey/titleSortKey', () => {
   );
 });
 
-test('schema：id 正则与 interface.mjs 的 ID_PATTERN 一致', () => {
-  assert.equal(schema.properties.poems.items.properties.id.pattern, ID_PATTERN);
-});
-
-test('front matter 键集：必填 + 可选 = 允许的全部，且中间产物字段可追溯到源字段', () => {
+test('front matter 键集：必填 + 可选 = 允许的全部；产物字段可追溯到源/结构', () => {
   assert.deepEqual(ALL_FRONT_MATTER_KEYS, [...REQUIRED_FRONT_MATTER_KEYS, ...OPTIONAL_FRONT_MATTER_KEYS]);
-  // 源字段 → 产物字段（dynasty 派生三个字段，stanzas 来自正文，排序键为编译期派生）
-  const derived = new Set(['dynastyKey', 'dynastyLabel', 'dynastyOrder', 'stanzas']);
+  // 产物字段 → 来源（id 来自相对路径；detail/notes 来自两个节；stanzas 来自正文区）
+  const derived = new Set(['id', 'detail', 'notes', 'stanzas']);
   for (const key of POEM_KEYS) {
     if (derived.has(key)) continue;
     assert.ok(
       ALL_FRONT_MATTER_KEYS.includes(key),
       `产物字段 ${key} 在 front matter 里没有来源，说明有一处定义没同步`,
     );
+  }
+  // 旧字段必须**不在**允许集合里（REMOVED 只用于报错，不是允许）
+  for (const key of [...REMOVED_FRONT_MATTER_KEYS, 'id']) {
+    assert.equal(ALL_FRONT_MATTER_KEYS.includes(key), false, `${key} 旧键不得再被允许`);
   }
 });
 
@@ -92,14 +111,14 @@ test('产物键序与 interface.mjs 完全一致（编译结果不是另一套�
     .sort()
     .map((name) => ({
       displayPath: `content/poems/${name}`,
-      base: name.slice(0, -3),
+      id: name.slice(0, -3),
       text: fs.readFileSync(path.join(dir, name), 'utf8'),
     }));
   const { content, errors } = buildContentFromRecords({ records, explicitVersion: '2026.10.14.9' });
   assert.deepEqual(errors, []);
   assert.deepEqual(Object.keys(content), [...CONTENT_KEYS]);
   for (const p of content.poems) assert.deepEqual(Object.keys(p), [...POEM_KEYS]);
-  for (const v of content.poems.flatMap((p) => p.variants)) assert.deepEqual(Object.keys(v), [...VARIANT_KEYS]);
+  for (const d of content.dynasties) assert.equal(typeof d, 'string');
 });
 
 test('CLI 帮助文本里列出的是 interface.mjs 定义的同一组选项', () => {

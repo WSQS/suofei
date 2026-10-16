@@ -1,7 +1,8 @@
 // 契约线 C：CLI 端到端测试（真实进程、真实退出码、真实产物）。
 //
-// 契约第 3 节 5 条校验失败用例各自对应一个 fixture 目录，这里逐条跑 CLI：
-// 断言非零退出码、稳定的错误码出现在 stderr、且**没有**写出任何产物。
+// 每条校验失败用例各自对应一个 fixture 目录，这里逐条跑 CLI：断言非零退出码、稳定的错误码出现在
+// stderr、且**没有**写出任何产物。formatVersion=2 起源格式变了（id 不写、单一中文 dynasty、
+// 考据进 `## 详情`、笔记进 `## 笔记`），所以夹具也一并搬到了 v2 源格式。
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -42,18 +43,16 @@ function buildFixture(name, extraArgs = []) {
   return { ...r, out };
 }
 
-// ---------- 契约第 3 节：5 条失败用例（+ 本轮新增的 4 条强化校验） ----------
+// ---------- 失败用例（每条一个稳定错误码） ----------
 
 const FAILURE_CASES = [
-  { dir: 'fail-id-mismatch', codes: ['ID_FILENAME_MISMATCH'], rule: '§3.1 id 与文件名不一致' },
-  { dir: 'fail-id-duplicate', codes: ['ID_FILENAME_MISMATCH', 'ID_DUPLICATE'], rule: '§3.1 id 重复' },
-  { dir: 'fail-missing-key', codes: ['MISSING_REQUIRED_KEY'], rule: '§3.2 缺必填键' },
-  { dir: 'fail-dynasty-order-not-integer', codes: ['DYN_ORDER_NOT_INTEGER'], rule: '§3.2 dynastyOrder 非整数' },
-  { dir: 'fail-empty-body', codes: ['BODY_EMPTY'], rule: '§3.3 正文为空' },
-  { dir: 'fail-unknown-dynasty', codes: ['DYNASTY_UNDECLARED'], rule: '§3.4 dynastyKey 未声明' },
-  { dir: 'fail-stanzas-all-empty', codes: ['STANZAS_ALL_EMPTY'], rule: '§3.5 stanzas 全空' },
-  { dir: 'fail-unknown-key', codes: ['UNKNOWN_KEY'], rule: '附加：未声明的 front matter 键' },
-  { dir: 'fail-variant-invalid', codes: ['VARIANT_INVALID'], rule: '附加：variants 写法不合法' },
+  { dir: 'fail-missing-key', codes: ['MISSING_REQUIRED_KEY'], rule: '必填键缺失（source）' },
+  { dir: 'fail-unknown-key', codes: ['UNKNOWN_KEY'], rule: '未声明的 front matter 键' },
+  { dir: 'fail-unknown-dynasty', codes: ['DYNASTY_UNDECLARED'], rule: '朝代组名未声明' },
+  { dir: 'fail-empty-body', codes: ['BODY_EMPTY'], rule: '正文区没有非空行' },
+  { dir: 'fail-order-not-integer', codes: ['ORDER_IN_SOURCE_NOT_INTEGER'], rule: 'orderInSource 非整数' },
+  { dir: 'fail-non-markdown', codes: ['SOURCE_NOT_MARKDOWN'], rule: '内容根里有非 .md 文件' },
+  { dir: 'dash-collision', codes: ['ID_DUPLICATE'], rule: '相对路径派生出的 id 撞车' },
 ];
 
 for (const c of FAILURE_CASES) {
@@ -68,6 +67,36 @@ for (const c of FAILURE_CASES) {
   });
 }
 
+test('判重夹具必红：冲突路径逐条列出（两个不同路径算出同一个 id）', () => {
+  const { status, stderr } = buildFixture('dash-collision');
+  assert.equal(status, 1);
+  assert.match(stderr, /\[ID_DUPLICATE\]/);
+  assert.ok(stderr.includes('古诗十九首/行行重行行.md'), '要列出第一个冲突路径');
+  assert.ok(stderr.includes('古诗十九首-行行重行行.md'), '要列出第二个冲突路径');
+});
+
+test('符号链接 ⇒ SOURCE_SYMLINK（旧实现会静默丢弃，这是刻意改成报错）', (t) => {
+  const dir = fs.mkdtempSync(path.join(tmpRoot, 'symlink-'));
+  const poems = path.join(dir, 'content', 'poems');
+  fs.mkdirSync(poems, { recursive: true });
+  fs.writeFileSync(
+    path.join(poems, 'ok-01.md'),
+    '---\ntitle: "夹具"\nauthor: "佚名"\ndynasty: "汉"\nsource: "夹具。"\n---\n\n正文行。\n',
+    'utf8',
+  );
+  const target = path.join(dir, 'target');
+  fs.mkdirSync(target);
+  try {
+    fs.symlinkSync(target, path.join(poems, 'link'), 'junction'); // Windows 上 junction 不需要管理员
+  } catch (e) {
+    t.skip(`本机建不了符号链接（${e.code}）`);
+    return;
+  }
+  const r = runCli(['--check', '--content', path.join(dir, 'content')]);
+  assert.equal(r.status, 1, r.stderr);
+  assert.ok(r.stderr.includes('[SOURCE_SYMLINK]'), r.stderr);
+});
+
 test('失败不覆盖上一版产物（失败保旧版）', () => {
   const out = tmpOut('keep-old');
   fs.mkdirSync(path.dirname(out), { recursive: true });
@@ -75,6 +104,33 @@ test('失败不覆盖上一版产物（失败保旧版）', () => {
   const r = runCli(['--content', contentDir('fail-empty-body'), '--out', out]);
   assert.equal(r.status, 1);
   assert.equal(fs.readFileSync(out, 'utf8'), '{"contentVersion":"上一版哨兵值"}\n');
+});
+
+// ---------- 排除规则：忽略并计数 ----------
+
+test('README / `_` 前缀 / 隐藏文件 / 临时文件 ⇒ 忽略并计数，不是错误', () => {
+  const r = runCli(['--check', '--content', contentDir('ignored-files')]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /1 首诗 \/ 1 个分组/, '被忽略的文件不得进产物');
+  assert.match(r.stdout, /忽略并计数了 4 项/);
+  assert.match(r.stdout, /README 1/);
+  assert.match(r.stdout, /_ 前缀（说明\/占位） 1/);
+  assert.match(r.stdout, /隐藏文件\/目录 1/);
+  assert.match(r.stdout, /临时文件 1/);
+});
+
+test('空目录 ⇒ 忽略并计数（在临时目录里建，因为 git 存不住空目录）', () => {
+  const dir = fs.mkdtempSync(path.join(tmpRoot, 'emptydir-'));
+  const poems = path.join(dir, 'content', 'poems');
+  fs.mkdirSync(path.join(poems, '空目录'), { recursive: true });
+  fs.writeFileSync(
+    path.join(poems, 'ok-01.md'),
+    '---\ntitle: "夹具"\nauthor: "佚名"\ndynasty: "汉"\nsource: "夹具。"\n---\n\n正文行。\n',
+    'utf8',
+  );
+  const r = runCli(['--check', '--content', path.join(dir, 'content')]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /空目录 1/);
 });
 
 // ---------- 成功路径 + 排序 + 分段 ----------
@@ -92,10 +148,7 @@ test('ok-sorting：组序、组内作者/诗名拼音序、佚名最后、分段
   assert.equal(status, 0, stderr);
   const c = JSON.parse(fs.readFileSync(out, 'utf8'));
 
-  assert.deepEqual(c.dynasties, [
-    { key: 'han', label: '汉', order: 100 },
-    { key: 'tang', label: '唐', order: 400 },
-  ]);
+  assert.deepEqual(c.dynasties, ['汉', '唐'], '顶层 dynasties 是有序中文值数组');
   assert.deepEqual(
     c.poems.map((p) => p.id),
     [
@@ -110,8 +163,8 @@ test('ok-sorting：组序、组内作者/诗名拼音序、佚名最后、分段
   );
 
   // 「佚名排最后」：每个组内，佚名都排在所有具名作者之后（次序语义，不靠排序字段）
-  for (const label of c.dynasties.map((d) => d.label)) {
-    const authors = c.poems.filter((p) => p.dynastyLabel === label).map((p) => p.author);
+  for (const label of c.dynasties) {
+    const authors = c.poems.filter((p) => p.dynasty === label).map((p) => p.author);
     const firstUnknown = authors.findIndex((a) => a === '佚名');
     assert.ok(firstUnknown > 0, `${label} 组内应有具名作者在佚名之前`);
     assert.equal(
@@ -140,20 +193,18 @@ test('ok-sorting：组序、组内作者/诗名拼音序、佚名最后、分段
   assert.equal(c.poems.find((p) => p.id === 'gushi-shijiu-shou-01').stanzas.length, 2);
   assert.equal(c.poems.find((p) => p.id === 'cao-yong-yin-ma-chang-cheng-ku-xing-01').stanzas.length, 1);
   assert.equal(c.contentVersion, '2026.10.14.1');
-  assert.equal(c.formatVersion, 1);
+  assert.equal(c.formatVersion, 2);
 });
 
-test('ok-notes-variants：notes 块标量保留换行，variants 的 note 可省略', () => {
+test('ok-notes-variants：`## 笔记` 进 notes（保留换行）、`## 详情` 进 detail、缺省键写 null', () => {
   const { status, stderr, out } = buildFixture('ok-notes-variants', ['--content-version', '2026.10.14.2']);
   assert.equal(status, 0, stderr);
   const p = JSON.parse(fs.readFileSync(out, 'utf8')).poems[0];
-  assert.match(p.notes, /不是用户真实笔记。\n第二行：/);
-  assert.deepEqual(p.variants, [
-    { text: '测试异文甲', note: '来自 fixture 的异文说明' },
-    { text: '测试异文乙', note: null },
-  ]);
-  assert.equal(p.era, null);
+  assert.equal(p.notes, '这是**测试用**个人笔记文本，不是用户真实笔记。\n第二行：用于验证块标量里的换行被保留。');
+  assert.equal(p.detail, '- **测试异文甲** —— 来自 fixture 的异文说明\n- **测试异文乙**');
   assert.equal(p.genre, null);
+  assert.equal(p.orderInSource, null);
+  assert.ok('detail' in p && 'notes' in p);
 });
 
 // ---------- JSON Schema 校验产物 ----------
@@ -166,9 +217,12 @@ function validateAgainstSchema(file) {
 }
 
 for (const [name, version] of [
-  ['ok-sorting', '2026.10.14.1'],
-  ['ok-notes-variants', '2026.10.14.2'],
-  ['ok-basic', '2026.10.14.3'],
+  ['ok-sorting', '2026.10.14.10'],
+  ['ok-notes-variants', '2026.10.14.11'],
+  ['ok-basic', '2026.10.14.12'],
+  ['ok-order-source', '2026.10.14.13'],
+  ['shape-v2', '2026.10.14.14'],
+  ['rules-v4-legal/nested', '2026.10.14.15'],
 ]) {
   test(`JSON Schema 校验产物（${name}）`, () => {
     const { status, stderr, out } = buildFixture(name, ['--content-version', version]);
@@ -179,7 +233,7 @@ for (const [name, version] of [
 }
 
 test('独立校验工具可复跑：node tools/validate-content.mjs <产物>', () => {
-  const { status, out } = buildFixture('ok-sorting', ['--content-version', '2026.10.14.4']);
+  const { status, out } = buildFixture('ok-sorting', ['--content-version', '2026.10.14.16']);
   assert.equal(status, 0);
   const r = spawnSync(process.execPath, [VALIDATOR, out], { encoding: 'utf8', cwd: ROOT });
   assert.equal(r.status, 0, r.stderr);
@@ -211,8 +265,8 @@ test('SOURCE_DATE_EPOCH 可固定 generatedAt，同一内容字节可复现', ()
 // ---------- 排序策略：source / pinyin（同一 fixture，两份实际产物对比） ----------
 
 test('ok-order-source：--order source（默认）按底本原次序，无值者接在后面', () => {
-  const a = buildFixture('ok-order-source', ['--content-version', '2026.10.14.5', '--order', 'source']);
-  const b = buildFixture('ok-order-source', ['--content-version', '2026.10.14.5']); // 默认应与 source 一致
+  const a = buildFixture('ok-order-source', ['--content-version', '2026.10.14.17', '--order', 'source']);
+  const b = buildFixture('ok-order-source', ['--content-version', '2026.10.14.17']); // 默认应与 source 一致
   assert.equal(a.status, 0, a.stderr);
   assert.equal(b.status, 0, b.stderr);
   const titlesA = JSON.parse(fs.readFileSync(a.out, 'utf8')).poems.map((p) => p.title);
@@ -222,16 +276,16 @@ test('ok-order-source：--order source（默认）按底本原次序，无值者
 });
 
 test('ok-order-source：--order pinyin 忽略 orderInSource', () => {
-  const r = buildFixture('ok-order-source', ['--content-version', '2026.10.14.5', '--order', 'pinyin']);
+  const r = buildFixture('ok-order-source', ['--content-version', '2026.10.14.18', '--order', 'pinyin']);
   assert.equal(r.status, 0, r.stderr);
   const titles = JSON.parse(fs.readFileSync(r.out, 'utf8')).poems.map((p) => p.title);
   assert.deepEqual(titles, ['饮马长城窟行', '客从远方来', '青青河畔草', '涉江采芙蓉', '生年不满百', '行行重行行']);
 });
 
-test('ok-order-source 产物通过 JSON Schema（orderInSource 为整数或 null）', () => {
+test('ok-order-source 产物：orderInSource 为整数或 null', () => {
   const { status, stderr, out } = buildFixture('ok-order-source', [
     '--content-version',
-    '2026.10.14.6',
+    '2026.10.14.19',
     '--order',
     'source',
   ]);
@@ -249,7 +303,7 @@ test('--order 取值非法 → 用法错误（退出码 2），不猜、不静�
   assert.match(r.stderr, /--order 只支持 source \/ pinyin/);
 });
 
-test('所有 ok fixture 的产物都不含任何排序字段（2026-10-14 拍板）', () => {
+test('所有 ok fixture 的产物都不含任何排序字段，键序恒为 POEM_KEYS', () => {
   for (const [i, name] of ['ok-basic', 'ok-sorting', 'ok-notes-variants', 'ok-order-source', 'ok-shi19-order'].entries()) {
     const { status, stderr, out } = buildFixture(name, ['--content-version', `2026.10.1${i}.1`]);
     assert.equal(status, 0, `${name}: ${stderr}`);
@@ -294,13 +348,15 @@ test('用法错误退出码 2，未知选项不静默忽略', () => {
   assert.match(r.stderr, /未知选项：--nope/);
 });
 
-test('--json 输出机器可读结果', () => {
-  const r = runCli(['--check', '--json', '--content', contentDir('ok-basic')]);
+test('--json 输出机器可读结果（含忽略计数）', () => {
+  const r = runCli(['--check', '--json', '--content', contentDir('ignored-files')]);
   assert.equal(r.status, 0);
   const j = JSON.parse(r.stdout);
   assert.equal(j.ok, true);
   assert.equal(j.poems, 1);
   assert.equal(j.checkedOnly, true);
+  assert.equal(j.ignoredFiles, 4);
+  assert.equal(j.formatVersion, 2);
 });
 
 test('内容目录不存在 → CONTENT_DIR_MISSING（退出码 1）', () => {

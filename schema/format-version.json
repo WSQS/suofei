@@ -2,7 +2,7 @@
   "_note": "`formatVersion` 的「字段集一变就升」是**用户 2026-10-15 定的 B 判据**（理由是机械、可自动断言、没有判断风险；代价＝每一变就断掉一次内容热更，且**不可逆**——老客户端会拒收更高 formatVersion 的内容、退回内置，用户只能手动装新 APK）。",
   "authority": "产物 JSON 的键路径（唯一口径在 tools/lib/field-set.mjs 的 fieldPaths；数组下标折叠为 []；只看键不看值）",
   "howToChange": "改了字段集就必须：① 升 formatVersion；② 往 versions 追加一条（**旧条保留**，它记录着老客户端认得的形状）：node tools/check-fieldset.mjs --print-entry",
-  "guard": "node tools/check-fieldset.mjs（也跑在 npm test 里；本脚本不自动改本文件）",
+  "guard": "node tools/check-fieldset.mjs（也跑在 npm test 里；本脚本不自动改本文件）。⚠ 2026-10-16 起默认编译 `tests/fixtures/shape-v2/content`（形状夹具）——因为 S2 落地时 content/poems 还是 v1 源、编不过；S3 迁移后可 `--content content` 回到真实内容。",
   "versions": [
     {
       "formatVersion": 1,
@@ -36,6 +36,32 @@
         "poems[].variants[]",
         "poems[].variants[].note",
         "poems[].variants[].text"
+      ]
+    },
+    {
+      "formatVersion": 2,
+      "_what": "2026-10-16（S2.1）：每首 10 键（id,title,author,dynasty,genre,source,orderInSource,detail,stanzas,notes）；顶层 dynasties 变为**有序中文值数组**（dynasties[].key/label/order 三条路径消失，变为 dynasties[]）。值形态与键集一起变，按 B 判据必须升版本（不可逆）。",
+      "fieldSetSha256": "b4085a56df49c7dd91228b8be32c8acb6d24c54d06a601df13c3de8ddbc49de1",
+      "fieldPaths": [
+        "contentVersion",
+        "dynasties",
+        "dynasties[]",
+        "formatVersion",
+        "generatedAt",
+        "poems",
+        "poems[]",
+        "poems[].author",
+        "poems[].detail",
+        "poems[].dynasty",
+        "poems[].genre",
+        "poems[].id",
+        "poems[].notes",
+        "poems[].orderInSource",
+        "poems[].source",
+        "poems[].stanzas",
+        "poems[].stanzas[]",
+        "poems[].stanzas[][]",
+        "poems[].title"
       ]
     }
   ]

@@ -2,14 +2,14 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://poetrycollection.invalid/schema/content.schema.json",
   "title": "PoetryCollection 内容产物 dist/content.json",
-  "description": "契约 docs/design/content-contract.md 第 2 节的机器可校验形式。sopho 契约线 C 维护：结构随 formatVersion=1 冻结；结构不兼容变更时新开格式版本并同步两端。",
+  "description": "契约 docs/design/content-contract.md 第 2 节的机器可校验形式。sopho 契约线 C 维护：结构随 formatVersion=2 冻结；结构不兼容变更时新开格式版本并同步两端。",
   "type": "object",
   "additionalProperties": false,
   "required": ["formatVersion", "contentVersion", "generatedAt", "dynasties", "poems"],
   "properties": {
     "formatVersion": {
-      "description": "JSON 结构版本。结构不兼容变更时递增；旧客户端遇到更高值必须保留旧内容、不去解析。",
-      "const": 1
+      "description": "JSON 结构版本。结构不兼容变更时递增；旧客户端遇到更高值必须保留旧内容、不去解析。1 → 2 的变化：每首 10 键（去掉 dynastyKey/dynastyLabel/dynastyOrder/era/variants，改为单一中文 dynasty ＋ detail）；顶层 dynasties 变为有序中文值数组。",
+      "const": 2
     },
     "contentVersion": {
       "description": "内容版本。发布版本 YYYY.MM.DD.N，单调递增；本地派生版本 0.0.0-dev+<sha256 前 12 位>，仅供本地/测试。比较规则见契约第 4 节。",
@@ -22,22 +22,13 @@
       "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
     },
     "dynasties": {
-      "description": "实际有内容的朝代分组，按 order 升序；空组不出现。",
+      "description": "顶层分组＝**有序中文值数组**（用户 2026-10-15 已定 ①）。只列实际有内容的组，次序即显示次序（注册表 order 升序）；每首诗的 dynasty 必须逐字等于其中一个值。分组权威就是它，不从诗对象拼。",
       "type": "array",
       "minItems": 1,
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["key", "label", "order"],
-        "properties": {
-          "key": { "type": "string", "minLength": 1, "description": "稳定分组键，如 han；由 tools/lib/dynasties.mjs 注册表派生" },
-          "label": { "type": "string", "minLength": 1, "description": "展示用朝代名，如 汉" },
-          "order": { "type": "integer", "description": "组排序键：先秦0/汉100/魏晋200/南北朝300/唐400/宋500/元600/明700/清800/近现代900/未详9999" }
-        }
-      }
+      "items": { "type": "string", "minLength": 1, "description": "中文朝代组名，如 汉；精确匹配 tools/lib/dynasties.mjs 注册表里的 label" }
     },
     "poems": {
-      "description": "所有诗。**编译期已排好序**（排序是编译期唯一权威），客户端照数组次序渲染；产物里没有排序字段（含整数 orderInSource 时尤其不必再找排序字段）。排序策略：先底本原次序 orderInSource（有值者升序），无值者再按作者拼音 → 诗名拼音（佚名最后）。",
+      "description": "所有诗。**编译期已排好序**（排序是编译期唯一权威），客户端照数组次序渲染；产物里没有排序字段（含整数 orderInSource 时尤其不必再找排序字段）。排序策略：组序由每首 dynasty 的注册表 order 决定；组内先按底本原次序 orderInSource（有值者升序），无值者再按作者拼音 → 诗名拼音（佚名最后）。",
       "type": "array",
       "minItems": 1,
       "items": {
@@ -47,29 +38,23 @@
           "id",
           "title",
           "author",
-          "dynastyKey",
-          "dynastyLabel",
-          "dynastyOrder",
-          "era",
+          "dynasty",
           "genre",
           "source",
           "orderInSource",
-          "variants",
+          "detail",
           "stanzas",
           "notes"
         ],
         "properties": {
           "id": {
             "type": "string",
-            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*-\\d+$",
-            "description": "全小写 ASCII，全局唯一，等于源文件名（不含 .md）"
+            "pattern": "^[^/\\\\\\u0000-\\u001f\\u007f]+$",
+            "description": "全局唯一，等于内容根（content/poems/）下的相对路径去 .md、/ 统一写成 -。可以含中文；不含 /（路由 /p/<id> 用 [^/]+）与控制字符。用户 2026-10-16 定 C2：直接换、不做兼容。"
           },
           "title": { "type": "string", "minLength": 1, "pattern": "\\S" },
           "author": { "type": "string", "minLength": 1, "pattern": "\\S", "description": "佚名/未知作者写 佚名，不编造人名" },
-          "dynastyKey": { "type": "string", "minLength": 1 },
-          "dynastyLabel": { "type": "string", "minLength": 1 },
-          "dynastyOrder": { "type": "integer" },
-          "era": { "type": ["string", "null"], "description": "更细的时代/年代说明，可空" },
+          "dynasty": { "type": "string", "minLength": 1, "description": "单一中文朝代组名；必须逐字等于顶层 dynasties 数组里的某个值（注册表精确匹配，不做别名）" },
           "genre": { "type": ["string", "null"], "description": "体裁，可空" },
           "source": { "type": "string", "minLength": 1, "pattern": "\\S", "description": "可核的底本/校录来源" },
           "orderInSource": {
@@ -77,23 +62,14 @@
             "minimum": 1,
             "description": "作品在底本中的原次序（1 起）；可选，未写则为 null。source 排序策略下它在组内最先比较。"
           },
-          "variants": {
-            "type": "array",
-            "description": "异文记录，异文不进正文",
-            "items": {
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["text", "note"],
-              "properties": {
-                "text": { "type": "string", "minLength": 1, "pattern": "\\S" },
-                "note": { "type": ["string", "null"] }
-              }
-            }
+          "detail": {
+            "type": ["string", "null"],
+            "description": "考据/详情节正文（来自源的 `## 详情` 节），最小 Markdown 文本；空节或没有该节 ⇒ null（键仍在）。"
           },
           "stanzas": {
             "type": "array",
             "minItems": 1,
-            "description": "分段数组，内层为行数组；空行→段边界，原文空行信息不丢",
+            "description": "分段数组，内层为行数组；空行→段边界，原文空行信息不丢。正文不走 Markdown。",
             "items": {
               "type": "array",
               "minItems": 1,
@@ -102,7 +78,7 @@
           },
           "notes": {
             "type": ["string", "null"],
-            "description": "用户个人笔记（Markdown 文本）或 null；客户端按需展开，默认折叠"
+            "description": "用户个人笔记（来自源的 `## 笔记` 节，最小 Markdown 文本）或 null；客户端按需展开，默认折叠；null 时整块不出现。"
           }
         }
       }

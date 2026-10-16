@@ -46,7 +46,7 @@ if (build.status !== 0) {
 }
 
 const current = JSON.parse(readFileSync(fresh, 'utf8'));
-// 只比对「内容本身」：分组声明 + 每首诗（含次序、异文、正文分段）。版本/时间戳每次构建都会变，不参与比对。
+// 只比对「内容本身」：分组声明 + 每首诗（含次序、详情、正文分段）。版本/时间戳每次构建都会变，不参与比对。
 const shape = (doc) => JSON.stringify({ dynasties: doc.dynasties, poems: doc.poems });
 
 const problems = [];
@@ -58,11 +58,11 @@ for (const [label, path] of targets) {
   }
   const got = JSON.parse(readFileSync(path, 'utf8'));
   if (shape(got) !== shape(current)) {
-    const v = (d) => d.poems.reduce((n, p) => n + p.variants.length, 0);
+    const detailCount = (d) => d.poems.filter((p) => p.detail !== null).length;
     problems.push(
       `${label}（${path}）与当前内容不一致：\n` +
-        `    内置：contentVersion=${got.contentVersion} 诗=${got.poems.length} 异文=${v(got)}\n` +
-        `    当前：contentVersion=${current.contentVersion} 诗=${current.poems.length} 异文=${v(current)}`,
+        `    内置：contentVersion=${got.contentVersion} 诗=${got.poems.length} 带详情=${detailCount(got)}\n` +
+        `    当前：contentVersion=${current.contentVersion} 诗=${current.poems.length} 带详情=${detailCount(current)}`,
     );
   }
 }
@@ -81,5 +81,5 @@ if (problems.length) {
 
 console.log(
   `内置内容一致性通过：${targets.length} 处目标与当前 content/poems/ 编译结果一致` +
-    `（诗=${current.poems.length}，异文=${current.poems.reduce((n, p) => n + p.variants.length, 0)}）。`,
+    `（诗=${current.poems.length}，带详情=${current.poems.filter((p) => p.detail !== null).length}）。`,
 );

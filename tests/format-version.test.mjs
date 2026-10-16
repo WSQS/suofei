@@ -14,7 +14,9 @@ import { checkAgainst, compileCurrent } from '../tools/check-fieldset.mjs';
 const RECORD = 'schema/format-version.json';
 const readRecord = () => JSON.parse(readFileSync(RECORD, 'utf8'));
 
-/** 编译一次当前内容（产物由 CLI 组装 ⇒ 就是客户端会读到的那份形状）。 */
+/** 编译一次当前**形状**（默认编译 tests/fixtures/shape-v2/content：S2 落地时真实内容还是 v1 源，
+ * 编不过；本门守的是**形状**，而编译器对每首都无条件发出这 10 个键 ⇒ 单首诗就能定形状）。
+ * 见 tools/check-fieldset.mjs 文件头的 ⚠ 说明。 */
 function withCurrentProduct(fn) {
   const tmp = mkdtempSync(join(tmpdir(), 'suofei-fv-'));
   try {
@@ -46,25 +48,60 @@ test('记录本身健康：formatVersion 严格递增、无重复、每条都有
   }
 });
 
-test('口径覆盖客户端真正读的键（顶层键 + 诗对象 + 组 + 段的二维形状）', () => {
+test('记录保留了 formatVersion=1 的旧形状（老客户端认得的键路径仍在账上）', () => {
+  const { versions } = readRecord();
+  const v1 = versions.find((v) => v.formatVersion === 1);
+  const v2 = versions.find((v) => v.formatVersion === 2);
+  assert.ok(v1, 'v1 那条不得删掉：它记录着老客户端认得的形状');
+  assert.ok(v1.fieldPaths.includes('poems[].variants[].text'));
+  assert.ok(v1.fieldPaths.includes('dynasties[].key'));
+  assert.ok(v2, 'v2 记录缺失');
+  assert.ok(v2.fieldPaths.includes('poems[].detail'));
+  assert.ok(!v2.fieldPaths.includes('poems[].variants'));
+  assert.ok(v2.fieldPaths.includes('dynasties[]'));
+  assert.equal(v2.fieldPaths.includes('dynasties[].key'), false);
+});
+
+test('口径覆盖客户端真正读的键（顶层键 + 诗对象 + 中文组数组 + 段的二维形状）', () => {
   withCurrentProduct((doc) => {
     const paths = fieldPaths(doc);
     for (const must of [
       'formatVersion',
       'contentVersion',
       'generatedAt',
+      'dynasties',
+      'dynasties[]',
       'poems',
       'poems[].id',
       'poems[].title',
       'poems[].author',
-      'poems[].orderInSource',
+      'poems[].dynasty',
+      'poems[].genre',
       'poems[].source',
+      'poems[].orderInSource',
+      'poems[].detail',
+      'poems[].stanzas',
       'poems[].stanzas[]',
       'poems[].stanzas[][]', // 段→行：二维，不能被拍平还看不出来
-      'poems[].variants[].text',
-      'dynasties[].key',
+      'poems[].notes',
     ]) {
       assert.ok(paths.includes(must), `字段集里应当有 ${must}（口径漏了客户端会读的键）`);
+    }
+    // formatVersion=2 的形状：`dynasties` 是中文值数组 ⇒ 不再有 dynasties[].key/label/order；
+    // 每首不再有 dynastyKey/dynastyLabel/dynastyOrder/era/variants。
+    for (const gone of [
+      'dynasties[].key',
+      'dynasties[].label',
+      'dynasties[].order',
+      'poems[].dynastyKey',
+      'poems[].dynastyLabel',
+      'poems[].dynastyOrder',
+      'poems[].era',
+      'poems[].variants',
+      'poems[].variants[].text',
+      'poems[].variants[].note',
+    ]) {
+      assert.ok(!paths.includes(gone), `formatVersion=2 不应再有 ${gone}`);
     }
     // 「客户端不得重排」这条已定决策的产物侧体现：产物里不得出现任何排序键。
     assert.ok(

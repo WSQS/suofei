@@ -1,25 +1,32 @@
 // 契约线 C：Markdown → JSON 的解析、校验与排序（纯函数，便于测试）。
 //
 // 校验条目与错误码一一对应，见契约 docs/design/content-contract.md 第 3 节。
+//
+// formatVersion=2（2026-10-16）起源格式是：
+//   front matter（必填 title/author/dynasty/source，可选 genre/orderInSource）＋ 正文区（原文，空行＝分段）
+//   ＋ 可选的两个节 `## 详情` / `## 笔记`（内容是**最小 Markdown 文本**，整段进 detail/notes）。
+//   `id` 不写在源里（由相对路径派生，见 scan.mjs）。
 
-import path from 'node:path';
 import { ContentError } from './errors.mjs';
 import { parseFrontMatterLines, splitFrontMatter } from './frontmatter.mjs';
-import { declaredLabels, lookupDynasty } from './dynasties.mjs';
+import { dynastyLabels, dynastyOrderOf, lookupDynasty } from './dynasties.mjs';
+import { checkMarkdownLine, codeFenceMessage, fenceMarker, vis } from './markdown.mjs';
+import { dedupeKey } from './scan.mjs';
 import { contentDigest, resolveContentVersion } from './version.mjs';
 import {
   ALL_FRONT_MATTER_KEYS,
   DEFAULT_ORDER_STRATEGY,
   FORMAT_VERSION,
-  ID_REGEX,
+  KNOWN_SECTIONS,
   OPTIONAL_FRONT_MATTER_KEYS,
   PINYIN_COLLATOR_LOCALE,
+  REMOVED_FRONT_MATTER_KEYS,
   REQUIRED_FRONT_MATTER_KEYS,
+  SECTION_DETAIL,
+  SECTION_NOTES,
   SORT_STRATEGIES,
   UNKNOWN_AUTHOR_MARKERS,
 } from './interface.mjs';
-
-const ALL_KEYS = new Set(ALL_FRONT_MATTER_KEYS);
 
 // 便于同线测试/工具从一处取用（定义仍在 interface.mjs）。
 export {
@@ -65,46 +72,82 @@ export function isUnknownAuthor(author) {
   return UNKNOWN_AUTHOR_MARKERS.includes(a);
 }
 
-function isPlainObject(v) {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
+/** 节正文 → 产物值：去掉首尾空行后按 `\n` 连接；**空节（含只有空白字符）⇒ null，键仍在**。 */
+function sectionText(lines) {
+  const ls = [...lines];
+  while (ls.length && ls[0].trim() === '') ls.shift();
+  while (ls.length && ls[ls.length - 1].trim() === '') ls.pop();
+  return ls.length ? ls.join('\n') : null;
 }
 
+/** 节标题分界：行首**恰好** `## ` 后跟非空节名。`###`/`##详情` 都不是分界。 */
+const SECTION_RE = /^##\s+(\S.*)$/;
+
 /**
- * 校验并构建**单首**诗的产物对象。返回 errors 而不抛异常，便于一次报出全部问题。
- * @param {{displayPath: string, base: string, text: string}} record
- * @returns {{poem: object|null, errors: ContentError[], idRaw: string|null}}
+ * 解析**单首**诗的源文本（纯函数：不吃文件系统）。返回 errors 而不抛异常，便于一次报出全部问题。
+ * @param {{displayPath: string, id: string, text: string}} record
+ * @returns {{poem: object|null, errors: ContentError[], id: string, draft: {stanzas: string[][], detail: string|null, notes: string|null}}}
  */
-export function validatePoemRecord(record) {
+export function parsePoemRecord(record) {
   const file = record.displayPath;
   /** @type {ContentError[]} */
   const errors = [];
   const push = (code, message, line = null) => errors.push(new ContentError(code, message, { file, line }));
-  /** @type {Record<string, unknown>|null} */
+  /** @type {Record<string, unknown>} */
   let data = null;
   /** @type {string[]} */
   let bodyLines = [];
   let bodyLineOffset = 0;
+  /** @type {string[]} */
+  let fmLines = [];
+  let fmLineOffset = 0;
 
   try {
     const split = splitFrontMatter(record.text, file);
     bodyLines = split.bodyLines;
     bodyLineOffset = split.bodyLineOffset;
+    fmLines = split.fmLines;
+    fmLineOffset = split.fmLineOffset;
     data = parseFrontMatterLines(split.fmLines, file, split.fmLineOffset);
   } catch (e) {
     if (e instanceof ContentError) {
-      return { poem: null, errors: [e], idRaw: null };
+      return { poem: null, errors: [e], id: record.id, draft: { stanzas: [], detail: null, notes: null } };
     }
     throw e;
   }
 
-  const idRaw = typeof data.id === 'string' ? data.id : null;
+  /** front matter 某个顶层键的行号（键缺失时给 null）。「每条诊断带文件:行号」要求键级诊断也带位置。 */
+  const keyLine = (key) => {
+    const re = new RegExp(`^${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*:`);
+    for (let i = 0; i < fmLines.length; i++) {
+      if (re.test(fmLines[i])) return fmLineOffset + i;
+    }
+    return null;
+  };
 
-  // 未声明的键：宁可直接失败，也不静默丢字段。
+  // front matter 键：id 禁止 / 旧键已删 / 其余未声明 ⇒ 都不静默。
   for (const key of Object.keys(data)) {
-    if (!ALL_KEYS.has(key)) {
+    if (key === 'id') {
+      push(
+        'FORBIDDEN_ID_KEY',
+        '源 MD 不得写 `id`：ID 由内容根下的相对路径生成（去 `.md`、`/` 统一写成 `-`）。删掉这一行，产物里的 `id` 键仍会保留。',
+        keyLine(key),
+      );
+      continue;
+    }
+    if (REMOVED_FRONT_MATTER_KEYS.includes(key)) {
+      push(
+        'REMOVED_KEY',
+        `新格式（formatVersion=2）已去掉源字段 \`${key}\`（旧格式 formatVersion=1 的写法）。本工具**不把它静默转成新字段**：请删掉它；要保留的考据内容改写进 \`## 详情\` 节（用户笔记用 \`## 笔记\`）。`,
+        keyLine(key),
+      );
+      continue;
+    }
+    if (!ALL_FRONT_MATTER_KEYS.includes(key)) {
       push(
         'UNKNOWN_KEY',
-        `front matter 出现契约未声明的键「${key}」；已声明：必填 ${REQUIRED_KEYS.join('/')}，可选 ${OPTIONAL_KEYS.join('/')}`,
+        `front matter 出现声明之外的键「${key}」；允许的键：必填 ${REQUIRED_KEYS.join('/')}，可选 ${OPTIONAL_KEYS.join('/')}`,
+        keyLine(key),
       );
     }
   }
@@ -113,119 +156,171 @@ export function validatePoemRecord(record) {
   for (const key of REQUIRED_KEYS) {
     const v = data[key];
     const missing = v === undefined || v === null || (typeof v === 'string' && v.trim() === '');
-    if (missing) push('MISSING_REQUIRED_KEY', `缺少必填键「${key}」或值为空`);
-  }
-
-  // id：形状 + 与文件名一致
-  if (idRaw !== null) {
-    if (!ID_REGEX.test(idRaw)) {
-      push('ID_INVALID', `id「${idRaw}」不合规则：应全小写 ASCII、连字符分段、末段为序号，如 gushi-shijiu-shou-01`);
-    }
-    if (idRaw !== record.base) {
-      push('ID_FILENAME_MISMATCH', `front matter 的 id「${idRaw}」与文件名「${record.base}.md」不一致`);
-    }
-  }
-
-  // 文本字段类型
-  for (const key of ['title', 'author', 'source']) {
-    const v = data[key];
-    if (v !== undefined && v !== null && typeof v !== 'string') {
-      push('FIELD_TYPE', `「${key}」必须是字符串，实际是 ${Array.isArray(v) ? '列表' : typeof v}`);
-    }
-  }
-  for (const key of ['era', 'genre', 'notes']) {
-    const v = data[key];
-    if (v !== undefined && v !== null && typeof v !== 'string') {
-      push('FIELD_TYPE', `「${key}」必须是字符串或留空，实际是 ${Array.isArray(v) ? '列表' : typeof v}`);
-    }
-  }
-
-  // 朝代：必须命中注册表；dynastyOrder 必须是整数且与注册表一致
-  let dynasty = null;
-  if (typeof data.dynasty === 'string' && data.dynasty.trim() !== '') {
-    dynasty = lookupDynasty(data.dynasty) ?? null;
-    if (!dynasty) {
+    if (missing) {
       push(
-        'DYNASTY_UNDECLARED',
-        `朝代「${data.dynasty}」未在分组注册表中声明（已声明：${declaredLabels()}）` +
-          `；新分组需要显式登记到 tools/lib/dynasties.mjs 并同步契约，不做别名猜测`,
+        'MISSING_REQUIRED_KEY',
+        `必填键「${key}」缺失或值为空。允许的键：${REQUIRED_KEYS.concat(OPTIONAL_KEYS).join(' / ')}`,
+        fmLineOffset - 1,
       );
     }
   }
-  const rawOrder = data.dynastyOrder;
-  let orderOk = false;
-  if (rawOrder !== undefined) {
-    if (typeof rawOrder !== 'number' || !Number.isInteger(rawOrder)) {
-      push('DYN_ORDER_NOT_INTEGER', `「dynastyOrder」必须是整数，实际是 ${JSON.stringify(rawOrder)}`);
-    } else {
-      orderOk = true;
+
+  // 文本字段类型 + 朝代精确匹配
+  for (const key of ['title', 'author', 'dynasty', 'source']) {
+    const v = data[key];
+    if (v !== undefined && v !== null && typeof v !== 'string') {
+      push('FIELD_TYPE', `「${key}」必须是字符串，实际是 ${Array.isArray(v) ? '列表' : typeof v}`, keyLine(key));
     }
   }
-  if (dynasty && orderOk && rawOrder !== dynasty.order) {
-    push(
-      'DYN_ORDER_MISMATCH',
-      `「dynastyOrder」=${rawOrder} 与朝代「${data.dynasty}」的注册值 ${dynasty.order} 不一致`,
-    );
+  const genre = data.genre;
+  if (genre !== undefined && genre !== null && typeof genre !== 'string') {
+    push('FIELD_TYPE', `「genre」必须是字符串或留空，实际是 ${Array.isArray(genre) ? '列表' : typeof genre}`, keyLine('genre'));
   }
 
-  // variants：数组，元素需有 text（note 可省略）
-  /** @type {{text: string, note: string|null}[]} */
-  let variants = [];
-  if (data.variants !== undefined && data.variants !== null) {
-    if (!Array.isArray(data.variants)) {
-      push('VARIANT_INVALID', '「variants」必须是数组，元素形如 { text, note }');
+  let dynasty = null;
+  if (typeof data.dynasty === 'string' && data.dynasty.trim() !== '') {
+    const hit = lookupDynasty(data.dynasty);
+    if (hit) {
+      dynasty = hit.label;
     } else {
-      data.variants.forEach((item, i) => {
-        if (!isPlainObject(item) || typeof item.text !== 'string' || item.text.trim() === '') {
-          push('VARIANT_INVALID', `variants[${i}] 必须是含非空字符串 text 的对象，形如 { text, note }`);
-          return;
-        }
-        if (item.note !== undefined && item.note !== null && typeof item.note !== 'string') {
-          push('VARIANT_INVALID', `variants[${i}].note 必须是字符串或留空`);
-          return;
-        }
-        variants.push({ text: item.text, note: item.note ?? null });
-      });
+      const raw = data.dynasty;
+      const norm = raw.normalize('NFC').trim();
+      const looksSame = norm !== raw && lookupDynasty(norm) !== undefined;
+      const head = looksSame
+        ? `dynasty 的值 \`${vis(raw)}\` 不等于任何一个组名：去掉首尾空白并按 NFC 归一后是 \`${norm}\`（源里有不可见字符或非 NFC 写法），请把源值照抄成 \`${norm}\`。`
+        : `dynasty 的值 \`${vis(raw)}\` 不等于任何一个组名（不做别名归一，也不做繁简折叠：「漢」与「汉」在编码上是两个字）。`;
+      const tail = `可用组名（按显示次序）：${dynastyLabels().join(' / ')}。不做别名映射（\`东汉\` 不会静默归到 \`汉\`，\`三国\` 不会归到 \`魏晋\`）；要新增一个组，必须显式登记进注册表（tools/lib/dynasties.mjs）并同步契约 §1.3 与两端的组名清单。`;
+      push('DYNASTY_UNDECLARED', `${head}${tail}`, keyLine('dynasty'));
     }
   }
 
-  // orderInSource：可选，底本原次序（整数）；缺失视为未提供，不报错
+  // orderInSource：可选，底本原次序（整数 ≥ 1）；缺失视为未提供，不报错
   let orderInSource = null;
   if (data.orderInSource !== undefined && data.orderInSource !== null) {
-    if (typeof data.orderInSource !== 'number' || !Number.isInteger(data.orderInSource)) {
-      push('ORDER_IN_SOURCE_NOT_INTEGER', `「orderInSource」必须是整数，实际是 ${JSON.stringify(data.orderInSource)}`);
+    if (typeof data.orderInSource !== 'number' || !Number.isInteger(data.orderInSource) || data.orderInSource < 1) {
+      push('ORDER_IN_SOURCE_NOT_INTEGER', `「orderInSource」必须是 ≥ 1 的整数，实际是 ${JSON.stringify(data.orderInSource)}`, keyLine('orderInSource'));
     } else {
       orderInSource = data.orderInSource;
     }
   }
 
-  // 正文：契约第 3 节第 3、5 条
-  const bodyRaw = bodyLines.join('\n');
-  const stanzas = buildStanzas(bodyLines);
-  if (bodyRaw === '') {
-    push('BODY_EMPTY', '正文为空（只有 front matter）', bodyLineOffset);
-  } else if (stanzas.length === 0 || stanzas.every((s) => s.length === 0)) {
-    push('STANZAS_ALL_EMPTY', '正文只有空行，没有任何诗句行（stanzas 全空）', bodyLineOffset);
+  // ── 正文：先跟踪围栏，再切节（围栏内的 `##` 不算分界）──
+  /** @type {{line: number, text: string}[]} */
+  const originLines = [];
+  /** @type {{name: string, line: number, content: string[]}[]} */
+  const sections = [];
+  /** @type {{name: string, line: number, content: string[]}|null} */
+  let current = null;
+  let inFence = false;
+  let fenceOpenLine = -1;
+  let fenceChar = '';
+
+  for (let k = 0; k < bodyLines.length; k++) {
+    const line = bodyLines[k];
+    const lineNo = bodyLineOffset + k;
+    const fch = fenceMarker(line);
+    if (fch) {
+      if (!inFence) {
+        inFence = true;
+        fenceOpenLine = lineNo;
+        fenceChar = fch;
+        push('MD_CODE_FENCE', codeFenceMessage(line), lineNo);
+      } else if (fch === fenceChar) {
+        inFence = false;
+      }
+      (current ? current.content : originLines).push({ line: lineNo, text: line });
+      continue;
+    }
+    if (!inFence) {
+      const secM = SECTION_RE.exec(line);
+      if (secM) {
+        current = { name: secM[1].trim(), line: lineNo, content: [] };
+        sections.push(current);
+        continue;
+      }
+    }
+    if (current && !inFence) {
+      const d = checkMarkdownLine(line);
+      if (d) push(d.code, d.message, lineNo);
+    } else if (!current && !inFence) {
+      // 原文区不走 Markdown：诗行里的 `**`、`- ` 原样保留。只单拎一条——行首 `#`
+      // 在原文里唯一可能的意思就是「节标题少打/多打了一个空格」（否则会静默变成一行诗）。
+      if (/^\s*#/.test(line)) {
+        const d = checkMarkdownLine(line);
+        if (d) push(d.code, d.message, lineNo);
+      }
+    }
+    (current ? current.content : originLines).push({ line: lineNo, text: line });
+  }
+  if (inFence) {
+    push(
+      'MD_FENCE_UNCLOSED',
+      `第 ${fenceOpenLine} 行打开的围栏到文件末尾都没有闭合。必须先跟踪围栏状态才能报出这一条（否则后面所有内容都会被吞进当前节，静默丢内容）。`,
+      fenceOpenLine,
+    );
   }
 
-  if (errors.length > 0) return { poem: null, errors, idRaw };
+  // 节名判定：未知节 / 重复节（重复节诊断落在**第二次**出现的那一行，并列出全部行号）
+  /** @type {Map<string, number[]>} */
+  const seenAt = new Map();
+  for (const sec of sections) {
+    const lines = seenAt.get(sec.name);
+    if (lines === undefined) {
+      seenAt.set(sec.name, [sec.line]);
+    } else {
+      lines.push(sec.line);
+      push(
+        'DUPLICATE_SECTION',
+        `重复的节标题：\`## ${sec.name}\` 出现 ${lines.length} 次（${lines.map((n) => `第 ${n} 行`).join('、')}）。本工具不取「后者覆盖前者」也不拼接（两者都会静默丢内容）：请合并成一段，或删掉多余的那一个。`,
+        sec.line,
+      );
+    }
+    if (!KNOWN_SECTIONS.includes(sec.name)) {
+      const known = sections
+        .filter((s) => KNOWN_SECTIONS.includes(s.name))
+        .map((s) => `\`## ${s.name}\`（第 ${s.line} 行）`);
+      push(
+        'UNKNOWN_SECTION',
+        `未知的节标题：\`## ${sec.name}\`（第 ${sec.line} 行）。本格式只认两个节：\`## 详情\`、\`## 笔记\`${known.length ? `；本文件已出现的已知节：${known.join('、')}` : ''}。若确实要新增一个节，请先把它加进契约与两端的节名清单，不要只改源文件。`,
+        sec.line,
+      );
+    }
+  }
 
+  // 原文分段
+  const stanzas = buildStanzas(originLines.map((l) => l.text));
+  if (stanzas.length === 0) {
+    push('BODY_EMPTY', '正文区（front matter 之后、第一个 `## ` 之前）没有任何非空行 ⇒ 没有可读的诗行。', bodyLineOffset);
+  }
+
+  const detailSec = sections.find((s) => s.name === SECTION_DETAIL);
+  const notesSec = sections.find((s) => s.name === SECTION_NOTES);
+  /** 中间结果（**仅供参考**；有诊断时不会写产物）——留给测试核对「围栏里的 `##` 有没有把正文切走」。 */
+  const draft = {
+    stanzas,
+    detail: detailSec ? sectionText(detailSec.content.map((c) => c.text)) : null,
+    notes: notesSec ? sectionText(notesSec.content.map((c) => c.text)) : null,
+  };
+
+  if (errors.length > 0) {
+    errors.sort((a, b) => (a.line ?? 0) - (b.line ?? 0) || a.code.localeCompare(b.code));
+    return { poem: null, errors, id: record.id, draft };
+  }
+
+  /** 每首 10 键，缺值写 `null` 保键（客户端形状恒定）。 */
   const poem = {
-    id: /** @type {string} */ (data.id),
+    id: record.id,
     title: /** @type {string} */ (data.title),
     author: /** @type {string} */ (data.author),
-    dynastyKey: /** @type {NonNullable<typeof dynasty>} */ (dynasty).key,
-    dynastyLabel: /** @type {NonNullable<typeof dynasty>} */ (dynasty).label,
-    dynastyOrder: /** @type {NonNullable<typeof dynasty>} */ (dynasty).order,
-    era: data.era ?? null,
-    genre: data.genre ?? null,
+    dynasty: /** @type {string} */ (dynasty),
+    genre: genre ?? null,
     source: /** @type {string} */ (data.source),
     orderInSource,
-    variants,
+    detail: draft.detail,
     stanzas,
-    notes: data.notes ?? null,
+    notes: draft.notes,
   };
-  return { poem, errors: [], idRaw };
+  return { poem, errors: [], id: record.id, draft };
 }
 
 /**
@@ -251,7 +346,6 @@ export function collatorRankMap(values) {
 /**
  * **编译期内部**的排序名次（不发布）：返回与传入数组同序的整数名次数组。
  * 佚名/未知作者的名次统一大于所有具名作者 —— 显式规则，不靠字符串碰巧。
- * 产物里不再写这两个名次（见 interface.mjs 的 INTERNAL_SORT_KEYS）。
  * @param {any[]} poems
  * @returns {{authorKeys: number[], titleKeys: number[]}}
  */
@@ -272,8 +366,7 @@ export function computeSortKeys(poems) {
 }
 
 /**
- * 组内排序。两种策略共用同一套拼音名次（**编译期算，不写进产物**），
- * 差别只在“底本原次序”这一层的优先级：
+ * 组内排序。组序由注册表决定（每首诗的 `dynasty` → order），组内：
  *   pinyin：作者拼音 → 诗名拼音（佚名/未知作者在组内排最后，显式规则）
  *   source：先 orderInSource（有值者在先、升序）→ 再作者拼音 → 再诗名拼音
  * 同组同作者同诗名时以 id 兜底，保证顺序确定。
@@ -294,7 +387,9 @@ export function sortPoems(poems, strategy = DEFAULT_ORDER_STRATEGY) {
   const hasSourceIndex = (p) => Number.isInteger(p.orderInSource);
 
   poems.sort((a, b) => {
-    if (a.dynastyOrder !== b.dynastyOrder) return a.dynastyOrder - b.dynastyOrder;
+    const da = dynastyOrderOf(a.dynasty);
+    const db = dynastyOrderOf(b.dynasty);
+    if (da !== db) return da - db;
     if (strategy === 'source') {
       const sa = hasSourceIndex(a) ? 0 : 1;
       const sb = hasSourceIndex(b) ? 0 : 1;
@@ -313,7 +408,7 @@ export function sortPoems(poems, strategy = DEFAULT_ORDER_STRATEGY) {
 /**
  * 从已读入的文件记录构建产物 JSON。
  * @param {{
- *   records: {displayPath: string, base: string, text: string}[],
+ *   records: {displayPath: string, id: string, text: string}[],
  *   explicitVersion?: string|null,
  *   previousVersion?: string|null,
  *   generatedAt?: string,
@@ -332,8 +427,8 @@ export function buildContentFromRecords({
   const errors = [];
   /** @type {any[]} */
   const poems = [];
-  /** @type {Map<string, string>} */
-  const idToFile = new Map();
+  /** @type {Map<string, {id: string, paths: string[]}>} */
+  const byKey = new Map();
 
   if (records.length === 0) {
     errors.push(
@@ -342,20 +437,26 @@ export function buildContentFromRecords({
   }
 
   for (const rec of records) {
-    const { poem, errors: fileErrors, idRaw } = validatePoemRecord(rec);
-    errors.push(...fileErrors);
-    if (idRaw !== null) {
-      const prev = idToFile.get(idRaw);
-      if (prev !== undefined) {
-        errors.push(
-          new ContentError('ID_DUPLICATE', `id「${idRaw}」重复：${prev} 与 ${rec.displayPath}`, {
-            file: rec.displayPath,
-          }),
-        );
-      } else {
-        idToFile.set(idRaw, rec.displayPath);
-      }
+    // 全库判重：NFC ＋ 小写折叠后比拼接 ID。把 `/` 换成 `-` 之后，「路径拼出的 `-`」与
+    // 「文件名里本来就有的 `-`」会同形 ⇒ 两个不同路径可能算出同一个 ID（不静默覆盖）。
+    const key = dedupeKey(rec.id);
+    const slot = byKey.get(key);
+    if (slot === undefined) {
+      byKey.set(key, { id: rec.id, paths: [rec.displayPath] });
+    } else {
+      slot.paths.push(rec.displayPath);
+      errors.push(
+        new ContentError(
+          'ID_DUPLICATE',
+          `按相对路径派生的 id「${slot.id}」撞车（NFC ＋ 大小写折叠后相同），共出现 ${slot.paths.length} 次：\n` +
+            slot.paths.map((p) => `      - ${p}`).join('\n') +
+            `\n    把 \`/\` 统一写成 \`-\` 之后，路径拼出的 \`-\` 与文件名里本来就有的 \`-\` 会同形 ⇒ 两个不同路径可能算出同一个 ID。请改文件名或目录层级让它们不同。`,
+          { file: rec.displayPath },
+        ),
+      );
     }
+    const { poem, errors: fileErrors } = parsePoemRecord(rec);
+    errors.push(...fileErrors);
     if (poem) poems.push(poem);
   }
 
@@ -365,14 +466,10 @@ export function buildContentFromRecords({
 
   sortPoems(poems, orderStrategy);
 
-  /** 只列实际有内容的组，按 order 升序 */
-  const dynastyByKey = new Map();
-  for (const p of poems) {
-    if (!dynastyByKey.has(p.dynastyKey)) {
-      dynastyByKey.set(p.dynastyKey, { key: p.dynastyKey, label: p.dynastyLabel, order: p.dynastyOrder });
-    }
-  }
-  const dynasties = [...dynastyByKey.values()].sort((a, b) => a.order - b.order);
+  /** 顶层 `dynasties` ＝ **有序中文值数组**（只列实际有内容的组，次序即注册表 order 升序）。 */
+  const dynasties = [...new Set(poems.map((p) => p.dynasty))].sort(
+    (a, b) => dynastyOrderOf(a) - dynastyOrderOf(b) || (a < b ? -1 : a > b ? 1 : 0),
+  );
 
   const digestHex = contentDigest({ formatVersion: FORMAT_VERSION, dynasties, poems });
   let resolved;
@@ -393,9 +490,4 @@ export function buildContentFromRecords({
     poems,
   };
   return { content, errors: [], versionNotes: resolved.notes, contentVersion: resolved.version, orderStrategy };
-}
-
-/** 展示路径统一用正斜杠，跨平台输出稳定。 */
-export function toDisplayPath(p) {
-  return p.split(path.sep).join('/');
 }
