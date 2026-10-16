@@ -4,7 +4,9 @@
 
 - 更新时间：**2026-10-16**（承接负责人 `bff673a1-4708-41bf-ac1d-4a93f3af2800` 维护）
 - 阶段：**已发布 `0.1.2`（tag `v0.1.2+content-2026.10.16.23`，2026-10-16 S5 已执行）** —— CI 全绿（26 绿/0 黄/0 跳/0 红）、正式签名 `CN=Suofei`、Pages 已部署、Release 已建、Android 前馈清单已推进（`minAppVersionCode 3`）。读回见 [`docs/local-stage-delivery.md`](local-stage-delivery.md) §0b。
-- ⛔ **当前没有新的推送/发布授权（对话侧 2026-10-16 明确）**：`0.1.2` 的 S5 公开授权**已用在这一版上**；**本轮（Android 返回键本地修复 ＋ 下一批诗的录入准备）工程与文档都先本地提交，等用户下一次明确授权再推**。
+- **Android 系统返回已修（2026-10-16，本地）**：全工程原先**没有 `BackHandler`**（`grep` 零命中）⇒ 系统返回落到 Activity 默认＝**直接退出 app**（用户实测）。现在 `ui/Screens.kt` 的 `AppRoot` 里接一行 `BackHandler(enabled = state.screen != Screen.LIBRARY) { state.back() }`——**复用已有的 `AppState.back()`**（详情→那首诗、诗/关于→目录），**目录根不拦**（照旧让系统离开，无二次确认/双按退出），未引入 Navigation 库。
+  我自核：**Android 单测 149 用例 / 0 失败 / 0 跳过，EXIT 0**（真跑 `--no-build-cache --rerun-tasks`）＋**亲眼看图**（系统返回 keyevent、**真实点按三键返回 ◀**、手势内滑三路；根返回落到**桌面**、不是空白）＋ 目录**展开与滚动位置**返回后保留。实拍在 `docs/reviews/ui-review/materials-android-back/`。⇒ 已并入本地 master（merge `df9393a`）。
+  **本次未核**：pending 更新下的「详情→诗不采用新内容」只由**源码级守卫**钉住（JVM 造不出 pending、设备上未触发），predictive back **动画视觉**未验，旋转/进程重建仍是**既有**的「回到目录首页」行为（本次未改）。：`0.1.2` 的 S5 公开授权**已用在这一版上**；**本轮（Android 返回键本地修复 ＋ 下一批诗的录入准备）工程与文档都先本地提交，等用户下一次明确授权再推**。
   ⚠ 不要把「只推文档」当成不 push 的例外（我犯过一次：`0b2d415` 把 intake 文档推上去了，已披露）——**本地提交 ≠ 已发布**。
 - **交付包（用户只需看这一份，别在多台账里找）**：[`docs/local-stage-delivery.md`](local-stage-delivery.md) —— **§0b 是发布结果与线上读回**；其后是候选位置／构建身份与签名（**debug≠release**）、已验证据与原型差异、全套复跑 exit／数、19 首与 24 异文保真、新旧格式与旧 ID 影响、已知未验、授权边界、下一步。
 - **下一批诗的录入与核对流程（用户尚未给清单，先备好）**：[`docs/content-intake.md`](content-intake.md) —— 路径/ID 规则（含「题名自带 `-` 会与路径拼出的 `-` 撞车」这个真陷阱）、现格式 front matter（**不要再写 v1 的键**）、四步核对命令、
