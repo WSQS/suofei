@@ -1,0 +1,60 @@
+# 实施落点与依赖清单（S1–S5 的“具体打在哪”）
+
+> 用途：**准备，不执行**。当前**没有新授权**（用户问题 `q-2d2e3a1c`：是否允许已采纳范围的工程实现＋本地核验、可否一并 19 首迁移、不发 tag/Pages/Release、不碰手机）。
+> 关系：阶段划分与阶段出口见 `docs/status.md` 的「规则采用 ＋ 下一步实施/迁移/核验计划」；本文件是它的**落点明细**。
+> ⚠ **一条验收口径（写死）**：**测试绿 ≠ 设计符合**。每项 UI 必须按**归档原型逐项对照**（下表给了每项的采纳锚所在轮次）；测试只证明“没坏”，**不能代替对照**。
+
+## 1. S1 · 规则在编译器落地（打在哪）
+
+| 落点 | 改什么 |
+|---|---|
+| `tools/build-content.mjs` | `readRecords`（现第 114–140 行）→ **递归**扫描 `content/poems/` 之下；**ID＝相对路径去 `.md`、`/`→`-`**；**排除**（`README*`、`_` 前缀、隐藏/临时文件⇒忽略并计数；非 `.md` ⇒ 报错）；**判重**（NFC＋大小写折叠后比拼接 ID，撞⇒报错并列路径）。同时：`## 详情`/`## 笔记` 解析＋**围栏状态机**（围栏内 `##` 不切、围栏出现即报错、未闭合报错）＋**未知节/重复节报错**＋**空节⇒`null` 保键**＋**未闭合强调报错** |
+| `tools/lib/interface.mjs` | `ID_REGEX`／`ID_PATTERN` → **正面约束**（非空／不含 `/`／不含控制字符） |
+| `tools/lib/dynasties.mjs` | **去掉 `trim()`** ⇒ 精确匹配（**与契约统一；不得称“当前已符合”**） |
+| `tests/` | 逐条断言 **12 份非法夹具的诊断码与文案**＋合法样例 EXIT 0＋判重夹具必红＋空节 `null` 保键 |
+| `docs/design/content-contract.md` | **码表进契约**（`UNKNOWN_SECTION`／`DUPLICATE_SECTION`／`MD_*`／`MD_EMPHASIS_UNCLOSED`／`DYNASTY_UNDECLARED` …）＋精确匹配写法与源一致 |
+
+**阶段出口**：合法样例 EXIT 0；12 份非法夹具逐条诊断；`npm test` 全绿（含新增例）。
+
+## 2. S2 · 字段集升版＋**四页 UI 落地**（不只是 Markdown 渲染）
+
+### 2.1 字段与产物
+| 落点 | 改什么 |
+|---|---|
+| `tools/build-content.mjs` | 每首 **10 键**：`id,title,author,dynasty,genre,source,orderInSource,detail,stanzas,notes`（缺值 `null` 保键）；顶层 `dynasties` ＝ **有序中文值数组**（不再是 `[{key,label,order}]`） |
+| `schema/content.schema.json` | 键集与 `id` pattern 同步 |
+| `schema/format-version.json` ＋ `tools/check-fieldset.mjs` | **`formatVersion` 1 → 2（不可逆）**；冻结记录更新 |
+
+### 2.2 两端 UI（**每一项都要有采纳锚可对照**）
+| 页面/项 | 采纳锚（归档轮次） | Web 落点 | Android 落点 |
+|---|---|---|---|
+| 目录页（悬挂＋竖直居中／缩进 0／作者紧随题名／关于在顶） | `round-2026-10-15-hub-hierarchy`／`hub-horizontal`／`hub-align` | `web/styles.css`、`web/app/render.js` | `ui/Theme.kt`、`ui/StructuralMarks.kt`、`ui/Screens.kt` |
+| 诗页 P1/P2 ＋ **全部居中** | `round-2026-10-15-poem-expression`／`poem-align`（锚 `#d4-all`） | `render.js`、`styles.css` | `ui/PoemHead.kt`、`ui/Screens.kt` |
+| **语义断行**（够宽保原行；超宽按句读；多标点取当前行放得下最后一个；无标点或半句超宽⇒行尾字符断且余文续行；逗号句号不起行） | `round-2026-10-16-break-semantic`／`round-2026-10-16-break` | `render.js`（渲染层分行；**不改源 MD**） | 同一规则**各做一次**（Compose 侧无现成能力） |
+| **宽度口径** `C=min(V,max(320,0.88×(V−24)))`（24 是扣除总量、上界=视口 V） | `round-2026-10-16-width-pct` | `styles.css` | `ui/Theme.kt` |
+| 笔记：**② 顶部入口 ＋ 正文下方内联（无框）**；无笔记整块隐藏 | `round-2026-10-16-poem-note` | `render.js`、`styles.css` | `ui/Screens.kt` |
+| 详情页：诗题①左对齐／来源①正文前带标签／小标题①eyebrow **无竖线** | `round-2026-10-16-detail` | `render.js`＋**Markdown 渲染**（补 `### `/`> `/`1. `） | `ui/Screens.kt`＋**从零新增最小 Markdown 渲染** |
+| 关于页：**A3 次序／无来源／C1 完整 URL／无框**／更新处**V3 标签左对齐**／**初态只按钮无占位**／状态文案取自 `UpdateStatusText` | `round-2026-10-16-about`／`about-min`／`about-update` | `render.js`、`styles.css` | `ui/Screens.kt`、`ui/UpdateStatusText.kt` |
+| 分组/身份行随字段变 | — | `content.js`（组名精确匹配）、`render.js`（身份行＝作者·朝代·体裁） | `data/ContentParser.kt`、`data/Domain.kt`（`groupBy` 用中文 `dynasty`）、`ui/ScreenContent.kt`（身份行顺序） |
+
+**两端一致**：**同一份最小范围定义**＋**对照测试**（同一 MD 两端渲染结果对照）；Markdown 渲染范围见 `items/content-format/prototypes/rules-v4/md-subset.md`。
+
+### 2.3 **不自动纳入**（用户未选／未授权）
+「来源」是否显示；失败态是否换色；1180 行长是否设限；U1–U5/折叠/步骤/分区/多动作；未批准的新状态功能（有新内容可用／下载中+进度／校验中／待切换／延后）。
+
+**阶段出口**：`check-fieldset` 键路径逐项一致；**逐项原型对照清单签核**（按上表锚点）；两端测试绿。
+
+## 3. S3 · 19 首迁移
+| 落点 | 改什么 |
+|---|---|
+| `content/poems/**` | 按 `manifest/19-changes.json` 搬进 `content/poems/古诗十九首/<诗题>.md` |
+| 内置产物同源 | `tools/check-bundled-content.mjs`＋Android `assets/content/content.json`＋Web 本地内容（发布线一并同步） |
+
+**阶段出口**：dry-run 报告＋19 首新旧对照；**判重夹具必红**；组内次序仍 `orderInSource`。
+
+## 4. 依赖顺序（别并行到一半撞车）
+**S1 → S2（字段与两端渲染必须同批，否则新内容解析不了）→ S3（依赖 S1 的递归扫描与判重）→ S4（覆盖升级与热更验收）→ S5（发布）**。
+S4/S5 的授权见 `docs/status.md`；**S3 动真实内容、S5 对外发布，各自单独授权**。
+
+## 5. 本文件的性质
+**准备材料**：不含任何代码改动、不改 `content/`、不迁移、不发布。落地与否**等用户对 `q-2d2e3a1c` 的答复**。
