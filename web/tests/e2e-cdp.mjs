@@ -1043,6 +1043,9 @@ async function main() {
     ABOUT, { appName: aboutSpec.appName, repoUrl: aboutSpec.repoUrl, fields: aboutSpec.fields });
   // 4 项＝采纳锚（用户 `q-9f9eca3d`：应用名／应用版本／内容版本／仓库链接）；
   // 「一句话说明」与「诚实的限制」未采纳 ⇒ 不在共享字段集里（后者仍可在页脚状态面板里）。
+  // 排布＝采纳锚 A3／V3（`items/app-ui/history/round-2026-10-16-about-min/` 的 ARCHIVE）：
+  //   应用名当页标题、版本组（标签左对齐＝四条线合一）、仓库链接置底裸 URL；
+  //   归档实测值：线 A 内容左沿 16.8px／线 D 值列左沿 93.02px（Web 无更新块 ⇒ 控件那两条线不适用）。
   eq('共享字段集＝采纳锚的 4 项', aboutSpec.fields, ['应用名', '应用版本', '内容版本', '仓库链接']);
   check('目录页有「关于」入口', await evaluate(`Boolean(document.querySelector('[data-test="about-link"]'))`));
   eq('「关于」入口的地址是 #/about',
@@ -1050,32 +1053,76 @@ async function main() {
   await evaluate(`document.querySelector('[data-test="about-link"]').click(); true`);
   await waitForAboutView();
   const aboutInfo = await evaluate(`(() => {
-    const dl = document.querySelector('[data-test="about-fields"]');
+    const view = document.querySelector('[data-test="view-about"]');
+    const hostL = document.querySelector('[data-test="view"]').getBoundingClientRect().left; /* 内容列左沿 */
+    const r2 = (n) => Math.round(n * 100) / 100;
+    /* 文字**墨迹**左沿（不是盒子左沿）：用 Range 量文本自身 —— V3 的「四条线」指的是文字左沿 */
+    const inkLeft = (el) => {
+      if (!el) return null;
+      const rng = document.createRange();
+      rng.selectNodeContents(el);
+      return r2(rng.getBoundingClientRect().left - hostL);
+    };
+    const boxLeft = (el) => (el ? r2(el.getBoundingClientRect().left - hostL) : null);
+    const group = document.querySelector('[data-test="about-version-group"]');
+    const labels = [...group.querySelectorAll('[data-test="about-label"]')];
+    const title = document.querySelector('[data-test="about-app-name"]');
+    const repo = document.querySelector('[data-test="about-repo-url"]');
     return {
-      labels: [...dl.querySelectorAll('dt')].map(e => e.textContent),
-      appName: document.querySelector('[data-test="about-app-name"]')?.textContent,
+      labels: labels.map(e => e.textContent),
+      appName: title ? title.textContent : null,
+      appNameTag: title ? title.tagName : null,
       appVersion: document.querySelector('[data-test="about-app-version"]')?.textContent,
       contentVersion: document.querySelector('[data-test="about-content-version"]')?.textContent,
-      repoUrl: document.querySelector('[data-test="about-repo-url"]')?.textContent,
+      repoUrl: repo ? repo.textContent : null,
+      labelAligns: labels.map(e => getComputedStyle(e).textAlign),
+      titleInkLeft: inkLeft(title),
+      labelInkLefts: labels.map(inkLeft),
+      valueLefts: [...group.querySelectorAll('[data-test="about-app-version"], [data-test="about-content-version"]')].map(boxLeft),
+      repoInkLeft: inkLeft(repo),
+      versionCount: group.querySelectorAll('.about-kv').length,
+      dtCount: view.querySelectorAll('dt').length,
+      hasAppNameLabel: view.textContent.includes('应用名'),
+      hasRepoLabel: view.textContent.includes('仓库链接'),
+      hasBrowserHint: view.textContent.includes('在浏览器打开'),
+      groupBorderTopWidth: getComputedStyle(group).borderTopWidth,
+      groupBg: getComputedStyle(group).backgroundColor,
     };
   })()`);
-  eq('关于页的字段标签 == 唯一来源里的同一批字段', aboutInfo.labels, aboutSpec.fields);
-  eq('应用名', aboutInfo.appName, aboutSpec.appName);
+  // A3 结构：标签行只剩「应用版本／内容版本」；应用名＝页标题（h1）；仓库链接＝置底裸 URL
+  eq('关于页「标签行」＝唯一来源里的两项（应用版本／内容版本）', aboutInfo.labels, aboutSpec.fields.slice(1, 3));
+  eq('共享字段集第 1 项（应用名）＝**页标题**（h1），不是标签行',
+    { tag: aboutInfo.appNameTag, text: aboutInfo.appName }, { tag: 'H1', text: aboutSpec.appName });
   includes('应用版本 = 站点资源版本', aboutInfo.appVersion, APP_VERSION);
   includes('内容版本写明内容版本', aboutInfo.contentVersion, baseDoc.contentVersion);
-  eq('仓库链接＝采纳锚定的完整 URL（C1；不加「在浏览器打开」提示）', aboutInfo.repoUrl, aboutSpec.repoUrl);
+  eq('共享字段集第 4 项（仓库链接）＝置底 C1 完整 URL 的裸文本', aboutInfo.repoUrl, aboutSpec.repoUrl);
+  check('关于页不再画「应用名」「仓库链接」两行标签（采纳锚 A3/V3：那两项分别是页标题与置底 URL）',
+    aboutInfo.dtCount === 0 && !aboutInfo.hasAppNameLabel && !aboutInfo.hasRepoLabel,
+    dump({ dtCount: aboutInfo.dtCount, hasAppNameLabel: aboutInfo.hasAppNameLabel, hasRepoLabel: aboutInfo.hasRepoLabel }));
+  check('仓库链接不加「在浏览器打开」提示（C1）', !aboutInfo.hasBrowserHint,
+    dump({ hasBrowserHint: aboutInfo.hasBrowserHint }));
+  // V3：四条线合一 —— 页标题／本条版本标签文字／仓库链接都落在**内容左沿**（归档实测 16.8px，容差 0.75）
+  const near = (a, b, tol) => a !== null && Math.abs(a - b) <= tol;
+  eq('关于页 V3：版本标签**左对齐**（采纳锚 V3）', aboutInfo.labelAligns, ['left', 'left']);
+  check('关于页 V3 **四条线合一**：页标题／两条版本标签文字／仓库链接都落在内容左沿（归档实测 16.8px；容差 0.75）',
+    near(aboutInfo.titleInkLeft, 16.8, 0.75)
+      && aboutInfo.labelInkLefts.length === 2
+      && aboutInfo.labelInkLefts.every(v => near(v, 16.8, 0.75))
+      && near(aboutInfo.repoInkLeft, 16.8, 0.75),
+    dump({ titleInkLeft: aboutInfo.titleInkLeft, labelInkLefts: aboutInfo.labelInkLefts, repoInkLeft: aboutInfo.repoInkLeft, expected: 16.8 }));
+  // V3：两条版本值仍在**同一条值列**上（归档实测 93.02px；＝内容左沿 16.8 ＋ 标签列 68.22 ＋ 缝 8 ⇒ 离内容左沿 76.22）
+  check('关于页 V3：两条版本值在同一**值列**上（归档实测 93.02px；离内容左沿 76.22px）',
+    aboutInfo.versionCount === 2
+      && near(aboutInfo.valueLefts[0], 93.02, 0.75)
+      && aboutInfo.valueLefts[0] === aboutInfo.valueLefts[1],
+    dump({ versionCount: aboutInfo.versionCount, valueLefts: aboutInfo.valueLefts, expected: 93.02 }));
   check('关于页不再有「一句话说明」与「诚实的限制」两行（未采纳；`q-9f9eca3d`）',
     !(await evaluate(`Boolean(document.querySelector('[data-test="about-tagline"]') || document.querySelector('[data-test="about-honest-limits"]'))`)));
   eq('「诚实的限制」原文仍只在页脚状态面板里（不新写、也不在关于页重复）',
     await evaluate(`document.querySelector('[data-test="honest-storage-note"]')?.textContent`), HONEST_STORAGE_NOTE);
-  const aboutBox = await evaluate(`(() => {
-    const cs = getComputedStyle(document.querySelector('[data-test="about-fields"]'));
-    const dt = document.querySelector('[data-test="about-fields"] dt');
-    return { borderTopWidth: cs.borderTopWidth, borderTopStyle: cs.borderTopStyle, bg: cs.backgroundColor, dtAlign: getComputedStyle(dt).textAlign };
-  })()`);
-  check('关于页无区域框（无边框、无底色；采纳锚 about-min）',
-    aboutBox.borderTopWidth === '0px' && aboutBox.borderTopStyle === 'none' && aboutBox.bg === 'rgba(0, 0, 0, 0)', dump(aboutBox));
-  eq('关于页 V3：标签左对齐', aboutBox.dtAlign, 'left');
+  check('关于页无区域框（版本组无边框、无底色；采纳锚 about-min）',
+    aboutInfo.groupBorderTopWidth === '0px' && aboutInfo.groupBg === 'rgba(0, 0, 0, 0)',
+    dump({ borderTopWidth: aboutInfo.groupBorderTopWidth, bg: aboutInfo.groupBg }));
   check('关于页没有「更新」块（Web 的更新交给 SW；Android 在那页里多一块）',
     !(await evaluate(`Boolean(document.querySelector('[data-test="view-about"] [data-test="check-site-update"]'))`)));
   eq('关于页「返回」指向目录',
