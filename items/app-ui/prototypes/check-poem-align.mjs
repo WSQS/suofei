@@ -8,17 +8,19 @@
  *     ② content/poems/gushi-shijiu-shou-01.md —— 用它的正文 8 行做「原文逐行一致」的基准。
  *
  * 它断言什么（失败任一即 exit 1；全部在 **430 宽、DPR 2** 下量）：
- *  [1] 结构：3 个维度组（d1 4 块 / d2 3 块 / d3 2 块，共 **9 块**）；每块一个页面实例，实例必有
- *      题名／身份行／返回（恰 1）／详情（恰 1）／原文 8 行；**正文之后没有页脚行**（`[data-test="foot"]` 全页 0 个）；
- *      原文逐行＝源文件 8 行；身份行＝「佚名 · 汉 · 五言古诗」；d1／d2 的题名＝真实题名，d3 的题名是**夹具**
- *      （≠真实题名、自身写明「不是真实数据」）。反向断言：应用层文本里不出现 细时代／底本／来源／异文／文选／李善／搜索；
+ *  [1] 结构：**4 个维度组**（d1 4 块 / d2 3 块 / d3 2 块 / d4 4 块，共 **13 块**）；每块一个页面实例，实例必有
+ *      题名／身份行／返回（恰 1）／详情（恰 1）／原文 8 行（**唯一例外**：d4-fx-line 多一行夹具长句 ⇒ 9 行、2 段）；
+ *      **正文之后没有页脚行**（`[data-test="foot"]` 全页 0 个）；
+ *      原文前 8 行逐行＝源文件 8 行；身份行＝「佚名 · 汉 · 五言古诗」；d1／d2 的题名＝真实题名，d3／d4-fx-title 的题名是**夹具**
+ *      （≠真实题名、自身写明「不是真实数据」），d4-fx-line 多出来那一行也是**夹具长句**（自身写明「不是真实数据」）。
+ *      反向断言：应用层文本里不出现 细时代／底本／来源／异文／文选／李善／搜索；
  *      **整页可见文本里没有「笔记」二字**，`[data-test="notes"]` 用 querySelector 查 **为 null**（本轮不收那个入口，也不留占位）。
  *  [2] 430 真实验收：`innerWidth === 430 === documentElement.scrollWidth === body.scrollWidth`；所有可见元素的矩形、
- *      以及**所有文本矩形**（Range 逐行量的字形范围）都在 0…430 之内；9 个块**各恰 430 宽、左沿 0**；9 个页面实例同样。
+ *      以及**所有文本矩形**（Range 逐行量的字形范围）都在 0…430 之内；13 个块**各恰 430 宽、左沿 0**；13 个页面实例同样。
  *  [3] 排版权重：题名 24px/500/字距 2.4px；身份行 12.48px + --text-faint；原文 17px/行高 34px/字距 0.765px；
- *      控件 13.12px/--text-dim/无边框无底色；且 9 个实例**完全一致**（本轮固定）。
- *  [4] 固定不变的纵向几何：9 个实例一律 题名→身份 11.2px、身份→原文首行 33.6px、顶部行顶到题名顶的差**同一个值**
- *      ⇒ 三个维度里动的只有水平方向（这是「逐维度干净对照」的实测依据）。
+ *      控件 13.12px/--text-dim/无边框无底色；且 13 个实例**完全一致**（本轮固定）。
+ *  [4] 固定不变的纵向几何：13 个实例一律 题名→身份 11.2px、身份→原文首行 33.6px、顶部行顶到题名顶的差**同一个值**
+ *      ⇒ 四个维度里动的只有水平方向（这是「逐维度干净对照」的实测依据）。
  *  [5] 维度一（左沿关系，4 块实测）：① 基线 题名/身份行/正文首行 左沿都是 16.8px；
  *      ② 题名更左 0px（身份行/正文仍 16.8px）；③ 题名更右 50.8px（＝16.8＋2 字符 34px）；④ 正文首行缩进 2 字符 ⇒ 50.8px，
  *      正文其余行 16.8px，题名/身份行仍 16.8px。四块的内容右沿都 ≤ 413.2px（不挤进右内沿）。
@@ -35,9 +37,13 @@
  *  [10] 自包含：CDP Network 里非 file:// 请求 0 个；页面文本无 `<link`／`src=`／`@import`／`http(s)://`；全程无 JS 报错。
  *  [11] 令牌快照逐项比对：快照里每个令牌与 prototype/css/theme-tech.css **同名值逐字相同**（不一致数必须 0）；
  *      没有「声明了却没用」的令牌，页面用到的每个 `var(--x)` 都有声明；并打印页内记录的短 sha / 当前 HEAD / 该 css 是否干净。
- *  [12] 430 图：`#shot` 看图模式**只显示一条横幅**（不改排布）；截图 `q-poem-align.430.png`，PNG 头里的宽必须 ＝ **860px**（430×DPR2）。
- *  [13] 宽屏 1180：仍无横向溢出，9 块仍固定 430 宽。
- *  [14] **边界（两种「找不到就如实退出，不假装通过」，都是真的把本脚本再跑一遍）**：
+ *  [12] **维度四（居中范围，4 块实测）**：④a `d4-all` 全部居中 —— 题名（逐视觉行）／身份行／正文**每一行**的文字中心
+ *      ≈ **列中心 215px**（＝[16.8, 413.2] 的中点）；④b `d4-head` 仅题头居中 —— 题名/身份行居中、**正文逐行与维度一① 基线完全一致**；
+ *      ④d `d4-fx-title` 长夹具题名折 2 行、**两行各自居中**；④e `d4-fx-line` 夹具长句在 430 下折成**恰好 2 个视觉行**、
+ *      **两行各自居中**（逐视觉行打印 左沿/右沿/中心）；且四块的**顶部行左右沿一点不变**（16.8／413.2 —— 居中不作用于顶部行）。
+ *  [13] 430 图：`#shot` 看图模式**只显示一条横幅**（不改排布）；截图 `q-poem-align.430.png`，PNG 头里的宽必须 ＝ **860px**（430×DPR2）。
+ *  [14] 宽屏 1180：仍无横向溢出，13 块仍固定 430 宽。
+ *  [15] **边界（两种「找不到就如实退出，不假装通过」，都是真的把本脚本再跑一遍）**：
  *      a. `CHROME_BIN` 指到一个不存在的路径 ⇒ 子进程必须 **exit 2** 并在 stderr 写「找不到无头 Chromium」；
  *      b. 把脚本拷到**仓库外**再跑（向上找不到 `prototype/css/theme-tech.css`）⇒ 子进程必须 **exit 2** 并在 stderr 写「找不到仓库根」。
  *
@@ -45,7 +51,7 @@
  *   CHROME_BIN='C:/Users/wsqsy/AppData/Local/Chromium/Application/chrome.exe' \
  *     node items/app-ui/prototypes/check-poem-align.mjs
  *   node items/app-ui/prototypes/check-poem-align.mjs --no-shot        # 只跑断言，不重出 PNG
- *   node items/app-ui/prototypes/check-poem-align.mjs --no-boundary    # 跳过 [14] 的自调子进程
+ *   node items/app-ui/prototypes/check-poem-align.mjs --no-boundary    # 跳过 [15] 的自调子进程
  * 需要什么：
  *   - Node（用内置 fetch／WebSocket／net，本机实测 v25.9.0 通过）；
  *   - **本机无头 Chromium 的可执行文件**：环境变量 `CHROME_BIN` → 否则按
@@ -98,6 +104,7 @@ const MD_PATH = join(ROOT, 'content', 'poems', 'gushi-shijiu-shou-01.md');
 // ── 本页的口径（都是「草案值／固定值」的推导结果，见 q-poem-align.html 的 DRAFT-VALUES）──
 const EDGE = 16.8;          // --edge-x = 1.05rem：内容左右内沿
 const CONTENT_RIGHT = W - EDGE;   // 413.2：内容右沿
+const COL_CENTER = (EDGE + CONTENT_RIGHT) / 2;   // 215.0：内容列的中点（＝「列中心」，两边刚好对称）
 const UNIT2 = 34;           // --indent-2ch = 2 × 17px：「2 字符」= 34px
 const TOL = 0.6;            // 左沿／行高等的容差
 const TOL_R = 1.0;          // 右沿（控件尾部字距可能算进字符推进宽度）→ 松一点
@@ -348,6 +355,8 @@ async function run() {
           notes: p.querySelectorAll('[data-test="notes"]').length,
           notesHead: p.querySelectorAll('[data-test="notes-head"]').length,
           fxban: p.querySelectorAll('[data-test="fxban"]').length,
+          fxLineCount: p.querySelectorAll('[data-test="line"][data-fx]').length,
+          fxLineText: (function(){ var e = p.querySelector('[data-test="line"][data-fx]'); return e ? e.textContent : null; })(),
           text: p.innerText,
           topbarHtml: (p.querySelector('[data-test="topbar"]') || {}).innerHTML || ''
         });
@@ -384,6 +393,9 @@ async function run() {
           line: snap(p.querySelector('[data-test="line"]')),
           ctl: snap(p.querySelector('[data-test="back"]')),
           headBottomBorder: getComputedStyle(head).borderBottomWidth,
+          bodyPad: (function(){ var b = p.querySelector('[data-test="poem"]');
+            var c = getComputedStyle(b);
+            return { pl: c.paddingLeft, pr: c.paddingRight }; })(),
           inlineDecl: decl,
           resolved: {
             titleEdge: getComputedStyle(p).getPropertyValue('--title-edge').trim(),
@@ -392,7 +404,9 @@ async function run() {
             bodyIndent: getComputedStyle(p).getPropertyValue('--body-first-indent').trim(),
             ctlEdge: getComputedStyle(p).getPropertyValue('--ctl-edge').trim(),
             titleHang: getComputedStyle(p).getPropertyValue('--title-hang').trim(),
-            indent2ch: getComputedStyle(p).getPropertyValue('--indent-2ch').trim()
+            indent2ch: getComputedStyle(p).getPropertyValue('--indent-2ch').trim(),
+            alignHead: getComputedStyle(p).getPropertyValue('--align-head').trim(),
+            alignBody: getComputedStyle(p).getPropertyValue('--align-body').trim()
           }
         });
       }
@@ -492,17 +506,18 @@ async function run() {
     const dimIds = await js(`Array.prototype.map.call(document.querySelectorAll('[data-test="dim"]'), function(d){ return d.dataset.dim; }).join(',')`);
 
     // ---- [1] 结构与固定清单 ----
-    log('\n[1] 结构与固定清单（3 个维度组 · 9 个块 · 每块一个页面实例）');
-    check('维度组 = 3，且分别是 d1／d2／d3',
-      dimCount === 3 && dimIds === 'd1,d2,d3', `实测 ${dimCount} 组：${dimIds}`);
-    check('块数 = 9（维度一 4 ／ 维度二 3 ／ 维度三 2），且每个块恰 1 个页面实例',
-      G.insts.length === 9 && GP.length === 9 && uniq(GP.map((g) => g.inst)).length === 9
+    log('\n[1] 结构与固定清单（4 个维度组 · 13 个块 · 每块一个页面实例）');
+    check('维度组 = 4，且分别是 d1／d2／d3／d4',
+      dimCount === 4 && dimIds === 'd1,d2,d3,d4', `实测 ${dimCount} 组：${dimIds}`);
+    check('块数 = 13（维度一 4 ／ 维度二 3 ／ 维度三 2 ／ 维度四 4），且每个块恰 1 个页面实例',
+      G.insts.length === 13 && GP.length === 13 && uniq(GP.map((g) => g.inst)).length === 13
       && G.insts.every((b) => G.pageBoxes.filter((p) => p.inst === b.inst).length === 1)
-      && ['d1', 'd2', 'd3'].map((d) => G.insts.filter((b) => b.dim === d).length).join(',') === '4,3,2',
-      `块：${G.insts.map((b) => b.inst).join(' ')}；每维度 ${['d1', 'd2', 'd3'].map((d) => d + ':' + G.insts.filter((b) => b.dim === d).length).join(' ')}`);
-    check('每个实例都有：题名／身份行／返回（恰 1）／详情（恰 1）／顶部行（恰 1），且原文 8 行',
-      S.every((s) => s.title && s.ident && s.back === 1 && s.detail === 1 && s.topbar === 1 && s.lines.length === 8),
-      S.map((s) => `${s.inst}:题名${s.title ? '有' : '无'} 返回${s.back} 详情${s.detail} 顶行${s.topbar} 行${s.lines.length}`).join(' | '));
+      && ['d1', 'd2', 'd3', 'd4'].map((d) => G.insts.filter((b) => b.dim === d).length).join(',') === '4,3,2,4',
+      `块：${G.insts.map((b) => b.inst).join(' ')}；每维度 ${['d1', 'd2', 'd3', 'd4'].map((d) => d + ':' + G.insts.filter((b) => b.dim === d).length).join(' ')}`);
+    check('每个实例都有：题名／身份行／返回（恰 1）／详情（恰 1）／顶部行（恰 1），且原文 8 行（唯一例外：d4-fx-line 多一行夹具长句）',
+      S.every((s) => s.title && s.ident && s.back === 1 && s.detail === 1 && s.topbar === 1
+        && (s.lines.length === 8 || (s.inst === 'd4-fx-line' && s.lines.length === 9))),
+      S.filter((s) => s.lines.length !== 8).map((s) => `${s.inst}:${s.lines.length} 行`).join(' ') || '全部 8 行');
     check('**正文之后没有页脚行**：全页 `[data-test="foot"]` 数 = 0（顶部行是唯一一行控件）',
       S.every((s) => s.foot === 0) && (await js(`document.querySelectorAll('[data-test="foot"]').length`)) === 0,
       `每实例 ${uniq(S.map((s) => s.foot)).join(',')} 个页脚行`);
@@ -510,37 +525,42 @@ async function run() {
       S.every((s) => s.topbarHtml.indexOf('back') >= 0 && s.topbarHtml.indexOf('detail') > s.topbarHtml.indexOf('back')
         && s.topbarHtml.lastIndexOf('data-test="detail"') > s.topbarHtml.lastIndexOf('data-test="back"')),
       '9 个实例的顶部行都是 返回 → 详情 同一行');
-    check('原文恰好 8 行，且**逐行文本**与源文件正文逐字相同',
-      S.every((s) => s.lines.length === 8 && s.lines.join('\n') === mdFlat.join('\n')),
-      S.map((s) => `${s.inst}:${s.lines.join('\n') === mdFlat.join('\n') ? '＝源文件' : '≠源文件'}`).join(' | '));
+    check('原文**前 8 行**逐行与源文件正文逐字相同（d4-fx-line 第 9 行是夹具长句，不属于原文）',
+      S.every((s) => s.lines.slice(0, 8).join('\n') === mdFlat.join('\n')),
+      S.map((s) => `${s.inst}:${s.lines.slice(0, 8).join('\n') === mdFlat.join('\n') ? '＝源文件' : '≠源文件'}`).join(' | '));
     log(`      逐行实测（取 ${S[0].inst}）：`);
     S[0].lines.forEach((t, i) => log(`        ${i + 1}  ${t}${t === mdFlat[i] ? '  ＝源文件第 ' + (i + 1) + ' 行' : '  ⚠ 与源文件第 ' + (i + 1) + ' 行不同'}`));
-    check('段数 = 源文件的段数（那一首 8 行之间没有空行 ⇒ 1 段）',
-      S.every((s) => s.stanzas === mdStanzas.length),
-      `实测 ${uniq(S.map((s) => s.stanzas)).join(',')} 段，源文件 ${mdStanzas.length} 段`);
+    check('段数：除 d4-fx-line（多一整段夹具长句 ⇒ 2 段）外，其余都 = 源文件的段数（1 段）',
+      S.every((s) => (s.inst === 'd4-fx-line' ? s.stanzas === mdStanzas.length + 1 : s.stanzas === mdStanzas.length)),
+      `除 ${S.filter((s) => s.stanzas !== mdStanzas.length).map((s) => s.inst + ':' + s.stanzas + ' 段').join(' ') || '（无）'} 外都是 ${mdStanzas.length} 段`);
     check('身份行 = 「作者 · 朝代 · 体裁」（佚名 · 汉 · 五言古诗），不出现细时代',
       S.every((s) => s.ident === '佚名 · 汉 · 五言古诗'),
       uniq(S.map((s) => s.ident)).join(' / '));
     const realTitle = '行行重行行';
     check('维度一／二的题名 = 真实题名「行行重行行」（原文只用真实文本）',
-      S.filter((s) => s.dim !== 'd3').every((s) => s.title === realTitle),
-      uniq(S.filter((s) => s.dim !== 'd3').map((s) => s.title)).join(' / '));
-    const d3t = uniq(S.filter((s) => s.dim === 'd3').map((s) => s.title));
-    check('维度三是**醒目标注的夹具**：题名 ≠ 真实题名、自身写明「不是真实数据」、两块题名相同',
+      S.filter((s) => s.dim === 'd1' || s.dim === 'd2').every((s) => s.title === realTitle),
+      uniq(S.filter((s) => s.dim === 'd1' || s.dim === 'd2').map((s) => s.title)).join(' / '));
+    const d3t = uniq(S.filter((s) => s.dim === 'd3' || s.inst === 'd4-fx-title').map((s) => s.title));
+    check('夹具题名（维度三 2 块 ＋ 维度四 ④d）：题名 ≠ 真实题名、自身写明「不是真实数据」、彼此相同',
       d3t.length === 1 && d3t[0] !== realTitle && d3t[0].indexOf('不是真实数据') >= 0,
       `夹具题名="${d3t[0]}"（${[...d3t[0]].length} 字）`);
-    check('夹具横幅（`[data-test="fxban"]`）恰 1 条，含「夹具」与「不是真实数据」',
-      (await js(`document.querySelectorAll('[data-test="fxban"]').length`)) === 1
-      && (await js(`document.querySelector('[data-test="fxban"]').innerText`)).indexOf('夹具') >= 0
-      && (await js(`document.querySelector('[data-test="fxban"]').innerText`)).indexOf('不是真实数据') >= 0,
-      (await js(`document.querySelector('[data-test="fxban"]').innerText`)).slice(0, 60).replace(/\s+/g, ' ') + '…');
+    check('夹具长句（维度四 ④e）：那多出来的一行是**醒目标注的夹具**（`data-fx="long-line"`、自身写明「不是真实数据」）',
+      S.filter((s) => s.fxLineCount === 1).length === 1
+      && sByInst('d4-fx-line').fxLineCount === 1
+      && (sByInst('d4-fx-line').fxLineText || '').indexOf('不是真实数据') >= 0
+      && (sByInst('d4-fx-line').fxLineText || '').indexOf('夹具') >= 0,
+      `带 data-fx 的行：${S.filter((s) => s.fxLineCount === 1).map((s) => s.inst).join(',') || '(无)'}；文本开头="${(sByInst('d4-fx-line').fxLineText || '').slice(0, 20)}…"`);
+    check('夹具横幅（`[data-test="fxban"]`）2 条（维度三／维度四各 1），两条都含「夹具」与「不是真实数据」',
+      (await js(`document.querySelectorAll('[data-test="fxban"]').length`)) === 2
+      && (await js(`Array.prototype.every.call(document.querySelectorAll('[data-test="fxban"]'), function(b){ return b.innerText.indexOf('夹具') >= 0 && b.innerText.indexOf('不是真实数据') >= 0; })`)) === true,
+      (await js(`document.querySelectorAll('[data-test="fxban"]').length`)) + ' 条横幅');
     const banned = ['东汉末', '底本', '来源', '异文', '文选', '李善', '搜索'];
     const hits = banned.filter((w) => S.some((s) => s.text.indexOf(w) >= 0));
     check('反向：应用层可见文本里不出现 细时代／底本／来源／异文／文选／李善／搜索',
       hits.length === 0, hits.length ? '命中：' + hits.join(' ') : '0 处（应用层文本＝页面实例文本）');
 
     // ---- [2] 430 ----
-    log('\n[2] 430 真实验收（无横向溢出；9 个块各恰 430、左沿 0）');
+    log('\n[2] 430 真实验收（无横向溢出；13 个块各恰 430、左沿 0）');
     let ov = await overflowScan();
     check('innerWidth === 430 且 documentElement.scrollWidth === 430（body 亦然）',
       ov.innerWidth === W && ov.docScrollWidth === W && ov.bodyScrollWidth === W,
@@ -551,18 +571,18 @@ async function run() {
     check('**所有文本矩形**（逐行字形范围）也都在 0…430 之内',
       ov.textMaxRight <= W + 0.5 && ov.textMinLeft >= -0.5,
       `文本 maxRight=${ov.textMaxRight} minLeft=${ov.textMinLeft}`);
-    check('9 个块恰好 430 宽、左沿 0',
-      ov.blocks.length === 9 && ov.blocks.every((b) => b.w === W && b.left === 0),
+    check('13 个块恰好 430 宽、左沿 0',
+      ov.blocks.length === 13 && ov.blocks.every((b) => b.w === W && b.left === 0),
       ov.blocks.map((b) => `${b.inst}:w${b.w}/x${b.left}`).join(' '));
-    check('9 个页面实例恰好 430 宽、左沿 0',
-      ov.pages.length === 9 && ov.pages.every((p) => p.w === W && p.left === 0),
+    check('13 个页面实例恰好 430 宽、左沿 0',
+      ov.pages.length === 13 && ov.pages.every((p) => p.w === W && p.left === 0),
       ov.pages.map((p) => `${p.inst}:w${p.w}/x${p.left}`).join(' '));
     check('**无笔记区**：`[data-test="notes"]` 用 querySelector 查为 null，且整页可见文本里没有「笔记」二字',
       ov.notesNull === true && ov.docText.indexOf('笔记') < 0 && htmlText.indexOf('笔记') < 0,
       `notes 查为 ${ov.notesNull ? 'null' : '存在'}；可见文本「笔记」${ov.docText.indexOf('笔记') < 0 ? '0 处' : '⚠ 出现了'}；HTML 文本「笔记」${htmlText.indexOf('笔记') < 0 ? '0 处' : '⚠ 出现了'}`);
 
     // ---- [3] 排版权重 ----
-    log('\n[3] 排版权重实测（题名／身份行／原文／控件；9 个实例应完全一致）');
+    log('\n[3] 排版权重实测（题名／身份行／原文／控件；13 个实例应完全一致）');
     log(`      ${ST[0].inst}: 题名 ${ST[0].title.fz}/${ST[0].title.fw}/字距 ${ST[0].title.ls} ${ST[0].title.color}`);
     log(`      ${ST[0].inst}: 身份行 ${ST[0].ident.fz}/字距 ${ST[0].ident.ls} ${ST[0].ident.color}`);
     log(`      ${ST[0].inst}: 原文 ${ST[0].line.fz}/行高 ${ST[0].line.lh}/字距 ${ST[0].line.ls} ${ST[0].line.color}`);
@@ -587,11 +607,11 @@ async function run() {
       `题名 ${uniq(ST.map((s) => s.title.fz)).join(',')} > 原文 ${uniq(ST.map((s) => s.line.fz)).join(',')} > 身份 ${uniq(ST.map((s) => s.ident.fz)).join(',')}；控件 ${uniq(ST.map((s) => s.ctl.fz)).join(',')}`);
     check('题头**没有**下划线（§4.1 记号③：`poem-head` 的 border-bottom = 0px）',
       ST.every((s) => s.headBottomBorder === '0px'), uniq(ST.map((s) => s.headBottomBorder)).join(','));
-    check('原文 8 行**每行都不折行**（每行恰好 1 个文本矩形 —— 430 下没有被拆成两行）',
+    check('原文 8 行**每行都不折行**（每行恰好 1 个文本矩形）；唯一例外是 ④e 的夹具长句：它折成 **2 个视觉行**',
       g_lineOk(GP), g_lineDetail(GP));
 
     // ---- [4] 纵向几何固定 ----
-    log('\n[4] 固定不变的纵向几何（9 个实例应同一值 ⇒ 三个维度只动水平）');
+    log('\n[4] 固定不变的纵向几何（13 个实例应同一值 ⇒ 四个维度只动水平）');
     for (const g of GP) {
       log(`      ${g.inst}：题名→身份 ${r1(g.gaps.titleToIdent)}px；身份→原文首行 ${r1(g.gaps.identToBody)}px；顶部行底→题名顶 ${r1(g.gaps.topbarToTitle)}px`);
     }
@@ -605,13 +625,14 @@ async function run() {
     check('每块：顶部行自身的顶边（相对本实例顶）同一个值（±0.1px 的子像素取整）',
       Math.max(...GP.map((g) => g.rel.topbar)) - Math.min(...GP.map((g) => g.rel.topbar)) <= 0.1,
       uniq(GP.map((g) => g.rel.topbar)).join(','));
-    const relBody12 = GP.filter((g) => g.dim !== 'd3').map((g) => g.rel.body);
-    const relBody3 = GP.filter((g) => g.dim === 'd3').map((g) => g.rel.body);
-    check('每块：正文块的相对顶 —— d1／d2 同一值，d3 恰好比它低 33.6px（长题名多一行题名 1.4×24＝33.6）',
-      Math.max(...relBody12) - Math.min(...relBody12) <= 0.15
-      && Math.abs((relBody3[0] - relBody12[0]) - 33.6) <= 0.3
-      && Math.abs(relBody3[0] - relBody3[1]) <= 0.15,
-      `d1/d2: ${uniq(relBody12).join(',')}；d3: ${uniq(relBody3).join(',')}（差 ${r1(relBody3[0] - relBody12[0])}px）`);
+    const TALL = ['d3-same', 'd3-hang', 'd4-fx-title'];   // 题名占两行的块（维度三两块 ＋ 维度四 ④d）
+    const relBodyOne = GP.filter((g) => TALL.indexOf(g.inst) < 0).map((g) => g.rel.body);
+    const relBodyTwo = GP.filter((g) => TALL.indexOf(g.inst) >= 0).map((g) => g.rel.body);
+    check('每块：正文块的相对顶 —— 单行题名的块同一值；两行题名的块（d3 两块 ＋ ④d）恰好比它低 33.6px（多一行题名 1.4×24）',
+      Math.max(...relBodyOne) - Math.min(...relBodyOne) <= 0.15
+      && relBodyTwo.every((v) => Math.abs((v - relBodyOne[0]) - 33.6) <= 0.3)
+      && Math.max(...relBodyTwo) - Math.min(...relBodyTwo) <= 0.15,
+      `单行题名 ${uniq(relBodyOne).join(',')}；两行题名 ${uniq(relBodyTwo).join(',')}（差 ${r1(relBodyTwo[0] - relBodyOne[0])}px）`);
 
     // ---- [5][6][7] 三个维度 ----
     const L = (rects) => rects[0].left;
@@ -776,6 +797,10 @@ async function run() {
       'd1-bindent': { '--body-first-indent': 'var(--indent-2ch)' },
       'd2-base': {}, 'd2-out': { '--ctl-edge': '0px' }, 'd2-in': { '--ctl-edge': 'calc(var(--edge-x) * 2)' },
       'd3-same': {}, 'd3-hang': { '--title-hang': 'var(--indent-2ch)' },
+      'd4-all': { '--align-head': 'center', '--align-body': 'center' },
+      'd4-head': { '--align-head': 'center' },
+      'd4-fx-title': { '--align-head': 'center', '--align-body': 'center' },
+      'd4-fx-line': { '--align-head': 'center', '--align-body': 'center' },
     };
     const varProblems = [];
     for (const inst of Object.keys(WANT_VARS)) {
@@ -795,8 +820,82 @@ async function run() {
       && stByInst('d3-hang').resolved.titleHang === '34px' && uniq(ST.map((s) => s.resolved.indent2ch)).join(',') === '34px'
       && stByInst('d1-base').resolved.titleEdge === stByInst('d2-base').resolved.titleEdge,
       `d1-tleft:${stByInst('d1-tleft').resolved.titleEdge} d2-out:${stByInst('d2-out').resolved.ctlEdge} d2-in:${stByInst('d2-in').resolved.ctlEdge} d1-bindent:${stByInst('d1-bindent').resolved.bodyIndent} d3-hang:${stByInst('d3-hang').resolved.titleHang} indent2ch:${stByInst('d1-base').resolved.indent2ch}`);
+    check('居中的两个变量也解析得出来：④a／④d／④e 题头与正文都 center，**④b 只有题头 center、正文仍是 left**',
+      stByInst('d4-all').resolved.alignHead === 'center' && stByInst('d4-all').resolved.alignBody === 'center'
+      && stByInst('d4-fx-title').resolved.alignBody === 'center' && stByInst('d4-fx-line').resolved.alignBody === 'center'
+      && stByInst('d4-head').resolved.alignHead === 'center' && stByInst('d4-head').resolved.alignBody === 'left'
+      && stByInst('d1-base').resolved.alignHead === 'left' && stByInst('d1-base').resolved.alignBody === 'left',
+      `d4-all:${stByInst('d4-all').resolved.alignHead}/${stByInst('d4-all').resolved.alignBody} d4-head:${stByInst('d4-head').resolved.alignHead}/${stByInst('d4-head').resolved.alignBody} d1-base:${stByInst('d1-base').resolved.alignHead}/${stByInst('d1-base').resolved.alignBody}`);
 
-    // ---- [12] #shot 与图 ----
+    // ---- [12] 维度四：居中范围 ----
+    log('\n[12] 维度四：居中范围（4 块实测；列中心 ＝ [16.8, 413.2] 的中点 ＝ 215px）');
+    const CTOL = 1.5;
+    const rowC = (r) => Math.round((r.left + r.right) / 2 * 100) / 100;
+    const d4 = { all: byInst('d4-all'), head: byInst('d4-head'), fxt: byInst('d4-fx-title'), fxl: byInst('d4-fx-line') };
+
+    log('      ④a d4-all（全部居中）逐行实测：');
+    log('        行        左沿      右沿      宽度      中心      与列中心差');
+    const rowsA = [];
+    d4.all.titleLines.forEach((r, i) => rowsA.push(['题名行' + (i + 1), r]));
+    d4.all.ident.forEach((r, i) => rowsA.push(['身份行' + (i + 1), r]));
+    d4.all.bodyLineTexts.forEach((t, i) => t.forEach((r, k) => rowsA.push(['正文行' + (i + 1) + (t.length > 1 ? '/视觉' + (k + 1) : ''), r])));
+    for (const [nm, r] of rowsA) {
+      log(`        ${nm.padEnd(9)} ${String(r1(r.left)).padEnd(9)} ${String(r1(r.right)).padEnd(9)} ${String(r1(r.w)).padEnd(9)} ${String(r1(rowC(r))).padEnd(9)} ${r1(rowC(r) - COL_CENTER)}`);
+    }
+    check('④a 全部居中：**每一行的文字中心 ≈ 列中心 215px**（题名逐视觉行／身份行／正文 8 行逐行）',
+      rowsA.length === 10 && rowsA.every(([, r]) => Math.abs(rowC(r) - COL_CENTER) <= CTOL),
+      `${rowsA.length} 行，最大偏差 ${r1(Math.max(...rowsA.map(([, r]) => Math.abs(rowC(r) - COL_CENTER))))}px（容差 ±${CTOL}px）`);
+    check('④a 居中**不改列、也不动顶部行**：正文的内容左右内沿仍 16.8／413.2；顶部行 返回左沿 16.8px、详情右沿 413.2px',
+      near(d4.all.boxes.body.left + parseFloat(stByInst('d4-all').bodyPad.pl), EDGE, TOL)
+      && near(d4.all.boxes.body.right - parseFloat(stByInst('d4-all').bodyPad.pr), CONTENT_RIGHT, TOL)
+      && near(L(d4.all.back), EDGE, TOL) && near(R(d4.all.detail), CONTENT_RIGHT, TOL_R),
+      `正文内容内沿 ${r1(d4.all.boxes.body.left + parseFloat(stByInst('d4-all').bodyPad.pl))}／${r1(d4.all.boxes.body.right - parseFloat(stByInst('d4-all').bodyPad.pr))}（内边距 ${stByInst('d4-all').bodyPad.pl}／${stByInst('d4-all').bodyPad.pr}）；返回左沿 ${r1(L(d4.all.back))}；详情右沿 ${r1(R(d4.all.detail))}`);
+
+    const baseRows = d1s.base.bodyLineTexts.map((t) => t[0]);
+    const headRows = d4.head.bodyLineTexts.map((t) => t[0]);
+    log('      ④b d4-head（仅题头居中）逐行对照基线 d1-base：');
+    for (let i = 0; i < headRows.length; i++) {
+      log(`        正文行${i + 1}  ④b [${r1(headRows[i].left)}…${r1(headRows[i].right)}] 中心 ${r1(rowC(headRows[i]))}｜基线 [${r1(baseRows[i].left)}…${r1(baseRows[i].right)}] 中心 ${r1(rowC(baseRows[i]))}｜左沿差 ${r1(headRows[i].left - baseRows[i].left)}`);
+    }
+    check('④b 仅题头居中：题名与身份行**居中**（中心 ≈ 215px）',
+      Math.abs(rowC(d4.head.titleLines[0]) - COL_CENTER) <= CTOL && Math.abs(rowC(d4.head.ident[0]) - COL_CENTER) <= CTOL,
+      `题名中心 ${r1(rowC(d4.head.titleLines[0]))}；身份行中心 ${r1(rowC(d4.head.ident[0]))}`);
+    check('④b 的**正文仍与基线（维度一①）逐行一致**（左对齐没被改掉）：8 行逐行左右沿相同',
+      headRows.length === 8 && headRows.every((r, i) => near(r.left, baseRows[i].left, 0.2) && near(r.right, baseRows[i].right, 0.2)),
+      `逐行左沿差 max ${r1(Math.max(...headRows.map((r, i) => Math.abs(r.left - baseRows[i].left))))}px；右沿差 max ${r1(Math.max(...headRows.map((r, i) => Math.abs(r.right - baseRows[i].right))))}px`);
+    check('④b：顶部行也不变（返回左沿 16.8px、详情右沿 413.2px）',
+      near(L(d4.head.back), EDGE, TOL) && near(R(d4.head.detail), CONTENT_RIGHT, TOL_R),
+      `返回左沿 ${r1(L(d4.head.back))}；详情右沿 ${r1(R(d4.head.detail))}`);
+
+    log(`      ④d d4-fx-title（长夹具题名 ＋ 全部居中）：题名 ${d4.fxt.titleLines.length} 个视觉行 —— ${d4.fxt.titleLines.map((r, i) => '第' + (i + 1) + '行 [' + r1(r.left) + '…' + r1(r.right) + '] 中心 ' + r1(rowC(r))).join('｜')}`);
+    check('④d 长夹具题名在居中下仍折成 **2 行**，且**两行各自居中**（每行中心 ≈ 215px）；身份行也居中',
+      d4.fxt.titleLines.length === 2
+      && d4.fxt.titleLines.every((r) => Math.abs(rowC(r) - COL_CENTER) <= CTOL)
+      && Math.abs(rowC(d4.fxt.ident[0]) - COL_CENTER) <= CTOL,
+      `两行中心 ${d4.fxt.titleLines.map((r) => r1(rowC(r))).join('／')}（与列中心差 ${d4.fxt.titleLines.map((r) => r1(rowC(r) - COL_CENTER)).join('／')}）；身份行中心 ${r1(rowC(d4.fxt.ident[0]))}`);
+
+    const fxlRows = d4.fxl.bodyLineTexts[8] || [];
+    log(`      ④e d4-fx-line（夹具长句 ＋ 全部居中）：前 8 行是真实原文、第 9 行是夹具长句（${[...(sByInst('d4-fx-line').fxLineText || '')].length} 字）在 430 下折成 ${fxlRows.length} 个视觉行`);
+    fxlRows.forEach((r, i) => log(`        夹具长句视觉行${i + 1}  左沿 ${r1(r.left)}  右沿 ${r1(r.right)}  宽度 ${r1(r.w)}  中心 ${r1(rowC(r))}  与列中心差 ${r1(rowC(r) - COL_CENTER)}`));
+    check('④e 夹具长句在 430 下**恰好折成 2 个视觉行**（「第二行」才是有意义的问题）',
+      fxlRows.length === 2, `实测 ${fxlRows.length} 个视觉行`);
+    check('④e **折行的第二行也居中**（两个视觉行的中心都 ≈ 215px，且彼此相同）',
+      fxlRows.length === 2 && fxlRows.every((r) => Math.abs(rowC(r) - COL_CENTER) <= CTOL)
+      && Math.abs(rowC(fxlRows[0]) - rowC(fxlRows[1])) <= CTOL,
+      `两行中心 ${fxlRows.map((r) => r1(rowC(r))).join('／')}（与列中心差 ${fxlRows.map((r) => r1(rowC(r) - COL_CENTER)).join('／')}）`);
+    check('④e 真实原文那 8 行也逐行居中，且夹具长句那一行是**醒目标注的夹具**（`data-fx` ＋ 文本含「不是真实数据」）',
+      d4.fxl.bodyLineTexts.slice(0, 8).every((t) => Math.abs(rowC(t[0]) - COL_CENTER) <= CTOL)
+      && sByInst('d4-fx-line').fxLineCount === 1,
+      `8 行最大偏差 ${r1(Math.max(...d4.fxl.bodyLineTexts.slice(0, 8).map((t) => Math.abs(rowC(t[0]) - COL_CENTER))))}px；夹具行数 ${sByInst('d4-fx-line').fxLineCount}`);
+    check('④e 夹具长句与前 8 行之间是真的第二段（段间距 1.2em ＝ 20.4px，页面上真实存在两段、不是探针）',
+      sByInst('d4-fx-line').stanzas === 2
+      && near(d4.fxl.bodyLineBoxes[8].top - d4.fxl.bodyLineBoxes[7].bottom, 20.4, TOL),
+      `段数 ${sByInst('d4-fx-line').stanzas}；实测第 8 行元素底 → 夹具行元素顶 ＝ ${r1(d4.fxl.bodyLineBoxes[8].top - d4.fxl.bodyLineBoxes[7].bottom)}px`);
+    check('维度四四块的顶部行左右沿**完全一致**（16.8／413.2）⇒ 居中确实不作用于顶部行',
+      ['all', 'head', 'fxt', 'fxl'].every((k) => near(L(d4[k].back), EDGE, TOL) && near(R(d4[k].detail), CONTENT_RIGHT, TOL_R)),
+      ['all', 'head', 'fxt', 'fxl'].map((k) => `${k}:${r1(L(d4[k].back))}/${r1(R(d4[k].detail))}`).join(' '));
+
+    // ---- [13] #shot 与图 ----
     if (!SHOT) { log('\n[PNG] 已跳过（--no-shot）'); }
     else {
       await send('Page.navigate', { url: 'about:blank' });
@@ -804,12 +903,12 @@ async function run() {
       await send('Page.navigate', { url: url + '#shot' });
       for (let i = 0; i < 120 && !events.includes('Page.loadEventFired'); i++) await sleep(100);
       await sleep(400);
-      log('\n[12] #shot（看图模式：只显示一条「原型标注不属于应用页面」的横幅，不改排布）');
+      log('\n[13] #shot（看图模式：只显示一条「原型标注不属于应用页面」的横幅，不改排布）');
       const bannerVisible = await js(`(function(){ var b = document.querySelector('.shotbanner');
         return !!b && getComputedStyle(b).display !== 'none' && b.innerText.indexOf('不属于应用页面') >= 0; })()`);
       check('看图模式的横幅可见，且写明「不属于应用页面」', bannerVisible === true, `横幅可见=${bannerVisible}`);
       const ov2 = await overflowScan();
-      check('看图模式下仍是 430、无横向溢出、9 块各 430 宽',
+      check('看图模式下仍是 430、无横向溢出、13 块各 430 宽',
         ov2.docScrollWidth === W && ov2.maxRight <= W + 0.5 && ov2.minLeft >= -0.5
         && ov2.textMaxRight <= W + 0.5 && ov2.blocks.every((b) => b.w === W),
         `scrollWidth=${ov2.docScrollWidth} maxRight=${ov2.maxRight}(${ov2.maxEl}) 文本 maxRight=${ov2.textMaxRight} 块宽=${uniq(ov2.blocks.map((b) => b.w)).join(',')}`);
@@ -828,18 +927,18 @@ async function run() {
       log(`      块区 CSS 尺寸 430x${frame.h} @DPR ${DPR} → 像素 ${W * DPR}x${frame.h * DPR} → 文件 ${statSync(PNG_PATH).size} 字节`);
       check('图存在且 PNG 头里的宽 ＝ 860px（430 CSS px × DPR 2）',
         size !== null && size.w === W * DPR, `PNG 实测 ${size ? size.w + 'x' + size.h : '(读不出)'}，文件 ${statSync(PNG_PATH).size} 字节`);
-      check('图里块区高 ≥ 4000px（9 个块纵向排列）', size !== null && size.h >= 4000, `高 ${size ? size.h : '?'}px`);
+      check('图里块区高 ≥ 10000px（13 个块纵向排列）', size !== null && size.h >= 10000, `高 ${size ? size.h : '?'}px`);
     }
 
-    // ---- [13] 宽屏 ----
-    log('\n[13] 宽屏 1180（宽屏／桌面排布本身不在本轮表达 —— 只看块是否仍固定 430）');
+    // ---- [14] 宽屏 ----
+    log('\n[14] 宽屏 1180（宽屏／桌面排布本身不在本轮表达 —— 只看块是否仍固定 430）');
     await send('Emulation.setDeviceMetricsOverride', { width: 1180, height: 900, deviceScaleFactor: 1, mobile: false });
     await send('Page.navigate', { url });
     for (let i = 0; i < 120 && !events.includes('Page.loadEventFired'); i++) await sleep(100);
     await sleep(300);
     const o = await overflowScan();
-    check('1180 下无横向溢出，且 9 个块仍是 430 CSS px 宽',
-      o.innerWidth === 1180 && o.docScrollWidth === 1180 && o.blocks.length === 9 && o.blocks.every((b) => b.w === W),
+    check('1180 下无横向溢出，且 13 个块仍是 430 CSS px 宽',
+      o.innerWidth === 1180 && o.docScrollWidth === 1180 && o.blocks.length === 13 && o.blocks.every((b) => b.w === W),
       `innerWidth=${o.innerWidth} scrollWidth=${o.docScrollWidth} 块宽=${uniq(o.blocks.map((b) => b.w)).join(',')} 块左沿=${uniq(o.blocks.map((b) => b.left)).join(',')}`);
 
     ws.close();
@@ -850,15 +949,18 @@ async function run() {
   }
 }
 
-// [3] 辅助：正文每行恰好 1 个文本矩形（未折行）
+// [3] 辅助：正文每行恰好 1 个文本矩形（未折行）；唯一例外：④e 的夹具长句折成 2 个视觉行
 function g_lineOk(GP) {
-  return GP.every((g) => g.bodyLineTexts.length === 8 && g.bodyLineTexts.every((t) => t.length === 1));
+  return GP.every((g) => g.bodyLineTexts.length >= 8
+    && g.bodyLineTexts.slice(0, 8).every((t) => t.length === 1)
+    && (g.bodyLineTexts.length === 8
+      || (g.inst === 'd4-fx-line' && g.bodyLineTexts.length === 9 && g.bodyLineTexts[8].length === 2)));
 }
 function g_lineDetail(GP) {
   return GP.map((g) => `${g.inst}:${g.bodyLineTexts.map((t) => t.length).join('')}`).join(' ');
 }
 
-// ---- [14] 边界：两种「找不到就如实退出，不假装通过」----
+// ---- [15] 边界：两种「找不到就如实退出，不假装通过」----
 //   (a) CHROME_BIN 指到不存在的路径 ⇒ exit 2；
 //   (b) 脚本被搬到仓库外（找不到 prototype/css/theme-tech.css）⇒ exit 2。
 // 两条都是**真的把本脚本再跑一遍**（子进程），不是对自己喊口号。
@@ -888,7 +990,7 @@ function boundaryChecks() {
 try {
   await run();
   if (BOUNDARY) {
-    log('\n[14] 边界：用坏掉的 CHROME_BIN／把脚本搬到仓库外，各再跑一次本脚本（子进程；对本进程无副作用）');
+    log('\n[15] 边界：用坏掉的 CHROME_BIN／把脚本搬到仓库外，各再跑一次本脚本（子进程；对本进程无副作用）');
     boundaryChecks();
   } else {
     log('\n[14] 已跳过边界自测（--no-boundary）');
