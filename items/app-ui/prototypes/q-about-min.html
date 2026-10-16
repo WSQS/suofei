@@ -1,22 +1,21 @@
 <!doctype html>
 <html lang="zh-CN" data-theme="tech"
       data-token-blob="e395a54b6eec32f98ffd48822584401e085eb1a8"
-      data-head-sha="4f86076"
+      data-head-sha="fd663fc"
       data-deduct="24" data-pct="88" data-floor="320" data-cap="viewport"
-      data-ready="0" data-mode="all" data-state="all">
+      data-ready="0" data-state="activated" data-state-mode="activated">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>关于页 ·「更新处」极简版 —— 初态只有按钮 ＋ 对齐三档并列（材料，不是实施）</title>
+<title>关于页 · 整页的横向对齐线（版本标签列／值列 ↔ 更新控件）—— 3 格完整页对照（材料，不是实施）</title>
 <style>
 /* ============================================================================
  * 令牌快照（**内嵌副本，不是新权威**）
  *   来源：prototype/css/theme-tech.css（**只读**，本轮未改）
  *   依据文件的 blob：e395a54b6eec32f98ffd48822584401e085eb1a8（git hash-object）
- *   记录时的 HEAD：4f86076（git rev-parse --short HEAD）
+ *   记录时的 HEAD：fd663fc（git rev-parse --short HEAD）
  *   权威仍是 docs/design/visual-tokens.md（§2 颜色 / §3 排版 / §4 间距与形状）。
- *   这里只为「单文件自包含」复制一份快照：值逐字照抄、未做微调；**只列本页实际用到的令牌**
- *   （自检断言：「声明了却没用」的令牌数＝0）。
+ *   只为「单文件自包含」复制一份快照：值逐字照抄、未做微调；**只列本页实际用到的令牌**。
  *   ⚠ 本轮**不用** --measure（660px）：宽度用**已选口径**，上界＝视口宽 V，不设 660／860 上限。
  * ========================================================================== */
 /* == TOKEN-SNAPSHOT-BEGIN == */
@@ -51,30 +50,29 @@
 /* == TOKEN-SNAPSHOT-END == */
 
 /* ============================================================================
- * 草案值 / 已选值（**都不在** docs/design/visual-tokens.md 里 —— 规范没有这些条目）
- *   ⇒ 它们**不是**规范值。分三类标注：
+ * 草案值 / 已选值（**都不在** docs/design/visual-tokens.md 里）
  *      [已定]   已定/已选的口径（本轮照做，不重新提问）
- *      [草案]   本轮为「这一处怎么排」临时取的数（字号/间距/按钮内边距）
- *      [写回]   页面脚本量完后写回的运行时值（这里给默认值，只为不出现「用了却没声明」）
+ *      [草案]   本轮为「这一页怎么排」临时取的数
+ *      [写回]   页面脚本量完后写回的运行时值
  * ========================================================================== */
 /* == DRAFT-VALUES-BEGIN == */
 :root {
   --edge-x: 1.05rem;        /* [已定·沿用] 行内沿（内容列**内部**那一层的内边距）＝16.8px */
   --col-top: 1.25rem;       /* [草案] 块顶部留白 */
   --col-bottom: 1rem;       /* [草案] 块底部留白 */
-  --row-gap: 0.5rem;        /* [草案] 按钮 → 状态文本 之间的固定缝＝8px */
+  --row-gap: 0.5rem;        /* [草案] 同组内两行之间 / 按钮→状态文本 ＝8px */
   --sec-gap: 0.9rem;        /* [草案] 两节之间（版本组 / 按钮 / 状态文本 / 仓库）＝14.4px */
-  --kcol: 5.2em;            /* [草案] 「一行一条」里 label 列的固定宽（右对齐） */
-  --k-gap: 0.5rem;          /* [草案] label 列 → 值 之间的固定缝 */
-  --label-size: 0.82rem;    /* [草案] label（应用版本／内容版本） */
+  --kcol: 5.2em;            /* [草案] 「标签列」的固定宽＝68.22px（标签文字在列内左/右对齐） */
+  --k-gap: 0.5rem;          /* [草案] 标签列 → 值列 之间的固定缝＝8px */
+  --label-size: 0.82rem;    /* [草案] 标签（应用版本／内容版本） */
   --value-size: 0.88rem;    /* [草案] 值（0.1.1） */
   --mono-size: 0.86rem;     /* [草案] 版本号与仓库链接（等宽） */
   --ctl-size: 0.82rem;      /* [草案] 唯一的按钮（检查更新） */
   --ctl-ls: 0.06em;         /* [草案] 按钮字距 */
-  --ctl-pad-x: 0.7rem;      /* [草案] 按钮左右内边距＝11.2px（A2 档要用它算偏移） */
+  --ctl-pad-x: 0.7rem;      /* [草案] 按钮左右内边距＝11.2px */
   --status-size: 0.82rem;   /* [草案] 状态说明文本 */
   --proto-pad: 12px;        /* [草案] 原型脚手架（说明／标注）的左右内边距，不是应用页面的值 */
-  --cw: 100%;               /* [写回] 本块在本视口下的**内容宽 C**（公式算出的 px 值） */
+  --cw: 100%;               /* [写回] 本块在本视口下的**内容宽 C** */
 }
 /* == DRAFT-VALUES-END == */
 
@@ -131,8 +129,7 @@ table.fx th, table.fx td { border: 1px solid var(--line); padding: 0.25rem 0.45r
 table.fx th { color: var(--text); font-weight: 500; }
 table.fx td.r { color: var(--text); }
 
-/* 块区（截图范围）。⚠ 容器**不带左右内边距**：里面的 .pg 是「满视口宽」的块，
- *   容器一旦有左右 padding，内容列就会越出视口（上一轮真踩过的坑）。文字元素自己带 padding。 */
+/* 块区（截图范围）。⚠ 容器**不带左右内边距**：里面的 .pg 是「满视口宽」的块。 */
 .deck { margin-top: 1.2rem; }
 .imgban {
   display: block;
@@ -152,21 +149,19 @@ table.fx td.r { color: var(--text); }
 }
 .dhead { font-family: var(--font-mono); font-size: 0.75rem; line-height: 1.5; letter-spacing: 0.03em; color: var(--test-text); padding: 0 var(--proto-pad); margin-bottom: 0.25rem; }
 .dhead .dname { display: inline-block; padding: 0.12rem 0.45rem; border: 1px solid var(--test-line); background: var(--test-soft); color: var(--test-text); border-radius: var(--radius-s); font-size: 0.74rem; letter-spacing: 0.05em; }
-.dhead .dplat { display: inline-block; margin-left: 0.35rem; padding: 0.12rem 0.45rem; border: 1px solid var(--test-line); background: var(--test-soft); color: var(--test-text); border-radius: var(--radius-s); font-size: 0.72rem; letter-spacing: 0.05em; }
-.dhead .dplat.fixture { border-color: var(--line-warn); background: var(--warn-soft); color: var(--warn-text); }
 .dhead .dnote { display: block; margin-top: 0.2rem; color: var(--text-dim); }
 .dhead .dnums { display: block; margin-top: 0.2rem; color: var(--warn-text); }
 .cap { font-family: var(--font-mono); font-size: 0.72rem; line-height: 1.55; letter-spacing: 0.01em; color: var(--text-dim); padding: 0 var(--proto-pad) 0.55rem; margin: 0.3rem 0 0; overflow-wrap: anywhere; }
 .cap b { color: var(--text); font-weight: 500; }
 
 /* ── 应用页面（被评审的那一层）──────────────────────────────────
- * 结构（A3，用户已定）：应用名当页标题 → 版本相邻组（**没有来源行**）→ 按钮／状态文本 → 仓库链接置底
- *   内容宽用**已选口径**：C = min(V, max(320, 0.88 × (V − 24)))
- *   ⚠ 「24」是**一次性从视口宽扣掉的总量**（只用来得到基准 A），**不是**左右各 12px 的外层页边。
- *   ⚠ **不把它框出来**（用户 2026-10-15 返修）：按钮与状态文本就是**内容流里的元素**（父级＝.col），
- *     没有容器边框／底色／阴影／标题／分隔线；**按钮自身的边框／底色／圆角保留**。
- *   ⚠ **初态（尚未检查）不显示状态文本**（用户 2026-10-15 返修）：那时 DOM 里**只有按钮**，
- *     **没有**空的说明位／占位（不是把文本清空，而是那个元素根本不生成）。
+ * 结构（A3，用户已定）：应用名当页标题 → 版本相邻组（**没有来源行**）→ 更新控件（按钮＋状态文本）→ 仓库链接置底
+ *   内容宽用**已选口径**：C = min(V, max(320, 0.88 × (V − 24)))；「24」是一次性扣除总量，不是左右各 12px。
+ *   ⚠ **不框出来**：按钮与状态文本是内容流里的元素（父级＝.col），没有容器边框／底色／阴影／标题／分隔线；
+ *     按钮自身的边框／底色／圆角保留。
+ *   ⚠ **初态（尚未检查）不生成状态文本元素**（用户已认可）。
+ *   ⚠ 本轮**只动一件事**：横向对齐线（版本「标签列／值列」与更新控件挂哪条竖线）。
+ *     版本组仍是**一行一条**：标签（左/右对齐，随档）＋ 值（**值列**，固定竖线）；**没有**改成两行。
  */
 .pg { position: relative; background: transparent; }
 .col {
@@ -182,14 +177,15 @@ table.fx td.r { color: var(--text); }
 .pair { display: block; }
 .kv { display: flex; align-items: baseline; padding: 0 var(--edge-x); }
 .kv + .kv { margin-top: var(--row-gap); }
+/* 标签列：固定宽 --kcol（5.2em＝68.22px）⇒ 值列左沿＝edge-x ＋ kcol ＋ k-gap ＝ 93.02px（430 下相对内容列） */
 .kv > .k { flex: 0 0 var(--kcol); text-align: right; color: var(--text-dim); font-size: var(--label-size); letter-spacing: 0.02em; }
 .kv > .v { margin-left: var(--k-gap); font-size: var(--value-size); color: var(--text); overflow-wrap: anywhere; }
 .kv > .v > .ver { font-family: var(--font-mono); font-size: var(--mono-size); }
 
-/* 唯一的动作（按钮在网上第一，状态文本在它下面）*/
+/* 唯一的动作 */
 .ctl {
-  display: inline-block; align-self: flex-start;   /* 按钮只占自己的宽度 */
-  margin-top: var(--sec-gap);                      /* 与上一节同一个节间距 */
+  display: inline-block; align-self: flex-start;
+  margin-top: var(--sec-gap);
   font-size: var(--ctl-size); letter-spacing: var(--ctl-ls);
   padding: 0.3rem var(--ctl-pad-x); color: var(--accent-text);
   background: var(--accent-soft); border: 1px solid var(--accent-line); border-radius: var(--radius-s);
@@ -198,17 +194,7 @@ table.fx td.r { color: var(--text); }
 .ctl:hover { background-color: var(--surface-hover); }
 .ctl[disabled] { color: var(--text-faint); background: transparent; border-color: var(--line); cursor: default; }
 
-/* ⚠⚠ 按钮的横向位置：**三档并列的对齐候选**（用户说「按钮和说明的对齐问题」，但**没指定方向**
- *     ⇒ 本页只把三档画出来、逐档实测差值，**不排序、不写推荐、不替用户选**）。
- *     A1＝按钮**外沿**与状态文本起点齐（＝**现状事实**）
- *     A2＝把按钮自身的边框＋内边距算进去，让按钮**里的文字**与状态文本对齐
- *     A3＝按钮块**中心**＝内容列中心（＝状态文本的盒中心；左对齐文本的墨迹中心不等于它） */
-[data-test=block][data-align="A1"] .ctl { margin-left: var(--edge-x); }
-[data-test=block][data-align="A2"] .ctl { margin-left: calc(var(--edge-x) - 1px - var(--ctl-pad-x)); }
-[data-test=block][data-align="A3"] .ctl { margin-left: auto; margin-right: auto; }
-
-/* 状态说明文本：**在按钮下方**、**原地替换**（换字，不换结构）；它本身也是内容流里的一行（无框）。
- *   ⚠ **初态不生成这个元素**（见 JS 的 blockHTML）。*/
+/* 状态说明文本：在按钮下方、原地替换；**初态不生成**。 */
 .status {
   margin: var(--row-gap) var(--edge-x) 0; font-size: var(--status-size); color: var(--text-dim);
   overflow-wrap: anywhere;
@@ -220,66 +206,89 @@ table.fx td.r { color: var(--text); }
   color: var(--accent-text); text-decoration: none;
   transition: var(--row-transition);
 }
-/* ⚠ 悬停的下划线只在 :hover 上出现：静止态**不声明 border-bottom**，
- *   否则产品区里就多了一条（透明的）1px 边框 —— 去框这件事要能逐项查计算值。 */
 .repo:hover { text-decoration: underline; text-decoration-color: var(--accent-line); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * 三格**完整页**：只差「横向对齐线」这一件事（并列，不排序、不写推荐）
+ *
+ *   线 A ＝ **内容左沿**（edge-x＝16.8px；应用名／仓库链接都在它上面）
+ *   线 B ＝ **标签列左沿**（＝内容左沿，因为标签列的盒子从 16.8 开始）
+ *   线 C ＝ **标签文字墨迹**（跟标签在列内怎么对齐有关：右对齐 ⇒ 文字不到线 A；左对齐 ⇒ 文字就在线 A）
+ *   线 D ＝ **值列左沿**（edge-x ＋ kcol ＋ k-gap ＝ 93.02px）
+ *
+ *   V1 现状基线  ：标签**右对齐**；控件贴**线 A（内容左沿）**
+ *   V2 控件贴值列：标签**右对齐**；控件贴**线 D（值列）**
+ *   V3 标签左对齐：标签**左对齐**（文字落到线 A）；控件贴**线 A（标签列左沿）**
+ *   ⇒ 三档只在这两件事上取值不同：「标签文字对齐法」与「控件挂哪条线」；版本组仍是一行一条。
+ * ══════════════════════════════════════════════════════════════════════════ */
+/* 标签文字对齐法 */
+[data-test=block][data-variant="V3"] .kv > .k { text-align: left; }
+/* 更新控件（按钮＋状态文本）挂哪条线 */
+[data-test=block][data-variant="V1"] .ctl,
+[data-test=block][data-variant="V3"] .ctl { margin-left: var(--edge-x); }
+[data-test=block][data-variant="V2"] .ctl { margin-left: calc(var(--edge-x) + var(--kcol) + var(--k-gap)); }
+[data-test=block][data-variant="V1"] .status,
+[data-test=block][data-variant="V3"] .status { margin-left: var(--edge-x); margin-right: var(--edge-x); }
+[data-test=block][data-variant="V2"] .status { margin-left: calc(var(--edge-x) + var(--kcol) + var(--k-gap)); margin-right: var(--edge-x); }
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="phead">
     <p class="ptag">材料 · 不是产品实施 · 不是功能批准 · 不是发布 · 不决定整页别的部分</p>
-    <h1>关于页 ·「更新处」极简版 —— <b>初态只有按钮</b>，<b>对齐＝三档并列</b>（不排序、不写推荐）</h1>
+    <h1>关于页 · <b>整页的共用横向对齐线</b> —— 版本「标签列／值列」↔ 更新控件（按钮＋状态 label）：<b>3 格完整页对照</b></h1>
 
-    <p class="pok">✓ <b>本页照做的（用户已给的设计，不再并列方案）</b>：<br>
-      ① <b>更新处＝上方一个按钮「检查更新」＋下方一段状态说明文本</b>；<b>状态在原地替换</b>（换文字，不换结构、不新增行／块）；<br>
-      ② <b>重点在上方</b> ⇒ 按钮在这一处的顶部表达；<b>全局页面次序不动</b>；<br>
-      ③ <b>不做</b>折叠／步骤／分区／「上次检查／历史结果」／多动作／「取消」「立即切换」「稍后」；<br>
-      ④ <b>整页次序＝A3</b>：应用名当页标题 → <b>版本相邻组（不含「来源」行）</b> → 按钮／状态文本 → 仓库链接置底；<br>
-      ⑤ <b>仓库链接＝完整 URL（C1）</b>，<b>不给</b>「会打开浏览器」的提示；<br>
-      ⑥ <b>宽度口径</b> <code>C = min(V, max(320, 0.88 × (V − 24)))</code>；<b>24 是一次性扣除总量</b>，不是左右各 12px；<br>
-      ⑦ 视觉＝<b>静默终端令牌</b>（权威 <code>docs/design/visual-tokens.md</code>）；<b>这一页只做内容更新，不做 APK 更新</b>；<br>
-      ⑧ <b>「来源（内置／已下载）」不画</b>：它已被排除出两端共用的版本信息，而「放进更新处要不要显示」<b>仍未定</b> ⇒ 不画、也不假装已定；<br>
-      ⑨ <b>不把它框出来</b>（用户 2026-10-15 返修）：这一处<b>没有容器边框／底色／阴影／标题／分隔线</b>，按钮与状态文本直接在内容流里（跟版本组、仓库链接同一条流）；<b>按钮自身的边框／底色／圆角照旧保留</b>；<br>
-      ⑩ <b>初态（尚未检查）不显示状态文本</b>（用户 2026-10-15 返修）：初态<b>只剩按钮</b>，<b>不做空的说明位</b>（不占位、不留空行、不摆一句「尚未检查」）；<br>
-      ⑪ <b>对齐＝3 档并列候选</b>（外沿／文字沿／中心）—— 用户只说了「按钮和说明的对齐问题」、<b>没指定方向</b> ⇒ 本页**把三档并列画出来并逐档实测差值，不排序、不写推荐、不替用户选**。</p>
+    <p class="pok">✓ <b>本轮范围（用户 2026-10-15 澄清）</b>：用户原话「<b>内容没有问题啦</b>；我的问题是<b>按钮、文字说明和上面的之间的对齐</b>：应用版本/0.1.1/内容版本/2026.10.16.20」
+      ⇒ 要看的是<b>整页的共用横向对齐线</b>：<b>版本「标签列」／「值列」</b> 与 <b>下方更新控件（按钮＋状态 label）</b> 的整体横向关系。
+      <b>上一轮那三档（按钮外沿／文字沿／中心）用户都没选</b> ⇒ 本轮<b>降为观测量</b>（表里仍逐格量按钮文字墨迹与状态 label 墨迹的差），<b>不再是让他三选一的东西</b>。</p>
 
-    <p class="pwarn">⚠ <b>图里那圈青色虚线是原型标注，不是产品 UI</b>（产品区已经真的去框了）：截图范围线、每块上方的标题行、以及最上面那条「原型说明」横幅都属于原型，<b>都不属于应用页面</b>。</p>
+    <p class="pok">✓ <b>本页照做的（不动、不重开）</b>：<br>
+      ① <b>整页次序＝A3</b>：应用名当页标题 → <b>版本相邻组（不含「来源」行）</b> → 更新控件（按钮＋状态文本）→ 仓库链接置底；<br>
+      ② <b>更新处无框</b>：按钮与状态 label 是内容列 <code>.col</code> 的<b>直接子元素</b>，没有容器边框／底色／阴影／标题／分隔线；<br>
+      ③ <b>单按钮＋label</b>：唯一的动作是「检查更新」；状态原地替换；<b>初态（尚未检查）不生成状态文本元素</b>；<br>
+      ④ <b>仓库链接＝完整 URL（C1）</b>，不给「会打开浏览器」的提示；<br>
+      ⑤ <b>宽度口径</b> <code>C = min(V, max(320, 0.88 × (V − 24)))</code>；<b>24 是一次性扣除总量</b>，不是左右各 12px；<br>
+      ⑥ 视觉＝<b>静默终端令牌</b>（权威 <code>docs/design/visual-tokens.md</code>）；<b>只做内容更新，不做 APK 更新</b>；<b>「来源」不画</b>；<br>
+      ⑦ <b>不把标签/值改成两行</b>：版本组仍是<b>一行一条</b>（标签＋值），本轮只动「挂哪条竖线／标签在列内怎么对齐」；<br>
+      ⑧ <b>不加信息</b>：没有新标题、没有说明文字、没有分隔线；⑨ <b>不替用户选</b>：三格并列，不排序、不写推荐。</p>
 
-    <p class="pwarn">⚠ <b>页面里的版本号是「当前值」，不是页面文案定稿</b>：应用版本 <code>0.1.1</code>、内容版本 <code>2026.10.16.20</code>、仓库 <code>https://github.com/WSQS/suofei</code>。
-      <b>状态说明文本里的版本号／字节数／原因都是运行时值</b>（<code>⟨…⟩</code> 是运行时占位），块的外面用虚线小标标出这一点。</p>
+    <p class="pwarn">⚠ <b>图里那圈青色虚线是原型标注，不是产品 UI</b>：截图范围线、每格上方的标题行与数字、最上面那条「原型说明」横幅都属于原型。</p>
+
+    <p class="pwarn">⚠ <b>页面里的版本号是「当前值」，不是文案定稿</b>：应用版本 <code>0.1.1</code>、内容版本 <code>2026.10.16.20</code>、仓库 <code>https://github.com/WSQS/suofei</code>。
+      状态说明文本里的版本号／字节数／原因是<b>运行时值</b>（<code>⟨…⟩</code> 是运行时占位）。</p>
 
     <p><b>宽度用已选口径</b>：<code>C = min(V, max(320, 0.88 × (V − 24)))</code>，<code>V</code>＝视口宽、<code>V−24</code>＝基准 A、上界＝视口 V（<b>不夹</b> 660／860）。
       ⚠ <code>24</code> 是<b>一次性从视口宽扣掉的总量</b>，<b>不是</b>左右各 12px 的外层页边 ⇒ <b>列外余白＝(V−C)/2</b>（320 上恰为 0），行内沿 <code>1.05rem</code>＝16.8px 是<b>列内</b>的一层。</p>
 
-    <h2>状态清单（<b>逐字</b>，版本号／字节数／原因是运行时占位）</h2>
-    <p>文案逐字来自真实实现 <code>android/app/src/main/java/dev/sopho/suofei/ui/UpdateStatusText.kt</code>；「检查中」覆盖<b>检查＋下载＋校验＋切换</b>全过程（真实实现里就是这一条），此时唯一的按钮<b>禁用</b>。
-      <b>初态（尚未检查）不显示任何状态文本</b> —— 连 <code>尚未检查。</code> 这句同义提示也不显示。</p>
+    <h2>整页有哪几条竖线（本轮要看的全部对象）</h2>
     <table class="fx">
-      <thead><tr><th>状态</th><th>状态说明文本（逐字）</th><th>按钮</th><th>这一格在图里吗</th></tr></thead>
-      <tbody data-test="statetable"></tbody>
+      <thead><tr><th>线</th><th>是什么</th><th>430 实测（相对内容列左沿，px）</th></tr></thead>
+      <tbody data-test="linetable"></tbody>
     </table>
 
-    <h2>对齐三档（**并列候选：不排序、不写推荐、不替用户选**）</h2>
-    <p>用户说的是「<b>按钮和说明的对齐问题</b>」，<b>没指定方向</b>。已知事实（本页源码）：按钮是
-      <code>margin-left: var(--edge-x)</code>、状态文本是 <code>margin-inline: var(--edge-x)</code>
-      ⇒ 按钮的<b>外沿</b>与状态文本的起点齐；但按钮<b>自身还有 1px 边框 ＋ 0.7rem 内边距</b>
-      ⇒ 按钮<b>里的文字</b>比状态文本<b>往右偏了 12.2px</b> —— 这就是「错位」的来源。三档各修哪一头，见下表与 B 组实测。</p>
+    <h2>三格逐格实测（<b>并列，不排序</b>）</h2>
     <table class="fx">
-      <thead><tr><th>档</th><th>做法</th><th>按钮外沿 x</th><th>按钮文字墨迹 x</th><th>状态文本墨迹 x</th><th>文字差（按钮文字 − 状态文字）</th><th>按钮块中心 x</th></tr></thead>
-      <tbody data-test="aligntable"></tbody>
+      <thead><tr><th>格</th><th>标签列</th><th>更新控件挂哪条线</th><th>标签文字左沿</th><th>值左沿</th><th>按钮外沿</th><th>按钮文字墨迹</th><th>状态 label 墨迹</th><th><b>与上方共用线</b></th><th>代价（可量测）</th></tr></thead>
+      <tbody data-test="vrtable"></tbody>
     </table>
 
-    <h2>原型控件（在截图范围之外，不属于应用页面）</h2>
+    <h2>两两差（px）</h2>
+    <table class="fx">
+      <thead><tr><th>差</th><th>含义</th><th>V1 现状基线</th><th>V2 控件贴值列</th><th>V3 标签左对齐</th></tr></thead>
+      <tbody data-test="dtable"></tbody>
+    </table>
+
+    <h2>状态查看器（原型控件：在截图范围之外，不属于应用页面）</h2>
     <div class="pfix" data-test="state-panel">
-      <b>状态查看器（原型夹具，不属于应用页面、不在图里）</b>：点一个 ⇒ 图里 A 组<b>只留那一格</b>；点「全部并列」⇒ 回到默认的三格（初态／已是最新／最长失败）。<br>
-      它<b>不是</b>给页面加的功能；B 组（对齐三档）不受它影响。<br>
+      <b>状态查看器（原型夹具，不属于应用页面、不在图里）</b>：切换三格<b>同时</b>使用的状态（三格永远同一个状态，才可比）。
+      默认＝<b>已下载并切换生效</b>（430 上是 2 行，便于看「状态 label 第二行左沿」）。<br>
+      它<b>不是</b>给页面加的功能；也<b>不改变</b>任何一格的对齐线。<br>
       <span data-test="state-buttons"></span>
     </div>
 
     <h2>怎么读图</h2>
-    <p>虚线框内＝截图范围，里面只有两组：<b>A 组＝状态（3 格）</b>、<b>B 组＝对齐（3 档并列）</b>。
-      每格上方的青色标题行与数字、块外的青色／黄色虚线小标、以及最上面那条「原型说明」横幅，<b>都不属于应用页面</b>。</p>
+    <p>虚线框内＝截图范围：<b>三格都是完整关于页</b>（应用名 → 版本组 → 更新控件 → 仓库置底），<b>只差横向对齐线</b>。
+      每格上方的青色标题行与数字、块外的虚线小标、以及最上面那条「原型说明」横幅，<b>都不属于应用页面</b>。</p>
     <p>实测数字见同目录 <code>q-about-min.md</code>；行为由 <code>check-about-min.mjs</code> 可复跑自证（失败断言 0）。</p>
   </div>
 
@@ -289,19 +298,14 @@ table.fx td.r { color: var(--text); }
       块宽恰＝视口宽、块左沿 0、不缩放。<br>
       图中青色／黄色的文字与虚线、每格上方的标题行与数字、以及最上面这条横幅，都是<b>原型的说明与标注</b>（青／黄＝夹具与标注用色，不是产品谱）；
       应用版本 <code>0.1.1</code>、内容版本 <code>2026.10.16.20</code>、仓库地址是<b>当前值</b>，<b>不是页面文案定稿</b>；状态文本里的版本号／字节数／原因是<b>运行时值</b>。<br>
-      <b>产品区没有卡片框</b>：更新处就是一个按钮（＋有结果时才有一段状态文本），直接在页面内容流里（无边框／底色／阴影／标题／分隔线；按钮自身的边框与底色保留）。
-      <b>初态（A 组第 1 格）只有按钮</b>，没有那句「尚未检查」，也没有空的占位。<br>
-      <b>B 组是并列候选（不排序、不写推荐）</b>：三格只差按钮的横向位置，<b>选其中一格 ≠ 采纳整页规格</b>，也<b>不决定</b> JSON／MD 分界与任何产物字段。<b>不是产品实施、不是发布。</b>
+      <b>三格＝三张完整关于页，只差「横向对齐线」这一件事</b>（版本组的标签列／值列 ↔ 按钮＋状态 label 挂哪条竖线）：<b>并列候选，不排序、不写推荐，本页不替用户选</b>；
+      <b>产品区没有卡片框</b>（按钮与状态 label 直接在内容流里；按钮自身的边框与底色保留）。
+      <b>选其中一格 ≠ 采纳整页规格</b>，也<b>不决定</b> JSON／MD 分界与任何产物字段。<b>不是产品实施、不是发布。</b>
     </div>
 
-    <div class="ghead2">A 组 · 状态（<b>3 格</b>：初态只有按钮 ／ 一条短结果 ／ 一条长结果）—— 对齐固定＝A1 外沿对齐（现状事实）</div>
-    <p class="gdesc">固定不动：应用名＝<code>索斐</code>（页标题）／版本相邻组＝「一行一条」的应用版本＋内容版本（<b>无来源行</b>）／仓库链接＝<b>完整 URL</b> 且置底。
-      <b>初态不生成状态文本元素</b>（不是把文本清空）；有结果时那一行文字原地替换。</p>
-    <div data-test="rack"></div>
-
-    <div class="ghead2">B 组 · 对齐（<b>3 档并列，不排序、不写推荐</b>）—— 三格都是同一个状态「已是最新」，只差按钮的横向位置</div>
+    <div class="ghead2">关于页 · 三格完整页对照 —— 只差「横向对齐线」这一件事（不排序、不写推荐）</div>
     <p class="gdesc" data-test="alignsummary">…</p>
-    <div data-test="rackq"></div>
+    <div data-test="rack"></div>
   </div>
 </div>
 
@@ -309,9 +313,7 @@ table.fx td.r { color: var(--text); }
 (function () {
   'use strict';
 
-  /* ── 已选宽度口径（页面这一侧的实现；自检脚本会**独立**再实现一遍，两边必须逐点一致）──
-   *   A = V − 24 ； C = min(V, max(320, 0.88 × A)) ； 上界＝视口宽 V（不夹 660／860）。
-   *   ⚠ 24 是「从视口宽一次性扣除的总量」，不是左右各 12px 的外层页边。 */
+  /* ── 已选宽度口径（自检脚本会独立再实现一遍）──────────────────────── */
   var DEDUCT = 24, PCT = 88, FLOOR = 320;
   function cwFor(V) { return Math.min(V, Math.max(FLOOR, (PCT / 100) * (V - DEDUCT))); }
 
@@ -324,42 +326,44 @@ table.fx td.r { color: var(--text); }
   };
 
   /* ── 状态清单：**逐字**取自 ui/UpdateStatusText.kt（版本号/字节数/原因是运行时占位）──
-   *   btnEnabled：真实实现里唯一按钮的 `enabled = state.updateStatus !is UpdateStatus.Checking`
-   *   ⇒ **只有「检查中」禁用**。
-   *   text: null ⇒ **初态**：不生成状态文本元素（用户 2026-10-15 返修），不是清空文本、也不占位。 */
+   *   text: null ⇒ **初态**：不生成状态文本元素（用户已认可）。 */
   var STATES = [
-    { key: 'idle', label: '尚未检查', off: '（初态：只有按钮，不显示状态文本）', text: null, btnEnabled: true, inImage: true },
-    { key: 'checking', label: '检查中', off: '（按钮禁用）', text: '正在检查…', btnEnabled: false, inImage: false },
-    { key: 'uptodate', label: '已是最新', off: '', text: '已是最新内容（远端 ⟨内容版本⟩）。', btnEnabled: true, inImage: true },
-    { key: 'activated', label: '已下载并切换生效', off: '', text: '新内容 ⟨内容版本⟩ 已下载、校验通过并已切换生效（⟨字节数⟩ 字节）；返回目录后采用。', btnEnabled: true, inImage: false },
-    { key: 'failed', label: '失败·旧内容保留', off: '', text: '更新未生效，旧内容保留：⟨原因⟩', btnEnabled: true, inImage: false }
+    { key: 'idle', label: '尚未检查（初态）', off: '只有按钮，不显示状态文本', text: null, btnEnabled: true },
+    { key: 'checking', label: '检查中', off: '按钮禁用', text: '正在检查…', btnEnabled: false },
+    { key: 'uptodate', label: '已是最新', off: '', text: '已是最新内容（远端 ⟨内容版本⟩）。', btnEnabled: true },
+    { key: 'activated', label: '已下载并切换生效', off: '', text: '新内容 ⟨内容版本⟩ 已下载、校验通过并已切换生效（⟨字节数⟩ 字节）；返回目录后采用。', btnEnabled: true },
+    { key: 'failed', label: '失败·旧内容保留', off: '', text: '更新未生效，旧内容保留：⟨原因⟩', btnEnabled: true },
+    { key: 'fixture', label: '失败·最长原因（夹具）', off: '夹具，不属于产品状态', fixture: true,
+      text: '更新未生效，旧内容保留：SHA-256 不符（清单 ⟨清单 SHA-256⟩，实际 ⟨实际 SHA-256⟩）；已丢弃下载结果，保留旧内容（下载/校验未通过）',
+      btnEnabled: true }
+  ];
+  var ST_BY_KEY = {};
+  STATES.forEach(function (s) { ST_BY_KEY[s.key] = s; });
+
+  /* ── 三格：只差「横向对齐线」这一件事（并列，不排序、不写推荐）────────
+   *   DEFAULTS（V1）＝现状基线：标签右对齐（值在值列），更新控件贴内容左沿。 */
+  var VARIANTS = [
+    { key: 'V1', label: '① 现状基线', tag: '现状',
+      note: '标签**右对齐**（值在值列 93.02）；更新控件贴**内容左沿 16.8**',
+      shares: '按钮外沿／状态 label 与**内容左沿**（应用名、仓库链接那条线）共用；标签**文字**不在它上面（右对齐）',
+      cost: '按钮里的文字与状态 label 仍差 +12.18px（按钮自身 1px 边框＋11.2px 内边距）；标签文字左沿参差（右对齐）' },
+    { key: 'V2', label: '② 控件贴值列', tag: '值列',
+      note: '标签**右对齐**（版本组与 ① 完全一样）；更新控件贴**值列 93.02**',
+      shares: '按钮外沿／状态 label 与**值列**（「0.1.1」「2026.10.16.20」那条线）共用',
+      cost: '控件离开内容左沿 +76.22px（不再与应用名共线）；控件可用宽被压窄（430：323.67→247.45），长文案多折行' },
+    { key: 'V3', label: '③ 标签左对齐', tag: '标签列',
+      note: '标签**左对齐**（文字左沿 16.8＝内容左沿）；更新控件贴**标签列左沿 16.8**',
+      shares: '**标签文字左沿＝内容左沿＝按钮外沿＝状态 label**（四条线合一）',
+      cost: '标签与值之间只剩固定 68.22px 的列宽（本地两条标签都 4 字 ⇒ 看不出参差；长短不等的标签会参差）；按钮里的文字仍不在该线上（+12.18px）' }
   ];
 
-  /* ── 夹具：最长的一条如实失败文案 ────────────────────────────────── */
-  var FIXTURE = {
-    key: 'failed-long', label: '失败·最长原因（夹具）', off: '（夹具，不属于产品状态）', inImage: true,
-    text: '更新未生效，旧内容保留：SHA-256 不符（清单 ⟨清单 SHA-256⟩，实际 ⟨实际 SHA-256⟩）；已丢弃下载结果，保留旧内容（下载/校验未通过）',
-    btnEnabled: true, fixture: true
-  };
-
-  var ALL = STATES.concat([FIXTURE]);
-
-  /* ── 对齐三档（**并列，不排序、不写推荐**）────────────────────────── */
-  var ALIGNS = [
-    { key: 'A1', label: 'A1 外沿对齐', note: '按钮的**外沿**与状态文本起点齐 —— 这是**现状事实**（本轮之前的实现就是这样）' },
-    { key: 'A2', label: 'A2 文字沿对齐', note: '把按钮自身的 1px 边框 ＋ 0.7rem 内边距算进去，让按钮**里的文字**与状态文本对齐' },
-    { key: 'A3', label: 'A3 中心对齐', note: '按钮块**中心**＝内容列中心（＝状态文本的**盒**中心；左对齐文本的墨迹中心不等于它）' }
-  ];
-  var ALIGN_FOR_A = 'A1';   /* A 组（状态那三格）固定用现状事实那一档 */
-
-  /* ── 块的内建（**唯一的**组织：按钮在上、状态文本在下）──────────────── */
+  /* ── 块的骨架（**唯一的**组织：按钮在上、状态文本在下；初态不生成 label）── */
   function esc(s) {
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
-  function blockHTML(st, align) {
-    /* ⚠ 初态（text === null）：**不生成** <p class="status"> —— 不占位、不留空行 */
+  function blockHTML(v, st) {
     var label = st.text === null ? '' : '<p class="status" data-test="status">' + esc(st.text) + '</p>';
-    return '<div class="pg" data-block="B-' + st.key + '" data-state="' + st.key + '" data-align="' + align + '" data-test="block">'
+    return '<div class="pg" data-block="B-' + v.key + '" data-variant="' + v.key + '" data-state="' + st.key + '" data-test="block">'
       + '<div class="col" data-test="col">'
       + '<p class="brand" data-test="brand">' + esc(APP.name) + '</p>'
       + '<div class="pair" data-test="verpair">'
@@ -371,123 +375,178 @@ table.fx td.r { color: var(--text); }
       + '<div class="repoWrap" data-test="repowrap"><a class="repo" data-test="repolink" href="' + esc(APP.repo) + '">' + esc(APP.repo) + '</a></div>'
       + '</div></div>';
   }
-  /* 原型标注（**在块外**）：标题行 ＋ 块 ＋ 数字行 */
-  function headHTML(st, i, align, modeAttr, inDefault, numsId) {
-    return '<div class="demo" data-test="demo" data-mode="' + modeAttr + '"' + (inDefault ? ' data-in="1"' : ' data-in="0"') + '>'
+  function demoHTML(v, st, i) {
+    return '<div class="demo" data-test="demo" data-mode="' + v.key + '" data-in="1">'
       + '<div class="dhead" data-test="dhead">'
-      + '<span class="dname">' + (i + 1) + ' · ' + esc(st.label) + '</span>'
-      + '<span class="dplat' + (st.fixture ? ' fixture' : '') + '" data-test="dplat">'
-      + (st.fixture ? '夹具：最长失败原因' : '真实状态（UpdateStatusText.kt 逐字）') + '</span>'
-      + (align ? '<span class="dplat" data-test="dalign">对齐 ' + align + '</span>' : '')
-      + (st.off ? '<span class="dnote">' + esc(st.off) + '</span>' : '')
-      + (numsId ? '<span class="dnums" data-test="alignnums" data-alignnums="' + numsId + '">…</span>' : '')
+      + '<span class="dname">' + (i + 1) + ' · ' + esc(v.label) + '</span>'
+      + '<span class="dnote" data-test=vnote>' + esc(v.note.replace(/\*\*/g, '')) + '</span>'
+      + '<span class="dnums" data-test="varnums" data-varnums="' + v.key + '">…</span>'
+      + '</div>'
+      + blockHTML(v, st)
+      + '<p class="cap" data-test="cap">' + esc('状态＝' + st.label + (st.text === null ? '（不显示状态文本）' : '｜状态文本＝' + st.text))
+      + '　｜　<b>上方＝按钮、下方＝状态文本，只有这两样</b>（没有把它们框起来；版本组仍是一行一条）。青色／黄色是本原型标注用色，不属于应用页面。</p>'
       + '</div>';
   }
-  function capHTML(st) {
-    return '<p class="cap" data-test="cap">' + esc('按钮文字＝「检查更新」（唯一动作）'
-        + (st.text === null ? '；**初态不显示状态文本**（DOM 里没有那个元素，也没有空占位）' : '；状态文本＝' + st.text))
-      + '　｜　<b>上方＝按钮、下方＝状态文本，只有这两样</b>（<b>没有把它们框起来</b>：无边框／底色／阴影／标题／分隔线／分区／第二动作／上次检查／来源）。'
-      + '青色与黄色是本原型标注用色，不属于应用页面。</p>';
-  }
-  function demoHTML(st, i, align, modeAttr, inDefault, numsId) {
-    return headHTML(st, i, align, modeAttr, inDefault, numsId) + blockHTML(st, align) + capHTML(st) + '</div>';
-  }
 
-  /* A 组（状态）：六种状态都在 DOM 里，默认只显示图上的三格 */
   var rack = document.querySelector('[data-test=rack]');
-  rack.innerHTML = ALL.map(function (st, i) {
-    return demoHTML(st, i, ALIGN_FOR_A, st.key, st.inImage, null);
-  }).join('');
-  /* B 组（对齐三档）：同一个状态「已是最新」，每格一个对齐候选 */
-  var UP = STATES.filter(function (s) { return s.key === 'uptodate'; })[0];
-  var rackq = document.querySelector('[data-test=rackq]');
-  rackq.innerHTML = ALIGNS.map(function (a, i) {
-    return demoHTML(UP, i, a.key, 'align-' + a.key, true, a.key);
-  }).join('');
+  var curState = 'activated';
+  rack.innerHTML = VARIANTS.map(function (v, i) { return demoHTML(v, ST_BY_KEY[curState], i); }).join('');
 
-  /* 每个 demo 上写一行它自己那档的说明（原型标注，块外）*/
-  Array.prototype.forEach.call(rackq.querySelectorAll('[data-test=dhead]'), function (h, i) {
-    var a = ALIGNS[i];
-    h.querySelector('.dname').textContent = a.label;
-    var d = document.createElement('span');
-    d.className = 'dnote';
-    d.textContent = a.note.replace(/\*\*/g, '');
-    h.appendChild(d);
-  });
-
-  /* ── 原型控件：状态查看器（在截图范围之外）──────────────────────────
-   *   mode ＝ 'all'（默认：图上那三格）｜某个状态 key（只留那一格）。B 组不受影响。 */
-  function setMode(mode) {
-    document.documentElement.dataset.mode = mode;
-    document.documentElement.dataset.state = mode;
-    Array.prototype.forEach.call(document.querySelectorAll('[data-test=demo]'), function (d) {
-      if (d.closest('[data-test=rackq]')) return;
-      var show = (mode === 'all') ? d.dataset.in === '1' : d.dataset.mode === mode;
-      d.hidden = !show;
+  /* ── 切换状态（三格同时换，才可比）──────────────────────────────── */
+  function applyState(key) {
+    curState = key;
+    var st = ST_BY_KEY[key];
+    document.documentElement.dataset.state = key;
+    document.documentElement.dataset.stateMode = key;
+    Array.prototype.forEach.call(rack.querySelectorAll('[data-test=block]'), function (pg) {
+      pg.dataset.state = key;
+      var btn = pg.querySelector('[data-test=primarybtn]');
+      if (st.btnEnabled) btn.removeAttribute('disabled'); else btn.setAttribute('disabled', '');
+      var col = pg.querySelector('[data-test=col]');
+      var old = pg.querySelector('[data-test=status]');
+      if (st.text === null) { if (old) old.remove(); }
+      else if (old) { old.textContent = st.text; }
+      else {
+        var p = document.createElement('p');
+        p.className = 'status'; p.setAttribute('data-test', 'status'); p.textContent = st.text;
+        col.insertBefore(p, col.querySelector('[data-test=repowrap]'));
+      }
     });
-    Array.prototype.forEach.call(document.querySelectorAll('[data-test=state-btn]'), function (btn) {
-      btn.setAttribute('aria-pressed', btn.dataset.mode === mode ? 'true' : 'false');
+    /* 重新写每格的说明行 */
+    Array.prototype.forEach.call(rack.querySelectorAll('.demo'), function (d, i) {
+      var v = VARIANTS[i];
+      d.querySelector('[data-test=cap]').innerHTML = esc('状态＝' + st.label + (st.text === null ? '（不显示状态文本）' : '｜状态文本＝' + st.text))
+        + '　｜　<b>上方＝按钮、下方＝状态文本，只有这两样</b>（没有把它们框起来；版本组仍是一行一条）。青色／黄色是本原型标注用色，不属于应用页面。';
+      d.querySelector('[data-test=vnote]').textContent = v.note.replace(/\*\*/g, '');
     });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-test=state-btn]'), function (b) {
+      b.setAttribute('aria-pressed', b.dataset.mode === key ? 'true' : 'false');
+    });
+    redraw();
   }
+
   var panel = document.querySelector('[data-test=state-buttons]');
-  var modes = [{ mode: 'all', label: '全部并列（图上三格）' }]
-    .concat(ALL.map(function (st) { return { mode: st.key, label: st.label }; }));
-  panel.innerHTML = modes.map(function (m) {
-    return '<button type="button" data-test="state-btn" data-mode="' + m.mode + '" aria-pressed="false">' + esc(m.label) + '</button>';
+  panel.innerHTML = STATES.map(function (s) {
+    return '<button type="button" data-test="state-btn" data-mode="' + s.key + '" aria-pressed="false">' + esc(s.label) + '</button>';
   }).join('');
   Array.prototype.forEach.call(panel.querySelectorAll('button'), function (btn) {
-    btn.addEventListener('click', function () { setMode(btn.dataset.mode); });
+    btn.addEventListener('click', function () { applyState(btn.dataset.mode); });
   });
 
-  /* ── 状态清单表（页面上的说明用表；不是产品 UI）────────────────────── */
-  document.querySelector('[data-test=statetable]').innerHTML = ALL.map(function (st) {
-    return '<tr><td class="r">' + esc(st.label) + '</td><td>' + esc(st.text === null ? '（不显示任何状态文本）' : st.text) + '</td><td>'
-      + (st.btnEnabled ? '可用' : '<b>禁用</b>') + '</td><td>' + (st.inImage ? '在图里' : '不在图里（用左边控件单独看）') + '</td></tr>';
-  }).join('');
-
-  /* ── 对齐三档的实测（页面自己量一份，写进标注里；自检脚本会**独立**再量一遍）──
-   *   量的是「相对内容列左沿」的 x：按钮外沿／按钮文字墨迹左沿／状态文本墨迹左沿／按钮块中心。 */
-  function inkLeft(e) {
+  /* ── 量：整页所有竖线（相对内容列左沿）────────────────────────────── */
+  function P(v) { return Math.round(v * 100) / 100; }
+  function ink(e) {
+    if (!e) return null;
     var r = document.createRange(); r.selectNodeContents(e);
-    var rs = r.getClientRects(), m = null;
-    for (var i = 0; i < rs.length; i++) { if (rs[i].width <= 0) continue; if (m === null || rs[i].left < m) m = rs[i].left; }
-    return m;
+    var rs = r.getClientRects(), L = null, R = null;
+    for (var i = 0; i < rs.length; i++) {
+      if (rs[i].width <= 0) continue;
+      if (L === null || rs[i].left < L) L = rs[i].left;
+      if (R === null || rs[i].right > R) R = rs[i].right;
+    }
+    return L === null ? null : { left: L, right: R };
   }
-  function measureAligns() {
+  function linesOf(e) {
+    if (!e) return [];
+    var r = document.createRange(); r.selectNodeContents(e);
+    var rs = [].slice.call(r.getClientRects()).filter(function (x) { return x.width > 0; });
+    rs.sort(function (a, b) { return a.top - b.top; });
+    return rs.map(function (x) { return { top: x.top, left: x.left, right: x.right }; });
+  }
+  function measure() {
     var out = {};
-    Array.prototype.forEach.call(document.querySelectorAll('[data-test=alignnums]'), function (span) {
-      var key = span.getAttribute('data-alignnums');
-      var pg = span.closest('[data-test=demo]').querySelector('[data-test=block]');
+    VARIANTS.forEach(function (v) {
+      var pg = rack.querySelector('[data-block="B-' + v.key + '"]');
       var col = pg.querySelector('[data-test=col]');
+      var x0 = col.getBoundingClientRect().left;
+      var ks = [].slice.call(pg.querySelectorAll('[data-test=k]'));
+      var vs = [].slice.call(pg.querySelectorAll('[data-test=v]'));
       var btn = pg.querySelector('[data-test=primarybtn]');
       var st = pg.querySelector('[data-test=status]');
-      var x0 = col.getBoundingClientRect().left;
-      var br = btn.getBoundingClientRect(), sr = st.getBoundingClientRect();
+      var repo = pg.querySelector('[data-test=repolink]');
+      var brand = pg.querySelector('[data-test=brand]');
+      var kI = ks.map(function (e) { return ink(e); });
+      var vI = vs.map(function (e) { return ink(e); });
+      var sLines = linesOf(st);
       var o = {
-        edge: Math.round((br.left - x0) * 100) / 100,
-        ink: Math.round((inkLeft(btn) - x0) * 100) / 100,
-        sink: Math.round((inkLeft(st) - x0) * 100) / 100,
-        center: Math.round(((br.left + br.right) / 2 - x0) * 100) / 100,
-        sw: Math.round(sr.width * 100) / 100,
+        edge: P(parseFloat(getComputedStyle(pg.querySelector('[data-test=kv]')).paddingLeft)),
+        brandInk: P(ink(brand).left - x0),
+        labelInkLeft: P(Math.min.apply(null, kI.map(function (x) { return x.left; })) - x0),
+        labelInkRight: P(Math.max.apply(null, kI.map(function (x) { return x.right; })) - x0),
+        labelInkLefts: kI.map(function (x) { return P(x.left - x0); }),
+        valueInkLeft: P(Math.min.apply(null, vI.map(function (x) { return x.left; })) - x0),
+        valueInkLefts: vI.map(function (x) { return P(x.left - x0); }),
+        btnEdge: P((btn.getBoundingClientRect().left) - x0),
+        btnInk: P(ink(btn).left - x0),
+        btnW: P(btn.getBoundingClientRect().width),
+        statusInk: sLines.length ? P(sLines[0].left - x0) : null,
+        statusInk2: sLines.length > 1 ? P(sLines[1].left - x0) : null,
+        statusLines: sLines.length,
+        statusBoxW: st ? P(st.getBoundingClientRect().width) : null,
+        repoInk: P(ink(repo).left - x0),
       };
-      o.dInk = Math.round((o.ink - o.sink) * 100) / 100;
-      o.dEdge = Math.round((o.edge - o.sink) * 100) / 100;
-      o.dCenter = Math.round((o.center - o.sw / 2) * 100) / 100;
-      out[key] = o;
-      span.textContent = '实测（相对内容列左沿）：按钮外沿 ' + o.edge + '｜按钮文字墨迹 ' + o.ink + '｜状态文本墨迹 ' + o.sink
-        + '｜按钮块中心 ' + o.center + '（列中心 ' + o.sw / 2 + '）⇒ 文字差 ' + (o.dInk > 0 ? '+' : '') + o.dInk + 'px'
-        + '；外沿差 ' + (o.dEdge > 0 ? '+' : '') + o.dEdge + 'px；中心差 ' + (o.dCenter > 0 ? '+' : '') + o.dCenter + 'px';
+      o.dLabelEdge = P(o.labelInkLeft - o.edge);
+      o.dValueEdge = P(o.valueInkLeft - o.edge);
+      o.dBtnEdge = P(o.btnEdge - o.edge);
+      o.dBtnValue = P(o.btnEdge - o.valueInkLeft);
+      o.dBtnLabel = P(o.btnEdge - o.labelInkLeft);
+      o.dBtnInk = P(o.btnInk - o.btnEdge);
+      o.dStatusEdge = o.statusInk === null ? null : P(o.statusInk - o.edge);
+      o.dStatusValue = o.statusInk === null ? null : P(o.statusInk - o.valueInkLeft);
+      o.dStatusLabel = o.statusInk === null ? null : P(o.statusInk - o.labelInkLeft);
+      o.dBtnStatusInk = o.statusInk === null ? null : P(o.btnInk - o.statusInk);
+      out[v.key] = o;
     });
     return out;
   }
 
+  function fillTables(m) {
+    /* 竖线表 */
+    var V1 = m.V1;
+    document.querySelector('[data-test=linetable]').innerHTML = [
+      ['线 A 内容左沿', '行内沿（应用名／仓库链接／状态 label 的落点）', V1.edge],
+      ['线 C 标签文字墨迹', '「应用版本」「内容版本」这两条文字自己的左/右沿', '左 ' + V1.labelInkLeft + ' ／ 右 ' + V1.labelInkRight + '（右对齐 ⇒ 不在线 A 上）'],
+      ['线 D 值列左沿', '「0.1.1」「2026.10.16.20」的起点（edge-x ＋ 标签列 68.22 ＋ 缝 8）', V1.valueInkLeft],
+      ['按钮外沿', '按钮边框盒的左沿', V1.btnEdge],
+      ['按钮文字墨迹', '按钮里「检查更新」四个字的左沿', V1.btnInk],
+      ['状态 label 墨迹', '状态文本第一行（与第二行同一条）', V1.statusInk === null ? '—' : V1.statusInk],
+    ].map(function (r) { return '<tr><td class="r">' + esc(String(r[0])) + '</td><td>' + esc(String(r[1])) + '</td><td>' + esc(String(r[2])) + '</td></tr>'; }).join('');
+
+    /* 三格表 */
+    document.querySelector('[data-test=vrtable]').innerHTML = VARIANTS.map(function (v) {
+      var o = m[v.key];
+      return '<tr><td class="r">' + esc(v.label) + '</td><td>' + esc(v.key === 'V3' ? '左对齐' : '右对齐') + '</td>'
+        + '<td>' + esc(v.key === 'V2' ? '值列（' + o.valueInkLeft + '）' : '内容左沿（' + o.edge + '）') + '</td>'
+        + '<td>' + o.labelInkLeft + '</td><td>' + o.valueInkLeft + '</td><td>' + o.btnEdge + '</td><td>' + o.btnInk + '</td>'
+        + '<td>' + (o.statusInk === null ? '—' : o.statusInk + (o.statusInk2 === null ? '' : ' / 第二行 ' + o.statusInk2)) + '</td>'
+        + '<td>' + esc(v.shares.replace(/\*\*/g, '')) + '</td><td>' + esc(v.cost.replace(/\*\*/g, '')) + '</td></tr>';
+    }).join('');
+
+    /* 两两差表 */
+    var rows = [
+      ['标签文字左沿 − 内容左沿', '标签文字是否落在内容左沿上', 'dLabelEdge'],
+      ['值左沿 − 内容左沿', '值列离内容左沿多远', 'dValueEdge'],
+      ['按钮外沿 − 内容左沿', '按钮离内容左沿多远', 'dBtnEdge'],
+      ['按钮外沿 − 值左沿', '按钮是否与「值」共线（=0 就是共线）', 'dBtnValue'],
+      ['按钮外沿 − 标签文字左沿', '按钮是否与「标签文字」共线（=0 就是共线）', 'dBtnLabel'],
+      ['按钮文字墨迹 − 按钮外沿', '按钮自身边框＋内边距带来的偏移', 'dBtnInk'],
+      ['状态 label 墨迹 − 内容左沿', '状态文本离内容左沿多远', 'dStatusEdge'],
+      ['状态 label 墨迹 − 值左沿', '状态文本是否与「值」共线（=0 就是共线）', 'dStatusValue'],
+      ['状态 label 墨迹 − 标签文字左沿', '状态文本是否与「标签文字」共线', 'dStatusLabel'],
+      ['按钮文字墨迹 − 状态 label 墨迹', '上一轮那个「按钮 vs 状态文本」的量（本轮只是观测量）', 'dBtnStatusInk'],
+    ];
+    document.querySelector('[data-test=dtable]').innerHTML = rows.map(function (r) {
+      return '<tr><td class="r">' + esc(r[0]) + '</td><td>' + esc(r[1]) + '</td>'
+        + VARIANTS.map(function (v) { var x = m[v.key][r[2]]; return '<td>' + (x === null ? '—' : (x > 0 ? '+' : '') + x) + '</td>'; }).join('') + '</tr>';
+    }).join('');
+  }
+
   function applyWidth() {
-    var V = innerWidth;
-    var C = cwFor(V);
+    var V = innerWidth, C = cwFor(V);
     document.documentElement.style.setProperty('--cw', C + 'px');
     var info = document.querySelector('[data-test=shotinfo]');
     if (info) {
-      info.textContent = V + ' CSS px（视口高 ' + innerHeight + '）· 内容列宽 C＝' + Math.round(C * 100) / 100
+      info.textContent = V + ' CSS px（视口高 ' + innerHeight + '）· 内容宽 C＝' + Math.round(C * 100) / 100
         + 'px · 列外余白＝' + Math.round(((V - C) / 2) * 100) / 100 + 'px';
     }
   }
@@ -495,52 +554,44 @@ table.fx td.r { color: var(--text); }
   var measured = null;
   function redraw() {
     applyWidth();
-    measured = measureAligns();
+    measured = measure();
+    fillTables(measured);
+    Array.prototype.forEach.call(rack.querySelectorAll('[data-test=varnums]'), function (span) {
+      var k = span.getAttribute('data-varnums'), o = measured[k];
+      span.textContent = '实测（相对内容列左沿）：标签文字 ' + o.labelInkLeft + '（右 ' + o.labelInkRight + '）｜值 ' + o.valueInkLeft
+        + '｜按钮外沿 ' + o.btnEdge + '｜按钮文字 ' + o.btnInk + '｜状态 label ' + (o.statusInk === null ? '—' : o.statusInk + (o.statusInk2 === null ? '' : '／第二行 ' + o.statusInk2))
+        + ' ⇒ 按钮外沿−值列 ' + (o.dBtnValue > 0 ? '+' : '') + o.dBtnValue + '；按钮外沿−标签文字 ' + (o.dBtnLabel > 0 ? '+' : '') + o.dBtnLabel
+        + '；状态−值列 ' + (o.dStatusValue === null ? '—' : (o.dStatusValue > 0 ? '+' : '') + o.dStatusValue)
+        + '；按钮文字−状态 ' + (o.dBtnStatusInk === null ? '—' : (o.dBtnStatusInk > 0 ? '+' : '') + o.dBtnStatusInk);
+    });
     var sum = document.querySelector('[data-test=alignsummary]');
     if (sum) {
-      var a1 = measured.A1, a2 = measured.A2, a3 = measured.A3;
-      sum.innerHTML = '三格只差按钮的横向位置：<b>A1</b> 按钮外沿 ' + a1.edge + '、按钮文字 ' + a1.ink + '、状态文字 ' + a1.sink
-        + ' ⇒ 文字差 <b>' + a1.dInk + 'px</b>（这就是「错位」的来源）；<b>A2</b> 按钮外沿 ' + a2.edge + '、按钮文字 ' + a2.ink
-        + ' ⇒ 文字差 <b>' + a2.dInk + 'px</b>；<b>A3</b> 按钮块中心 ' + a3.center + '、列中心 ' + (a3.sw / 2)
-        + ' ⇒ 中心差 <b>' + a3.dCenter + 'px</b>，但它与状态文本的墨迹中心差 <b>' + Math.round((a3.center - (a3.sink + a3.sw / 2)) * 100) / 100 + 'px</b>。'
-        + '　**本页不选哪一档**。';
-      sum.innerHTML = sum.innerHTML.replace(/\*\*/g, '');
+      var a = measured.V1, b = measured.V2, c = measured.V3;
+      sum.innerHTML = '三格只差横向对齐线：<b>V1 现状</b> 按钮外沿 ' + a.btnEdge + '（贴内容左沿 ' + a.edge + '）、标签文字 ' + a.labelInkLeft
+        + '（右对齐，不在该线上）｜<b>V2 控件贴值列</b> 按钮外沿 ' + b.btnEdge + '（＝值列 ' + b.valueInkLeft + '，离内容左沿 +' + b.dBtnEdge + '）｜<b>V3 标签左对齐</b> 按钮外沿 '
+        + c.btnEdge + '、标签文字 ' + c.labelInkLeft + '（四条线合一：' + c.edge + '）。<b>本页不选哪一格；三格代价见上表。</b>';
     }
   }
+  /* 初建后先跑一遗 applyState：把默认状态按钮的 aria-pressed 也标上（与页面实际状态一致）*/
+  applyState(curState);
   redraw();
   addEventListener('resize', function () { redraw(); });
 
-  /* 对齐三档的对照表（说明用表，不是产品 UI）*/
-  {
-    var tb = document.querySelector('[data-test=aligntable]');
-    var ex = { A1: '按钮外沿与状态文本起点齐（现状事实）', A2: '把按钮的边框＋内边距算进去 ⇒ 文字对齐', A3: '按钮居中（＝状态文本的盒中心）' };
-    tb.innerHTML = ALIGNS.map(function (a) {
-      var o = measured[a.key];
-      return '<tr><td class="r">' + esc(a.label) + '</td><td>' + esc(ex[a.key]) + '</td><td>' + o.edge + '</td><td>' + o.ink
-        + '</td><td>' + o.sink + '</td><td>' + (o.dInk > 0 ? '+' : '') + o.dInk + '</td><td>' + o.center + '</td></tr>';
-    }).join('');
-  }
-
-  setMode('all');
   document.documentElement.dataset.ready = '1';
 
-  /* ── 只读导出（自检脚本取它来与自己的独立期望逐字比对）──────────────── */
+  /* ── 只读导出（自检脚本取它来与自己的独立期望比对）──────────────── */
   window.__ABOUT_MIN__ = {
     deduct: DEDUCT, pct: PCT, floor: FLOOR, cap: 'viewport',
     app: { name: APP.name, appVersion: APP.appVersion, contentVersion: APP.contentVersion, repo: APP.repo },
-    stateKeys: ALL.map(function (s) { return s.key; }),
-    labels: ALL.reduce(function (o, s) { o[s.key] = s.label; return o; }, {}),
-    text: ALL.reduce(function (o, s) { o[s.key] = s.text; return o; }, {}),
-    showsLabel: ALL.reduce(function (o, s) { o[s.key] = s.text !== null; return o; }, {}),
-    inImage: ALL.reduce(function (o, s) { o[s.key] = !!s.inImage; return o; }, {}),
-    btnEnabled: ALL.reduce(function (o, s) { o[s.key] = s.btnEnabled; return o; }, {}),
-    buttonLabel: '检查更新',
-    fixtureText: FIXTURE.text,
-    alignKeys: ALIGNS.map(function (a) { return a.key; }),
-    alignLabels: ALIGNS.reduce(function (o, a) { o[a.key] = a.label; return o; }, {}),
-    alignForA: ALIGN_FOR_A,
-    cw: cwFor(innerWidth),
-    alignMeasured: measured
+    variantKeys: VARIANTS.map(function (v) { return v.key; }),
+    variantLabels: VARIANTS.reduce(function (o, v) { o[v.key] = v.label; return o; }, {}),
+    stateKeys: STATES.map(function (s) { return s.key; }),
+    stateLabels: STATES.reduce(function (o, s) { o[s.key] = s.label; return o; }, {}),
+    text: STATES.reduce(function (o, s) { o[s.key] = s.text; return o; }, {}),
+    showsLabel: STATES.reduce(function (o, s) { o[s.key] = s.text !== null; return o; }, {}),
+    btnEnabled: STATES.reduce(function (o, s) { o[s.key] = s.btnEnabled; return o; }, {}),
+    buttonLabel: '检查更新', curState: curState,
+    cw: cwFor(innerWidth), measured: measured
   };
 }());
 </script>
