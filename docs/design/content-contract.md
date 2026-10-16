@@ -6,34 +6,70 @@
 - **2026-10-14 契约线 C 补充实现细节**（只补细节，不改 v0 的范围与字段名）：第 1 节 `orderInSource` 与 §1.1–1.4，第 2 节 §2.1，第 3 节 §3.1，第 4 节 §4.1，新增第 5 节。待用户拍板项已在 §2.1 就地标注。
 - **2026-10-14 第二轮用户拍板**：产物**只发布 `orderInSource`**，两个拼音名次（`authorSortKey`/`titleSortKey`）**只在编译期内部使用、不写进产物**；排序默认 `source`（保留底本原次序）；客户端不得重排（客户端约定与理由见 §2.1.1，版本影响见 §4.1 末条）。
 - **2026-10-14 第三轮用户拍板**：`阙名` 并入匿名作者清单，且清单钉成文件 **`schema/unknown-authors.json`**（唯一机器可读来源，三方一致；编译器改为直接读它）——见 §2.1.1。
+- **2026-10-16 第四轮（S1＋S2.1 落地，`formatVersion` 1 → 2，不可逆）**：源格式改成——每首 **10 键**（`id,title,author,dynasty,genre,source,orderInSource,detail,stanzas,notes`）；**`id` 不再写在源里**（由相对路径派生，§1.4）；顶层 `dynasties` 改为**有序中文值数组**；`## 详情`／`## 笔记` 两个节分别承载 `detail`／`notes`；**最小 Markdown 闭集**与四条细则（未知节/重复节报错、空节 `⇒ null` 保键、围栏先跟踪）落地；朝代组名**精确匹配（去掉实现里的 `trim()`）**；码表见 §3.1。
+  - ⚠ **本次只到编译/校验/字段**：**两端渲染（S2.2）与 19 首迁移（S3）不在本次范围内**。全文里凡写「两端要改」的都是**代价陈述，不是已完成的工作**；`content/poems/` 里的 19 首在 S3 之前仍是 v1 源，**用新编译器编不过**（过渡期的真实状态，不是缺陷）。
+  - ⚠ 被取代的旧写法（`id`／`dynastyOrder`／`era`／`variants`／源里的 `notes`／旧 ASCII `id` 形状）**就地标注**，不再当作可实现路径；旧文保留只为可回溯。
 
 ## 1. 源文件：一诗一 Markdown
 
-路径：`content/poems/<id>.md`（一个文件一首诗，UTF-8，LF 换行）。
+> ⚠ **本节 2026-10-16 已改写（`formatVersion=2`）**：路径可以递归、`id` 由相对路径派生、字段表换成新的一张。**旧写法**（`content/poems/<id>.md`、全小写 ASCII 且以 `-数字` 结尾的 `id`、`id`/`dynastyOrder`/`era`/`variants`/源里的 `notes` 五个键）**就地标注为已作废**——出现即报错（`FORBIDDEN_ID_KEY`／`REMOVED_KEY`），**不静默转换**。
 
-`id` 规则：全小写 ASCII，`<来源集合>-<两位序号>`，例如 `gushi-shijiu-shou-01`。全局唯一，且等于文件名（不含 `.md`）。
+路径：`content/poems/**/<名字>.md`（一个文件一首诗，UTF-8，LF 换行）。**允许任意层级**（根直接文件／一层／多层）；目录**只是整理**，**不参与分组**——分组由 `dynasty` ＋ 顶层有序朝代数组决定（用户 2026-10-16 已定「目录层级任意」）。
 
-YAML front matter（`---` 包围）字段：
+`id`：**不写在源里**，由「相对 `content/poems/` 的完整相对路径、去 `.md`、`/` 统一写成 `-`」派生（用户 2026-10-16 已定 **C2**）。例：`古诗十九首/行行重行行.md` ⇒ `古诗十九首-行行重行行`。**全局唯一**（判重见 §3.1 `ID_DUPLICATE`）。**直接换、不做兼容**：不做 `legacyId`、不做映射表、不做重定向；旧 ASCII 链接失效是**已接受的代价**。
+
+YAML front matter（`---` 包围）字段（`formatVersion=2`）：
 
 | 键 | 必填 | 含义 | 约定 |
 |---|---|---|---|
-| `id` | 是 | 标识 | 与文件名一致，全局唯一 |
 | `title` | 是 | 诗题 | 如 `行行重行行` |
 | `author` | 是 | 作者 | 真正佚名/无名氏写 `佚名`；**不编造、不推断具体人名**。判定用的匿名作者清单见 §2.1.1（唯一来源 `schema/unknown-authors.json`） |
-| `dynasty` | 是 | 时代/朝代，**分组依据** | 未知写 `未详` |
-| `dynastyOrder` | 是 | 组排序键，整数 | 先秦 0 / 汉 100 / 魏晋 200 / 南北朝 300 / 唐 400 / 宋 500 / 元 600 / 明 700 / 清 800 / 近现代 900 / 未详 9999 |
-| `era` | 否 | 更细的时代或创作年代说明 | 如 `东汉末`；可空 |
-| `genre` | 否 | 体裁 | 如 `五言古诗`；可空 |
+| `dynasty` | 是 | 时代/朝代，**分组依据** | **一个中文组名**，必须**逐字符等于**注册表 label（精确匹配，不做别名；未知写 `未详`） |
 | `source` | 是 | 文本所据底本/校录来源 | 必须可核，如 `《文选》卷二十九（维基文库校录，2026-10-14 访问）` |
+| `genre` | 否 | 体裁 | 如 `五言古诗`；可空 |
 | `orderInSource` | 否 | 该诗在底本中的**原次序**（整数，1 起） | 缺失 = 未提供（不是错误）。用途见第 2 节「组内排序策略」 |
-| `variants` | 否 | 异文记录 | 数组，元素 `{text, note}`；**异文不进正文** |
-| `notes` | 否 | **用户个人笔记**（Markdown 文本） | 没写就省略该键；agent 不代写第一人称内容 |
 
-正文（front matter 之后的 Markdown 正文区）：
+**已从源格式去掉的键**（就地替代，出现即报错、**不静默转换**）：
+
+| 旧键 | 现在写在哪 | 报什么码 |
+|---|---|---|
+| `id` | 不写（由相对路径派生，§1.4） | `FORBIDDEN_ID_KEY` |
+| `dynastyOrder` | 不写（组序由注册表 order 决定，顶层 `dynasties` 数组即次序） | `REMOVED_KEY` |
+| `era` | 用户已定删掉该字段（更细的时代不再单独承载） | `REMOVED_KEY` |
+| `variants` | 考据文本整段写进 `## 详情` 节 | `REMOVED_KEY` |
+| `dynastyKey` / `dynastyLabel` | 产物只留一个中文 `dynasty` | `REMOVED_KEY` |
+| `notes` | 用户笔记写进 `## 笔记` 节 | `REMOVED_KEY` |
+
+正文（front matter 之后到第一个 `## ` 之前）：
 
 - 每印刷行一行，行内保留全角标点（如 `行行重行行，与君生别离。`）。
 - **空行表示分段**（对应纸本空行/段落边界），段内不插空行。
 - 正文区不重复写标题，不写解释、译注、赏析等非原文字句。
+- **正文区不走 Markdown**：诗行里的 `**`、`- `、`#` 一律原样显示（唯一的例外检查是**行首 `#`** ⇒ `MD_HEADING`，理由见 §3.1）。
+
+两个节（可选、顺序不限；`### ` 不是分界）：
+
+- `## 详情` ⇒ 产物 `detail`（考据/来源等，**最小 Markdown 文本**）；
+- `## 笔记` ⇒ 产物 `notes`（**用户个人笔记**，最小 Markdown 文本；agent 不代写第一人称内容）；
+- **空节 = 缺失** ⇒ 值写 `null`，**键仍在**（不是 `""`，也不是删键）；**空白节也算空节**。**无诊断、退出码 0**。
+- **未知节报错**（`UNKNOWN_SECTION`）；**重复节报错**（`DUPLICATE_SECTION`，落在第二次出现的那一行）。分界要求：行首**恰好** `## ` 后跟**非空**节名。
+
+### 1.0 最小 Markdown 闭集（**源语法**这一份，8 样，闭集）
+
+| # | 语法 | 写法 | 渲染成什么 |
+|---|---|---|---|
+| 1 | 段落 | 连续非空行 | 一整段 |
+| 2 | 段内换行 | 段落里的每一行 | 段内一次换行 |
+| 3 | 无序列表 | 行首 `- ` | 列表（每行一项） |
+| 4 | 有序列表 | 行首 `1. `、`2. `… | 有序列表（按出现次序编号） |
+| 5 | 粗体 | 行内 `**文字**` | 加粗 |
+| 6 | 斜体 | 行内 `*文字*` | 斜体 |
+| 7 | 三级标题 | 行首 `### ` | 小标题块 |
+| 8 | 引用 | 行首 `> ` | 引用块 |
+
+**闭集之外出现即报错**（码见 §3.1）：表格／图片／链接／行内代码／代码围栏／行首任务列表／脚注／行首 HTML／`* ` 星号列表／`# ` 与 `#### ` 及更深（`### ` 是**恰好三级**）。**未闭合的行内强调**（落单 `**`／`*`）也报错（`MD_EMPHASIS_UNCLOSED`，负责人 2026-10-16 落定；闭集不含转义写法）。
+开闭两个「围栏」行本身报 `MD_CODE_FENCE`，**未闭合**再报 `MD_FENCE_UNCLOSED`；但解析**先跟踪围栏**——围栏内的 `## x` **不算节分界**（否则一个未闭合围栏会静默吞掉后面所有内容）。
+**一行一码**：同一行同时越界多种写法时只报优先级最高的那一种（避免刷屏）。
 
 ### 1.1 front matter 语法子集（实现细节，契约线 C 定，2026-10-14）
 
@@ -57,14 +93,22 @@ front matter 出现必填/可选两张表以外的键时，编译**失败并列�
 
 v0 定了产物里有 `dynastyKey`，但没定它从哪来。定死如下（实现见 `tools/lib/dynasties.mjs`）：
 
-- `dynasty`（精确匹配 label）→ 注册表条目 `{key,label,order}`，产物同时写 `dynastyKey`/`dynastyLabel`/`dynastyOrder`；
+- `dynasty` **精确匹配**注册表的某个中文 label（**逐字符相等，不做 `trim`、不做别名归一、不做繁简折叠**：`汉 `、`漢`、`东汉`、`三国` 都报 `DYNASTY_UNDECLARED`，诊断里列出全部 11 个可用组名，并在「只是首尾空白/NFC 差异」时直接给出归一后的写法）→ 注册表条目 `{key,label,order}`；
+  ⚠ **2026-10-16（`formatVersion=2`）就地取代**：order **不再写进每首诗**（它只决定顶层 `dynasties` 数组次序与组序）；旧句「产物同时写 `dynastyKey`/`dynastyLabel`/`dynastyOrder`」**已作废**。
 - 注册表 order 直接采用本文件第 1 节那张表：先秦 0 / 汉 100 / 魏晋 200 / 南北朝 300 / 唐 400 / 宋 500 / 元 600 / 明 700 / 清 800 / 近现代 900 / 未详 9999；key 为 `pre-qin`/`han`/`wei-jin`/`nanbei`/`tang`/`song`/`yuan`/`ming`/`qing`/`modern`/`unknown`；
-- 文件里的 `dynastyOrder` 必须等于注册表 order，否则 `DYN_ORDER_MISMATCH`（防两份排序键打架）；
+- ~~文件里的 `dynastyOrder` 必须等于注册表 order，否则 `DYN_ORDER_MISMATCH`（防两份排序键打架）~~ ⚠ **2026-10-16 作废**：`dynastyOrder` 已删（`REMOVED_KEY`），`DYN_ORDER_MISMATCH`／`DYN_ORDER_NOT_INTEGER` 两个码随之作废（见 §3.1「已作废的码」）；
 - `dynasty` 未在注册表中声明 → `DYNASTY_UNDECLARED`。**不做别名猜测**（`东汉`/`三国` 不会静默归到 `汉`/`魏晋`）；新分组必须显式登记并同步本文件。
 
-### 1.4 `id` 形状（正则固定）
+### 1.4 `id` 形状（**正面约束**，2026-10-16 就地取代旧正则）
 
-`^[a-z0-9]+(?:-[a-z0-9]+)*-\d+$`，且必须等于文件名（不含 `.md`）。末段序号至少一位数字，两位是约定写法。
+- **非空**；
+- **不含 `/`**（路由 `/p/<id>` 用 `[^/]+`，含 `/` 会与 `/detail` 后缀相撞）；
+- **不含控制字符与反斜杠**（控制字符在产物/终端里不可见；反斜杠是 Windows 路径分隔符）；
+- 其余（中文、大小写、`-`、数字）都允许 —— ID 由磁盘上的真实路径派生，不在这里做「命名风格」的二次发明。
+
+同一正则的源码字符串与 JSON Schema 的 `pattern` 由 `tests/interface.test.mjs` 比对（`ID_REGEX` / `ID_PATTERN`）。
+~~`^[a-z0-9]+(?:-[a-z0-9]+)*-\d+$`，且必须等于文件名（不含 `.md`）。末段序号至少一位数字，两位是约定写法。~~
+⚠ **本段旧正则已作废**（2026-10-16）：中文 ID 违反它（中文不在 `[a-z0-9]`，且 `古诗十九首-行行重行行` 不以 `-数字` 结尾）；且 `id` 已不由文件名直接决定，而是由**相对路径**派生。
 
 ## 2. 编译产物：`dist/content.json`
 
@@ -72,22 +116,20 @@ v0 定了产物里有 `dynastyKey`，但没定它从哪来。定死如下（实�
 
 ```json
 {
-  "formatVersion": 1,
+  "formatVersion": 2,
   "contentVersion": "2026.10.14.1",
   "generatedAt": "2026-10-14T12:00:00Z",
-  "dynasties": [{ "key": "han", "label": "汉", "order": 100 }],
+  "dynasties": ["汉"],
   "poems": [
     {
-      "id": "gushi-shijiu-shou-01",
+      "id": "古诗十九首-行行重行行",
       "title": "行行重行行",
       "author": "佚名",
-      "dynastyKey": "han",
-      "dynastyLabel": "汉",
-      "dynastyOrder": 100,
-      "era": "东汉末",
+      "dynasty": "汉",
       "genre": "五言古诗",
       "source": "…",
-      "variants": [],
+      "orderInSource": 1,
+      "detail": "### 异文\n\n- **游子不顾返** —— …",
       "stanzas": [["行行重行行，与君生别离。", "…"], ["…"]],
       "notes": null
     }
@@ -95,9 +137,11 @@ v0 定了产物里有 `dynastyKey`，但没定它从哪来。定死如下（实�
 }
 ```
 
-- `dynasties`：**只列实际有内容的组**，按 `order` 升序。
-- `stanzas`：分段数组，内层为行数组；空行→段边界。原文空行信息不得丢失。
-- `notes`：`null` 或 Markdown 字符串；客户端按需展开，默认折叠。
+> ⚠ 上面是 **`formatVersion=2`** 的形状（2026-10-16）。v1 的旧形状（`dynastyKey`/`dynastyLabel`/`dynastyOrder`/`era`/`variants`、顶层 `dynasties: [{key,label,order}]`）**已作废**；旧文见 `items/content-format/history/` 与 `schema/format-version.json` 的 v1 记录（**旧条保留**：它记录着老客户端认得的形状）。
+
+- `dynasties`：**有序中文值数组**（用户 2026-10-15 已定 ①）。**只列实际有内容的组**，次序即显示次序（注册表 order 升序）；每首诗的 `dynasty` 必须逐字等于其中一个值。**分组权威就是它**（不再有每首自带的 key/label/order）。
+- `stanzas`：分段数组，内层为行数组；空行→段边界。原文空行信息不得丢失。**正文不走 Markdown**。
+- `detail` / `notes`：`null` 或**最小 Markdown 文本**（§1.0）；`notes` 客户端按需展开、默认折叠；`null` 时整块不出现。
 - 排序：组内先按作者、再按诗名。排序键由编译期算好写入（`authorSortKey`/`titleSortKey` 用拼音排序：`Intl.Collator('zh-Hans-CN-u-co-pinyin')`）。**佚名/未知作者在该组内排最后**，这是显式规则，不靠字符串碰巧。
   ⚠️ **本 bullet 已被 §2.1 的排序策略取代**：最终规则是「先按 `orderInSource`（有值者，升序），无值者再按作者/诗名拼音；佚名最后」，**默认 `source`**（**已由用户拍板 2026-10-14**）；且**编译期是唯一排序权威，客户端不得重排**。⚠️ 本 bullet 里「排序键写入产物」也**已作废**（见 §2.1.1）：两个拼音名次只在编译期内部用，**不发布**。
 - ~~搜索：客户端对 `title`、`author` 做子串匹配（v0 最低要求；拼音增强可后加，不阻塞）。~~ ⚠ **〔2026-10-15 就地替代〕第一版不做搜索**（用户拍板「第一版不做搜索，后续什么时候做再说，我不认为这是必须的」；留痕 `docs/interface-decisions.md` IF-46）⇒ **本条不再是客户端的期望行为**，两端现有搜索实现（含其断言）已随之移除。原文保留（删除线）只为可回溯：**不要按它实现、也不要按它写断言**。
@@ -107,15 +151,16 @@ v0 定了产物里有 `dynastyKey`，但没定它从哪来。定死如下（实�
 上面那段 JSON 是**示意图**（省略了 `orderInSource`）。规范的键与键序如下，编译产物按此固定插入顺序输出（字节可复现、diff 稳定）：
 
 - 顶层：`formatVersion`、`contentVersion`、`generatedAt`、`dynasties`、`poems`；
-- 分组：`key`、`label`、`order`；
-- 每首诗：`id`、`title`、`author`、`dynastyKey`、`dynastyLabel`、`dynastyOrder`、`era`、`genre`、`source`、`orderInSource`、`variants`、`stanzas`、`notes`；
-- 异文：`text`、`note`。
+- ~~分组：`key`、`label`、`order`；~~ ⚠ **2026-10-16 作废**：顶层 `dynasties` 现在是**字符串数组**（每项一个中文组名），没有对象键；
+- 每首诗：`id`、`title`、`author`、`dynasty`、`genre`、`source`、`orderInSource`、`detail`、`stanzas`、`notes`（**10 键**；~~`id`、`title`、`author`、`dynastyKey`、`dynastyLabel`、`dynastyOrder`、`era`、`genre`、`source`、`orderInSource`、`variants`、`stanzas`、`notes` 十三个键~~ 已作废）；
+- ~~异文：`text`、`note`。~~ ⚠ **2026-10-16 作废**：`variants` 已删，考据文本整段进 `detail`。
 
 **每首诗没有也不应有任何排序字段**：含 `orderInSource` 的产物**不必**再提供排序字段——排序是编译期算出来的**数组性质**，不是每首诗的数据属性。后人看到诗对象里没有排序字段，不要以为漏了。
 
-形状恒定：可选字段缺失时写 `null`（`era`/`genre`/`orderInSource`/`notes`）或 `[]`（`variants`），不省略键，客户端无需判 undefined。
+形状恒定：可选字段缺失时写 `null`（`genre`/`orderInSource`/`detail`/`notes`），不省略键，客户端无需判 undefined。
 
-**朝代字段是冗余快照，以声明表为准**：诗对象里的 `dynastyKey`/`dynastyLabel`/`dynastyOrder` 是**冗余快照**（客户端按诗直接渲染时不必先建组索引），**权威是顶层的 `dynasties` 声明表**；任何冲突以 `dynasties` 为准（编译器保证一致；客户端需要组序/组名/分组时读 `dynasties`，不要从诗对象拼）。
+~~**朝代字段是冗余快照，以声明表为准**：诗对象里的 `dynastyKey`/`dynastyLabel`/`dynastyOrder` 是**冗余快照**（客户端按诗直接渲染时不必先建组索引），**权威是顶层的 `dynasties` 声明表**；任何冲突以 `dynasties` 为准。~~
+⚠ **2026-10-16 就地取代**：冗余快照已删 —— 每首只留一个中文 `dynasty`（它是**分组键**，必须逐字等于顶层 `dynasties` 里的某个值）；**权威仍是顶层 `dynasties`**（次序以它为准），编译器保证两者一致。
 
 ### 2.1.1 排序：编译期是唯一权威，名次不发布（2026-10-14 用户拍板）
 
@@ -149,44 +194,70 @@ v0 定了产物里有 `dynastyKey`，但没定它从哪来。定死如下（实�
 
 ## 3. 校验（编译必须失败的情形）
 
-1. `id` 重复，或与文件名不一致；
-2. 缺必填键、`dynastyOrder` 非整数；
-3. 正文为空（只有 front matter）；
-4. `dynastyKey` 未在 `dynasties` 中声明；
-5. 同一诗内 `stanzas` 全空。
+> ⚠ **2026-10-16（`formatVersion=2`）就地取代**：下面旧五条已重写（旧文保留为可回溯）：
+>
+> ~~1. `id` 重复，或与文件名不一致；~~ → `id` 由相对路径派生，判重改成「NFC＋大小写折叠后撞车」（`ID_DUPLICATE`）；
+> ~~2. 缺必填键、`dynastyOrder` 非整数；~~ → 缺必填键仍在（`MISSING_REQUIRED_KEY`），`dynastyOrder` 已删；
+> ~~3. 正文为空（只有 front matter）；~~ → 正文区没有非空行 ⇒ `BODY_EMPTY`（不再分「无正文区 / 只有空行」两种）；
+> ~~4. `dynastyKey` 未在 `dynasties` 中声明；~~ → `dynasty` 不等于注册表任何中文组名 ⇒ `DYNASTY_UNDECLARED`；
+> ~~5. 同一诗内 `stanzas` 全空。~~ → 已并入 `BODY_EMPTY`（`STANZAS_ALL_EMPTY` 作废）。
+
+`formatVersion=2` 的校验清单：
+
+1. front matter 缺必填键、类型不对、或出现未声明/已删键；
+2. `dynasty` 不是注册表里的中文组名（精确匹配）；
+3. 正文区没有任何非空行（`BODY_EMPTY`）；
+4. `orderInSource` 写了但不是 ≥ 1 的整数；
+5. 节层面的错误（未知节／重复节）与 Markdown 越界（§1.0）；
+6. 按相对路径派生的 `id` 撞车；
+7. 内容根里的非 `.md` 文件／符号链接（扫描阶段）。
 
 校验失败时编译以非零退出码失败，不产出半成品 `content.json`。
 
-### 3.1 错误码与判定细节（契约线 C 定，2026-10-14）
+### 3.1 错误码与判定细节（契约线 C；下表已在 2026-10-16 披成 `formatVersion=2`）
 
-每条校验对应一个稳定错误码（测试与流水线按它断言）。编译**一次报出全部错误**，不是只报第一条。
+每条校验对应一个稳定错误码（测试与流水线按它断言）。编译**一次报出全部错误**，不是只报第一条。诊断格式：`<file>:<line>: [CODE] message`（无文件位置的用 `<cli>`），且 message 里必须能看出**原因与建议动作**（不可见字符要写成 `\uXXXX` 转义）。
 
-| 契约条目 | 错误码 | 触发条件 |
-|---|---|---|
-| 1 | `ID_INVALID` | `id` 不匹配 `^[a-z0-9]+(?:-[a-z0-9]+)*-\d+$` |
-| 1 | `ID_FILENAME_MISMATCH` | `id` ≠ 文件名（不含 `.md`） |
-| 1 | `ID_DUPLICATE` | 两个文件的 `id` 相同 |
-| 2 | `MISSING_REQUIRED_KEY` | 任一必填键缺失或值为空（逐个报） |
-| 2 | `DYN_ORDER_NOT_INTEGER` | `dynastyOrder` 不是整数 |
-| 3 | `BODY_EMPTY` | 关闭 `---` 之后**没有正文区**（或正文区为空字符串） |
-| 4 | `DYNASTY_UNDECLARED` | `dynasty` 未在分组注册表中声明（第 1.3 节） |
-| 5 | `STANZAS_ALL_EMPTY` | 正文区**存在但只有空行**，构建出的 `stanzas` 为空/全空 |
-| 新增 | `UNKNOWN_KEY` | front matter 出现未声明的键（第 1.2 节） |
-| 新增 | `DYN_ORDER_MISMATCH` | `dynastyOrder` ≠ 该朝代的注册值 |
-| 新增 | `FIELD_TYPE` | `title`/`author`/`source` 非字符串，或 `era`/`genre`/`notes` 不是字符串/空 |
-| 新增 | `VARIANT_INVALID` | `variants` 不是数组，或元素缺少非空 `text`，或 `note` 不是字符串/空 |
-| 新增 | `ORDER_IN_SOURCE_NOT_INTEGER` | `orderInSource` 写了但不是整数（不写不报错） |
-| 语法 | `FRONT_MATTER_MISSING` / `FRONT_MATTER_UNTERMINATED` / `YAML_UNSUPPORTED` / `YAML_DUPLICATE_KEY` | front matter 缺失、未闭合、用了子集外写法、重复键 |
-| 版本 | `VERSION_FORMAT` / `VERSION_NOT_MONOTONIC` | 见第 4 节 |
-| 其他 | `NO_POEMS` / `CONTENT_DIR_MISSING` | 无 `.md` 文件（拒绝产出空目录内容）/ 内容目录不存在 |
+| 错误码 | 触发条件 |
+|---|---|
+| `FRONT_MATTER_MISSING` | 文件第一行不是 `---` |
+| `FRONT_MATTER_UNTERMINATED` | front matter 没有结束行 `---` |
+| `YAML_UNSUPPORTED` | front matter 用了 §1.1 子集外写法（行内集合、非法转义等） |
+| `YAML_DUPLICATE_KEY` | front matter 里重复的键 |
+| `MISSING_REQUIRED_KEY` | 任一必填键（`title`/`author`/`dynasty`/`source`）缺失或值为空（逐个报） |
+| `UNKNOWN_KEY` | front matter 出现声明之外的键 |
+| `FORBIDDEN_ID_KEY` | 源 MD 写了 `id`（已改由相对路径派生） |
+| `REMOVED_KEY` | 源 MD 写了 `formatVersion=2` 已去掉的旧键（`dynastyOrder`/`era`/`variants`/`dynastyKey`/`dynastyLabel`/源里的 `notes`） |
+| `FIELD_TYPE` | `title`/`author`/`dynasty`/`source` 非字符串，或 `genre` 不是字符串/空 |
+| `DYNASTY_UNDECLARED` | `dynasty` 不等于注册表任何中文 label（列出全部可用组名；不做别名/繁简折叠；只差首尾空白或 NFC 时给出归一后的写法） |
+| `ORDER_IN_SOURCE_NOT_INTEGER` | `orderInSource` 写了但不是 ≥ 1 的整数（不写不报错） |
+| `BODY_EMPTY` | 正文区（front matter 之后、第一个 `## ` 之前）没有任何非空行 |
+| `UNKNOWN_SECTION` | `## <名字>` 不在 `{详情, 笔记}` 里（列出本文件已出现的已知节与行号） |
+| `DUPLICATE_SECTION` | 同一节名出现 ≥ 2 次（诊断落在**第二次**出现的那一行，并列出全部行号） |
+| `MD_CODE_FENCE` | 出现代码围栏行（` ``` `/`~~~`）；围栏内 `##` 不算分界 |
+| `MD_FENCE_UNCLOSED` | 围栏到文件末尾都没有闭合（必须先跟踪围栏才能报出来） |
+| `MD_HEADING` | 行首标题不是恰好三级（`# `、`#### ` 及更深），或节标题 `##` 后缺空格（后者在**原文区也检查**） |
+| `MD_TASK_LIST` / `MD_TABLE` / `MD_IMAGE` / `MD_LINK` / `MD_INLINE_CODE` / `MD_FOOTNOTE` / `MD_HTML` / `MD_STAR_LIST` | §1.0 闭集外的对应写法（一行一码） |
+| `MD_EMPHASIS_UNCLOSED` | 行内强调未闭合（落单 `**`/`*`），落在该行 |
+| `ID_DUPLICATE` | 按相对路径派生的 `id`（NFC ＋ 大小写折叠后）撞车 ⇒ 列出全部冲突路径 |
+| `ID_INVALID` | 由路径派生的 `id` 不满足 §1.4 的正面约束 |
+| `SOURCE_NOT_MARKDOWN` | 内容根里出现不在排除清单里的非 `.md` 文件 |
+| `SOURCE_SYMLINK` | 内容根里出现符号链接（**不跟随、报错**；旧实现对 `isFile()` 为假的项静默丢弃） |
+| `NO_POEMS` | 内容根下没有任何 `.md` 文件（拒绝产出空目录内容） |
+| `CONTENT_DIR_MISSING` | 内容目录不存在 |
+| `VERSION_FORMAT` / `VERSION_NOT_MONOTONIC` | 见第 4 节 |
+| `ORDER_STRATEGY_INVALID` | `--order` 取值不在 `source`/`pinyin` 里（退出码 2） |
 
-第 3 条与第 5 条不再混为一谈，可区分输入：文件在关闭 `---` 后直接结束（无正文区）→ `BODY_EMPTY`；关了 `---` 但底下只有空白行 → `STANZAS_ALL_EMPTY`。
+**已作废 / 已改语义的码（`formatVersion=2` 起）：**
+`ID_FILENAME_MISMATCH`（源里不再写 `id`）；`DYN_ORDER_NOT_INTEGER`、`DYN_ORDER_MISMATCH`（每首不再自带组排序键）；`VARIANT_INVALID`（`variants` 已删，考据改写成 `## 详情`）；`STANZAS_ALL_EMPTY`（与 `BODY_EMPTY` 合并：正文区没有非空行一律 `BODY_EMPTY`，不再区分「无正文区 / 只有空行」）；`ID_INVALID` **保留但含义已换**（不再是「ASCII 形状不符」而是「不符合 §1.4 正面约束」）。
+
+**扫描阶段的排除规则**（均属**忽略并计数**，不是错误）：`README*`；`_` 前缀（文件或目录）；隐藏（`.` 开头）；临时（`~` 开头或结尾、`#…#`）；空目录。计数出现在 CLI 摘要与 `--json` 的 `ignoredFiles`/`ignoredByReason` 里。
 
 行为约定：
 
 - 退出码：`0` 成功，`1` 校验/构建失败，`2` 命令行用法错误（未知选项、非法 `--order` 等）；
 - **失败不写产物，也不动已有产物**（先全量构建到内存，成功后才用临时文件 + rename 原子写入），即「失败保留旧版本」；
-- 错误输出格式：`<file>:<line>: [CODE] message`（无文件位置的用 `<cli>`）。
+- 扫描阶段报错时不进入诗级校验（目录里究竟有什么还说不清），其余情况一次报出全部错误。
 
 ## 4. 版本与更新（契约层）
 
@@ -215,6 +286,11 @@ v0 默认的「字典序比较」换成两条明确路径（字典序在 `2026.1
   - 技术依据：按 §2.1.1 的客户端约定，客户端本来就不该读这两个键（正式路径上一个排序字段都不用），删掉对合规客户端无影响。
   - ⚠️ **仍未定：发布之后的判据**。等真正发布过第一个版本之后，再改字段集时用哪种口径？候选：① **只在「旧客户端会读错」时才升**（推荐：对应用户实际受到的影响）；② **字段集一变就升**（严格，但每次删字段都会冻结已发布的旧客户端——旧 APK 将拒绝新内容，用户需装新 APK 才能拿到）。**该口径在进入发布阶段前必须定，已在 `docs/status.md` 待决清单里登记。**
   - 升版的真实代价（供上一条参考）：一次 `formatVersion` 递增 + 旧客户端拒绝解析新内容 ⇒ **旧 APK 停止拿到内容更新**（Android 需发新 APK）。
+  - ⚠️ **上面那个「仍未定」已在 2026-10-15 定了＝B「字段集一变就升」**（用户拍板，代价不可逆、用户明确接受）⇒ **不要再列为待定**。
+- **`1 → 2`（2026-10-16，S1＋S2.1 落地）**：每首从 13 键变 **10 键**（`dynastyKey`/`dynastyLabel`/`dynastyOrder`/`era`/`variants` 消失，新增 `dynasty`/`detail`），顶层 `dynasties` 从对象数组变**字符串数组**（`dynasties[].key/label/order` 三条路径消失，变成 `dynasties[]`）⇒ 字段路径 **28 → 19** 条。
+  - 口径与实现：**产物 JSON 的键路径**（`tools/lib/field-set.mjs`）；门＝`tools/check-fieldset.mjs` ＋ 冻结记录 `schema/format-version.json`（**旧条保留**：它记录着老客户端认得的形状）；断言在 `tests/format-version.test.mjs`。
+  - ⚠ **过渡期**：S2 落地时 `content/poems/` 还是 v1 源、编不过 ⇒ 字段集门默认编译 `tests/fixtures/shape-v2/content`（形状夹具）；S3 迁移后可 `--content content` 回到真实内容。
+  - ⚠ 2026-10-14 那次「删两个拼音名次键仍保持 1」的理由（**还没进入发布阶段**）**已经不再成立**（首个公开版本 `v0.1.1` 已发布），所以本次按 B 判据升。
 
 为什么“单调递增”必须来自显式输入：从内容本身派生（哈希、最大日期）无法保证「改了内容版本一定变大」；能保证单调的只有“人来定这个数”，所以把它做成流水线的显式参数 + 编译器强制检查。
 
@@ -225,25 +301,31 @@ v0 默认的「字典序比较」换成两条明确路径（字典序在 `2026.1
 | 文件 | 作用 |
 |---|---|
 | `schema/unknown-authors.json` | **匿名作者清单的唯一机器可读来源**（编译器直接读它；Android/Web 必须与它一致，见 §2.1.1） |
-| `schema/content.schema.json` | `dist/content.json` 的 JSON Schema（第 2 节结构的机器可校验形式） |
+| `schema/content.schema.json` | `dist/content.json` 的 JSON Schema（第 2 节结构的机器可校验形式，随 `formatVersion=2`） |
+| `schema/format-version.json` | `formatVersion` 的字段集冻结记录（v1 与 v2 两条） |
 | `tools/build-content.mjs` | 编译器 CLI |
-| `tools/lib/interface.mjs` | **接口唯一定义处**：产物键序/字段集、front matter 字段集、id 正则、路径与 CLI 默认值、退出码、排序策略 |
+| `tools/lib/interface.mjs` | **接口唯一定义处**：产物键序/字段集、front matter 字段集、节名、id 正面约束、路径与 CLI 默认值、退出码、排序策略 |
+| `tools/lib/scan.mjs` | 内容根扫描：递归、排除并计数、按相对路径派生 id、符号链接报错 |
 | `tools/lib/frontmatter.mjs` | front matter 最小子集解析器（无依赖） |
-| `tools/lib/dynasties.mjs` | 朝代分组注册表 |
+| `tools/lib/markdown.mjs` | 最小 Markdown 闭集的行分类与越界文案（§1.0） |
+| `tools/lib/dynasties.mjs` | 朝代分组注册表（精确匹配） |
 | `tools/lib/content-build.mjs` | 校验、分段、排序、组装产物（纯函数） |
 | `tools/lib/version.mjs` | `contentVersion` 产生/比较/单调检查 |
+| `tools/lib/field-set.mjs` | 「字段集」的机械口径（键路径） |
+| `tools/check-fieldset.mjs` | 字段集门（字段集变了却没升 `formatVersion` ⇒ 红） |
 | `tools/validate-content.mjs` | 用 schema 校验产物（开发期检查） |
-| `tests/` | 单元测试 + CLI 端到端测试 + fixture |
+| `tests/` | 单元测试 + CLI 端到端测试 + fixture（含 rules-v4 的 5 份合法样例与 12 份非法夹具） |
 
 命令：
 
 ```bash
-node tools/build-content.mjs --check                  # 只校验（默认读 content/poems/*.md）
+node tools/build-content.mjs --check                  # 只校验（默认读 content/poems/ 之下，递归）
 node tools/build-content.mjs                          # 产出 dist/content.json
 node tools/build-content.mjs --check --content tests/fixtures/ok-sorting/content
-node tools/build-content.mjs --out dist/content.json --content-version 2026.10.14.1 \
+node tools/build-content.mjs --out dist/content.json --content-version 2026.10.16.1 \
      --previous-version 2026.10.13.1 --order source
 node tools/validate-content.mjs dist/content.json     # schema 校验
+node tools/check-fieldset.mjs                         # 字段集门（过渡期编译形状夹具）
 node --test                                            # 全部测试
 ```
 

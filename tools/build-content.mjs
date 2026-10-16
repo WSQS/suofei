@@ -12,7 +12,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { BuildFailure, ContentError, UsageError } from './lib/errors.mjs';
-import { buildContentFromRecords, toDisplayPath } from './lib/content-build.mjs';
+import { buildContentFromRecords } from './lib/content-build.mjs';
+import { scanPoems, toDisplayPath } from './lib/scan.mjs';
 import {
   CLI_FLAGS,
   DEFAULT_CONTENT_DIR,
@@ -21,13 +22,12 @@ import {
   EXIT_CODES,
   POEMS_SUBDIRNAME,
   SORT_STRATEGIES,
-  SOURCE_EXT,
 } from './lib/interface.mjs';
 
 const USAGE = `用法：node tools/build-content.mjs [选项]
 
   ${CLI_FLAGS.check}                     只校验，不写产物
-  ${CLI_FLAGS.content} <dir>             内容根目录，默认 ${DEFAULT_CONTENT_DIR}（读取 <dir>/${POEMS_SUBDIRNAME}/*${SOURCE_EXT}）
+  ${CLI_FLAGS.content} <dir>             内容根目录，默认 ${DEFAULT_CONTENT_DIR}（**递归**读 <dir>/${POEMS_SUBDIRNAME}/ 之下的 .md；ID 由相对路径派生）
   ${CLI_FLAGS.out} <file>                产物路径，默认 ${toDisplayPath(DEFAULT_OUT)}
   ${CLI_FLAGS.contentVersion} <v>       发布内容版本，形如 2026.10.14.1（不给则由内容摘要派生本地版本）
   ${CLI_FLAGS.previousVersion} <v>      上一版内容版本，用于单调性检查（默认读取已有产物里的值）
@@ -109,30 +109,16 @@ function parseArgs(argv) {
 }
 
 /**
+ * 扫描内容根，读入全部诗文件。
+ *
+ * 用户 2026-10-16 已定：ID ＝ 相对内容根的完整相对路径去 `.md`、`/` → `-`；允许任意层级。
+ * 排除（`README*`／`_` 前缀／隐藏与临时）**忽略并计数**；非 `.md`（不在排除清单里）与符号链接**报错**。
+ * 全库判重在 `buildContentFromRecords`（与其它校验一起报）。
  * @param {string} poemsDir
+ * @returns {{records: {displayPath: string, relPath: string, id: string, text: string}[], errors: ContentError[], ignored: {total: number, byReason: Record<string, number>, emptyDirs: number}}}
  */
 function readRecords(poemsDir) {
-  let entries;
-  try {
-    entries = fs.readdirSync(poemsDir, { withFileTypes: true });
-  } catch (e) {
-    if (/** @type {any} */ (e).code === 'ENOENT') {
-      throw new ContentError('CONTENT_DIR_MISSING', `内容目录不存在：${toDisplayPath(poemsDir)}`);
-    }
-    throw e;
-  }
-  const files = entries
-    .filter((d) => d.isFile() && d.name.toLowerCase().endsWith(SOURCE_EXT))
-    .map((d) => d.name)
-    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-  return files.map((name) => {
-    const abs = path.join(poemsDir, name);
-    return {
-      displayPath: toDisplayPath(abs),
-      base: name.slice(0, -SOURCE_EXT.length),
-      text: fs.readFileSync(abs, 'utf8'),
-    };
-  });
+  return scanPoems(poemsDir);
 }
 
 function readPreviousVersionFromOut(outPath) {
@@ -170,7 +156,20 @@ function main(argv) {
   }
 
   const poemsDir = path.join(opts.contentDir, POEMS_SUBDIRNAME);
-  const records = readRecords(poemsDir);
+  const { records, errors: scanErrors, ignored } = readRecords(poemsDir);
+
+  if (scanErrors.length > 0) {
+    // 扫描阶段的问题（非 `.md` 文件、符号链接）不是「某首诗不合法」，而是「目录里有什么还说不清」，
+    // 所以不进入诗级校验，直接如实报出、退出 1。
+    const failure = new BuildFailure(scanErrors);
+    if (opts.json) {
+      process.stdout.write(`${JSON.stringify(failure.toJSON(), null, 2)}\n`);
+    } else {
+      process.stderr.write(`内容编译失败：${scanErrors.length} 项目录扫描错误\n${failure.formatList()}\n`);
+      process.stderr.write('未产出任何内容文件（失败保留旧版本）。\n');
+    }
+    return EXIT_CODES.buildFailed;
+  }
 
   const previousVersion =
     opts.previousVersion ?? readPreviousVersionFromOut(opts.out) ?? null;
@@ -198,6 +197,9 @@ function main(argv) {
 
   const poemCount = content.poems.length;
   const dynastyCount = content.dynasties.length;
+  const ignoredParts = Object.entries(ignored.byReason).map(([k, n]) => `${k} ${n}`);
+  if (ignored.emptyDirs > 0) ignoredParts.push(`空目录 ${ignored.emptyDirs}`);
+  const ignoredNote = ignored.total > 0 ? `；脚本忽略并计数了 ${ignored.total} 项（${ignoredParts.join('、')}）` : '';
 
   if (!opts.check) {
     const text = `${JSON.stringify(content, null, opts.minify ? 0 : 2)}\n`;
@@ -217,6 +219,8 @@ function main(argv) {
           contentVersion: content.contentVersion,
           orderStrategy,
           generatedAt: content.generatedAt,
+          ignoredFiles: ignored.total,
+          ignoredByReason: ignored.byReason,
           notes: versionNotes,
         },
         null,
@@ -226,8 +230,8 @@ function main(argv) {
   } else if (!opts.quiet) {
     process.stdout.write(
       opts.check
-        ? `内容校验通过：${poemCount} 首诗 / ${dynastyCount} 个分组（--check 未写产物）\n`
-        : `内容编译成功：${poemCount} 首诗 / ${dynastyCount} 个分组 → ${toDisplayPath(opts.out)}\n`,
+        ? `内容校验通过：${poemCount} 首诗 / ${dynastyCount} 个分组（--check 未写产物）${ignoredNote}\n`
+        : `内容编译成功：${poemCount} 首诗 / ${dynastyCount} 个分组 → ${toDisplayPath(opts.out)}${ignoredNote}\n`,
     );
     process.stdout.write(`  formatVersion=${content.formatVersion} contentVersion=${content.contentVersion}\n`);
     process.stdout.write(`  组内排序策略：${orderStrategy}\n`);

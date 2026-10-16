@@ -12,7 +12,15 @@
  *
  * 用法：
  *   node tools/check-fieldset.mjs                  # 检查；0=一致，1=不一致
+ *   node tools/check-fieldset.mjs --content <dir>  # 换一个内容根来编译（默认见下）
  *   node tools/check-fieldset.mjs --print-entry    # 打印当前产物对应的记录条目（人工贴进 schema/format-version.json）
+ *
+ * ⚠ 2026-10-16（formatVersion 1 → 2）为什么默认内容根变成了一个**形状夹具**：
+ *   本门的对象是**产物形状**（键路径），而新编译器只认新源格式；S2 落地时 `content/poems/`
+ *   里还是 v1 源（19 首迁移是 S3、另有授权时序）⇒ 编译真实内容会直接失败，本门会变成「编译不过」
+ *   而不是「字段集一致」。所以本门默认编译 `tests/fixtures/shape-v2/content`——一份**列全 10 键**
+ *   的最小内容（编译器对每一首都无条件发出这 10 个键，所以单首诗就能定形状）。
+ *   S3 落地后可改用 `--content content` 回到真实内容。
  *
  * **本脚本不自动改 schema/format-version.json**：升版本是不可逆动作，得由人显式落笔。
  */
@@ -23,13 +31,18 @@ import { join } from 'node:path';
 import { fieldSetEntry } from './lib/field-set.mjs';
 
 const RECORD = 'schema/format-version.json';
+/** 形状夹具：列全 10 键的最小内容（见文件头的 ⚠ 说明）。 */
+export const DEFAULT_SHAPE_CONTENT_DIR = 'tests/fixtures/shape-v2/content';
 
-/** 编译一次当前内容（产物由 CLI 组装，含顶层键——所以拿到的就是客户端会读到的东西）。 */
-export function compileCurrent(outDir) {
+/** 编译一次当前形状（产物由 CLI 组装，含顶层键——所以拿到的就是客户端会读到的东西）。
+ * @param {string} outDir
+ * @param {string} [contentDir]
+ */
+export function compileCurrent(outDir, contentDir = DEFAULT_SHAPE_CONTENT_DIR) {
   const fresh = join(outDir, 'content.json');
   const build = spawnSync(
     process.execPath,
-    ['tools/build-content.mjs', '--quiet', '--out', fresh, '--order', 'source'],
+    ['tools/build-content.mjs', '--quiet', '--content', contentDir, '--out', fresh, '--order', 'source'],
     { encoding: 'utf8' },
   );
   if (build.status !== 0) {
@@ -85,8 +98,15 @@ export function checkAgainst(doc, record) {
 if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith('check-fieldset.mjs')) {
   const tmp = mkdtempSync(join(tmpdir(), 'suofei-fieldset-'));
   try {
-    const doc = compileCurrent(tmp);
-    if (process.argv.includes('--print-entry')) {
+    const argv = process.argv.slice(2);
+    const ci = argv.indexOf('--content');
+    const contentDir = ci === -1 ? DEFAULT_SHAPE_CONTENT_DIR : argv[ci + 1];
+    if (contentDir === undefined) {
+      console.error('--content 需要一个目录');
+      process.exit(2);
+    }
+    const doc = compileCurrent(tmp, contentDir);
+    if (argv.includes('--print-entry')) {
       console.log(JSON.stringify(fieldSetEntry(doc), null, 2));
       process.exit(0);
     }

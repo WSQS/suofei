@@ -1,15 +1,15 @@
 // 契约线 C：朝代分组注册表。
 //
-// 契约（docs/design/content-contract.md 第 1 节）要求诗文件写 `dynasty`（分组依据，如「汉」）
-// 与 `dynastyOrder`（组排序键，整数）。契约第 2 节的产物里每首诗还要有 `dynastyKey`，
-// 但 v0 没有定义 `dynastyKey` 从哪里来。这里定死：**由本注册表派生**。
+// 契约（docs/design/content-contract.md 第 1 节）要求诗文件写一个中文 `dynasty`。
+// 本表是**唯一权威**：它决定组序（order）与可用组名。
 //
-// 规则（已写回契约第 1/2 节）：
-//   - `dynasty` 必须精确命中本表某个 label；命中后取该条的 key / order 作为规范值。
-//   - 不做别名猜测（「东汉」「三国」不会静默归到「汉」「魏晋」）：未声明的 label 直接失败，
+// 规则（与契约同一份说法）：
+//   - `dynasty` 必须**逐字符等于**本表某个中文 label（**精确匹配，不做 trim**）。
+//     契约写的就是「精确匹配」，所以实现里不允许有任何宽容——2026-10-16 去掉了 `lookupDynasty`
+//     里的 `trim()`（与 rules-v4 的采纳建议一致；**不得再说「当前工具已符合」**）。
+//   - 不做别名猜测（「东汉」「三国」「漢」不会静默归到「汉」「魏晋」）：未声明的 label 直接失败，
 //     强制把新分组作为一次**显式**决定写进本表并同步契约。
-//   - 文件里的 `dynastyOrder` 必须存在、是整数，且等于本表 order（防止文件自带一个和分组
-//     注册表打架的排序键）。order 数值直接采用契约第 1 节给出的表。
+//   - order 决定顶层 `dynasties` 中文值数组的次序（升序）；formatVersion=2 起产物只写中文值。
 
 /** @typedef {{key: string, label: string, order: number}} DynastyEntry */
 
@@ -30,10 +30,23 @@ export const DYNASTIES = Object.freeze([
 
 const BY_LABEL = new Map(DYNASTIES.map((e) => [e.label, e]));
 
-/** @param {string} label */
+/** 精确匹配（**不 trim**）：`汉 ` / `漢` 都不命中——这是刻意的一致口径，不是漏了容错。
+ * @param {string} label
+ */
 export function lookupDynasty(label) {
   if (typeof label !== 'string') return undefined;
-  return BY_LABEL.get(label.trim());
+  return BY_LABEL.get(label);
+}
+
+/** 注册表里全部中文 label（按显示次序）。 */
+export function dynastyLabels() {
+  return DYNASTIES.map((e) => e.label);
+}
+
+/** label → order（顶层 dynasties 数组与组内排序共用一处）。未声明 label 返回 +∞（排序时排最后）。 */
+export function dynastyOrderOf(label) {
+  const e = BY_LABEL.get(label);
+  return e ? e.order : Number.POSITIVE_INFINITY;
 }
 
 export function declaredLabels() {

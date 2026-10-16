@@ -11,33 +11,45 @@ import { fileURLToPath } from 'node:url';
 
 // ---------- dist/content.json 结构 ----------
 
-/** JSON 结构版本。结构不兼容变更时递增。 */
-export const FORMAT_VERSION = 1;
+/** JSON 结构版本。结构不兼容变更时递增。
+ *
+ * 2026-10-16：1 → 2（**不可逆**，用户已定 B 判据「字段集一变就升」）。
+ * 变化：每首 10 键（去掉 dynastyKey/dynastyLabel/dynastyOrder/era/variants，改为单一中文 `dynasty`
+ * ＋ `detail`）；顶层 `dynasties` 从 `[{key,label,order}]` 变为**有序中文值数组**。
+ * 老客户端会拒收 formatVersion=2 的内容（S4 单独验），这不是可以就地改回的东西。
+ */
+export const FORMAT_VERSION = 2;
 
 /** 顶层键序（产物里的插入顺序，保证字节可复现、diff 稳定）。 */
 export const CONTENT_KEYS = Object.freeze(['formatVersion', 'contentVersion', 'generatedAt', 'dynasties', 'poems']);
 
-/** 分组对象键序。 */
-export const DYNASTY_KEYS = Object.freeze(['key', 'label', 'order']);
+/**
+ * 顶层 `dynasties` 的条目形状（formatVersion=2）。
+ *
+ * 用户 2026-10-15 已定 ①：**有序中文值数组**（不是 `[{key,label,order}]`）。
+ * 次序即显示次序（按注册表 order 升序），只列**实际有内容**的组；分组权威就是它，
+ * 每首诗的 `dynasty` 必须逐字等于数组里的某个中文值。
+ */
+export const DYNASTY_ENTRY_TYPE = 'string';
 
-/** 每首诗在产物里的键序（含 era/genre/notes 的 null 占位，客户端形状恒定）。
+/** 每首诗在产物里的键序（缺值写 `null` 保键，客户端形状恒定）。
  *
  * 2026-10-14 用户拍板：产物只发布 `orderInSource`；`authorSortKey`/`titleSortKey` **不再发布**
  * （只在编译期内部用于算次序，见 INTERNAL_SORT_KEYS）。理由：编译期是唯一排序权威、客户端不得
  * 重排，所以两端在正式路径上一个排序字段都不用，产物保持最小。
+ *
+ * 2026-10-16（formatVersion=2）：单一中文 `dynasty` 取代 dynastyKey/dynastyLabel/dynastyOrder；
+ * `era`/`variants` 退出产物，考据文本整段进 `detail`（来自源文件的 `## 详情` 节）。
  */
 export const POEM_KEYS = Object.freeze([
   'id',
   'title',
   'author',
-  'dynastyKey',
-  'dynastyLabel',
-  'dynastyOrder',
-  'era',
+  'dynasty',
   'genre',
   'source',
   'orderInSource',
-  'variants',
+  'detail',
   'stanzas',
   'notes',
 ]);
@@ -49,23 +61,38 @@ export const POEM_KEYS = Object.freeze([
  */
 export const INTERNAL_SORT_KEYS = Object.freeze(['authorSortKey', 'titleSortKey']);
 
-/** 异文对象键序。 */
-export const VARIANT_KEYS = Object.freeze(['text', 'note']);
+// ---------- 源文件 front matter（formatVersion=2）----------
 
-// ---------- 源文件 front matter ----------
+/** 两个合法的节标题（唯一的节名清单；两端的节名清单要与之同步）。 */
+export const KNOWN_SECTIONS = Object.freeze(['详情', '笔记']);
+export const SECTION_DETAIL = '详情';
+export const SECTION_NOTES = '笔记';
 
 /** 必填键。本轮冻结：只增可选键，不改名、不降级。 */
-export const REQUIRED_FRONT_MATTER_KEYS = Object.freeze([
-  'id',
-  'title',
-  'author',
-  'dynasty',
-  'dynastyOrder',
-  'source',
-]);
+export const REQUIRED_FRONT_MATTER_KEYS = Object.freeze(['title', 'author', 'dynasty', 'source']);
 
 /** 可选键。本轮冻结。 */
-export const OPTIONAL_FRONT_MATTER_KEYS = Object.freeze(['era', 'genre', 'variants', 'notes', 'orderInSource']);
+export const OPTIONAL_FRONT_MATTER_KEYS = Object.freeze(['genre', 'orderInSource']);
+
+/**
+ * **已从源格式去掉**的旧键（formatVersion=1 的写法）。
+ *
+ * 出现时一律 `REMOVED_KEY` 报错、**不静默转换**：这套迁移刻意是「显式重写源文件」而不是
+ * 「工具猜你的意思」（猜错就是静默改内容）。`id` 单列，见 `FORBIDDEN_ID_KEY`。
+ *   - `dynastyOrder` → 组序改由注册表决定，源里不再自带排序键；
+ *   - `era`        → 用户已定删掉该字段（更细的时代不再单独承载）；
+ *   - `variants`   → 考据文本整段写进 `## 详情` 节；
+ *   - `dynastyKey`/`dynastyLabel` → 产物改用一个中文 `dynasty`；
+ *   - `notes`      → 用户笔记改由 `## 笔记` 节承载。
+ */
+export const REMOVED_FRONT_MATTER_KEYS = Object.freeze([
+  'dynastyOrder',
+  'era',
+  'variants',
+  'dynastyKey',
+  'dynastyLabel',
+  'notes',
+]);
 
 /** 未声明的键会被拒绝（不静默忽略）。 */
 export const ALL_FRONT_MATTER_KEYS = Object.freeze([
@@ -73,10 +100,21 @@ export const ALL_FRONT_MATTER_KEYS = Object.freeze([
   ...OPTIONAL_FRONT_MATTER_KEYS,
 ]);
 
-/** id 正则（源：末段为序号数字的短横线小写串）。 */
-export const ID_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*-\d+$/;
-/** 供 JSON Schema / 文档引用的同一正则源码。 */
-export const ID_PATTERN = '^[a-z0-9]+(?:-[a-z0-9]+)*-\\d+$';
+/**
+ * id 的**正面约束**（2026-10-16，C2 路径 ID 收口）。
+ *
+ * 用户已定：ID ＝ 相对内容根（`content/poems/`）的完整相对路径、去 `.md`、`/` → `-` ⇒
+ * **中文 ID 合法**（`古诗十九首-行行重行行`）。旧的 `^[a-z0-9]+(?:-[a-z0-9]+)*-\d+$`
+ * 会把中文与「不以 `-数字` 结尾」全部判错，所以换成只做正面约束：
+ *   - **非空**；
+ *   - **不含 `/`**（路由 `/p/<id>` 用 `[^/]+`，含 `/` 会与 `/detail` 后缀相撞）；
+ *   - **不含控制字符与反斜杠**（控制字符在产物/终端里不可见；反斜杠是 Windows 路径分隔符）。
+ * 其余（大小写、中文、`-`、空格以外的可打印字符）都允许 —— ID 由磁盘上的真实路径派生，
+ * 不在这里做「命名风格」的二次发明。
+ */
+export const ID_REGEX = /^[^/\\\u0000-\u001f\u007f]+$/;
+/** 供 JSON Schema / 文档引用的同一正则源码（JSON Schema 的 pattern 是正则**源码字符串**）。 */
+export const ID_PATTERN = '^[^/\\\\\\u0000-\\u001f\\u007f]+$';
 
 // ---------- 排序 ----------
 
