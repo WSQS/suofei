@@ -1,0 +1,764 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="tech" data-shot="0">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>诗页「有笔记」的入口与展开 · 表达原型（3 档 · 收起／展开两态）—— 材料，不是实施</title>
+<style>
+/* 令牌快照（内嵌副本，不是新权威）
+ *   来源：prototype/css/theme-tech.css（只读，未改动）
+ *   仓库提交：778f480（写这份快照那一刻的 HEAD；该文件在工作树里无改动）
+ *   权威仍是 docs/design/visual-tokens.md（§2 颜色 / §3 排版 / §4 间距形状 / §4.1 结构记号）。
+ *   快照只是为「单文件自包含」复制的一份，值逐字照抄、未做微调；只列本页实际用到的令牌。
+ */
+/* == TOKEN-SNAPSHOT-BEGIN == */
+:root {
+  --bg: #0e1315;
+  --bg-pattern: linear-gradient(to right, rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+  --bg-pattern-opacity: 1;
+  --surface: #141b1e;
+  --text: #dde5e4;
+  --text-dim: #98a8a6;
+  --text-faint: #788a88;
+  --line: #233034;
+  --accent-line: rgba(79, 179, 165, 0.38);
+  --accent-text: #7fd4c6;
+  --warn-soft: rgba(201, 162, 74, 0.08);
+  --warn-text: #dcc078;
+  --line-warn: rgba(201, 162, 74, 0.34);
+  --test-line: rgba(79, 179, 165, 0.36);
+  --test-soft: rgba(79, 179, 165, 0.07);
+  --test-text: #7fd4c6;
+  --radius-s: 3px;
+  --row-transition: border-color 0.15s ease, background 0.15s ease;
+  --font-body: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-poem: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-title: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-ui: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-note: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-mono: 'Consolas', 'SFMono-Regular', ui-monospace, monospace;
+  --font-size: 15px;
+  --lh: 1.75;
+  --ls: 0.005em;
+  --poem-size: 17px;
+  --poem-lh: 2;
+  --poem-ls: 0.045em;
+  --note-size: 13.5px;
+  --note-measure: 36em;
+  --title-size: 1.5rem;
+  --title-weight: 500;
+  --title-ls: 0.1em;
+  --pad: 1.25rem;
+}
+/* == TOKEN-SNAPSHOT-END == */
+
+/* 草案值（**不在** docs/design/visual-tokens.md 里；本原型为「笔记入口与展开」临时取的数）
+ *   ⇒ 它们**不是**规范值。只列**本页实际用到**的。
+ *   ⚠ 例外（写在这里只为让页面能解析到值，**不是**草案）：--title-gap 0.7rem、--body-gap 2.1rem
+ *     是任务书给的**本轮固定值**（题名→身份 0.7rem、身份→原文 2.1rem），本轮不许改。
+ */
+/* == DRAFT-VALUES-BEGIN == */
+:root {
+  --cw: 100%;                   /* [脚本写回] 本视口下的内容宽 C（＝公式算出的 px 值） */
+  --block-w: 430px;             /* 验收宽度：真实 430 CSS px（任务书给的口径） */
+  --edge-x: 1.05rem;            /* 草案值：列内左右内沿 ＝ 16.8px */
+  --ctl-size: 0.82rem;          /* 草案值：控件（返回／详情／笔记入口）字号 13.12px */
+  --ctl-ls: 0.06em;             /* 草案值：控件与身份行的字距 */
+  --ctl-gap: 1.1rem;            /* 草案值：顶部行右侧「笔记」与「详情」的缝（仅 ② 用到） */
+  --ctl-top-pad: 0.7rem;        /* 草案值：顶部行的上内边距 */
+  --meta-size: 0.78rem;         /* 草案值：身份行字号 12.48px */
+  --head-pad-top: 1.5rem;       /* 草案值：题头上方留白 */
+  --title-gap: 0.7rem;          /* 本轮固定值（任务书）：题名→身份行 0.7rem */
+  --body-gap: 2.1rem;           /* 本轮固定值（任务书）：身份行→原文 2.1rem */
+  --body-pad-b: 0.6rem;         /* 草案值：原文下方留白 */
+  --note-margin: 2.6rem;        /* 草案值：原文末行底→笔记区顶（＋正文下留白 0.6rem ＝ 51.2px，沿用旧基线草案） */
+  --note-gap: 0.8rem;           /* 草案值：入口行→展开出来的正文 */
+  --note-gap-p: 0.7em;          /* 草案值：笔记正文里相邻两段之间（段间距） */
+  --note-pad: var(--pad);       /* ③ 分区框的内边距 ＝ 令牌 --pad 1.25rem */
+  --proto-pad: 12px;            /* 原型说明文字的左右内边距（**不是**应用页面的东西） */
+}
+/* == DRAFT-VALUES-END == */
+
+/* 参数表（自检脚本逐条解析；改了这里就要同步改 check-poem-note.mjs） */
+/* == POEM-NOTE-PARAMS-BEGIN ==
+ * cw_pct: 88
+ * cw_deduct: 24
+ * cw_floor: 320
+ * edge: 16.8
+ * viewport: 430
+ * center_tol: 0.01
+ * blocks: 10
+ * candidates: 3
+ * fixture_short: 1
+ * fixture_long: 3
+ * note_margin: 2.6rem
+ * note_gap: 0.8rem
+ == POEM-NOTE-PARAMS-END == */
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--font-size);
+  line-height: var(--lh);
+  letter-spacing: var(--ls);
+}
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image: var(--bg-pattern);
+  opacity: var(--bg-pattern-opacity);
+}
+body > * { position: relative; z-index: 1; }
+a { color: inherit; }
+:focus-visible { outline: 1px solid var(--test-line); outline-offset: 2px; }
+
+/* ── 原型脚手架（**不是**被评审的设计）──────────────────────────────── */
+.phead { padding: 1.5rem var(--proto-pad) 0; }
+.ptag {
+  display: inline-block;
+  margin: 0 0 0.9rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px dashed var(--test-line);
+  background: var(--test-soft);
+  color: var(--test-text);
+  border-radius: var(--radius-s);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+}
+.phead h1 { font-size: 1.1rem; font-weight: 500; letter-spacing: 0.06em; margin: 0 0 0.9rem; line-height: 1.6; }
+.phead h2 { font-size: 0.95rem; font-weight: 500; color: var(--text); margin: 1.2rem 0 0.4rem; }
+.phead p { color: var(--text-dim); margin: 0.5rem 0; }
+.phead b { color: var(--text); font-weight: 500; }
+.phead code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  padding: 0 0.25rem;
+}
+.phead .pn { border-left: 2px solid var(--test-line); padding-left: 0.7rem; }
+.phead .pw { border-left: 2px solid var(--line-warn); background: var(--warn-soft); padding: 0.4rem 0.6rem; color: var(--warn-text); }
+.phead .pw b { color: var(--warn-text); }
+
+/* ── 图／块（看图态）：整幅图恰好一个视口宽，块左沿 0 ────────────────── */
+.deck { width: 100%; }
+.imgban {
+  display: none;
+  margin: 0 0 0.9rem;
+  padding: 0.6rem var(--proto-pad);
+  background: var(--test-soft);
+  border-top: 1px dashed var(--test-line);
+  border-bottom: 1px dashed var(--test-line);
+  color: var(--test-text);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  line-height: 1.7;
+  letter-spacing: 0.03em;
+}
+html[data-shot="1"] .imgban { display: block; }
+.grp { margin-top: 1.4rem; }
+.gcap { padding: 0.1rem var(--proto-pad) 0.6rem; }
+.gtitle {
+  font-family: var(--font-mono);
+  font-size: 0.84rem;
+  line-height: 1.6;
+  letter-spacing: 0.04em;
+  color: var(--test-text);
+}
+.gsub { font-size: 0.8rem; line-height: 1.75; color: var(--text-dim); margin-top: 0.25rem; }
+.gsub b { color: var(--text); font-weight: 500; }
+.gsub .framewarn { color: var(--warn-text); }
+.gmetrics {
+  margin-top: 0.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  line-height: 1.7;
+  letter-spacing: 0.02em;
+  color: var(--text-dim);
+  border-left: 2px solid var(--line);
+  padding-left: 0.5rem;
+  overflow-wrap: anywhere;
+}
+.plabel {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  line-height: 1.6;
+  letter-spacing: 0.03em;
+  color: var(--accent-text);
+  padding: 0.7rem var(--proto-pad) 0.35rem;
+  border-top: 1px dotted var(--accent-line);
+}
+.plabel b { color: var(--text); font-weight: 500; }
+
+/* ── 应用页面（被评审的那一层）──────────────────────────────────────
+ * 结构：.pg（恰一个视口宽，＝一个真机屏幕宽）> .col（内容列，宽 C ＝ min(V, max(320, 0.88×(V−24)))）
+ * 固定（本轮不许改）：题名 1.5rem/500/0.1em；身份行 0.78rem/--text-faint；题名→身份 0.7rem；
+ *   身份→原文 2.1rem；正文 17px/行高 2/字距 0.045em；正文**全部居中**（题名／身份行／每一行）；
+ *   顶部行＝返回左／详情右、**不参与居中**。
+ */
+.pg { position: relative; background: transparent; }
+.col { width: var(--cw); margin-inline: auto; }
+
+/* 顶部行：返回（左）与详情（右）。② 把「笔记」入口也放进这一行（三件一行，在右侧紧邻详情）。 */
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: var(--ctl-top-pad) var(--edge-x) 0;
+}
+.topbar > * { flex: 0 0 auto; }
+.tbright { display: flex; align-items: baseline; gap: var(--ctl-gap); }
+.ctl {
+  font-family: var(--font-ui);
+  font-size: var(--ctl-size);
+  letter-spacing: var(--ctl-ls);
+  line-height: inherit;
+  color: var(--text-dim);
+  text-decoration: none;
+  background: none;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  transition: var(--row-transition);
+}
+.ctl:hover { color: var(--text); }
+/* §4.1 记号③：诗页题头**不画**下划线 */
+.poem-head { padding: var(--head-pad-top) var(--edge-x) 0; border-bottom: 0; text-align: center; }
+.p-title {
+  margin: 0;
+  font-family: var(--font-title);
+  font-size: var(--title-size);
+  font-weight: var(--title-weight);
+  letter-spacing: var(--title-ls);
+  line-height: 1.4;
+}
+.p-id {
+  margin: var(--title-gap) 0 0;
+  font-family: var(--font-ui);
+  font-size: var(--meta-size);
+  letter-spacing: var(--ctl-ls);
+  color: var(--text-faint);
+}
+.poem-body {
+  padding: var(--body-gap) var(--edge-x) var(--body-pad-b);
+  font-family: var(--font-poem);
+  font-size: var(--poem-size);
+  line-height: var(--poem-lh);
+  letter-spacing: var(--poem-ls);
+  /* 全部居中：每行是 display:block ⇒ text-align 对**每一行**各自居中 */
+  text-align: center;
+}
+.stanza { margin: 0; }
+.line { display: block; white-space: pre-wrap; }
+.lt { display: inline; }
+
+/* ── 笔记区（**只有「有笔记」的页面才有这个元素**；无笔记 ⇒ 整个 .notes 不存在）──
+ * 三档只差两件事：**入口放哪** ＋ **展开成什么**。下面按 data-form 分开。
+ *   form=inline （①）入口在正文之后、展开成内联块（无框）
+ *   form=top-row（②）入口在顶部行、展开成正文之后的内联块（无框）
+ *   form=section（③）入口在正文之后、展开成带边框的分区（**框在收起态就可见**）
+ */
+.notes { text-align: left; }
+/* 入口行：与顶部行同一套「贴内沿」的排法（**居中的是正文，入口是控件**） */
+.nrow { margin: var(--note-margin) 0 0; padding: 0 var(--edge-x); }
+/* ③ 的分区：**收起态就画框**（框里只有入口），展开后框内多出正文 */
+.nsec {
+  margin: var(--note-margin) var(--edge-x) 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  padding: var(--note-pad);
+}
+.nsec-head { margin: 0; }
+/* 展开内容：①② 无框（就是一层文字）；③ 由外层 .nsec 提供框 */
+.nbody { margin-top: var(--note-gap); }
+.pg[data-form="top-row"] .nbody { margin-top: var(--note-margin); padding: 0 var(--edge-x); }
+/* 笔记正文：用令牌 --font-note / --note-size / --note-measure；左对齐（正文才居中） */
+.np {
+  margin: 0;
+  max-width: var(--note-measure);
+  font-family: var(--font-note);
+  font-size: var(--note-size);
+  line-height: 1.75;
+  color: var(--text);
+}
+.np + .np { margin-top: var(--note-gap-p); }
+/* 夹具醒目标注（黄）——**原型标注，不属于应用页面** */
+.fxbadge {
+  margin: 0 0 var(--note-gap-p);
+  border: 1px dashed var(--line-warn);
+  background: var(--warn-soft);
+  border-radius: var(--radius-s);
+  padding: 0.3rem 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  line-height: 1.6;
+  letter-spacing: 0.03em;
+  color: var(--warn-text);
+}
+</style>
+</head>
+<body>
+<div class="phead">
+  <p class="ptag">材料，不是实施 · 不是发布 · 不是整页规格 · 3 档并列、不排序、不写推荐</p>
+  <h1>诗页「有笔记」的<b>入口放哪</b> ＋ <b>展开成什么</b> —— 表达原型</h1>
+
+  <p><b>这一页只回答一件事</b>：诗<b>有笔记</b>时，<b>入口放哪</b>、<b>展开成什么形状</b>。其余全部<b>固定</b>（本题已定、本页不重开、不改）：</p>
+  <p class="pn"><b>已定（本页照做）</b>：① <b>无笔记 ⇒ 整个笔记区隐藏</b>（连标题都不出现）；② 诗页正文<b>全部居中</b>——题名／身份行／<b>每一行</b>；③ <b>顶部行＝返回在左、详情在右，且不参与居中</b>；
+    ④ P1 数值：题名 <code>1.5rem</code>／<code>500</code>／字距 <code>0.1em</code>；身份行 <code>0.78rem</code>／<code>--text-faint</code>；题名→身份 <code>0.7rem</code>；身份→原文 <code>2.1rem</code>；正文 <code>17px</code>／行高 <code>2</code>／字距 <code>0.045em</code>；
+    ⑤ 宽度口径 <code>C = min(V, max(320, 0.88 × (V − 24)))</code>；⑥ 视觉＝静默终端令牌（<code>prototype/css/theme-tech.css</code> <b>只读</b>）。</p>
+
+  <h2>三档（并列；选某一档 ≠ 采纳整页规格；也不等于实施）</h2>
+  <ul>
+    <li><b>① 入口在正文之后 · 展开为内联块</b>：入口贴着内容列左内沿，展开后笔记正文<b>直接出现在下方</b>、与正文同一层，<b>没有任何框</b>。</li>
+    <li><b>② 入口与返回／详情同在顶部行（三件一行）· 展开为内联块</b>：<b>入口离开正文，常驻在顶部行</b>；展开后笔记正文仍出现在<b>正文之后</b>（入口与内容分开在两处）。</li>
+    <li><b>③ 入口在正文之后 · 展开为带边框的分区</b>：<b>框在收起态就可见</b>（框里只有入口），展开后框内多出正文。<span class="framewarn">⚠ 这一档与「更新处已去框」的决定相抵</span>——见下面第四条说明。</li>
+  </ul>
+  <p class="pw"><b>⚠ ③ 为什么仍然画了框（以及它可能该被否决）</b>：用户此前在「关于页·更新处」明确说过 <b>不要框出来一个区域</b>（「安卓就是简单按钮加 label」）。
+    ③ 是把这个决定<b>放进本轮对照</b>才画的：它把框放在<b>「用户内容（笔记）与诗的边界」</b>上，而不是「按钮＋状态」上。
+    <b>如果那条「去框」的决定外推到笔记区，③ 就应当退化为「不用框」——那正是 ① 的展开形态。</b>这一点<b>未决</b>，本页不替它下结论。</p>
+
+  <h2>笔记内容：**测试夹具**（本节最重要的一条）</h2>
+  <p class="pw"><b>⚠ 黄框 ＋「夹具」字样的那一段，是测试夹具，不是用户笔记。</b>夹具正文的<b>第一句就是</b>「<b>测试夹具笔记，不是用户笔记。</b>」——
+    <b>那一整行文字就是夹具内容本身</b>。本页<b>不代写任何第一人称笔记</b>；真实内容里这一首（以及全部 19 首）都<b>没有笔记</b>（<code>content/poems/*.md</code> 里没有 <code>notes:</code> 键），
+    所以「有笔记」这一态<b>只能</b>用醒目标注的夹具表达。夹具分两种：<b>短夹具</b>（1 段）与<b>长夹具</b>（3 段，能看出换行与<b>段间距</b>）。</p>
+  <p class="pn">另有<b>一格「无笔记」对照</b>：那一块的 <code>[data-test="notes"]</code> 用 <code>querySelector</code> 查为 <code>null</code>、可见文本里也<b>没有「笔记」二字</b> —— 用来证明「整块隐藏」这一条仍然成立。</p>
+
+  <h2>看图怎么读</h2>
+  <p><b>图＝真实 430 CSS px @DPR 2</b>（一个视口宽，块左沿 0，<b>不做缩放拼图</b>）；每块恰好这一宽。
+    <b>哪些不是应用页面</b>：顶上这段说明、每块的青色小标（档名与状态）、每档的说明与实测数字行、<b>黄色夹具标注</b>、以及图内横幅 —— 都是<b>原型的标注</b>，<b>不属于应用页面</b>（图内已写明）。
+    页面正常打开时<b>一切收起</b>；自检脚本用<b>真鼠标</b>点开需要看展开态的那几块（<code>aria-expanded</code> 随之变化），再拍图。</p>
+  <p>令牌快照来源 <code>prototype/css/theme-tech.css</code> @ 短 sha <code>778f480</code>（该文件在工作树里无未提交改动）；<b>权威仍是 <code>docs/design/visual-tokens.md</code></b>。
+    逐档实测几何、无笔记对照的证明结果、自检失败数，见同目录 <code>q-poem-note.md</code>；行为由 <code>check-poem-note.mjs</code> 可复跑自证。</p>
+</div>
+
+<div class="deck" data-shotframe>
+  <div class="imgban" data-test="imgban">
+    <b>原型说明 · 不属于应用页面。</b>本图 ＝ 真实 430 CSS px @DPR 2（未缩放、未拼图）下的全部分块：<b>3 档 × （收起／展开·短夹具／展开·长夹具） ＋ 1 格无笔记对照 ＝ 10 块</b>。<br>
+    <b>固定项</b>（本页照做）：无笔记 ⇒ 整块隐藏；正文全部居中（题名／身份行／每一行）；顶部行＝返回左／详情右、不参与居中；题名 1.5rem/500/0.1em；身份行 0.78rem/--text-faint；题名→身份 0.7rem；身份→原文 2.1rem；正文 17px/行高 2/字距 0.045em；宽度口径 <code>C = min(V, max(320, 0.88 × (V − 24)))</code>。<br>
+    <b>黄色的那段文字 ＝ 测试夹具，不是用户笔记</b>（它的第一句就是「测试夹具笔记，不是用户笔记。」）。青色小字＝原型标注（档名／状态／实测数字）。<br>
+    <b>选某一档 ≠ 采纳整页规格；本页不决定 JSON／MD 分界或产物字段；材料，不是实施。</b>
+  </div>
+  <div data-test="rack"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var px = function (n) { return Math.round(n * 100) / 100; };
+  var r3 = function (n) { return Math.round(n * 1000) / 1000; };
+
+  /* ── 真实原文（只读来源：content/poems/gushi-shijiu-shou-01.md 的正文 8 行）──
+   * ⚠ 自检脚本会把这里的 8 行与那个文件**逐字**比对；不一致即报错。 */
+  var POEM = {
+    id: 'gushi-shijiu-shou-01',
+    title: '行行重行行',
+    author: '佚名',
+    dynasty: '汉',
+    genre: '五言古诗',
+    lines: [
+      '行行重行行，与君生别离。',
+      '相去万余里，各在天一涯。',
+      '道路阻且长，会面安可知？',
+      '胡马依北风，越鸟巢南枝。',
+      '相去日已远，衣带日已缓。',
+      '浮云蔽白日，游子不顾反。',
+      '思君令人老，岁月忽已晚。',
+      '弃捐勿复道，努力加餐饭。'
+    ]
+  };
+
+  /* ── 测试夹具（**不是**用户笔记；不写任何第一人称内容）──
+   * 短夹具 1 段；长夹具 3 段（用来看出换行与段间距）。 */
+  var FIX = {
+    short: [
+      '测试夹具笔记，不是用户笔记。'
+    ],
+    long: [
+      '测试夹具笔记，不是用户笔记。',
+      '第二段：这一段只为让「多段」这件事在屏幕上可见 —— 用来核对换行位置，以及段与段之间那条间距。文字本身没有意义。',
+      '第三段：整个黄色区域都是测试夹具，不是任何人的阅读笔记，也不代表真实数据。'
+    ]
+  };
+
+  var CANDS = [
+    { id: 'c1', name: '① 入口在正文之后 · 展开为内联块', form: 'inline' },
+    { id: 'c2', name: '② 入口与返回／详情同在顶部行（三件一行）· 展开为内联块', form: 'top-row' },
+    { id: 'c3', name: '③ 入口在正文之后 · 展开为带边框的分区', form: 'section' }
+  ];
+
+  /* 块清单：3 档 ×（收起／展开·短／展开·长）＋ 1 格无笔记对照 */
+  var INSTANCES = [
+    { block: 'n0', cand: null, state: 'none', fixture: 'none',
+      label: '对照 · <b>无笔记</b>（整块隐藏）—— 这是唯一「笔记区不存在」的一格' },
+    { block: 'c1a', cand: 'c1', state: 'collapsed', fixture: 'short', label: '① <b>收起态</b> · 笔记在、未展开（页面正常打开的默认态）' },
+    { block: 'c1b', cand: 'c1', state: 'expanded', fixture: 'short', label: '① <b>展开态</b> · 短夹具（1 段）' },
+    { block: 'c1c', cand: 'c1', state: 'expanded', fixture: 'long', label: '① <b>展开态</b> · 长夹具（3 段，看换行与段间距）' },
+    { block: 'c2a', cand: 'c2', state: 'collapsed', fixture: 'short', label: '② <b>收起态</b> · 入口常驻顶部行（返回 | 笔记 详情）' },
+    { block: 'c2b', cand: 'c2', state: 'expanded', fixture: 'short', label: '② <b>展开态</b> · 短夹具' },
+    { block: 'c2c', cand: 'c2', state: 'expanded', fixture: 'long', label: '② <b>展开态</b> · 长夹具' },
+    { block: 'c3a', cand: 'c3', state: 'collapsed', fixture: 'short', label: '③ <b>收起态</b> · <b>框已经在了</b>，框里只有入口' },
+    { block: 'c3b', cand: 'c3', state: 'expanded', fixture: 'short', label: '③ <b>展开态</b> · 短夹具（框内多出正文）' },
+    { block: 'c3c', cand: 'c3', state: 'expanded', fixture: 'long', label: '③ <b>展开态</b> · 长夹具' }
+  ];
+
+  function cwFor(V) { return Math.min(V, Math.max(320, 0.88 * (V - 24))); }
+  function formOf(cand) {
+    if (cand === 'c2') return 'top-row';
+    if (cand === 'c3') return 'section';
+    return 'inline';
+  }
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined && text !== null) e.textContent = text;
+    return e;
+  }
+  function makeToggle(blockId) {
+    var b = el('button', 'ctl n-toggle');
+    b.type = 'button';
+    b.dataset.test = 'noteentry';
+    b.setAttribute('aria-expanded', 'false');
+    b.setAttribute('aria-controls', 'panel-' + blockId);
+    var sign = el('span', 'sign', '[+]');
+    sign.setAttribute('aria-hidden', 'true');
+    b.appendChild(sign);
+    b.appendChild(document.createTextNode('笔记'));
+    return b;
+  }
+
+  /* ── 造一个页面实例（＝一块）──────────────────────────────────────── */
+  function buildPage(inst) {
+    var form = formOf(inst.cand);
+    var pg = el('section', 'pg');
+    pg.dataset.test = 'page';
+    pg.dataset.block = inst.block;
+    pg.dataset.cand = inst.cand || 'none';
+    pg.dataset.form = inst.state === 'none' ? 'none' : form;
+    pg.dataset.expect = inst.state;
+    pg.dataset.fixture = inst.fixture;
+    pg.style.setProperty('--cw', px(cwFor(window.innerWidth)) + 'px');
+
+    var col = el('div', 'col');
+    col.dataset.test = 'col';
+
+    /* 顶部行：返回（左）＋ 详情（右）；② 把笔记入口也放进这一行 */
+    var top = el('div', 'topbar');
+    top.dataset.test = 'topbar';
+    var back = el('a', 'ctl', '返回');
+    back.dataset.test = 'back';
+    back.href = '#/back';
+    var detail = el('a', 'ctl', '详情');
+    detail.dataset.test = 'detail';
+    detail.href = '#/p/' + POEM.id + '/detail';
+    var entry = null;
+    top.appendChild(back);
+    if (form === 'top-row' && inst.state !== 'none') {
+      var right = el('span', 'tbright');
+      right.dataset.test = 'tbright';
+      entry = makeToggle(inst.block);
+      right.appendChild(entry);
+      right.appendChild(detail);
+      top.appendChild(right);
+    } else {
+      top.appendChild(detail);
+    }
+    col.appendChild(top);
+
+    /* 题头 ＋ 正文 */
+    var head = el('header', 'poem-head');
+    head.dataset.test = 'head';
+    var h1 = el('h1', 'p-title');
+    h1.dataset.test = 'title';
+    var h1t = el('span', 'lt', POEM.title);
+    h1t.dataset.test = 'lt';
+    h1t.dataset.kind = 'title';
+    h1.appendChild(h1t);
+    var ident = el('p', 'p-id');
+    ident.dataset.test = 'ident';
+    var idt = el('span', 'lt', POEM.author + ' · ' + POEM.dynasty + ' · ' + POEM.genre);
+    idt.dataset.test = 'lt';
+    idt.dataset.kind = 'ident';
+    ident.appendChild(idt);
+    head.appendChild(h1);
+    head.appendChild(ident);
+    col.appendChild(head);
+
+    var body = el('div', 'poem-body');
+    body.dataset.test = 'poem';
+    var stanza = el('div', 'stanza');
+    stanza.dataset.test = 'stanza';
+    POEM.lines.forEach(function (t) {
+      var line = el('span', 'line');
+      line.dataset.test = 'line';
+      var lt = el('span', 'lt', t);
+      lt.dataset.test = 'lt';
+      lt.dataset.kind = 'body';
+      line.appendChild(lt);
+      stanza.appendChild(line);
+    });
+    body.appendChild(stanza);
+    col.appendChild(body);
+
+    /* 笔记区：**无笔记 ⇒ 整个元素不建** */
+    var notes = null, panel = null, section = null;
+    if (inst.state !== 'none') {
+      notes = el('div', 'notes');
+      notes.dataset.test = 'notes';
+      notes.dataset.form = form;
+
+      panel = el('div', 'nbody');
+      panel.dataset.test = 'notebody';
+      panel.id = 'panel-' + inst.block;
+      panel.hidden = true;
+
+      var badge = el('p', 'fxbadge', '⚠ 夹具标注 · 不属于应用页面 · 下方整段是测试夹具，不是用户笔记');
+      badge.dataset.test = 'fxbadge';
+      badge.dataset.fx = '1';
+      panel.appendChild(badge);
+      FIX[inst.fixture === 'long' ? 'long' : 'short'].forEach(function (t) {
+        var p = el('p', 'np', t);
+        p.dataset.test = 'nparagraph';
+        p.dataset.fx = '1';
+        panel.appendChild(p);
+      });
+
+      if (form === 'section') {
+        section = el('div', 'nsec');
+        section.dataset.test = 'notesection';
+        var sh = el('p', 'nsec-head');
+        if (!entry) entry = makeToggle(inst.block);
+        sh.appendChild(entry);
+        section.appendChild(sh);
+        section.appendChild(panel);
+        notes.appendChild(section);
+      } else if (form === 'top-row') {
+        notes.appendChild(panel);
+      } else {
+        var row = el('p', 'nrow');
+        row.dataset.test = 'noterow';
+        if (!entry) entry = makeToggle(inst.block);
+        row.appendChild(entry);
+        notes.appendChild(row);
+        notes.appendChild(panel);
+      }
+      col.appendChild(notes);
+    }
+
+    pg.appendChild(col);
+    return { inst: inst, pg: pg, col: col, back: back, detail: detail, head: head, body: body,
+      notes: notes, panel: panel, entry: entry, section: section };
+  }
+
+  /* ── 展开／收起（aria-expanded 跟着变）────────────────────────────── */
+  function setOpen(p, open) {
+    if (!p.entry || !p.panel) return;
+    p.entry.setAttribute('aria-expanded', open ? 'true' : 'false');
+    p.panel.hidden = !open;
+    var sign = p.entry.querySelector('.sign');
+    if (sign) sign.textContent = open ? '[\u2212]' : '[+]';
+  }
+  function wire(p) {
+    if (!p.entry || !p.panel) return;
+    p.entry.addEventListener('click', function () {
+      setOpen(p, p.entry.getAttribute('aria-expanded') !== 'true');
+    });
+  }
+
+  /* ── 实测（页面自己量一份，写进每块的数字行；自检脚本另有一份独立实现）── */
+  function txtBox(sp) {
+    var rg = document.createRange();
+    rg.selectNodeContents(sp);
+    var r = rg.getBoundingClientRect();
+    return { left: r.left, right: r.right, w: r.width, cx: (r.left + r.right) / 2 };
+  }
+  function measure(p) {
+    var colR = p.col.getBoundingClientRect();
+    var cc = colR.left + colR.width / 2;
+    var lts = p.pg.querySelectorAll('[data-test="lt"]');
+    var devs = [];
+    for (var i = 0; i < lts.length; i += 1) {
+      var b = txtBox(lts[i]);
+      devs.push({ kind: lts[i].dataset.kind, dev: Math.abs(b.cx - cc), w: b.w });
+    }
+    var bodyDevs = devs.filter(function (d) { return d.kind === 'body'; });
+    var backR = p.back.getBoundingClientRect();
+    var detR = p.detail.getBoundingClientRect();
+    var out = {
+      colW: px(colR.width), colLeft: px(colR.left), colRight: px(colR.right),
+      backLeft: px(backR.left - colR.left), detailRight: px(colR.right - detR.right),
+      bodyLines: bodyDevs.length,
+      bodyDevMax: px(Math.max.apply(null, bodyDevs.map(function (d) { return d.dev; }))),
+      titleDev: px(devs.filter(function (d) { return d.kind === 'title'; })[0].dev),
+      identDev: px(devs.filter(function (d) { return d.kind === 'ident'; })[0].dev)
+    };
+    if (p.notes) {
+      var nb = p.notes.getBoundingClientRect();
+      out.notesH = px(nb.height);
+      out.notesTop = px(nb.top - p.body.getBoundingClientRect().bottom);
+      if (p.entry) out.entryTop = px(p.entry.getBoundingClientRect().top - p.body.getBoundingClientRect().bottom);
+    }
+    if (p.section) out.secFrame = true;
+    return out;
+  }
+  function expandedMetrics(p) {
+    var ps = p.pg.querySelectorAll('[data-test="nparagraph"]');
+    var bodyR = p.panel.getBoundingClientRect();
+    var gap = null;
+    if (ps.length > 1) gap = px(ps[1].getBoundingClientRect().top - ps[0].getBoundingClientRect().bottom);
+    var firstTop = ps.length ? px(ps[0].getBoundingClientRect().top - p.panel.getBoundingClientRect().top) : null;
+    return { paras: ps.length, panelH: px(bodyR.height), paraGap: gap, firstTop: firstTop,
+      panelTopGap: px(p.panel.getBoundingClientRect().top - p.body.getBoundingClientRect().bottom),
+      overflowR: px(Math.max(0, bodyR.right - (p.col.getBoundingClientRect().right - parseFloat(getComputedStyle(p.body).paddingRight)))) };
+  }
+  function metricsLine(p, m, em) {
+    var s = 'C=' + m.colW + 'px · 列左沿 ' + m.colLeft + ' · 列右沿 ' + m.colRight
+      + ' · 正文 ' + m.bodyLines + ' 行中心差 max ' + m.bodyDevMax + 'px（题名 ' + m.titleDev + '／身份 ' + m.identDev + '）'
+      + ' · 返回左沿 ' + m.backLeft + ' · 详情右沿 ' + m.detailRight;
+    if (p.inst.state === 'none') {
+      s = s + ' · 笔记区：**不存在**（querySelector = null）';
+    } else if (p.inst.state === 'collapsed') {
+      s = s + ' · 笔记区存在（收起）：入口距原文末行底 ' + m.entryTop + 'px'
+        + (p.section ? '（框在收起态就可见，框高 ' + m.notesH + 'px）' : '（无框）');
+    } else {
+      s = s + ' · 笔记区展开：' + em.paras + ' 段 · 面板高 ' + em.panelH + 'px · 段间距 ' + em.paraGap
+        + 'px · 面板顶距原文末行底 ' + em.panelTopGap + 'px'
+        + (p.section ? '（含框，框内边距 ' + getComputedStyle(p.section).paddingTop + '）' : '（无框）');
+    }
+    return s;
+  }
+
+  /* ── 装配 ─────────────────────────────────────────────────────── */
+  var RACK = document.querySelector('[data-test="rack"]');
+  var PAGES = [];
+  var byCand = { c1: [], c2: [], c3: [], none: [] };
+
+  INSTANCES.forEach(function (inst) {
+    var p = buildPage(inst);
+    PAGES.push(p);
+    wire(p);
+    (byCand[inst.cand === null ? 'none' : inst.cand] || []).push(p);
+  });
+
+  function pageWrap(p) {
+    var lab = el('div', 'plabel');
+    lab.dataset.test = 'plabel';
+    lab.innerHTML = p.inst.label + '　<span style="opacity:.75">（原型标注，不属于应用页面）</span>';
+    return lab;
+  }
+
+  /* 无笔记对照先出 */
+  byCand.none.forEach(function (p) { RACK.appendChild(pageWrap(p)); RACK.appendChild(p.pg); });
+
+  var CAPS = {
+    c1: { title: '① 入口在正文之后 · 展开为内联块',
+      sub: '入口贴着内容列左内沿（与顶部行同一套「贴内沿」排法），展开后笔记正文<b>直接出现在下方</b>：与正文同一层、同一内容列，<b>没有任何框</b>。'
+        + '<br><b>与顶部行的关系</b>：正文上方的顶部行只有「返回 … 详情」，笔记在正文之后才第一次出现。'
+        + '<br><b>看什么</b>：收起态只剩一行入口；展开后笔记与诗在同一列里顺下来，读者要读它会先读完整首诗。' },
+    c2: { title: '② 入口与返回／详情同在顶部行（三件一行）· 展开为内联块',
+      sub: '入口与返回／详情<b>同一条顶部行</b>（返回贴左沿；「笔记」紧邻「详情」贴右沿）——<b>入口离开正文</b>，常驻、始终可见。展开后笔记正文仍出现在<b>正文之后</b>。'
+        + '<br><b>看什么</b>：入口的可见性最高（打开诗页就看得见），但<b>入口与内容分在两处</b>：点了上行、内容在下方很远处。顶部行左右沿（返回左沿／详情右沿）<b>不因为多了「笔记」而改变</b>。'
+        + '<br><b>内部还差一个未定项</b>：「笔记」与「详情」在右侧的先后与间距（这里是「笔记 详情」，间距 1.1rem 草案）。' },
+    c3: { title: '③ 入口在正文之后 · 展开为带边框的分区（<b>框在收起态就可见</b>）',
+      sub: '入口在正文之后，但它被一个<b>分区框</b>包着（1px <code>--line</code> 边 ＋ <code>--surface</code> 底 ＋ <code>--radius-s</code> ＋ <code>--pad</code> 内边距）；'
+        + '<b>收起态就画框</b>，框里只有入口，展开后框内多出正文。'
+        + '<br><span style="color:var(--warn-text)">⚠ 与已定的「更新处去框」相抵</span>：用户此前说过<b>不要框出来一个区域</b>（那是针对「按钮＋状态」）。'
+        + '③ 把框放在「用户内容与诗的边界」上；<b>若把「去框」外推到笔记区，③ 就退化为「不用框」——那正是 ① 的展开形态</b>。这一点未决，本档只把它摆出来。' },
+    none: { title: '对照 · 无笔记（整块隐藏）',
+      sub: '用户已定：<b>没有笔记时隐藏整个笔记区，有笔记时才显示入口</b>，不显示「暂无笔记」、也不留空的展开按钮。'
+        + '<br><b>这一格要证明什么</b>：整页可见文本里<b>没有「笔记」二字</b>，<code>[data-test="notes"]</code> 用 <code>querySelector</code> 查为 <code>null</code> —— 连入口带标题<b>整块不存在</b>（不是 display:none 的占位）。' }
+  };
+
+  function makeCap(cid) {
+    var cap = el('div', 'gcap');
+    cap.dataset.test = 'gcap';
+    var t = el('div', 'gtitle');
+    t.dataset.test = 'gtitle';
+    t.innerHTML = CAPS[cid].title;
+    var s = el('div', 'gsub');
+    s.dataset.test = 'gsub';
+    s.innerHTML = CAPS[cid].sub;
+    var mt = el('div', 'gmetrics');
+    mt.dataset.test = 'metrics';
+    cap.appendChild(t);
+    cap.appendChild(s);
+    cap.appendChild(mt);
+    return cap;
+  }
+
+  var ORDER = ['none', 'c1', 'c2', 'c3'];
+  ORDER.forEach(function (cid) {
+    var g = el('div', 'grp');
+    g.dataset.test = 'group';
+    g.dataset.cand = cid;
+    g.appendChild(makeCap(cid));
+    byCand[cid].forEach(function (p) { g.appendChild(pageWrap(p)); g.appendChild(p.pg); });
+    RACK.appendChild(g);
+  });
+
+  /* 数字行：静态先量；展开态再临时开一次量完关回去（正常打开时一切仍收起） */
+  PAGES.forEach(function (p) {
+    var m = measure(p);
+    var em = null;
+    if (p.inst.state === 'expanded') {
+      setOpen(p, true);
+      em = expandedMetrics(p);
+      setOpen(p, false);
+    }
+    p.metrics = metricsLine(p, m, em);
+  });
+  (function () {
+    var groups = RACK.querySelectorAll('[data-test="group"]');
+    for (var i = 0; i < groups.length; i += 1) {
+      var cid = groups[i].dataset.cand;
+      var list = byCand[cid] || [];
+      var mt = groups[i].querySelector('[data-test="metrics"]');
+      if (!mt) continue;
+      var out = [];
+      list.forEach(function (p) { out.push(p.inst.block + '：' + p.metrics); });
+      mt.textContent = out.join('　||　');
+    }
+  })();
+
+  /* 对外暴露（自检脚本读夹具文本与块清单用；它**不**依赖这里自报的几何数值） */
+  window.__QPN__ = {
+    poem: POEM,
+    fix: FIX,
+    cands: CANDS,
+    instances: INSTANCES,
+    cwFor: cwFor,
+    info: function () { return { innerW: window.innerWidth, cw: px(cwFor(window.innerWidth)) }; },
+    toggle: function (block, open) {
+      var p = null;
+      for (var i = 0; i < PAGES.length; i += 1) if (PAGES[i].inst.block === block) p = PAGES[i];
+      if (p) setOpen(p, open !== false);
+    },
+    state: function (block) {
+      var p = null;
+      for (var i = 0; i < PAGES.length; i += 1) if (PAGES[i].inst.block === block) p = PAGES[i];
+      if (!p) return null;
+      return { block: block, hasNotes: !!p.notes, hasEntry: !!p.entry,
+        expanded: p.entry ? p.entry.getAttribute('aria-expanded') : null,
+        panelHidden: p.panel ? p.panel.hidden : null };
+    }
+  };
+
+  if (location.hash === '#shot') document.documentElement.dataset.shot = '1';
+  document.documentElement.dataset.ready = '1';
+})();
+</script>
+</body>
+</html>
