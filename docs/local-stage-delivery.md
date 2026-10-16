@@ -12,7 +12,7 @@
    ⚠ **不许洗成「整个阶段从未 push」**：`origin/master` 停在 **`eb33f11`**，那是**前任在被要求停手之前推的**（已披露）；本地 master 领先它若干提交 ⇒ 准确说法是「**本阶段**未推、也**不回退/不改写**已推历史」。
    ⇒ **下一步只剩两件事**：**① 用户看实际效果**；**② 用户单独决定是否发布**。
 
-**事实锚（别数错）**：**实现／内容／测试最后一次改动 ＝ `git log -1 --format=%h -- android web content schema tools release tests` 的结果**（⚠ 别再用旧的 `a5ad8ce`：本包这一次提交**也改了实现**，见 §6.5）。Android 四页复核的**构建基底是 `1291063`**（与**当时**的应用代码零差异）；⚠ 那段复核**在那次收严之前**跑的，但收严对**真实内容**的渲染结果无影响（真实 19 首的近失标记行实测 **0** 处）⇒ 四页照面结论不受影响；这一层关系如实标注，不当作「同一构建」冒充。
+**事实锚（别数错）**：**实现／内容／测试最后一次改动 ＝ `8a6a083`**（块标记边界收严，见 §6.5）；**其后的提交只动 `docs/`**（含本包）。Android 四页复核的**构建基底是 `1291063`**（与**当时**的应用代码零差异）—— ⚠ **它早于 `8a6a083`，不是当前构建**；但收严对**真实内容**的渲染结果无影响（真实 19 首近失标记行实测 **0** 处）⇒ 四页照面结论仍成立，只是**不冒充「同一构建」**。
 
 ---
 
@@ -32,8 +32,8 @@
 ## 2. 已验证据（亲眼看过的图 ＋ 与原型差异）
 
 **实拍/预览在哪**
-- **Android 四页（在最新合并后代码上复核）**：`docs/reviews/ui-review/materials-android-latest-4pages/` —— **11 张 PNG ＋ 同名 `uiautomator` dump 原文** ＋ `DEVICE-IDENTITY.txt`／`apksigner-verify-certs.txt`／三次构建日志／`check-bundled-content.log`／`install.txt`。
-  - **被测代码 ＝ 主树当前代码**：构建基底 `1291063`；其后的提交只动 `docs/`＋`tests/`（`git diff HEAD..master -- android/ content/ schema/ web/` 为空，**我核过**）。
+- **Android 四页（在该次验收当时的合并后代码上复核）**：`docs/reviews/ui-review/materials-android-latest-4pages/` —— **11 张 PNG ＋ 同名 `uiautomator` dump 原文** ＋ `DEVICE-IDENTITY.txt`／`apksigner-verify-certs.txt`／三次构建日志／`check-bundled-content.log`／`install.txt`。
+  - **构建基底 `1291063`；⚠ 现在已不是「当前构建」**：该次验收时它与主树一致，但**此后 `8a6a083` 的块标记边界收严改了三端实现**（compiler／Web／Android）⇒ **与主树当前代码已有差异，不是同一构建**（对齐 §0）。**对真实内容的渲染结果零影响**（真实 19 首近失标记行实测 **0**），所以四页照面结论仍成立 —— 只是**不当作当前构建**。
   - **APK 身份**：`app-debug.apk`、sha256 `a5851499…b787`、`versionCode 2`／`versionName 0.1.1`、**签名 `CN=Android Debug`**（⚠ **不是** `CN=Suofei`）。
   - **结论：四页对照采纳锚全部命中**——目录页（悬挂记号／竖直居中差 0／**缩进 0**／《文选》原次序／无搜索无笔记标记）；诗页（全居中／8 行不折／返回左·详情右）；详情页（题名**左对齐**／来源带标签／`### ` 小标题**无竖线且同左沿**／无 detail 如实说明）；关于页（4 字段／无「来源」／无冗余副标题／**四条线合一**／初态只按钮）。**我自己亲眼看了 4 张**（目录页、诗页、无 detail 详情页、初态关于页）。
 - **Web 四页**：`web/tests/evidence/`（如 `about-after.png`／`index-after.png`，关于页修偏后的实拍）＋ `web/tests/artifacts/`（每次跑 e2e 自动刷新全套）＋ 宽度 4 图 `docs/design/width-audit/{about,detail}-{320,1180}.png`。
@@ -83,12 +83,12 @@
 
 ## 5. 新格式与旧 ID 的影响（读一次就够）
 
-- **格式 `formatVersion: 1 → 2`（我按**实际字节**核过，不是抄文书）**：`poem` 对象 v1 有 15 键（`id,title,author,dynastyKey,dynastyLabel,dynastyOrder,era,genre,source,orderInSource,variants,stanzas,notes,authorSortKey,titleSortKey`）⇒ v2 有 10 键（`id,title,author,dynasty,genre,source,orderInSource,detail,stanzas,notes`）。逐项：
+- **格式 `formatVersion: 1 → 2`（基线＝**正式 tag** `v0.1.1+content-2026.10.16.20`，按该 tag 的实际字节核过）**：`poem` 对象在**上线基线是 13 键**（`id,title,author,dynastyKey,dynastyLabel,dynastyOrder,era,genre,source,orderInSource,variants,stanzas,notes`）⇒ v2 **10 键**（`id,title,author,dynasty,genre,source,orderInSource,detail,stanzas,notes`）。逐项：
   - **三个 dynasty 键（`dynastyKey`／`dynastyLabel`／`dynastyOrder`）→ 单个中文 `dynasty`**；
-  - **−`era`**（19 首全是「东汉末」，丢掉，不迁就）；**−`variants`**（24 条 `text`/`note` **逐字**折进 `detail` 的 `### 异文` 列表）；**+`detail`**（正文整节最小 Markdown）；**−`authorSortKey`／−`titleSortKey`**；
-  - **`notes` 不是新增键——v1 已有**（19/19，值都是 `null`）；
-  - **顶层 `dynasties`**：v1 `[{key:"han",label:"汉",order:100}]` → v2 **中文数组 `["汉"]`**。
-  ⚠ 我第一版把这段写成「新增 `notes` 键」——**错的**，已按上表更正。
+  - **−`era`**（19 首全是「东汉末」，丢掉，不迁就）；**−`variants`**（24 条 `text`/`note` **逐字**折进 `detail` 的 `### 异文` 列表）；**+`detail`**（正文整节最小 Markdown）；
+  - **`notes` 不是新增键**：上线基线**已有**（19/19，值都是 `null`）；
+  - **顶层 `dynasties`**：上线基线 `[{key:"han",label:"汉",order:100}]` → v2 **中文数组 `["汉"]`**。
+  ⚠ 两处更正痕迹：我第一版写成「新增 `notes` 键」（**错**）；第二版拿更早的 `8a92bc3`（15 键）当基线——那**不是上线基线**，`authorSortKey`／`titleSortKey` 的删除发生在更早，**不计入本轮变更**。
 - **旧 App（只认 v1）遇到 v2 内容**：版本不匹配 ⇒ 走既有的**「版本不兼容保旧版」**路径，不撕裂显示。**两端同一份键集**（我核过：19 首完全一致）。
 - **旧 ID 已不存在**：`gushi-shijiu-shou-NN` 全数换成 **`古诗十九首-<题名>`**（如 `古诗十九首-行行重行行`）；源文件/路径同理（`content/poems/古诗十九首/<题名>.md`）。⇒ **旧深链接会失效**（用户已接受）。我核过产物里 **0 个旧 ASCII id、0 个目录残留、无题名内多余连字符**。
 - **Markdown 闭集（我按源码核过，不只看文书）**：**闭集 8 样＝段落／段内换行／`- ` 无序列表／`1. ` 有序列表／`**粗体**`／`*斜体*`／`### ` 三级标题／`> ` 引用**（`schema/markdown-subset.json` 的 `constructs`）。⚠ **行内代码与表格都在 `excluded` 里 ⇒ 出现即报错**（我第一版把这两样错列进闭集，已更正）。
