@@ -1123,8 +1123,17 @@ async function main() {
   check('关于页无区域框（版本组无边框、无底色；采纳锚 about-min）',
     aboutInfo.groupBorderTopWidth === '0px' && aboutInfo.groupBg === 'rgba(0, 0, 0, 0)',
     dump({ borderTopWidth: aboutInfo.groupBorderTopWidth, bg: aboutInfo.groupBg }));
-  check('关于页没有「更新」块（Web 的更新交给 SW；Android 在那页里多一块）',
-    !(await evaluate(`Boolean(document.querySelector('[data-test="view-about"] [data-test="check-site-update"]'))`)));
+  // ⚠ 这条原先是查 `[data-test="view-about"] [data-test="check-site-update"]` —— 但那个按钮其实在**站点状态面板**里
+  //    （实测那个面板**不在** view-about 内：所以 dtCount===0 才能过），⇒ **旧断言恒真、什么都没证明**。
+  //    改成两条：① 共享**字段组**里确实没有更新控件 ② Web 的站点更新入口**确实在状态面板里**（不假装 Web 没有更新入口）。
+  const updateAffordance = await evaluate(`({
+    inFieldGroup: document.querySelectorAll('[data-test="view-about"] button').length,
+    inStatusPanel: Boolean(document.querySelector('[data-test="check-site-update"]')),
+  })`);
+  eq('关于页的**共享字段组**里没有更新控件（Web 的更新不在这页的字段组里；Android 在那页多一块）',
+    updateAffordance.inFieldGroup, 0);
+  check('Web 的站点更新入口确实存在（在**站点状态面板**里、不在关于页字段组里）—— 如实记录它的位置，不假装 Web 没有更新入口',
+    updateAffordance.inStatusPanel === true, dump(updateAffordance));
   eq('关于页「返回」指向目录',
     await evaluate(`document.querySelector('[data-test="about-back-to-index"]').getAttribute('href')`), '#/');
   await evaluate(`document.querySelector('[data-test="about-back-to-index"]').click(); true`);
