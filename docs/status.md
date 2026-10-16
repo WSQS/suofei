@@ -4,7 +4,12 @@
 
 - 更新时间：**2026-10-16**（承接负责人 `bff673a1-4708-41bf-ac1d-4a93f3af2800` 维护）
 - 阶段：**已发布 `0.1.2`（tag `v0.1.2+content-2026.10.16.23`，2026-10-16 S5 已执行）** —— CI 全绿（26 绿/0 黄/0 跳/0 红）、正式签名 `CN=Suofei`、Pages 已部署、Release 已建、Android 前馈清单已推进（`minAppVersionCode 3`）。读回见 [`docs/local-stage-delivery.md`](local-stage-delivery.md) §0b。
-- **Android 系统返回已修（2026-10-16，本地）**：全工程原先**没有 `BackHandler`**（`grep` 零命中）⇒ 系统返回落到 Activity 默认＝**直接退出 app**（用户实测）。现在 `ui/Screens.kt` 的 `AppRoot` 里接一行 `BackHandler(enabled = state.screen != Screen.LIBRARY) { state.back() }`——**复用已有的 `AppState.back()`**（详情→那首诗、诗/关于→目录），**目录根不拦**（照旧让系统离开，无二次确认/双按退出），未引入 Navigation 库。
+- **Android「检查更新」按钮上下两条暗缝已修（2026-10-16，本地）**：根因**已证实**（不是候选）——外层 `Modifier.border` 跟着 M3 `minimumInteractiveComponentSize()` 被撑到 **48dp**，而底色由按钮自己的 Surface 按 **40dp**（material3 `ButtonDefaults.MinHeight`）画 ⇒ 上下各露约 4dp 页面底色。
+   修法：边框交给按钮自己的 `border = BorderStroke(...)`（与 `containerColor` 同一 Surface、同一 `shape`）⇒ **同 bounds、缝 0**；**最小触控一行未动**（可点区仍 48dp）。只动 `UpdateButton` 一处＋两条源码级守卫。
+   我自核：diff 只这两处；复跑 **19 类 / 151 用例 / 0 失败，EXIT 0**；**亲眼看 before/after 放大图**（缝确实从有到无）；dump 里 **202×126（48dp）与 202×105（40dp）** 两个盒与它报的一致；设备已还原（`uid=2000`、飞行模式 0、默认网络 106）；instrumented 探针已 revert（全仓 0 命中）。
+   ⚠ **一个口径待拍（它提的，我没擅改）**：修后**可见盒由 48dp 变 40dp**（40dp 是 material3 标准按钮高，不是令牌改动）。采纳锚 `round-2026-10-16-about-min` 只钉了**左沿／padding／四条线合一**，**没规定按钮高度** ⇒ 本次不算违锚；若口径要求「可见盒也 48dp」，那是**另一次显式改动**（把按钮自己的表面撑到 48dp），本次**未做**。
+   **未验**（它如实记）：横屏/旋转、系统字号放大、关于页压窄 560px（与按钮绘制无关）。：全工程原先**没有 `BackHandler`**（`grep` 零命中）⇒ 系统返回落到 Activity 默认＝**直接退出 app**（用户实测）。现在 `ui/Screens.kt` 的 `AppRoot` 里接一行 `BackHandler(enabled = state.screen != Screen.LIBRARY) { state.back() }`——**复用已有的 `AppState.back()`**（详情→那首诗、诗/关于→目录），**目录根不拦**（照旧让系统离开，无二次确认/双按退出），未引入 Navigation 库。
+  - **Android 系统返回已修（2026-10-16，本地）**：全工程原先**没有 `BackHandler`**（`grep` 零命中）⇒ 系统返回落到 Activity 默认＝**直接退出 app**（用户实测）。现在 `ui/Screens.kt` 的 `AppRoot` 里接一行 `BackHandler(enabled = state.screen != Screen.LIBRARY) { state.back() }`——**复用已有的 `AppState.back()`**（详情→那首诗、诗/关于→目录），**目录根不拦**（照旧让系统离开，无二次确认/双按退出），未引入 Navigation 库。
   我自核：**Android 单测 149 用例 / 0 失败 / 0 跳过，EXIT 0**（真跑 `--no-build-cache --rerun-tasks`）＋**亲眼看图**（系统返回 keyevent、**真实点按三键返回 ◀**、手势内滑三路；根返回落到**桌面**、不是空白）＋ 目录**展开与滚动位置**返回后保留。实拍在 `docs/reviews/ui-review/materials-android-back/`。⇒ 已并入本地 master（merge `df9393a`）。
   **本次未核**：pending 更新下的「详情→诗不采用新内容」只由**源码级守卫**钉住（JVM 造不出 pending、设备上未触发），predictive back **动画视觉**未验，旋转/进程重建仍是**既有**的「回到目录首页」行为（本次未改）。：`0.1.2` 的 S5 公开授权**已用在这一版上**；**本轮（Android 返回键本地修复 ＋ 下一批诗的录入准备）工程与文档都先本地提交，等用户下一次明确授权再推**。
   ⚠ 不要把「只推文档」当成不 push 的例外（我犯过一次：`0b2d415` 把 intake 文档推上去了，已披露）——**本地提交 ≠ 已发布**。
