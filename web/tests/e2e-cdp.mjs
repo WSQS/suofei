@@ -17,7 +17,7 @@
  */
 
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -436,7 +436,7 @@ function unitTests(baseDoc, variants) {
 
   section('0b 次序策略：产物带了 orderInSource 时一律不重排（回归）');
   eq('真实产物被判定为「产物次序权威」', hasProductOrder(baseDoc), true);
-  // ⚠ 真实内容现在有**两个组**（汉 19 首 ＋ 近现代 1 首）；新增那首**未写** orderInSource（该键**可选**，不编）。
+  // ⚠ 真实内容现在有**三个组**（汉 19 首 ＋ 唐杜甫《梦李白二首》2 条 ＋ 近现代 1 首）；毛泽东那首**未写** orderInSource（该键**可选**，不编）。
   const withOrder = baseDoc.poems.filter((p) => p.orderInSource !== undefined && p.orderInSource !== null);
   const usableOrder = withOrder.filter((p) => Number.isInteger(p.orderInSource));
   eq(`判定依据是 orderInSource（${withOrder.length}/${baseDoc.poems.length} 首带整数次序）`,
@@ -445,7 +445,7 @@ function unitTests(baseDoc, variants) {
   const hanPoems = baseDoc.poems.filter((p) => p.dynasty === '汉');
   eq(`真实产物「汉」组 ${hanPoems.length} 首的诗名次序 == 用户拍板的《文选》原次序`,
     hanPoems.map((p) => p.title), SOURCE_ORDER_TITLES);
-  eq('产物里的组与组序（＝注册表 order 升序：汉 → 近现代）',
+  eq('产物里的组与组序（＝注册表 order 升序：汉 → 唐 → 近现代）',
     baseDoc.dynasties, [...new Set(baseDoc.poems.map((p) => p.dynasty))]);
   eq('目录次序 == 产物数组次序', groupPoems(baseDoc).flatMap((g) => g.poems.map((p) => p.id)), expectedDomOrder(baseDoc));
   check('本机拼音排序与产物次序不同（这条断言才有牙齿）', dump(fallbackOrder(baseDoc)) !== dump(expectedDomOrder(baseDoc)));
@@ -827,7 +827,7 @@ async function main() {
   eq('诗数量', s.poems, total);
   eq('内容格式版本', s.formatVersion, baseDoc.formatVersion);
   check('真实产物没有夹具黄条', !(await evaluate(`Boolean(document.querySelector('[data-test="fixture-notice"]'))`)));
-  // ⚠ 真实内容现在有两个组 ⇒ **按组**取行（拿全部 poem-row 当单组是 20 首之前的写法）。
+  // ⚠ 真实内容现在有三个组 ⇒ **按组**取行（拿全部 poem-row 当单组是更早的写法）。
   const groupRowTitles = (key) => evaluate(`(() => {
     const g = [...document.querySelectorAll('[data-test="dynasty-group"]')]
       .find((x) => x.dataset.dynastyKey === ${JSON.stringify(key)});
@@ -970,8 +970,23 @@ async function main() {
   // ------------------------------------------------ 1c-2 诗歌详情页（第四页）
   section('1c-2 诗歌详情页：诗题①左对齐 + 底本与来源①正文前带标签 + detail 的最小 Markdown 渲染');
   const noDetailPoems = baseDoc.poems.filter((p) => !(typeof p.detail === 'string' && p.detail.trim() !== ''));
-  eq(`产物事实：带 detail 的诗 ${poemsWithDetail.length} 首、没有 detail 的诗 ${noDetailPoems.length} 首（13 首来自升版时由 variants 合成；新增那首用户未写 \`## 详情\` ⇒ 计入无 detail）`,
-    [poemsWithDetail.length, noDetailPoems.length], [13, baseDoc.poems.length - 13]);
+  // ⚠ 2026-10-16（杜甫《梦李白二首》两条入库）：**不再写死 13 与首数** —— 期望值从内容的**唯一来源**
+  //   `content/poems/` 派生（忽略规则与编译器 `tools/lib/scan.mjs`、Android 侧 `ContentSources` 同一套）。
+  //   这比字面量**更强**：源文加了诗/详情而内置产物忘了重编 ⇒ 这里真报红
+  //   （2026-10-14「内置仓库内容落后于内容源」的真实事故形态，当时谁也没发现）。
+  const sourcePoemRel = readdirSync(resolve(repoRoot, 'content', 'poems'), { recursive: true })
+    .map((rel) => String(rel).split(/[\\/]/).join('/'))
+    .filter((rel) => rel.endsWith('.md'))
+    .filter((rel) => {
+      const name = rel.split('/').pop();
+      return !name.startsWith('.') && !name.startsWith('_') && !name.startsWith('~')
+        && !name.endsWith('~') && !/^README/i.test(name);
+    });
+  const sourcesWithDetail = sourcePoemRel.filter((rel) => readFileSync(resolve(repoRoot, 'content', 'poems', rel), 'utf8')
+    .split('\n').some((l) => l.trim() === '## 详情'));
+  eq('产物首数 == content/poems/ 的源文数（产物 == 源）', baseDoc.poems.length, sourcePoemRel.length);
+  eq(`产物事实：带 detail 的诗 ${poemsWithDetail.length} 首、没有 detail 的诗 ${noDetailPoems.length} 首（期望值派生自源文的 \`## 详情\` 节，不写死）`,
+    [poemsWithDetail.length, noDetailPoems.length], [sourcesWithDetail.length, sourcePoemRel.length - sourcesWithDetail.length]);
   let seenH3 = 0;
   let seenLi = 0;
   for (const poem of poemsWithDetail) {
