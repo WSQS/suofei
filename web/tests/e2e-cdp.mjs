@@ -560,12 +560,14 @@ async function inlineChecks(contentText) {
   eq('部署文件里没有任何诗题/正文（内容没有内联进壳）', offenders, []);
   includes('index.html 里有静态的「正在装载站点…」（JS/内容没到时也不是白屏）',
     texts.get('index.html'), '正在装载站点');
-  // ⚠ 外壳顶栏（`.site-header` ＋ `data-test="site-title"`）是 `app/main.js` 里 `els.siteHeader`
-  //   **直接取**的那个元素（关于页要把它 `hidden`，见 §1c-3 返修③）。它一旦从 index.html 消失，
-  //   每次渲染都会抛异常 ⇒ 从源码钉住它存在，不靠「跑起来没报错」间接发现。
-  check('index.html 里有外壳顶栏（`.site-header` ＋ `data-test="site-title"`）—— 关于页按需 hidden 的就是它',
-    /<header class="site-header">/.test(texts.get('index.html'))
-      && /data-test="site-title"/.test(texts.get('index.html')));
+  // ⚠ 2026-10-16：**全局外壳顶栏已从产品壳整块删除**（原先那条 sticky「索斐」横栏＋版本徽标）。
+  //   采纳锚：目录页顶部**只有「关于」**、不重复应用名（`round-2026-10-15-hub-align/`；Android 端也无此栏）；
+  //   诗页/详情页各有返回工具栏；关于页自带应用名页标题。⇒ 从源码钉住它**不在**，免得日后又长回来。
+  check('index.html 里没有外壳顶栏（无 site-header / site-title）—— 目录顶部只留视图内的「关于」',
+    !/<header class="site-header">/.test(texts.get('index.html'))
+      && !/data-test="site-title"/.test(texts.get('index.html')));
+  check('index.html 里没有外壳版本徽标（版本只在关于页）',
+    !/id="app-version"/.test(texts.get('index.html')));
   check('外壳里只有 content.json 这个**地址**，没有它的内容',
     texts.get('sw.js').includes('content.json') && !texts.get('sw.js').includes(firstTitle));
   console.log(`  实测体积：壳 ${(shellBytes / 1024).toFixed(1)} KB（${shellFiles.length} 个：html/css/js/manifest）`
@@ -765,16 +767,16 @@ async function main() {
   // 阶段 A：HTML 一到就有可读状态（JS 还没跑也不白屏）。
   // 注意：这一步**不断言文案精确等于静态占位** —— JS 可能已经跑起来把文案换成「正在取内容」，
   // 两种都是对的；静态占位本身在 §0g 里从 index.html 源码直接断言过了。
-  await waitFor(`Boolean(document.querySelector('[data-test="site-title"]'))`
-    + ` && Boolean(document.querySelector('[data-test="view-loading"]'))`,
-  { label: '外壳 + 装载提示可见', timeout: 20000 });
+  // 2026-10-16：外壳顶栏已删除 ⇒ 判「外壳到了」改用**静态装载占位**（index.html 里就有它）。
+  await waitFor(`Boolean(document.querySelector('[data-test="view-loading"]'))`,
+  { label: '装载提示可见（不是白屏）', timeout: 20000 });
   const staticInfo = await evaluate(`({
-    title: document.querySelector('[data-test="site-title"]').textContent,
     loading: document.querySelector('[data-test="view-loading"]').textContent,
     hasRows: document.querySelectorAll('[data-test="poem-row"]').length,
     loadingShown: window.__app ? window.__app.summary().loading : null,
   })`);
-  includes('延迟下先看到外壳标题（不是白屏）', staticInfo.title, '索斐');
+  check('延迟下先看到可读的装载提示（不是白屏）',
+    /正在/.test(staticInfo.loading), `loading=${dump(staticInfo.loading)}`);
   check('页面上有可读的装载提示（静态占位或 JS 的「正在取内容」都算）',
     /正在/.test(staticInfo.loading), `loading=${dump(staticInfo.loading)}`);
   eq('此刻还没有任何诗行（内容确实还没到）', staticInfo.hasRows, 0);
@@ -1081,7 +1083,6 @@ async function main() {
     const labels = [...group.querySelectorAll('[data-test="about-label"]')];
     const title = document.querySelector('[data-test="about-app-name"]');
     const repo = document.querySelector('[data-test="about-repo-url"]');
-    const header = document.querySelector('.site-header');
     return {
       labels: labels.map(e => e.textContent),
       appName: title ? title.textContent : null,
@@ -1110,9 +1111,8 @@ async function main() {
       appVersionValueFont: fontOf('[data-test="about-app-version"]'),
       appVersionNumFont: fontOf('[data-test="about-app-version-num"]'),
       contentVersionNumFont: fontOf('[data-test="about-content-version-num"]'),
-      /* ③ 外壳顶栏在关于页要**隐藏**（隐藏后它不进 innerText） */
-      headerHidden: header ? header.hidden : null,
-      headerDisplay: header ? getComputedStyle(header).display : null,
+      /* ③ 2026-10-16：全局外壳顶栏已删除 ⇒ 这一页只剩它自己的应用名页标题（下面按 bodyText 数次数） */
+      siteHeaderExists: Boolean(document.querySelector('.site-header')),
       bodyText: document.body.innerText,
     };
   })()`);
@@ -1151,14 +1151,12 @@ async function main() {
   check('返修②：内容版本那一格也**只把版本号**画等宽（`（尚未取到）`那种说明文字不进等宽段）',
     /Consolas|mono/.test(aboutInfo.contentVersionNumFont ?? ''),
     dump({ contentVersionNumFont: aboutInfo.contentVersionNumFont }));
-  // ③ 返修：关于页隐藏 Web 外壳顶栏 —— 那一行同样给「索斐 ＋ 站点资源版本 …」，
-  //    而 A3 的关于页自己就有品牌与同一串版本 ⇒ 不隐藏就会**品牌与版本各出现两次**。
-  eq('返修③：关于页隐藏 Web 外壳顶栏（`hidden` ＋ 计算出的 display:none）',
-    { hidden: aboutInfo.headerHidden, display: aboutInfo.headerDisplay },
-    { hidden: true, display: 'none' });
-  eq('返修③：关于页上「索斐」在**整页可见文本**里只出现一次（顶栏那一份隐藏后不进 innerText）',
+  // ③ 2026-10-16：全局外壳顶栏已**整块删除** ⇒ 关于页上只剩它自己的应用名页标题一份，
+  //    不可能再「品牌各出现两次」；下面改成钉「不存在外壳顶栏」＋「索斐恰好一次」。
+  eq('关于页：页面上**没有**全局外壳顶栏', aboutInfo.siteHeaderExists, false);
+  eq('关于页上「索斐」在**整页可见文本**里恰好出现一次（只有它自己的页标题那一份）',
     (aboutInfo.bodyText.match(/索斐/g) ?? []).length, 1);
-  check('返修③：顶栏那一串（`站点资源版本 0.1.1`，无 `v`）在关于页可见文本里已经不在',
+  check('关于页上不再有「站点资源版本 0.1.1」那条独立外壳文字（值里仍是 `站点资源版本 v0.1.1`）',
     !aboutInfo.bodyText.includes(`站点资源版本 ${APP_VERSION}`),
     dump({ headerString: `站点资源版本 ${APP_VERSION}` }));
   // V3：四条线合一 —— 页标题／本条版本标签文字／仓库链接都落在**内容左沿**（归档实测 16.8px，容差 0.75）
@@ -1202,24 +1200,21 @@ async function main() {
     await evaluate(`document.querySelector('[data-test="about-back-to-index"]').getAttribute('href')`), '#/');
   await evaluate(`document.querySelector('[data-test="about-back-to-index"]').click(); true`);
   await waitForIndexExpanded();
-  // ③ 的反向断言：顶栏**只在关于页**隐藏，离开关于页必须回来（目录页仍靠它显示应用名，且只显示这一份）。
-  const indexHeader = await evaluate(`(() => {
-    const header = document.querySelector('.site-header');
+  // ③ 2026-10-16：全局外壳顶栏已**整块删除**（采纳锚：目录页顶部只有「关于」、不重复应用名）
+  //    ⇒ 反向断言改成钉「目录页没有外壳顶栏／没有站点标题／整页可见文本里没有应用名」，
+  //      并正向钉住「顶部就只有『关于』这一个入口」。
+  const indexTop = await evaluate(`(() => {
+    const entries = [...document.querySelectorAll('[data-test="index-bar"] a')];
     return {
-      hidden: header.hidden,
-      display: getComputedStyle(header).display,
-      title: document.querySelector('[data-test="site-title"]')?.textContent ?? null,
+      siteHeader: Boolean(document.querySelector('.site-header')),
+      siteTitle: Boolean(document.querySelector('[data-test="site-title"]')),
       appNameCount: (document.body.innerText.match(/索斐/g) ?? []).length,
-      viewHasAppName: document.querySelector('[data-test="view-index"]').innerText.includes('索斐'),
+      entries: entries.map((a) => a.textContent),
     };
   })()`);
-  eq('返修③反向：回到目录后外壳顶栏照旧可见',
-    { hidden: indexHeader.hidden, display: indexHeader.display, title: indexHeader.title },
-    { hidden: false, display: 'flex', title: aboutSpec.appName });
-  eq('返修③反向：目录页可见文本里「索斐」仍**恰好一次**（应用名只在顶栏，目录本身不重复）',
-    indexHeader.appNameCount, 1);
-  check('返修③反向：目录页页面内容里没有应用名（重复与否由顶栏唯一一份决定）',
-    indexHeader.viewHasAppName === false, dump(indexHeader));
+  eq('目录页：没有外壳顶栏、没有站点标题，且整页可见文本里「索斐」出现 0 次',
+    [indexTop.siteHeader, indexTop.siteTitle, indexTop.appNameCount], [false, false, 0]);
+  eq('目录页顶部只有「关于」这一个入口（就这一项）', indexTop.entries, ['关于']);
   await openFresh(`${BASE}#/about`);
   await waitForAboutView();
   eq('深链接直开 #/about 就是关于页', await evaluate('location.hash'), '#/about');
@@ -1251,7 +1246,8 @@ async function main() {
       statusNodes: document.querySelectorAll('[data-test^="status"]').length,
       debugActions: ['check-site-update', 'persist-storage', 'reload-content']
         .filter((t) => document.querySelector('[data-test="' + t + '"]')).length,
-      hasHeader: Boolean(document.querySelector('.site-header')),
+      siteHeader: Boolean(document.querySelector('.site-header')),
+      siteTitle: Boolean(document.querySelector('[data-test="site-title"]')),
       hasView: Boolean(document.querySelector('[data-test="view"]')),
       hasNotices: Boolean(document.querySelector('[data-test="notices"]')),
       appVersionSpan: Boolean(document.getElementById('app-version')),
@@ -1286,9 +1282,11 @@ async function main() {
     eq(`[${label}] 文档里没有 status 元素、也没有调试动作按钮`,
       [got.statusNodes, got.debugActions], [0, 0]);
     eq(`[${label}] 外壳／视图区／通知区都在，且当前视图正是 ${viewTest}`,
-      [got.hasHeader, got.hasView, got.hasNotices,
+      [got.hasView, got.hasNotices,
         await evaluate(`Boolean(document.querySelector('[data-test="${viewTest}"]'))`)],
-      [true, true, true, true]);
+      [true, true, true]);
+    eq(`[${label}] 页面里没有外壳顶栏与站点标题（外壳顶栏已整块删除）`,
+      [got.siteHeader, got.siteTitle], [false, false]);
     eq(`[${label}] 外壳里没有页脚用的版本徽标（版本只在关于页）`, got.appVersionSpan, false);
     // 整页证据图（含滚到底）：给人看的，也是这个缺陷的回归底片。
     await fullPageShot(`no-panel-${slug}.png`);
@@ -1858,12 +1856,12 @@ async function main() {
     const tokenBeforeApplyErr = await docToken();
     await evaluate(`document.querySelector('[data-test="apply-update"]').click(); true`);
     await waitForNewDocument(tokenBeforeApplyErr, `${c.label}：切换后新文档`);
-    await waitFor(`Boolean(document.querySelector('[data-test="site-title"]'))`, { label: '外壳仍在' });
+    await waitFor(`Boolean(document.querySelector('[data-test="view"]'))`, { label: '外壳仍在（视图区已挂上）' });
     await waitForErrorView();
     const text = await errorText();
     includes(`[${c.label}] 失败状态说清原因`, text, c.expect);
     check(`[${c.label}] 外壳与失败状态仍然渲染（不是白屏）`,
-      (await evaluate(`document.querySelector('[data-test="site-title"]').textContent`)) === '索斐'
+      (await evaluate(`Boolean(document.querySelector('[data-test="view"]'))`))
       && (await evaluate(`Boolean(document.querySelector('[data-test="view-error"]'))`)));
     check(`[${c.label}] 给出可操作的重试入口`,
       await evaluate(`Boolean(document.querySelector('[data-test="retry-load"]'))`));
@@ -1907,10 +1905,10 @@ async function main() {
     await c.delete(new URL('content.json', self.location.href).href);
   })()`);
   await reload();
-  await waitFor(`Boolean(document.querySelector('[data-test="site-title"]'))`, { label: '外壳仍能从缓存到达' });
+  await waitFor(`Boolean(document.querySelector('[data-test="view"]'))`, { label: '外壳仍能从缓存到达' });
   await waitForErrorView();
   includes('内容缺失 + 离线 → 应用如实报错（HTTP 状态）', await errorText(), 'HTTP');
-  check('外壳仍在（不是白屏），并且给出重试', await evaluate(`Boolean(document.querySelector('[data-test="site-title"]')) && Boolean(document.querySelector('[data-test="retry-load"]'))`));
+  check('外壳仍在（不是白屏），并且给出重试', await evaluate(`Boolean(document.querySelector('[data-test="view"]')) && Boolean(document.querySelector('[data-test="retry-load"]'))`));
   await pushDump('内容缺失 + 离线（应用自己的失败状态）');
   await screenshot('10-missing-content-offline.png');
 
@@ -1923,10 +1921,10 @@ async function main() {
   check('站点缓存确实清空了（上面那个 await 的删除循环的直接结果）', (await cacheKeys()).length === 0);
   await cdp.send('Page.navigate', { url: BASE });
   // 等服务不可达的错误页真的接上（外壳与 __app 都不存在），而不是睡固定时间再取快照。
-  await waitFor(`!window.__app && !document.querySelector('[data-test="site-title"]')`,
+  await waitFor(`!window.__app && !document.querySelector('[data-test="view"]')`,
     { label: '错误页接上（没有外壳、没有应用）', timeout: 15000 }).catch(() => {});
   const deadState = await evaluate(`({
-    hasShell: Boolean(document.querySelector('[data-test="site-title"]')),
+    hasShell: Boolean(document.querySelector('[data-test="view"]')),
     hasApp: Boolean(window.__app),
   })`).catch(() => ({ hasShell: null, hasApp: null, unreachable: true }));
   check('没有外壳可缓存 + 服务不可达 ⇒ 应用没机会显示任何东西（浏览器只能给错误页）',

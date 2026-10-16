@@ -41,7 +41,7 @@
 - **Web 四页**：`web/tests/evidence/`（如 `about-after.png`／`index-after.png`，关于页修偏后的实拍）＋ `web/tests/artifacts/`（每次跑 e2e 自动刷新全套）＋ 宽度 4 图 `docs/design/width-audit/{about,detail}-{320,1180}.png`。
 - **原型（采纳锚，对照用）**：`items/app-ui/history/round-*/q-*.html` ＋ 各轮 `ARCHIVE.md`。
 - **跨端块标记边界的正反例（新增）**：`tests/fixtures/contract/md-boundary.json`（30 例，**编译器／Web／Android 三方同读**）—— 与 §6.5 的收严配套，见 §3。
-- **「四页都没有页脚诊断面板」的整页证据（新增）**：`web/tests/evidence/no-panel-{index,poem,detail,about}.png`（**整页截图**，每张先滚到底；我**逐张亲眼看过**）＋ 可复跑断言在 e2e 的 §1c-3（见 §6.9）。
+- **「四页都没有页脚面板／没有外壳顶栏」的整页证据（新增）**：`web/tests/evidence/no-panel-{index,poem,detail,about}.png`（**整页截图**，每张先滚到底；我**逐张亲眼看过**）＋ 可复跑断言在 e2e 的 §1c-3（见 §6.9）。
 
 **与原型差异（逐条，都不是缺陷）**
 1. **原型是静态 HTML 材料，实装是真实内容＋真实交互**（例：关于页「检查站点更新」真发请求、真显示在线/缓存状态）。
@@ -58,7 +58,7 @@
 | 检查 | 结果 | 谁跑的 |
 |---|---|---|
 | `npm test` | **141 / 141，exit 0** | 负责人亲跑 |
-| Web e2e（无头 Chromium） | **438 / 438，EXIT 0**（含新增的 §1c-3 **全页面**负向扫描） | 负责人亲跑 |
+| Web e2e（无头 Chromium） | **442 / 442，EXIT 0**（含 §1c-3 **全页面**负向扫描：面板＋外壳顶栏） | 负责人亲跑 |
 | Android 单元测试（`--no-build-cache --rerun-tasks`） | **146 / 146，EXIT 0**（19 个测试类，0 失败 0 跳过） | 负责人亲跑 |
 | Web Markdown 契约对照 | **204 / 204，EXIT 0**（含新增的 30 例块标记边界三方对账） | 负责人亲跑 |
 | 编译器侧契约绑定 | **6 / 6，EXIT 0** | 负责人亲跑 |
@@ -115,6 +115,9 @@
    **机制一个没删**（否则就是为截图删功能）：SW 离线缓存、后台更新检测、「有新版本→点刷新」必要提示、加载/失败可见反馈照旧；诊断事实改由测试钩子 `window.__app.summary()`（非产品 UI）读取。
    **断言改成查整份文档，不是某个 `view` 子树**（此前那条查 `view-about` 后代的负向断言就**恒真**过）：e2e §1c-3 对四页逐个断言 14 个诊断词汇不存在、`<footer>` 数 0、status 元素 0、调试动作 0，**并带正向对照**（关于页确实显示 `v0.1.1`、目录确实渲染 19 首）⇒ 不会因「把版本/内容整个删掉」而假绿。证据：`web/tests/evidence/no-panel-{index,poem,detail,about}.png`（整页、先滚到底、我逐张看过）。
 10. **顺带被 §6.9 暴露、并一并修掉的真缺陷**：`afterViewChange` 原来只等**一帧**再恢复目录滚动位置；之前是页脚面板的 DOM 写入恰好把布局顶完才显得正确。面板移除后，从诗页返回目录会**回到顶部**（e2e 实测：捕获 373、回来 0）⇒ 改成等**两帧**（`web/app/main.js`），e2e 那条断言随即恢复通过。
+11. **~~全局外壳顶栏~~ ⇒ 已修（同轮，用户接着指出的第二处偏差）**：每页顶部还有一条 sticky 的「索斐」横栏（外壳 `.site-header`＋`site-title`）。采纳锚写着**目录页顶部只有「关于」这一个入口、不重复应用名**（`round-2026-10-15-hub-align/`；**Android 端也没有这条横栏**）⇒ 它在目录/诗/详情三页上都是**冗余产品壳**，已整块删除（`index.html` 删整个 `<header>`；`main.js` 删 `els.siteHeader` 与「关于页把它 hidden」那段；`styles.css` 删两条规则）。
+    **没动**：关于入口、顶部返回（← 目录／← 返回这首诗）、详情导航；浏览器 `<title>` 与 `manifest.json` 名称照旧；关于页**自己的**应用名页标题（`about-app-name`）照旧——它是关于页内的页面标题，不是外壳品牌。
+    **断言**：e2e 从「index.html 里有外壳顶栏」**反转为没有**；四页扫描新增「无 `.site-header`／`site-title`」；目录页断言**整页可见文本里「索斐」出现 0 次**、`index-bar` 里**只有「关于」一个入口**；关于页断言仍「索斐恰好一次」（那一份就是它自己的页标题）。
 
 ---
 
@@ -129,6 +132,6 @@
 
 ## 8. 下一步
 
-1. **用户看实际效果（推荐）**：**本机预览 http://127.0.0.1:60863/**（新端口＝**新 origin**，因为本次修偏没递增 `APP_VERSION`，旧端口那个 origin 会继续拿旧壳；**没有清任何站点的缓存**）；图片/报告入口：Android `docs/reviews/ui-review/materials-android-latest-4pages/`，Web `web/tests/evidence/`（含 4 张「四页无面板」整页图）与 `docs/design/width-audit/`。
+1. **用户看实际效果（推荐）**：**本机预览 http://127.0.0.1:59911/**（新端口＝**新 origin**，因为本次修偏没递增 `APP_VERSION`，旧端口那些 origin 会继续拿旧壳；**没有清任何站点的缓存**）；图片/报告入口：Android `docs/reviews/ui-review/materials-android-latest-4pages/`，Web `web/tests/evidence/`（含 4 张「四页无面板、无外壳顶栏」整页图）与 `docs/design/width-audit/`。
 2. **用户单独决定是否发布**（S5）：要发布才需要新授权（那时才读签名密钥、打 tag、部署 Pages）。
 3. 若用户提出视觉调整（§6 的 1–3、6），按新反馈开一轮；**不再主动开无穷原型**。

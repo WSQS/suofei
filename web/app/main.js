@@ -19,7 +19,6 @@ import {
 const els = {
   view: document.getElementById('view'),
   notices: document.getElementById('notices'),
-  siteHeader: document.querySelector('.site-header'),
 };
 
 export { APP_VERSION };
@@ -177,12 +176,10 @@ function maybeApplyUpdateOnIndex() {
 
 function renderView() {
   els.view.replaceChildren();
-  // ⚠ 关于页**隐藏 Web 外壳顶栏**（用户 2026-10-16 返修③，两种重复都在这一页）：
-  //  顶栏那行是「索斐 ＋ 站点资源版本 0.1.1」，而 A3 的关于页**自己**就给出应用名页标题
-  //  与同一串版本信息 ⇒ 不隐藏就会「品牌与版本各出现两次」（见 `tests/evidence/about-before.png`）。
-  //  该页另带「← 目录」返回，隐藏顶栏不影响导航；**只在这一页隐藏**，
-  //  目录页/诗页/详情页的顶栏语义一字不改（目录页仍未在别处重复应用名）。
-  els.siteHeader.hidden = false;
+  // ⚠ 2026-10-16：**全局外壳顶栏已整块删除**（原先是 sticky「索斐 ＋ 站点资源版本」那条）。
+  //  采纳锚：目录页顶部**只有「关于」**、不重复应用名（`round-2026-10-15-hub-align/`；Android 也无此栏）；
+  //  诗页/详情页各有返回工具栏；关于页自带应用名页标题 ⇒ 三页上它都是冗余产品壳。
+  //  于是原来那句「关于页把顶栏 hidden」也随之删掉——**已没有东西可藏**。
 
   if (state.error) {
     els.view.append(h('div', { class: 'view view--error', dataset: { test: 'view-error' } }, [
@@ -217,7 +214,6 @@ function renderView() {
       onBack: () => navigate(ROUTES.poem(state.view.id)),
     }));
   } else if (state.view.kind === 'about') {
-    els.siteHeader.hidden = true;   // 这一页自己给了品牌＋版本 ⇒ 去掉顶栏那一份重复（返修③）
     els.view.append(renderAboutPage({
       appVersion: APP_VERSION,
       doc: state.doc,

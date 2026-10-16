@@ -152,28 +152,10 @@ button {
   cursor: pointer;
 }
 
-/* ---------- 顶栏 ---------- */
-
-.site-header {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  padding: 0.7rem var(--pad);
-  background: var(--bg-sticky);
-  border-bottom: 1px solid var(--line);
-}
-
-.site-title {
-  font-family: var(--font-title);
-  font-size: 1.02rem;
-  letter-spacing: var(--brand-ls);
-  color: var(--text);
-  white-space: nowrap;
-}
+/* ---------- （已删）全局顶栏 ----------
+ * ⚠ 2026-10-16：这里原来有 `.site-header`（sticky）与 `.site-title` 两条规则——那条横栏已从产品壳
+ *  整块删除（目录页顶部只留「关于」；诗页/详情页有自己的返回工具栏；关于页自带应用名页标题）。
+ *  这里不再留死规则。 */
 
 /* ---------- 按钮（环形芯片，只有颜色过渡） ---------- */
 
@@ -769,10 +751,6 @@ button {
 /* ---------- 窄屏 ---------- */
 
 @media (max-width: 420px) {
-  .site-header {
-    gap: 0.5rem;
-  }
-
   /* ⚠ 关于页的版本组**不**在窄屏落成两行：采纳锚（A3／V3）在 320 视口下仍是一行一条
    *   （标签列 68.22＋值列固定在同一条竖线上），所以这里没有 `1fr` 折列规则。 */
 }

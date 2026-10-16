@@ -14,10 +14,11 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header class="site-header">
-    <a class="site-title" href="#/" data-test="site-title">索斐</a>
-  </header>
-
+  <!-- ⚠ 2026-10-16：**不再有全局外壳顶栏**（原来这里是一条 sticky 的「索斐」横栏＋版本徽标）。
+       目录页的采纳锚写着「顶部只有『关于』这一个入口」、**不重复应用名**（`round-2026-10-15-hub-align/`，
+       Android 端也没有这条横栏）；诗页/详情页各有自己的返回工具栏；关于页自带应用名页标题
+       ⇒ 那条横栏在三页上都是**冗余产品壳**，已整块删除（不是 CSS 隐藏）。
+       浏览器标签标题与 manifest 名称（`<title>`／`manifest.json`）与本条无关，保留不动。 -->
   <div id="notices" class="notices" data-test="notices"></div>
 
   <main id="view" class="view-host" data-test="view">
