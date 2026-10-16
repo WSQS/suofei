@@ -213,6 +213,7 @@
 ### 6.1 基线 SHA
 
 **`9022f3284e5e59c4ff99efb45f0ea30aa908fecd`**（分支 `wt/child-01b0921b`，**未 push**）。
+它是**被测量代码的基线**，也正是承载本报告的提交 `6d3042b` 的**父提交**（`git rev-parse HEAD^` == 上面这串）。
 脚本运行时自取并打印（`git rev-parse HEAD`），也在 [run.log](width-audit/run.log) 的「运行信息」里。
 产物内容：现场编译的 `content.json`（`formatVersion=2`、`contentVersion=2026.10.14.1`、19 首 1 组）——
 本树没有 `dist/content.json`（已 gitignore），与 `web/tests/e2e-cdp.mjs` 同一兜底。
