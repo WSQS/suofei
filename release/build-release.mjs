@@ -71,6 +71,10 @@ const USAGE = `用法：node release/build-release.mjs [选项]
                           （content/latest.json + content/<版本>/content.json）；Web 不再需要独立内容通道
                           （内容随壳走，更新交给 SW 生命周期）。none 只用于本地演练，不是发布形态。
   --no-android-manifest   = --android-feed none
+  --min-app-version-code <n>  远端更新清单里的 minAppVersionCode：**能读这份内容的最小 app versionCode**。
+                          不传则＝本次 APK 的 versionCode（与以前一致）。
+                          ⚠ 本次（0.1.3）内容仍是 formatVersion: 2，而 0.1.2（vc3）就支持 2 ⇒ 可传 3：
+                          不让 vc3 设备白白拒掉一次它本来能采用的更新（bug 修复在 APK，与内容更新是两条道）。
   --online                不用 Gradle --offline（默认 offline，避免发布构建偷偷依赖网络）
   -h, --help              显示本帮助
 
@@ -91,6 +95,7 @@ function parseArgs(argv) {
     skipApk: false,
     sourceDateEpoch: null,
     androidFeed: 'manifest',
+    minAppVersionCode: null,
     offline: true,
     help: false,
   };
@@ -131,6 +136,14 @@ function parseArgs(argv) {
         }
         break;
       case '--no-android-manifest': opts.androidFeed = 'none'; break;
+      case '--min-app-version-code': {
+        opts.minAppVersionCode = Number(need(a, i));
+        i++;
+        if (!Number.isInteger(opts.minAppVersionCode) || opts.minAppVersionCode < 1) {
+          throw new ReleaseError(`--min-app-version-code 只接受 ≥1 的整数，收到：${opts.minAppVersionCode}`, { code: 'USAGE' });
+        }
+        break;
+      }
       case '--online': opts.offline = false; break;
       case '-h': case '--help': opts.help = true; break;
       default:
@@ -447,7 +460,12 @@ function main() {
       url: androidUrl,
       sha256: distSha,
       size: distBuf.length,
-      minAppVersionCode: app.versionCode,
+      // ⚠ 2026-10-16：`minAppVersionCode` ＝「**能读这份内容的**最小 app versionCode」，
+      //   **不**必然等于本次 APK 的 versionCode。本次（0.1.3）内容仍是 `formatVersion: 2`，
+      //   而 0.1.2（vc3）的 `ContentParser.SUPPORTED_FORMAT_VERSION` 就是 2 ⇒ vc3 **能读**这份内容
+      //   ⇒ 写 4 会白白拒掉 vc3 设备一次它本来能采用的更新（两个 bug 修复在 APK 里，与内容更新是两条道）。
+      //   所以这里改成**可显式指定**（默认仍＝本次 APK 的 versionCode，保持与以前一致）。
+      minAppVersionCode: opts.minAppVersionCode ?? app.versionCode,
     };
     writeFileEnsured(A.androidManifestInWeb(outDir), JSON.stringify(latest, null, 2) + '\n');
     info('快照', `${display(snapshot)}  ${snapInfo.bytes} 字节  sha256=${snapInfo.sha256}`);

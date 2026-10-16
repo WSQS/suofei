@@ -436,12 +436,20 @@ function unitTests(baseDoc, variants) {
 
   section('0b 次序策略：产物带了 orderInSource 时一律不重排（回归）');
   eq('真实产物被判定为「产物次序权威」', hasProductOrder(baseDoc), true);
-  eq('判定依据是 orderInSource（19 首全是整数）', productOrderStatus(baseDoc),
-    { present: baseDoc.poems.length, usable: baseDoc.poems.length, productOrderAuthoritative: true, wrongType: false });
-  eq('真实产物 19 首的诗名次序 == 用户拍板的《文选》原次序', baseDoc.poems.map((p) => p.title), SOURCE_ORDER_TITLES);
+  // ⚠ 真实内容现在有**两个组**（汉 19 首 ＋ 近现代 1 首）；新增那首**未写** orderInSource（该键**可选**，不编）。
+  const withOrder = baseDoc.poems.filter((p) => p.orderInSource !== undefined && p.orderInSource !== null);
+  const usableOrder = withOrder.filter((p) => Number.isInteger(p.orderInSource));
+  eq(`判定依据是 orderInSource（${withOrder.length}/${baseDoc.poems.length} 首带整数次序）`,
+    productOrderStatus(baseDoc),
+    { present: withOrder.length, usable: usableOrder.length, productOrderAuthoritative: true, wrongType: false });
+  const hanPoems = baseDoc.poems.filter((p) => p.dynasty === '汉');
+  eq(`真实产物「汉」组 ${hanPoems.length} 首的诗名次序 == 用户拍板的《文选》原次序`,
+    hanPoems.map((p) => p.title), SOURCE_ORDER_TITLES);
+  eq('产物里的组与组序（＝注册表 order 升序：汉 → 近现代）',
+    baseDoc.dynasties, [...new Set(baseDoc.poems.map((p) => p.dynasty))]);
   eq('目录次序 == 产物数组次序', groupPoems(baseDoc).flatMap((g) => g.poems.map((p) => p.id)), expectedDomOrder(baseDoc));
-  eq('本机拼音排序会把第 1 首推到队列末尾', fallbackOrder(baseDoc)[baseDoc.poems.length - 1], baseDoc.poems[0].id);
   check('本机拼音排序与产物次序不同（这条断言才有牙齿）', dump(fallbackOrder(baseDoc)) !== dump(expectedDomOrder(baseDoc)));
+  check('本机拼音兜底不会把产物第 1 首排在第 1 位', fallbackOrder(baseDoc)[0] !== baseDoc.poems[0].id, dump(fallbackOrder(baseDoc).slice(0, 3)));
 
   section('0c 客户端不读两个拼音名次键（即使产物里还带着）');
   const keysButNoIndex = structuredClone(baseDoc);
@@ -819,17 +827,26 @@ async function main() {
   eq('诗数量', s.poems, total);
   eq('内容格式版本', s.formatVersion, baseDoc.formatVersion);
   check('真实产物没有夹具黄条', !(await evaluate(`Boolean(document.querySelector('[data-test="fixture-notice"]'))`)));
-  eq('汉组目录的诗名次序 == 用户拍板的《文选》卷二十九原次序（19 首，确定性）',
-    await evaluate(`[...document.querySelectorAll('[data-test="poem-row"] .poem-row-title')].map(e => e.textContent)`),
-    SOURCE_ORDER_TITLES);
+  // ⚠ 真实内容现在有两个组 ⇒ **按组**取行（拿全部 poem-row 当单组是 20 首之前的写法）。
+  const groupRowTitles = (key) => evaluate(`(() => {
+    const g = [...document.querySelectorAll('[data-test="dynasty-group"]')]
+      .find((x) => x.dataset.dynastyKey === ${JSON.stringify(key)});
+    return g ? [...g.querySelectorAll('[data-test="poem-row"] .poem-row-title')].map((e) => e.textContent) : [];
+  })()`);
+  eq('「汉」组目录的诗名次序 == 用户拍板的《文选》卷二十九原次序（19 首，确定性）',
+    await groupRowTitles('汉'), SOURCE_ORDER_TITLES);
+  eq('「近现代」组单独成组、只 1 首（用户新录入那首）', await groupRowTitles('近现代'), ['七律·和郭沫若同志']);
   eq('目录次序 == 产物数组次序（整串）', await domPoemIds(), expectedDomOrder(baseDoc));
-  eq('汉组首尾两端', await evaluate(`(() => {
-    const t = [...document.querySelectorAll('[data-test="poem-row"] .poem-row-title')].map(e => e.textContent);
+  eq('「汉」组首尾两端', await evaluate(`(() => {
+    const g = [...document.querySelectorAll('[data-test="dynasty-group"]')]
+      .find((x) => x.dataset.dynastyKey === '汉');
+    const t = [...g.querySelectorAll('[data-test="poem-row"] .poem-row-title')].map((e) => e.textContent);
     return [t[0], t[t.length - 1], t.length];
   })()`), ['行行重行行', '明月何皎皎', 19]);
   eq('真实产物第 1 首是 行行重行行 且 orderInSource === 1', [baseDoc.poems[0].title, baseDoc.poems[0].orderInSource], ['行行重行行', 1]);
-  eq('本机拼音重排会把它推到第 19 位（所以上一条断言有牙齿）', fallbackOrder(baseDoc).indexOf(baseDoc.poems[0].id), total - 1);
-  eq('笔记全空：产物 19 首 notes 都是 null', baseDoc.poems.filter((p) => p.notes !== null).length, 0);
+  check('本机拼音重排不会把它排在第 1 位（所以上一条断言有牙齿）',
+    fallbackOrder(baseDoc).indexOf(baseDoc.poems[0].id) !== 0, dump(fallbackOrder(baseDoc).slice(0, 3)));
+  eq(`笔记全空：产物 ${baseDoc.poems.length} 首 notes 都是 null`, baseDoc.poems.filter((p) => p.notes !== null).length, 0);
   // （原读页脚状态面板；面板 2026-10-16 从产品 UI 移除 ⇒ 改读内部诊断 summary()，**不减弱**：
   //   仍要求「次序由产物决定」，并与下面的 DOM 次序断言合力。）
   check('组内次序由产物决定（内部诊断：orderMode.productOrderAuthoritative）',
@@ -953,8 +970,8 @@ async function main() {
   // ------------------------------------------------ 1c-2 诗歌详情页（第四页）
   section('1c-2 诗歌详情页：诗题①左对齐 + 底本与来源①正文前带标签 + detail 的最小 Markdown 渲染');
   const noDetailPoems = baseDoc.poems.filter((p) => !(typeof p.detail === 'string' && p.detail.trim() !== ''));
-  eq('产物事实：带 detail 的诗 13 首、没有 detail 的诗 6 首（升版时由 variants 合成）',
-    [poemsWithDetail.length, noDetailPoems.length], [13, 6]);
+  eq(`产物事实：带 detail 的诗 ${poemsWithDetail.length} 首、没有 detail 的诗 ${noDetailPoems.length} 首（13 首来自升版时由 variants 合成；新增那首用户未写 \`## 详情\` ⇒ 计入无 detail）`,
+    [poemsWithDetail.length, noDetailPoems.length], [13, baseDoc.poems.length - 13]);
   let seenH3 = 0;
   let seenLi = 0;
   for (const poem of poemsWithDetail) {
@@ -1298,8 +1315,8 @@ async function main() {
     await evaluate(`document.querySelector('[data-test="about-app-version-num"]').textContent`), `v${APP_VERSION}`);
   await hashTo('#/');
   await waitForIndexExpanded();
-  eq('正向对照：目录仍渲染出 19 首（上面那组不是因页面空白才过的）',
-    await evaluate(`document.querySelectorAll('[data-test="poem-row"]').length`), 19);
+  eq('正向对照：目录仍渲染出全部诗（上面那组不是因页面空白才过的）',
+    await evaluate(`document.querySelectorAll('[data-test="poem-row"]').length`), total);
 
   // ------------------------------------------------ 1c-4 IF-45：返回目录恢复原位置
   section('1c-4 IF-45：从诗页返回目录恢复原滚动位置；深链接直开目录仍从顶部');
@@ -1401,7 +1418,7 @@ async function main() {
   eq('正文仍然 pre-wrap（行内空白不被折叠）', poemVis.lineWhite, 'pre-wrap');
   eq('--stanza-gap 令牌值为 1.2em（不为 0）',
     await evaluate(`getComputedStyle(document.documentElement).getPropertyValue('--stanza-gap').trim()`), '1.2em');
-  check('真实产物 19 首都是单节，所以段间空行的**元素级**断言在 §4e（夹具诗）上做',
+  check(`真实产物 ${baseDoc.poems.length} 首都是单节，所以段间空行的**元素级**断言在 §4e（夹具诗）上做`,
     baseDoc.poems.every((p) => p.stanzas.length === 1),
     `最大节数=${Math.max(...baseDoc.poems.map((p) => p.stanzas.length))}`);
   eq('详情来源块字号 = --note-size（13.5px）',
@@ -1651,7 +1668,7 @@ async function main() {
   await waitForIndexExpanded();
   s = await summary();
   eq('服务器已换成 v2，但页面仍是旧壳（cache-first：不能旧壳配新内容）', s.appVersion, APP_VERSION);
-  eq('页面内容也仍是旧内容（末首仍是 明月何皎皎）', (await evaluate(`[...document.querySelectorAll('[data-test="poem-row"] .poem-row-title')].map(e => e.textContent)`)).at(-1), '明月何皎皎');
+  eq('页面内容也仍是旧内容（末首仍是产物末首）', (await evaluate(`[...document.querySelectorAll('[data-test="poem-row"] .poem-row-title')].map(e => e.textContent)`)).at(-1), baseDoc.poems.at(-1).title);
   // 只断言「旧 cache 还在服务」，**不**断言此刻只有它 —— 新 SW 可能已经装好、新 cache 已就绪，
   // 那是完全正常的（旧的在服务、新的在等）。取一次快照跟期望值比，就是上一版假红的来源。
   const cachesAfterRedeploy = await siteCaches();
@@ -1711,8 +1728,8 @@ async function main() {
   eq('新内容生效：末首变成测试夹具诗', (await evaluate(`[...document.querySelectorAll('[data-test="poem-row"] .poem-row-title')].map(e => e.textContent)`)).at(-1), '测试夹具诗（非诗文）');
   // 旧内容已不在：目录的可见文本里不得再出现被删掉的那一首（用户 2026-10-15 起界面已无搜索，
   // 所以这里直接查目录文本，不再借搜索过滤）。
-  check('旧内容已不在：被删掉的末首（明月何皎皎）不再出现在目录里',
-    !(await evaluate(`document.querySelector('[data-test="view-index"]').innerText`)).includes('明月何皎皎'));
+  check(`旧内容已不在：旧内容的末首（${baseDoc.poems.at(-1).title}）不再出现在目录里`,
+    !(await evaluate(`document.querySelector('[data-test="view-index"]').innerText`)).includes(baseDoc.poems.at(-1).title));
   await waitForSiteCaches([v2.cacheName], '旧 cache 已删除、只剩新 cache');
   eq('旧 cache 已被新 SW 删掉', await siteCaches(), [v2.cacheName]);
   check('部署内容带夹具标记 → 界面明确标出（不是发布内容）',

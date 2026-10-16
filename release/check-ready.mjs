@@ -213,23 +213,45 @@ check('poem-count', '诗不为空，且与清单记录一致', (c) => {
   return `${n} 首 / ${c.dist.dynasties?.length} 个分组`;
 });
 
-check('order-in-source', '组内次序：数组次序 + orderInSource 升序（不认任何拼音名次键）', (c) => {
+check('order-in-source', '组内次序：数组次序 + orderInSource 升序（**逐组**核；不认任何拼音名次键）', (c) => {
   const strategy = c.manifest.orderStrategy;
   if (strategy !== 'source') skip(`本次构建的排序策略是 ${strategy}，不是 source —— orderInSource 的升序前提不成立`);
   const poems = c.dist.poems ?? [];
-  const withOrder = poems.map((p, i) => ({ i, o: p.orderInSource }));
-  const nulls = withOrder.filter((x) => x.o === null || x.o === undefined);
-  const values = withOrder.filter((x) => x.o !== null && x.o !== undefined);
-  if (values.length === 0) skip('产物里没有任何 orderInSource（全部为 null）—— 次序只剩数组次序，没有底本原序可核');
-  const firstNull = withOrder.find((x) => x.o === null || x.o === undefined);
-  if (firstNull) fail(`source 策略下 orderInSource 有值的诗必须排在前面，但第 ${firstNull.i + 1} 首（0 基 ${firstNull.i}）没有 orderInSource`);
-  for (let k = 1; k < values.length; k++) {
-    if (!(Number.isInteger(values[k].o) && Number.isInteger(values[k - 1].o))) fail(`orderInSource 不是整数：第 ${values[k].i} 首 = ${JSON.stringify(values[k].o)}`);
-    if (values[k].o <= values[k - 1].o) {
-      fail(`orderInSource 不是升序：第 ${values[k - 1].i + 1} 首=${values[k - 1].o}，第 ${values[k].i + 1} 首=${values[k].o}`);
-    }
+  if (poems.length === 0) fail('产物里一首诗都没有');
+  // ⚠ 2026-10-16（发布 0.1.3 时改）：真实内容现在**多个组**（汉 19 首 ＋ 近现代 1 首）。
+  //   原来把整份产物当单组、并要求「有值的必须排在前面」⇒ 第二组里那首**本来就没写** orderInSource
+  //   （该键**可选**，不替用户编）会被误判为不合格。正确的口径是**逐组**核：组内先有值（严格升序）。
+  const groups = new Map();
+  for (const p of poems) {
+    if (!groups.has(p.dynasty)) groups.set(p.dynasty, []);
+    groups.get(p.dynasty).push(p);
   }
-  return `${values.length}/${poems.length} 首有 orderInSource，1 起严格升序（${values[0].o}…${values[values.length - 1].o}）；其余 ${nulls.length} 首排在后面`;
+  const declared = c.dist.dynasties ?? [];
+  const order = [...groups.keys()];
+  if (JSON.stringify(order) !== JSON.stringify(declared)) {
+    fail(`产物里的组次序 ${JSON.stringify(order)} ≠ 顶层 dynasties ${JSON.stringify(declared)}（组序应由注册表 order 决定）`);
+  }
+  const has = (o) => o !== null && o !== undefined;
+  const summary = [];
+  for (const [name, list] of groups) {
+    const values = list.filter((p) => has(p.orderInSource));
+    const nulls = list.filter((p) => !has(p.orderInSource));
+    const lastValue = list.reduce((acc, p, i) => (has(p.orderInSource) ? i : acc), -1);
+    const firstNull = list.findIndex((p) => !has(p.orderInSource));
+    if (firstNull !== -1 && firstNull < lastValue) {
+      fail(`组「${name}」：有 orderInSource 的诗必须排在该组无值诗之前，但第 ${firstNull + 1} 项没有值、第 ${lastValue + 1} 项有值`);
+    }
+    for (let k = 1; k < values.length; k++) {
+      if (!Number.isInteger(values[k].orderInSource) || !Number.isInteger(values[k - 1].orderInSource)) {
+        fail(`组「${name}」orderInSource 不是整数：${JSON.stringify(values[k].orderInSource)}`);
+      }
+      if (values[k].orderInSource <= values[k - 1].orderInSource) {
+        fail(`组「${name}」orderInSource 不是升序：${values[k - 1].orderInSource} → ${values[k].orderInSource}`);
+      }
+    }
+    summary.push(`「${name}」${values.length}/${list.length} 首有值${values.length ? `（${values[0].orderInSource}…${values[values.length - 1].orderInSource}）` : ''}`);
+  }
+  return `${summary.join('，')}；组序 ${JSON.stringify(declared)}；各组内无值的排在组内最后`;
 });
 
 check('dist-sha256', '规范产物的 sha256 与清单一致（重算）', (c) => {

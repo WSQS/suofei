@@ -57,16 +57,24 @@ class ContentParserTest {
             content.contentVersion.matches(Regex("""\d{4}\.\d{2}\.\d{2}\.\d+""")),
         )
 
-        // 组名＝顶层数组里的中文串；只列实际有内容的组
-        assertEquals(listOf("汉"), content.dynasties)
-        assertEquals(listOf("汉"), content.groups.map { it.name })
-        assertEquals(19, content.poems.size)
+        // 组名＝顶层数组里的中文串；只列实际有内容的组（注册表 order 升序：先秦…近现代）
+        assertEquals(listOf("汉", "近现代"), content.dynasties)
+        assertEquals(listOf("汉", "近现代"), content.groups.map { it.name })
+        assertEquals(20, content.poems.size)
 
-        // 契约：编译产物已按底本原次序排好，客户端不得重排（首＝行行重行行、末＝明月何皎皎）。
+        // 契约：编译产物已按底本原次序排好，客户端不得重排。
         assertEquals("行行重行行", content.poems.first().title)
-        assertEquals("明月何皎皎", content.poems.last().title)
-        assertEquals((1..19).toList(), content.poems.map { it.orderInSource })
-        assertEquals("行行重行行", content.groups.single().poems.first().title)
+        // 「汉」组＝《古诗十九首》19 首：首＝行行重行行、末＝明月何皎皎，orderInSource 1..19。
+        val han = content.groups.first { it.name == "汉" }
+        assertEquals(19, han.poems.size)
+        assertEquals("行行重行行", han.poems.first().title)
+        assertEquals("明月何皎皎", han.poems.last().title)
+        assertEquals((1..19).toList(), han.poems.map { it.orderInSource })
+        // 新增的「近现代」组：1 首；**没有** orderInSource（该键可选，未写就是 null —— 不替用户编）。
+        val modern = content.groups.first { it.name == "近现代" }
+        assertEquals(1, modern.poems.size)
+        assertEquals("七律·和郭沫若同志", modern.poems.single().title)
+        assertEquals(null, modern.poems.single().orderInSource)
     }
 
     @Test
@@ -105,16 +113,21 @@ class ContentParserTest {
         // 有这一节的 13 首 detail **非空**，其余 6 首**没有这一节 ⇒ null（不是空串、也不是占位）**。
         // ⚠ 不看硬编码的条数：**逐首对着唯一来源**（`content/poems/古诗十九首/<题名>.md`）核
         // 「源里有 `## 详情` ⟺ 产物里 detail 非 null」——内容线日后增删详情，这条会真报红。
-        val sourceDir = TestRepoFiles.repoFile(
+        // ⚠ 2026-10-16：真实内容现在**两个组**（`古诗十九首/` 与 `毛泽东/`）⇒ 不再假定单一目录，
+        //   改为在 `content/poems/` 下**按题名递归查找**唯一来源（找不到即失败，不跳过）。
+        val poemsRoot = TestRepoFiles.repoFile(
             "content/poems/古诗十九首/行行重行行.md",
             "内容的唯一来源（S3 迁移后的 v2 布局）；读不到即失败，不跳过。",
-        ).parentFile
+        ).parentFile.parentFile            // ⇒ content/poems/
+        val sourceOf = { title: String ->
+            poemsRoot.walkTopDown().firstOrNull { it.isFile && it.name == "$title.md" }
+        }
         val withDetail = content.poems.filter { it.detail != null }
         assertTrue("至少应有带 `## 详情` 的诗（S3 迁移已进产物）", withDetail.isNotEmpty())
         assertTrue("也应有**没有** `## 详情` 的诗（否则这条对照就白做了）", withDetail.size < content.poems.size)
         for (poem in content.poems) {
-            val src = File(sourceDir, "${poem.title}.md")
-            assertTrue("源文应存在：${src.absolutePath}", src.isFile)
+            val src = sourceOf(poem.title)
+                ?: throw AssertionError("源文应存在（content/poems/**/${poem.title}.md）：${poemsRoot.absolutePath}")
             val hasSection = src.readText(Charsets.UTF_8).lineSequence().any { it.trim() == "## 详情" }
             assertEquals(
                 "「${poem.title}」的 detail 与源里的 `## 详情` 节不一致（有节 ⇒ 非 null；无节 ⇒ null）",

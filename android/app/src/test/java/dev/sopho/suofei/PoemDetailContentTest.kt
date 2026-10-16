@@ -27,12 +27,15 @@ class PoemDetailContentTest {
 
     @Test
     fun detailIsPresentWhereTheSourceHasASection_andTheEmptyHintCoversOnlyTheRest() {
-        assertEquals(19, content.poems.size)
+        assertEquals(20, content.poems.size)
         val withDetail = content.poems.filter { it.detail != null }
         val withoutDetail = content.poems.filter { it.detail == null }
-        // 与源文一致（`content/poems/古诗十九首/` 里 13 首有 `## 详情`）。
+        // 与源文一致（`content/poems/` 里 13 首有 `## 详情`；新增那首用户未写 ⇒ 计入无 detail）。
         assertEquals("带 `## 详情` 的应是 13 首", 13, withDetail.size)
-        assertEquals("没有详情正文的应是 6 首（详情页只对它们显示「没有详情正文」这句实话）", 6, withoutDetail.size)
+        assertEquals(
+            "没有详情正文的应是 ${content.poems.size - 13} 首（详情页只对它们显示「没有详情正文」这句实话）",
+            content.poems.size - 13, withoutDetail.size,
+        )
         assertTrue("带详情的正文不得是空白占位", withDetail.all { !it.detail!!.isBlank() })
         // 详情页的最小 Markdown 渲染要吃的就是 `### 小标题` 这种形状（S3 写的是「异文／分段依据」）
         assertTrue("带详情的正文应含 Markdown 小标题", withDetail.all { it.detail!!.contains("### ") })

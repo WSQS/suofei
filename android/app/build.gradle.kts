@@ -28,8 +28,8 @@ android {
         minSdk = 26
         targetSdk = 36
         // 应用/资源版本，与内容版本（content.json 的 contentVersion）完全分开，不共用一个号。
-        versionCode = 3
-        versionName = "0.1.2"
+        versionCode = 4
+        versionName = "0.1.3"
     }
 
     // ── 正式签名（发布用）——四项环境变量见文件顶部注释 ──
