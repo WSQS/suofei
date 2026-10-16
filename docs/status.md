@@ -240,7 +240,8 @@
 | 源格式候选轮（A/B/C） | `items/content-format/history/round-2026-10-15-content-format-candidates/` |
 | A 路线整合稿（首版） | `items/content-format/history/round-2026-10-15-a-route-draft/` |
 | A 路线字段稿 v2 | `items/content-format/history/round-2026-10-15-a-route-v2/` |
-| **规则稿 v3**（**在制**，未归档） | `items/content-format/prototypes/rules-v3/` |
+| **关于页表达轮**（**采纳锚**：结构 A3、仓库链接完整 URL、共用信息去来源） | **`items/app-ui/history/round-2026-10-16-about/`** |
+| 规则稿 v3（**在制**） | `items/content-format/prototypes/rules-v3/` |
 
 ## 已交付（均经负责人复跑验收，不只信报告）
 
