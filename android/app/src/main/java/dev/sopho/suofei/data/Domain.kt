@@ -7,7 +7,8 @@ package dev.sopho.suofei.data
  * **字段形状（2026-10-16，`formatVersion` 2）**：顶层 `dynasties` 是**有序的中文值数组**（不再是
  * `[{key,label,order}]`）；每首 **10 键** `id,title,author,dynasty,genre,source,orderInSource,detail,stanzas,notes`，
  * 缺值**保键**写 `null`；分组用每首的**中文 `dynasty`** 与顶层数组**精确匹配**。
- * 机器可读的预期见 `items/content-format/prototypes/rules-v4/expectations.json`。
+ * 机器可读的预期见夹具 `tests/fixtures/contract/real-01-full.json`（＋契约 `schema/content.schema.json`）；
+ * 原型轮那份 `expectations.json` 是**历史快照**，已不是测试输入。
  *
  * ⚠ 这条与**另一条线（S1S2 编译器）**同批：字段形状变了，产物必须由新版编译器产出；
  * 本端不再认识旧形状（`dynastyKey`/`dynastyLabel`/`dynastyOrder`/`era`/`variants`）。

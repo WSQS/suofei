@@ -16,8 +16,9 @@ import org.junit.Test
  *
  * 两道「真解析」的牙：
  * 1. **APK 内置产物**（`src/main/assets/content/content.json`）必须真能解析 —— 内置内容坏掉＝首次断网读不了；
- * 2. **规范侧的机器可读产物**（`items/content-format/prototypes/rules-v4/json/`）必须是同一套键序 ——
+ * 2. **稳定契约侧的机器可读产物**（`tests/fixtures/contract/real-01-full.json`）必须是同一套键序 ——
  *    单测不持副本，键序从那份产物读出来与 [ContentParser.POEM_KEYS] 比。
+ *    （2026-10-16 改：原先读 `items/content-format/prototypes/rules-v4/json/` —— 那是会被归档的原型目录。）
  */
 class ContentParserTest {
 
@@ -136,8 +137,8 @@ class ContentParserTest {
     @Test
     fun canonicalNewShapeFixture_keyOrderMatchesTheInterface() {
         val raw = TestRepoFiles.read(
-            "items/content-format/prototypes/rules-v4/json/real-01-full.json",
-            "新字段形状的机器可读产物（rules-v4）是这套键序的锚；读不到即失败，不跳过。",
+            "tests/fixtures/contract/real-01-full.json",
+            "新字段形状的机器可读产物（稳定契约副本）是这套键序的锚；读不到即失败，不跳过。",
         )
         val keys = keysOfFirstPoem(raw)
         val expected = ContentParser.POEM_KEYS.filter { it in keys }

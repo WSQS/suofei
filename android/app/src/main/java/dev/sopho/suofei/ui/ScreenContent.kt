@@ -18,9 +18,10 @@ import dev.sopho.suofei.data.Poem
  * **细时代（如「东汉末」）不上阅读页**（用户已定）；新字段形状里连 `era` 键都没有了。
  * 组名/朝代用的是**中文单值** `poem.dynasty`（与顶层 `dynasties` 精确匹配）。
  *
- * ⚠ 一处**两端待统一的口径**（如实记下）：`items/content-format/prototypes/rules-v4/expectations.json`
- * 的 Web 那一列写的是 `dynasty · author · genre`（朝代在前），而诗页/详情页/宽度的采纳锚与本端任务书
- * 都写的是 **作者 · 朝代 · 体裁**。本端按**采纳锚**实现；两端要统一时改这一处即可。
+ * ⚠ 一处**历史口径差异（已收敛，留痕）**：原型轮 `items/content-format/prototypes/rules-v4/expectations.json`
+ * （**历史快照，已不是测试输入**）的 Web 那一列写的是 `dynasty · author · genre`（朝代在前），而采纳锚写的是
+ * **作者 · 朝代 · 体裁**。**两端现已都按采纳锚实现**（本端 `poemMetaLine` 与 Web `render.js` 的
+ * `[poem.author, poem.dynasty, poem.genre]` 都是作者在前）⇒ **该差异已不成立**，此处只作留痕。
  */
 fun poemMetaLine(poem: Poem): String =
     listOfNotNull(poem.author, poem.dynasty, poem.genre).joinToString(" · ")

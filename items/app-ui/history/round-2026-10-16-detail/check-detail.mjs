@@ -5,7 +5,10 @@
  *   对象只有本目录下的 q-detail.html（**只读打开**：Page.navigate 到 file:// URL，脚本不写、不改它）。
  *   额外读的文件只有两个，都是**只读**：
  *     ① prototype/css/theme-tech.css                                   —— 用来逐项比对页面内嵌的令牌快照；
- *     ② items/content-format/prototypes/rules-v3/samples/real-01-full.md —— 详情正文／底本与来源／诗题的**基准**。
+ *     ② tests/fixtures/contract/real-01-full.md                      —— 详情正文／底本与来源／诗题的**基准**。
+ *        ⚠ 2026-10-16 改：原先读的是 `items/content-format/prototypes/rules-v3/samples/real-01-full.md` ——
+ *        那是一个**会被归档的原型目录**（归档即断）；改为读**同一份文件的稳定副本**（逐字节相同），
+ *        以保住本归档轮的**历史可复跑**。**没有把历史原稿改写成新规格。**
  *
  * 覆盖的视口（**每个视口都单独跑一遍全部断言，并各出一组图；图太高就按块边界拆图**）：320 ／ 430 ／ 1180。
  *   ⚠ 一个视口一组图（真实 CSS px @DPR 2）；**不做**缩放拼图。
@@ -99,7 +102,7 @@ const CASES = [
   { key: '430', w: 430, h: 932, mobile: true, label: '手机（任务书要求的验收宽）' },
   { key: '1180', w: 1180, h: 900, mobile: false, label: '桌面（宽而矮，行长最长）' },
 ];
-const MD_PATH = join(ROOT, 'items', 'content-format', 'prototypes', 'rules-v3', 'samples', 'real-01-full.md');
+const MD_PATH = join(ROOT, 'tests', 'fixtures', 'contract', 'real-01-full.md');
 const HTML_PATH = join(OUT, 'q-detail.html');
 const PNG_HARD_LIMIT = 16384;                 /* 设备像素上限：宁可拆图也不出一张被截断的图 */
 const MAX_SHOT_CSS = 8000;                    /* 单张图的截图区 CSS 高上限（×DPR 2 = 16000 < 16384） */

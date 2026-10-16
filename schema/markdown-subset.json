@@ -1,0 +1,64 @@
+{
+  "_comment": "最小 Markdown 闭集 —— **跨端唯一的机器可读范围定义**。人类可读的规范条文在 docs/design/content-contract.md §1.0。两端的范围定义都要与本文件的 constructs[].id 逐项一致：Android 由 MarkdownTest 真读本文件；Web 侧见 tests/。excluded[] 是闭集之外必须报错的写法码（编译器侧，见 §3.1 码表）。⚠ 本文件是权威副本；原型轮 items/content-format/prototypes/rules-v4/expectations.json 里的同名段落是**那一稿的快照**（材料，会被归档）。⚠ 2026-10-16 由负责人建立：起因是 Android 单测原先直接读那个**会被归档的原型目录**，归档即断。",
+  "formatVersion": 2,
+  "spec": "docs/design/content-contract.md",
+  "fixtures": {
+    "legalSample": "tests/fixtures/contract/md-subset-legal.json",
+    "realPoemSample": "tests/fixtures/contract/real-01-full.json",
+    "legalSources": "tests/fixtures/rules-v4-legal/"
+  },
+  "constructs": [
+    {
+      "id": "paragraph",
+      "syntax": "连续非空行 = 一段（段与段之间用空行分开）",
+      "renders": "渲染成一整段：段内不折成多段"
+    },
+    {
+      "id": "line-break",
+      "syntax": "段内换行：段落里的一行 = 一次换行（不是新段落）",
+      "renders": "同一段里换行显示（Web `<br>`；Android 段内 `\\n`），段间距不变大"
+    },
+    {
+      "id": "ul-dash",
+      "syntax": "行首 `- `（连字符 + 一个空格）",
+      "renders": "无序列表：连续 `- ` 行合成一个列表，每行一个列表项"
+    },
+    {
+      "id": "ol-number",
+      "syntax": "行首 `数字. `（如 `1. `、`2. `）",
+      "renders": "有序列表：按出现次序编号（源里的数字不决定显示编号）"
+    },
+    {
+      "id": "bold",
+      "syntax": "行内 `**文字**`",
+      "renders": "加粗（行内，不改变块结构）"
+    },
+    {
+      "id": "italic",
+      "syntax": "行内 `*文字*`",
+      "renders": "斜体（行内）"
+    },
+    {
+      "id": "h3",
+      "syntax": "行首 `### `（三级标题）",
+      "renders": "块级小标题：整行成为一个标题块，不与前后段落合并"
+    },
+    {
+      "id": "quote",
+      "syntax": "行首 `> `（引用）",
+      "renders": "引用块：连续 `> ` 行合成一个引用块，缩进/左侧竖线区分"
+    }
+  ],
+  "excluded": [
+    { "code": "MD_STAR_LIST", "syntax": "行首 `* `（星号列表）" },
+    { "code": "MD_TABLE", "syntax": "行首 `|`（表格）" },
+    { "code": "MD_IMAGE", "syntax": "`![`（图片）" },
+    { "code": "MD_LINK", "syntax": "`](`（行内链接）" },
+    { "code": "MD_INLINE_CODE", "syntax": "行内反引号" },
+    { "code": "MD_CODE_FENCE", "syntax": "行首 ``` 或 ~~~（代码围栏）" },
+    { "code": "MD_HEADING", "syntax": "行首 `# ` / `#### ` 及更深（以及 `##` 后缺空格的写法）" },
+    { "code": "MD_TASK_LIST", "syntax": "行首 `- [ ]` / `- [x]`（任务列表）" },
+    { "code": "MD_FOOTNOTE", "syntax": "`[^…]`（脚注）" },
+    { "code": "MD_HTML", "syntax": "行首 HTML 标签（`<br>` 等）" }
+  ]
+}

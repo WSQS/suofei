@@ -23,13 +23,13 @@ object ContentParser {
     /** 本应用能解析的结构版本。远端 `formatVersion` 更高时必须拒绝激活、保留旧内容。 */
     const val SUPPORTED_FORMAT_VERSION = 2
 
-    /** 新形状的顶层键（机器可读定义同上：`items/content-format/prototypes/rules-v4/expectations.json`）。 */
+    /** 新形状的顶层键（机器可读契约＝`schema/content.schema.json` 的 `required`／`properties`）。 */
     val TOP_LEVEL_KEYS = listOf("formatVersion", "contentVersion", "generatedAt", "dynasties", "poems")
 
     /**
      * 新形状每首的键（**次序即产物里的键序**）。单测 `ContentParserTest` 拿它去比对
-     * `items/content-format/prototypes/rules-v4/json/` 下的那些产物 的**真实键序**，所以它不是「另一份副本」，
-     * 而是被那份产物钉住的接口。
+     * `tests/fixtures/contract/real-01-full.json` 的**真实键序**，所以它不是「另一份副本」，
+     * 而是被那份产物钉住的接口。（2026-10-16：原先比对的是会被归档的原型目录 `…/rules-v4/json/`。）
      */
     val POEM_KEYS = listOf(
         "id", "title", "author", "dynasty", "genre", "source",

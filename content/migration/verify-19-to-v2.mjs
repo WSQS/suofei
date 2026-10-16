@@ -24,7 +24,7 @@ import { buildContentFromRecords } from '../../tools/lib/content-build.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..');
-const MANIFEST_REL = 'items/content-format/prototypes/rules-v3/manifest/19-changes.json';
+const MANIFEST_REL = 'content/migration/19-changes.json';
 const POEMS_REL = 'content/poems';
 
 const args = process.argv.slice(2);

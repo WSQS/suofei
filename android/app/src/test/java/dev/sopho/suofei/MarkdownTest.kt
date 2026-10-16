@@ -5,23 +5,25 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * **最小 Markdown 渲染**——范围＝**闭集 8 样**（唯一来源 `items/content-format/prototypes/rules-v4/md-subset.md`，
- * 机器可读定义＝同目录 `expectations.json` 的 `constructs`）。
+ * **最小 Markdown 渲染**——范围＝**闭集 8 样**（人类可读规范＝`docs/design/content-contract.md` §1.0；
+ * **机器可读的唯一来源＝`schema/markdown-subset.json`** 的 `constructs`）。
+ * ⚠ 2026-10-16 改：原先读的是 `items/content-format/prototypes/rules-v4/expectations.json` —— 那是**会被归档的原型
+ * 目录**，归档即断；已迁到稳定契约位置（原型那份保留为历史快照，不再当测试输入）。
  *
  * 这里只测**纯解析**（[dev.sopho.suofei.ui.Markdown.parse]／`inline`）：不碰 Compose、不碰设备。
  * 界面上怎么摆（块间距、小标题样式）由 `ScreenInventoryTest` 作源码级守卫，观感仍需模拟器验收。
  *
  * 牙有两颗：
- * 1. **范围定义从规范侧读**（`expectations.json` 的 `constructs[].id`）与 `Markdown.CONSTRUCT_IDS` 逐项比 ——
+ * 1. **范围定义从稳定契约侧读**（`schema/markdown-subset.json` 的 `constructs[].id`）与 `Markdown.CONSTRUCT_IDS` 逐项比 ——
  *    两端必须共用同一份定义，所以它不能是「我们这边自己列的 8 样」；
- * 2. **合法夹具的产物**（`json/md-subset-legal-fixture.json` 的 `notes`）真解析成预期的块序列 ——
+ * 2. **合法夹具的产物**（`tests/fixtures/contract/md-subset-legal.json` 的 `notes`）真解析成预期的块序列 ——
  *    那份文本是编译器的输出，也是八样写法各出现一次的唯一样例。
  */
 class MarkdownTest {
 
     private val legalNotes = org.json.JSONObject(
         TestRepoFiles.read(
-            "items/content-format/prototypes/rules-v4/json/md-subset-legal-fixture.json",
+            "tests/fixtures/contract/md-subset-legal.json",
             "合法夹具的产物是新形状的机器可读样例；读不到即失败，不跳过。",
         ),
     ).getJSONArray("poems").getJSONObject(0).getString("notes")
@@ -30,7 +32,7 @@ class MarkdownTest {
     fun constructIds_matchTheMachineReadableRangeDefinition() {
         val spec = org.json.JSONObject(
             TestRepoFiles.read(
-                "items/content-format/prototypes/rules-v4/expectations.json",
+                "schema/markdown-subset.json",
                 "闭集范围定义在这个文件里；读不到即失败（不跳过）。",
             ),
         )

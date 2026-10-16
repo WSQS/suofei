@@ -4,7 +4,7 @@
 // 输入：`content/poems/gushi-shijiu-shou-NN.md`（v1：`id`/`dynastyOrder`/`era`/`variants` 都在 front matter）
 // 输出：`content/poems/古诗十九首/<诗题>.md`（v2：`id` 不写；`dynastyOrder`/`era`/`variants` 去掉；
 //       24 条异文整段搬进 `## 详情` 的 `### 异文` 列表）
-// 清单：`items/content-format/prototypes/rules-v3/manifest/19-changes.json`（已通过的迁移清单，只读）
+// 清单：`content/migration/19-changes.json`（已通过的迁移清单的**稳定副本**，只读）
 //
 // 保真承诺（逐条可核，见 README.md「自证」）：
 //   ① 正文（front matter 之后、`## 详情` 之前）**逐行逐字原样搬**：脚本不 trim、不替换、不折行，
@@ -36,10 +36,10 @@ import { parseFrontMatterLines, splitFrontMatter } from '../../tools/lib/frontma
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..');
 
-const MANIFEST_REL = 'items/content-format/prototypes/rules-v3/manifest/19-changes.json';
+const MANIFEST_REL = 'content/migration/19-changes.json';
 const POEMS_REL = 'content/poems';
 
-/** v2 front matter 的键序（与已通过的完整样例 `rules-v3/samples/real-01-full.md` 一致）。 */
+/** v2 front matter 的键序（与已通过的完整样例 `tests/fixtures/contract/real-01-full.md` 一致）。 */
 const KEEP_KEYS = ['title', 'author', 'dynasty', 'genre', 'orderInSource', 'source'];
 /** 直传时按原行比对；这六项必须逐字一致（迁移前后对照的口径）。 */
 const COMPARE_KEYS = ['title', 'author', 'dynasty', 'genre', 'orderInSource', 'source'];

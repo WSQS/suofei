@@ -5,6 +5,8 @@
 > `json/*.json` 是**样例**，**不是**正式 `dist/content.json`，不参与发布。
 > **看完请拍板 `unapproved-details.md` 里的未批细则；拍板之前不做正式实现。**
 
+> **〔2026-10-16 契约迁址〕** 本目录的 `manifest/19-changes.json` 与 `samples/real-01-full.md` **曾被运行期脚本直接当输入读**（`content/migration/migrate-19-to-v2.mjs`、`verify-19-to-v2.mjs`，以及归档轮的 `check-detail.mjs`）—— 而本目录是**会被归档的原型目录** ⇒ 归档即断。已把**权威副本**迁到稳定位置：`content/migration/19-changes.json`、`tests/fixtures/contract/real-01-full.md`（均**逐字节相同**）。**本目录那两份保留为历史快照、不再是测试输入** ⇒ 本目录现在可以安全归档。
+
 任务：把用户 2026-10-15 **已确认的 4 条规则**写成**规范语句**，配**一份完整不省略的样例对**，并对**未逐项批准的细则**给出**清楚的单一建议**。
 
 ---

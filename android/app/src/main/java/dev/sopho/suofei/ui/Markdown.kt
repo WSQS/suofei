@@ -24,8 +24,8 @@ import androidx.compose.ui.unit.dp
 sealed interface MarkdownBlock
 
 /**
- * **最小 Markdown 渲染**（从零新增；唯一范围定义＝`items/content-format/prototypes/rules-v4/md-subset.md`
- * 的**闭集 8 样**，机器可读预期＝同目录 `expectations.json` 的 `constructs`）。
+ * **最小 Markdown 渲染**（从零新增；**唯一范围定义＝`schema/markdown-subset.json`** 的**闭集 8 样**，
+ * 人类可读规范＝`docs/design/content-contract.md` §1.0）。
  *
  * | # | 语法 | 渲染成什么 |
  * |---|---|---|

@@ -6,6 +6,8 @@
 > 样例 JSON 里的 `formatVersion: 2` 只是**示意值**）、**不发布**、**不 push**、**不打 tag**。
 > `json/*.json` 是**样例**，不是正式 `dist/content.json`。
 
+> **〔2026-10-16 契约迁址〕** 本目录的 `expectations.json` 与 `json/*.json` **曾被运行期测试直接当输入读**（Android `MarkdownTest`／`ContentParserTest`／`PoemDetailContentTest`）—— 而本目录是**会被归档的原型目录** ⇒ 归档即断。已把**权威副本**迁到稳定位置：范围定义＝`schema/markdown-subset.json`；夹具＝`tests/fixtures/contract/md-subset-legal.json`、`tests/fixtures/contract/real-01-full.json`（均**逐字节相同**）。**本目录那几份保留为历史快照、不再是测试输入** ⇒ 本目录现在可以安全归档。
+
 **这一稿补什么**：上一稿 `../rules-v3/` 已经定下 ID／命名／迁移（**用户已审阅通过，本稿不重开**）。
 本稿只补**语法与细则层面**：**合法 MD 怎么写 → 两端预期效果**、**写错会怎样 → 诊断怎么说**，
 以及四件**未逐项批准**的细则给出**明确建议**（未知节／重复节／空节／围栏里的 `##`）与**朝代组名校验**。

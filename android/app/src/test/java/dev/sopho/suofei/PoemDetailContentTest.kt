@@ -58,8 +58,8 @@ class PoemDetailContentTest {
         // 否则「最小 Markdown 渲染」就是缺的 —— 这也是详情页将来真正要渲染的形状。
         val detail = JSONObject(
             TestRepoFiles.read(
-                "items/content-format/prototypes/rules-v4/json/real-01-full.json",
-                "真实详情样例（rules-v4 产物）是详情页渲染的锚；读不到即失败，不跳过。",
+                "tests/fixtures/contract/real-01-full.json",
+                "真实详情样例（稳定契约副本）是详情页渲染的锚；读不到即失败，不跳过。",
             ),
         ).getJSONArray("poems").getJSONObject(0).getString("detail")
 
