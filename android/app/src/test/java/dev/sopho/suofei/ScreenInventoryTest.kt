@@ -173,6 +173,28 @@ class ScreenInventoryTest {
     }
 
     @Test
+    fun aboutScreen_repoLink_isClickable_andOpensItExternally() {
+        // 返修①（2026-10-16）：C1 是**完整 URL 的链接**（Web 那份 C1 就是 `<a href>`，两端同锚），
+        // 此前两端都把它降成不可点的纯文本 ⇒ 本端把它改回**可点、且点了用外部应用打开**。
+        // ⚠ 这是**源码级**守卫，不是点击级：本机单测没有 Robolectric/Compose UI 测试依赖
+        //   （`app/build.gradle.kts` 的 testImplementation 只有 junit ＋ org.json），
+        //   跑不了 Compose 的语义树/点击。截图的**实际点击**在真机/模拟器上另做（见交付报告）。
+        val about = body("AboutScreen")
+        assertTrue("仓库链接要可点", about.contains(".clickable"))
+        assertTrue("用平台的 URL 处理器（LocalUriHandler 就是 Intent.ACTION_VIEW 那条通道）",
+            about.contains("LocalUriHandler"))
+        assertTrue("打开的就是共享字段集里那条 URL", about.contains("openUri(AboutFields.REPO_URL)"))
+        // 把两件事绑在一起：可点动作挂在那段 URL 文本（`testTag("about-repo")`）上，
+        // 而不是挂在页面上别的元素上（否则上面两条会空洞地通过）。
+        assertTrue(
+            "clickable 要与 testTag(\"about-repo\") 那段文本在同一处",
+            Regex("""testTag\("about-repo"\)(.|\n){0,300}?clickable""").containsMatchIn(about),
+        )
+        // 仍不加「会打开浏览器」类提示（用户没选 C3 那句）。
+        assertFalse("不得出现「在浏览器打开」类提示", about.contains("浏览器打开"))
+    }
+
+    @Test
     fun aboutScreen_hasNoFrame_andNoStatusPlaceholderInTheInitialState() {
         val about = body("AboutScreen")
         // 「无框」：按钮与状态文本是内容流里的元素，没有容器边框/底色/阴影/分隔线

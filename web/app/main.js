@@ -21,6 +21,7 @@ const els = {
   notices: document.getElementById('notices'),
   status: document.getElementById('status'),
   appVersion: document.getElementById('app-version'),
+  siteHeader: document.querySelector('.site-header'),
 };
 
 export { APP_VERSION };
@@ -191,6 +192,12 @@ function maybeApplyUpdateOnIndex() {
 
 function renderView() {
   els.view.replaceChildren();
+  // ⚠ 关于页**隐藏 Web 外壳顶栏**（用户 2026-10-16 返修③，两种重复都在这一页）：
+  //  顶栏那行是「索斐 ＋ 站点资源版本 0.1.1」，而 A3 的关于页**自己**就给出应用名页标题
+  //  与同一串版本信息 ⇒ 不隐藏就会「品牌与版本各出现两次」（见 `tests/evidence/about-before.png`）。
+  //  该页另带「← 目录」返回，隐藏顶栏不影响导航；**只在这一页隐藏**，
+  //  目录页/诗页/详情页的顶栏语义一字不改（目录页仍未在别处重复应用名）。
+  els.siteHeader.hidden = false;
 
   if (state.error) {
     els.view.append(h('div', { class: 'view view--error', dataset: { test: 'view-error' } }, [
@@ -225,6 +232,7 @@ function renderView() {
       onBack: () => navigate(ROUTES.poem(state.view.id)),
     }));
   } else if (state.view.kind === 'about') {
+    els.siteHeader.hidden = true;   // 这一页自己给了品牌＋版本 ⇒ 去掉顶栏那一份重复（返修③）
     els.view.append(renderAboutPage({
       appVersion: APP_VERSION,
       doc: state.doc,

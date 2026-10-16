@@ -28,7 +28,7 @@ Kotlin + Jetpack Compose 的 Android 端骨架，含**最小可运行阅读实�
 | **诗页** | `ui/Screens.kt`、`ui/PoemHead.kt`、`ui/SemanticBreak.kt` | 题名／身份行／**每个视觉行都居中**；顶部行＝**返回左／笔记 · 详情右**（不参与居中）；**正文之后没有页脚行**；身份行＝**作者 · 朝代 · 体裁**；**语义折行**（够宽保原行；超宽按句读；多标点取窗内最后一个；无标点或半句超宽⇒字位断；收尾标点不起行） |
 | **笔记（档②）** | `ui/Screens.kt` | 入口在**顶部行**（`[+]笔记`／`[−]笔记`），展开内容在**正文之后、同一列、无框**；**`notes == null` ⇒ 连入口都不出现**（不再有「（无笔记）」占位） |
 | **详情页** | `ui/Screens.kt`、`ui/Markdown.kt` | 诗题①**左对齐**／来源①**正文前带标签「底本与来源」**／`detail` 整段走**最小 Markdown 渲染**（`### ` 小标题**无竖线**、`> ` 引用块＝缩进＋左边线）；**不重复身份信息**、不再有固定副题与硬编码「异文」标题 |
-| **关于页** | `ui/Screens.kt` | 采纳锚 `about-min` 的 **V3（标签左对齐）**＋`about-update` 的两条：**无区域框**、**初态只显示按钮**（不生成状态文本元素、不占位）；**仓库链接（C1 完整 URL）置底**；**不再显示更新源地址**（`q-9f9eca3d` 未采纳它）；共用版本信息里**不出现「来源：」**。⚠ 2026-10-16 又补一步：共享字段集**同步为 4 项**（应用名／应用版本／内容版本／仓库链接）——**不再渲染**「一句话说明」与「诚实的限制」；标签「内容版本与来源」收成「内容版本」 |
+| **关于页** | `ui/Screens.kt` | 采纳锚 `about-min` 的 **V3（标签左对齐）**＋`about-update` 的两条：**无区域框**、**初态只显示按钮**（不生成状态文本元素、不占位）；**仓库链接（C1 完整 URL）置底**；**不再显示更新源地址**（`q-9f9eca3d` 未采纳它）；共用版本信息里**不出现「来源：」**。⚠ 2026-10-16 又补一步：共享字段集**同步为 4 项**（应用名／应用版本／内容版本／仓库链接）——**不再渲染**「一句话说明」与「诚实的限制」；标签「内容版本与来源」收成「内容版本」。⚠ **2026-10-16 返修（实现偏离已采纳锚）**：仓库链接改成**可点的链接**（C1 本来就是 `<a href>`；点了用外部浏览器打开同一条 URL，`LocalUriHandler` ⇒ `ACTION_VIEW`，仍不加任何提示文案）——守卫见 `ScreenInventoryTest.aboutScreen_repoLink_isClickable_andOpensItExternally`（源码级，非点击级） |
 | **最小 Markdown 渲染** | `ui/Markdown.kt` | **从零新增**：逐行解析成段落／无序列表／有序列表／三级标题／引用块，行内 `**粗体**`／`*斜体*` 用 `AnnotatedString`；范围＝**闭集 8 样**（人类可读＝契约 §1.0，**机器可读的唯一来源＝ `schema/markdown-subset.json`**），**闭集之外不加分支**（编译期报错挡住） |
 | **内置产物** | `app/src/main/assets/content/content.json` | **机械转换**成 v2 形状（不新写一个字）：19 首的 `id/title/author/genre/source/orderInSource/stanzas` 逐字保留，`dynasty`＝`汉`，`notes`＝`null`；⚠ **`detail` 已不是全 null**（S3 迁移把 `## 详情` 写进去了，13 首非空、6 首源里本就没有这一节 ⇒ `null`，见「已知依赖」2）。⚠ **`variants`（24 条异文）不在新形状里** ⇒ 见「已知依赖」 |
 
@@ -349,6 +349,16 @@ mono 单色且与 fg 同形、**两端轮廓逐点一致**），但它**不渲�
 > **更新源地址没有被一并采纳** ⇒ 关于页**不再显示更新源那一行**（地址仍由 `UpdateEndpointTest` 逐字钉住，
 > 且它仍是检查更新的实际入口）。与之一起按采纳锚改的还有：**V3 标签左对齐**、**无区域框**、
 > **初态只显示按钮**（不生成状态文本元素）、**仓库链接置底**、共用版本信息里去掉了「来源：」。
+>
+> ⚠ **2026-10-16 返修①（实现偏离已采纳锚，不改设计）**：上一条里的「仓库链接置底」指的是 **C1＝完整 URL 的链接**
+> （Web 那侧的 C1 就是 `<a href>`；用户没选的只是 C3 那句「在浏览器打开」提示）——但两端此前都把它降成了
+> **不可点的纯文本** ⇒ 本端改回**可点**：`Modifier.clickable { uriHandler.openUri(AboutFields.REPO_URL) }`，
+> `uriHandler` 来自 `LocalUriHandler.current`（就是平台那条 `Intent.ACTION_VIEW`，交给外部浏览器；不内嵌 WebView、
+> 也不自己拼 Intent）。可见文字与位置不变（仍是置底的完整 URL、无标签行、无提示）。
+> **实测（`emulator-5556`，不是只读代码）**：点那段文字 ⇒ `ActivityTaskManager: START u0 {act=android.intent.action.VIEW
+> dat=https://github.com/WSQS/suofei cmp=com.android.chrome/com.google.android.apps.chrome.IntentDispatcher}`，
+> `mCurrentFocus` 从 `dev.sopho.suofei/.MainActivity` 变为 `com.android.chrome/...ChromeTabbedActivity`
+> ⇒ 确实交给了外部浏览器（本机模拟器无外网，页面本身打不开，但意图与 URL 都对）。
 
 - 换的是 `update/UpdateProtocol.kt` 的 `UpdateEndpoint.BASE_URL`：占位 `https://example.invalid/suofei` → **真实站点** `https://wsqs.github.io/suofei`（GitHub Pages，强制 https）。走到位后的 URL＝`https://wsqs.github.io/suofei/content/latest.json`。**换的判据**：站点侧 `content/latest.json` 与 `content/<版本>/content.json` **已在发布白名单里**（发布脚本的产物，不必为此新增产物），且站点已上线。
 - 判据有断言：新增 `UpdateEndpointTest`，把该 URL **逐字写死**（写死是故意的——它就是本次发布的接口值），地址改错一位即报红点名；顺带钉住「清单里的相对 `url` 按清单所在目录解析」这条语义（真实站点产出的清单给的正是相对路径）。
@@ -363,13 +373,13 @@ mono 单色且与 fg 同形、**两端轮廓逐点一致**），但它**不渲�
 
 ## 9. 已验证 / 未验证
 
-**已验证**：`clean testDebugUnitTest assembleDebug` 通过；APK 内 assets 存在；**143 个 JVM 单测通过**（**2026-10-16**：基线 97 例 → 143 例；新增/改写 46 例 —— 字段新形状（含从规范侧读键序、旧形状被拒）、**最小 Markdown 渲染 10 例**、**语义折行 10 例**、**宽度口径 11 例**、四页源码级对照 14 例；均在 `--offline` 下复跑过），含更新流程的成功/失败/不兼容/损坏路径、**视觉令牌与规范逐项一致**、**结构记号**、**更新状态文案非空**、**更新源 URL 逐字断言**。图标落地后（2026-10-15）新增 **`LauncherIconTest` 8 例**：清单连线 / 三层齐全 / 108 画布 / 不依赖字体 / fg 在保证可见区内 / bg 满幅且与窗口底色同值 / mono 单色且与 fg 同形 / **与 Web 侧同一份轮廓逐点一致**（详见 §6.4；它不渲染、不看像素）。另有一道契约一致性门 `UnknownAuthorsSourceTest`：断言匿名作者清单与唯一来源 `schema/unknown-authors.json` 逐项一致（读不到文件即失败并列出尝试过的路径，不跳过；测试自身不持副本）。
+**已验证**：`clean testDebugUnitTest assembleDebug` 通过；APK 内 assets 存在；**144 个 JVM 单测通过**（**2026-10-16**：基线 97 例 → 143 例；新增/改写 46 例 —— 字段新形状（含从规范侧读键序、旧形状被拒）、**最小 Markdown 渲染 10 例**、**语义折行 10 例**、**宽度口径 11 例**、四页源码级对照 14 例；均在 `--offline` 下复跑过。⚠ **当日返修再 +1 ⇒ 144**（`ScreenInventoryTest.aboutScreen_repoLink_isClickable_andOpensItExternally`）），含更新流程的成功/失败/不兼容/损坏路径、**视觉令牌与规范逐项一致**、**结构记号**、**更新状态文案非空**、**更新源 URL 逐字断言**。图标落地后（2026-10-15）新增 **`LauncherIconTest` 8 例**：清单连线 / 三层齐全 / 108 画布 / 不依赖字体 / fg 在保证可见区内 / bg 满幅且与窗口底色同值 / mono 单色且与 fg 同形 / **与 Web 侧同一份轮廓逐点一致**（详见 §6.4；它不渲染、不看像素）。另有一道契约一致性门 `UnknownAuthorsSourceTest`：断言匿名作者清单与唯一来源 `schema/unknown-authors.json` 逐项一致（读不到文件即失败并列出尝试过的路径，不跳过；测试自身不持副本）。
 
 **页面集合落地（2026-10-15，新增 16 例）**：`AppStateNavigationTest`（4）——四页转移，含「详情页返回→那首诗」「关于页返回→目录」「详情页不改变选中的诗」；`ScreenInventoryTest`（6）——四页存在且 `UpdateScreen` 已消失、**诗页不引用 `variants`/`poem.source`**、诗页有详情入口、详情页渲染 source/variants/variant.text/variant.note 且**遍历全部**、目录无「有笔记」/组头无 `clickable`/有「关于」入口、关于页带共享字段＋更新块；
 `PoemDetailContentTest`（3）——内置产物 **24 条/13 首**、每条 text/note 非空、6 首无异议；`AboutFieldsTest`（3）——`AboutFields` 与唯一来源 `web/about-fields.json` 逐项一致、关于页渲染每个字段。
 **证伪实测**：给诗页加一句 `Text(poem.variants…)` ⇒ `poemScreen_showsNoVariantsAndNoSource` 报红「诗页不得出现异文（variants）」；把详情页改成只取 `variants.first()` ⇒ `poemDetailScreen_rendersSourceAndEveryVariantField` 报红「详情页要遍历全部异文（variants.forEach…），不是只取第一条」（均已还原）。
 
-> ⚠ **2026-10-16 取代**：上面那段里的 `ScreenInventoryTest`／`PoemDetailContentTest`／`AboutFieldsTest` 的**具体断言已随字段集与四页重排重写**（如「详情页逐条渲染 variants」不再成立——详情页现在渲染 `detail` 的 Markdown；「诗页不得引用 variants」仍成立，另加「不得引用 poem.detail」；「关于页要显示更新源」改为「要有仓库链接」）。现例数：`ScreenInventoryTest` 14、`PoemDetailContentTest` 4、`AboutFieldsTest` 4、新增 `MarkdownTest` 10／`SemanticBreakTest` 10／`ContentWidthTest` 11。源码级守卫仍然是**结构守卫、不是渲染验证** —— 观感需模拟器验收。
+> ⚠ **2026-10-16 取代**：上面那段里的 `ScreenInventoryTest`／`PoemDetailContentTest`／`AboutFieldsTest` 的**具体断言已随字段集与四页重排重写**（如「详情页逐条渲染 variants」不再成立——详情页现在渲染 `detail` 的 Markdown；「诗页不得引用 variants」仍成立，另加「不得引用 poem.detail」；「关于页要显示更新源」改为「要有仓库链接」）。现例数：`ScreenInventoryTest` 15、`PoemDetailContentTest` 4、`AboutFieldsTest` 4、新增 `MarkdownTest` 10／`SemanticBreakTest` 10／`ContentWidthTest` 11。⚠ **2026-10-16 返修当日再 +1**：`ScreenInventoryTest` 14 → **15**（`aboutScreen_repoLink_isClickable_andOpensItExternally`，仓库链接可点）；总数 **143 → 144**（`144 例 / 0 失败`，`--offline --no-build-cache --rerun-tasks` 真 exit 0）。源码级守卫仍然是**结构守卫、不是渲染验证** —— 观感需模拟器验收。
 **未验证**：**强光/长时间阅读疲劳**未验（用户 2026-10-15 已决定不做物理真机验收 ⇒ 这一条以「已知并接受、未验证」记录）；
 **图标没在任何真机/启动器上看过**（真实遮罩形状随厂商变、`<monochrome>` 的实际观感取决于系统「主题图标」开关；
 `LauncherIconTest` 只做静态断言、不渲染、不看像素）——见 §6.4；未在真机/弱网上验更新流程；

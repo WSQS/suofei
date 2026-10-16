@@ -560,6 +560,12 @@ async function inlineChecks(contentText) {
   eq('部署文件里没有任何诗题/正文（内容没有内联进壳）', offenders, []);
   includes('index.html 里有静态的「正在装载站点…」（JS/内容没到时也不是白屏）',
     texts.get('index.html'), '正在装载站点');
+  // ⚠ 外壳顶栏（`.site-header` ＋ `data-test="site-title"`）是 `app/main.js` 里 `els.siteHeader`
+  //   **直接取**的那个元素（关于页要把它 `hidden`，见 §1c-3 返修③）。它一旦从 index.html 消失，
+  //   每次渲染都会抛异常 ⇒ 从源码钉住它存在，不靠「跑起来没报错」间接发现。
+  check('index.html 里有外壳顶栏（`.site-header` ＋ `data-test="site-title"`）—— 关于页按需 hidden 的就是它',
+    /<header class="site-header">/.test(texts.get('index.html'))
+      && /data-test="site-title"/.test(texts.get('index.html')));
   check('外壳里只有 content.json 这个**地址**，没有它的内容',
     texts.get('sw.js').includes('content.json') && !texts.get('sw.js').includes(firstTitle));
   console.log(`  实测体积：壳 ${(shellBytes / 1024).toFixed(1)} KB（${shellFiles.length} 个：html/css/js/manifest）`
@@ -1064,10 +1070,16 @@ async function main() {
       return r2(rng.getBoundingClientRect().left - hostL);
     };
     const boxLeft = (el) => (el ? r2(el.getBoundingClientRect().left - hostL) : null);
+    /* 字体只在元素存在时取（缺元素 ⇒ 断言拿到 null 报红，而不是在这里抛异常） */
+    const fontOf = (sel) => {
+      const el = document.querySelector(sel);
+      return el ? getComputedStyle(el).fontFamily : null;
+    };
     const group = document.querySelector('[data-test="about-version-group"]');
     const labels = [...group.querySelectorAll('[data-test="about-label"]')];
     const title = document.querySelector('[data-test="about-app-name"]');
     const repo = document.querySelector('[data-test="about-repo-url"]');
+    const header = document.querySelector('.site-header');
     return {
       labels: labels.map(e => e.textContent),
       appName: title ? title.textContent : null,
@@ -1087,6 +1099,19 @@ async function main() {
       hasBrowserHint: view.textContent.includes('在浏览器打开'),
       groupBorderTopWidth: getComputedStyle(group).borderTopWidth,
       groupBg: getComputedStyle(group).backgroundColor,
+      /* ——— 返修①②③ 的新观测口径 ——— */
+      /* ① 仓库链接必须是**可点的链接**（C1）：拿到标签名与 href */
+      repoTag: repo ? repo.tagName : null,
+      repoHref: repo ? repo.getAttribute('href') : null,
+      /* ② 只有**版本号本身**是等宽：值这一层与那一段各自取字体 */
+      appVersionNum: document.querySelector('[data-test="about-app-version-num"]')?.textContent ?? null,
+      appVersionValueFont: fontOf('[data-test="about-app-version"]'),
+      appVersionNumFont: fontOf('[data-test="about-app-version-num"]'),
+      contentVersionNumFont: fontOf('[data-test="about-content-version-num"]'),
+      /* ③ 外壳顶栏在关于页要**隐藏**（隐藏后它不进 innerText） */
+      headerHidden: header ? header.hidden : null,
+      headerDisplay: header ? getComputedStyle(header).display : null,
+      bodyText: document.body.innerText,
     };
   })()`);
   // A3 结构：标签行只剩「应用版本／内容版本」；应用名＝页标题（h1）；仓库链接＝置底裸 URL
@@ -1095,12 +1120,45 @@ async function main() {
     { tag: aboutInfo.appNameTag, text: aboutInfo.appName }, { tag: 'H1', text: aboutSpec.appName });
   includes('应用版本 = 站点资源版本', aboutInfo.appVersion, APP_VERSION);
   includes('内容版本写明内容版本', aboutInfo.contentVersion, baseDoc.contentVersion);
-  eq('共享字段集第 4 项（仓库链接）＝置底 C1 完整 URL 的裸文本', aboutInfo.repoUrl, aboutSpec.repoUrl);
+  eq('共享字段集第 4 项（仓库链接）＝置底 C1 完整 URL', aboutInfo.repoUrl, aboutSpec.repoUrl);
+  // ① 返修：C1 是**完整 URL 的链接**（用户 `q-about` 的 C1 就是 `<a href>`；没选的只是 C3 那句提示）。
+  //    此前两端都把它降成不可点的纯文本 ⇒ 这里拿**标签名与 href**当牙齿，textContent 仍要比完整 URL。
+  eq('返修①：仓库链接是**可点的 `<a>`**，href ＝唯一来源的完整 URL（可见文本仍是那条 URL）',
+    { tag: aboutInfo.repoTag, href: aboutInfo.repoHref, text: aboutInfo.repoUrl },
+    { tag: 'A', href: aboutSpec.repoUrl, text: aboutSpec.repoUrl });
+  check('返修①：仓库链接改用链接色（采纳锚 `.repo` 的 accent-text），不是与正文同色的裸文本',
+    aboutInfo.repoTag === 'A' && aboutInfo.repoHref === aboutSpec.repoUrl,
+    dump({ tag: aboutInfo.repoTag, href: aboutInfo.repoHref }));
   check('关于页不再画「应用名」「仓库链接」两行标签（采纳锚 A3/V3：那两项分别是页标题与置底 URL）',
     aboutInfo.dtCount === 0 && !aboutInfo.hasAppNameLabel && !aboutInfo.hasRepoLabel,
     dump({ dtCount: aboutInfo.dtCount, hasAppNameLabel: aboutInfo.hasAppNameLabel, hasRepoLabel: aboutInfo.hasRepoLabel }));
   check('仓库链接不加「在浏览器打开」提示（C1）', !aboutInfo.hasBrowserHint,
     dump({ hasBrowserHint: aboutInfo.hasBrowserHint }));
+  // ② 返修：归档原型里**只有版本号本身**是等宽（`.kv > .v > .ver { font-family: var(--font-mono) }`），
+  //    值这一层与汉字说明文字都是常规字。此前 Web 把整串 `站点资源版本 v0.1.1` 都画成等宽 ⇒ 偏差。
+  //    可见文字不变（仍是 `站点资源版本 v0.1.1`，同一个 data-test），改的只是「哪一段等宽」。
+  check('返修②：版本值里**只有版本号**是等宽 —— 值这一层用的是常规字（不是 mono 字体栈）',
+    aboutInfo.appVersionValueFont !== null && !/Consolas|mono/.test(aboutInfo.appVersionValueFont),
+    dump({ appVersionValueFont: aboutInfo.appVersionValueFont }));
+  check('返修②：版本号那一段（`v0.1.1`）仍是等宽',
+    /Consolas|mono/.test(aboutInfo.appVersionNumFont ?? ''),
+    dump({ appVersionNumFont: aboutInfo.appVersionNumFont }));
+  eq('返修②：可见文字一字不改（值＝「站点资源版本 」＋版本号那一段，且版本号＝`v`＋APP_VERSION）',
+    { value: aboutInfo.appVersion, num: aboutInfo.appVersionNum },
+    { value: `站点资源版本 v${APP_VERSION}`, num: `v${APP_VERSION}` });
+  check('返修②：内容版本那一格也**只把版本号**画等宽（`（尚未取到）`那种说明文字不进等宽段）',
+    /Consolas|mono/.test(aboutInfo.contentVersionNumFont ?? ''),
+    dump({ contentVersionNumFont: aboutInfo.contentVersionNumFont }));
+  // ③ 返修：关于页隐藏 Web 外壳顶栏 —— 那一行同样给「索斐 ＋ 站点资源版本 …」，
+  //    而 A3 的关于页自己就有品牌与同一串版本 ⇒ 不隐藏就会**品牌与版本各出现两次**。
+  eq('返修③：关于页隐藏 Web 外壳顶栏（`hidden` ＋ 计算出的 display:none）',
+    { hidden: aboutInfo.headerHidden, display: aboutInfo.headerDisplay },
+    { hidden: true, display: 'none' });
+  eq('返修③：关于页上「索斐」在**整页可见文本**里只出现一次（顶栏那一份隐藏后不进 innerText）',
+    (aboutInfo.bodyText.match(/索斐/g) ?? []).length, 1);
+  check('返修③：顶栏那一串（`站点资源版本 0.1.1`，无 `v`）在关于页可见文本里已经不在',
+    !aboutInfo.bodyText.includes(`站点资源版本 ${APP_VERSION}`),
+    dump({ headerString: `站点资源版本 ${APP_VERSION}` }));
   // V3：四条线合一 —— 页标题／本条版本标签文字／仓库链接都落在**内容左沿**（归档实测 16.8px，容差 0.75）
   const near = (a, b, tol) => a !== null && Math.abs(a - b) <= tol;
   eq('关于页 V3：版本标签**左对齐**（采纳锚 V3）', aboutInfo.labelAligns, ['left', 'left']);
@@ -1138,6 +1196,24 @@ async function main() {
     await evaluate(`document.querySelector('[data-test="about-back-to-index"]').getAttribute('href')`), '#/');
   await evaluate(`document.querySelector('[data-test="about-back-to-index"]').click(); true`);
   await waitForIndexExpanded();
+  // ③ 的反向断言：顶栏**只在关于页**隐藏，离开关于页必须回来（目录页仍靠它显示应用名，且只显示这一份）。
+  const indexHeader = await evaluate(`(() => {
+    const header = document.querySelector('.site-header');
+    return {
+      hidden: header.hidden,
+      display: getComputedStyle(header).display,
+      title: document.querySelector('[data-test="site-title"]')?.textContent ?? null,
+      appNameCount: (document.body.innerText.match(/索斐/g) ?? []).length,
+      viewHasAppName: document.querySelector('[data-test="view-index"]').innerText.includes('索斐'),
+    };
+  })()`);
+  eq('返修③反向：回到目录后外壳顶栏照旧可见',
+    { hidden: indexHeader.hidden, display: indexHeader.display, title: indexHeader.title },
+    { hidden: false, display: 'flex', title: aboutSpec.appName });
+  eq('返修③反向：目录页可见文本里「索斐」仍**恰好一次**（应用名只在顶栏，目录本身不重复）',
+    indexHeader.appNameCount, 1);
+  check('返修③反向：目录页页面内容里没有应用名（重复与否由顶栏唯一一份决定）',
+    indexHeader.viewHasAppName === false, dump(indexHeader));
   await openFresh(`${BASE}#/about`);
   await waitForAboutView();
   eq('深链接直开 #/about 就是关于页', await evaluate('location.hash'), '#/about');

@@ -532,7 +532,12 @@ export function renderDetailPage(doc, id, { onBack } = {}) {
  *   ① **应用名当页标题**（共享字段集第 1 项；**不另画「应用名」标签行**）；
  *   ② **版本相邻组**：`应用版本`／`内容版本` 两行，标签**左对齐**（标签文字左沿＝内容左沿＝页标题左沿＝
  *      仓库链接左沿，**四条线合一**），值仍在同一条**值列**（内容左沿 ＋ 标签列 5.2em ＋ 缝 0.5rem）；
- *   ③ 仓库链接**置底**：**C1 完整 URL 的裸文本**，**不画「仓库链接」标签行**、**不加「在浏览器打开」提示**。
+ *   ③ 仓库链接**置底**：**C1＝完整 URL 的链接**（`<a href>`，采纳锚 `q-about` 里 C1 就是 `<a href>`；
+ *      用户没选的只是 C3 那句多余提示）——**可见文本仍是完整 URL**、**不画「仓库链接」标签行**、
+ *      **不加「在浏览器打开」提示**。⚠ 2026-10-16 返修：此前把它降成不可点的 `<p>` 纯文本，
+ *      与 C1 不符（字段一直叫「**仓库链接**」）⇒ 改回链接。「可点」是**排布之外**的偏差，不是新设计。
+ *   ⚠ 值里**只有版本号**是等宽（采纳锚 `.kv > .v > .ver`）：`站点资源版本` 四个汉字是**常规字**
+ *     （同一轮返修的偏差②）。
  * 采纳锚里「更新控件挂哪条线／初态只按钮」那两节针对的是 Android 的更新块（Web 无此块）⇒ Web 不适用
  * （e2e 有反向断言：Web 关于页没有 `check-site-update`）。
  *
@@ -555,18 +560,29 @@ export function renderAboutPage({ appVersion, doc, onBack } = {}) {
   // ② 版本相邻组：标签列（固定 5.2em）＋ 值列。标签文字取自唯一来源（`ABOUT.fields[1]`／`[2]`，
   //    与 Android `AboutFields.LABELS[1]/[2]` 同一取法），不在这里手写标签字面。
   const group = h('div', { class: 'about-versions', dataset: { test: 'about-version-group' } });
+  // 值可以是字符串，也可以是**节点数组**（版本号那一段要单独挂等宽类）：
+  // 采纳锚 `.kv > .v` 是常规字、只有 `.ver`（版本号本身）是等宽。
   const row = (label, value, test) => {
     const kv = h('div', { class: 'about-kv' });
     kv.append(h('span', { class: 'about-k', dataset: { test: 'about-label' }, text: label }));
-    kv.append(h('span', { class: 'about-v', dataset: { test }, text: value }));
+    kv.append(h('span', { class: 'about-v', dataset: { test } }, [].concat(value)));
     return kv;
   };
-  group.append(row(ABOUT.fields[1], `站点资源版本 v${appVersion}`, 'about-app-version'));
-  group.append(row(ABOUT.fields[2], doc ? `v${doc.contentVersion}` : '（尚未取到）', 'about-content-version'));
+  // ⚠ 可见文字**不变**（仍是 `站点资源版本 v0.1.1`，同一个 `data-test`）：改的只是「哪一段等宽」。
+  group.append(row(ABOUT.fields[1], [
+    '站点资源版本 ',
+    h('span', { class: 'about-v-num', dataset: { test: 'about-app-version-num' }, text: `v${appVersion}` }),
+  ], 'about-app-version'));
+  group.append(row(ABOUT.fields[2], doc
+    ? h('span', { class: 'about-v-num', dataset: { test: 'about-content-version-num' }, text: `v${doc.contentVersion}` })
+    : '（尚未取到）', 'about-content-version'));
   root.append(group);
 
-  // ③ 仓库链接置底（共享字段集第 4 项；C1 **完整 URL 的裸文本**，不画标签行、不加提示 —— 采纳锚 A3）。
-  root.append(h('p', { class: 'about-repo', dataset: { test: 'about-repo-url' }, text: ABOUT.repoUrl }));
+  // ③ 仓库链接置底（共享字段集第 4 项；C1＝**完整 URL 的链接**：`<a href>` ＋ 可见文本＝那条完整 URL，
+  //    不画标签行、不加提示 —— 采纳锚 A3）。同一个 `data-test` 仍挂在承载完整 URL 的那个元素上。
+  root.append(h('a', {
+    class: 'about-repo', href: ABOUT.repoUrl, dataset: { test: 'about-repo-url' }, text: ABOUT.repoUrl,
+  }));
 
   return root;
 }
