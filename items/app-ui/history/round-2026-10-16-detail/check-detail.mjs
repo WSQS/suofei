@@ -40,10 +40,10 @@
  *  [8] **边界自证**：CHROME_BIN 指到不存在的路径 ⇒ 必须**如实报错并 exit 2**，**不能**打印「失败断言数：0」。
  *
  * 怎么跑：
- *   node items/app-ui/prototypes/check-detail.mjs
- *   node items/app-ui/prototypes/check-detail.mjs --no-shot          # 只跑断言，不重出 PNG
- *   node items/app-ui/prototypes/check-detail.mjs --only=430         # 只跑一个视口
- *   node items/app-ui/prototypes/check-detail.mjs --selftest-chrome  # 只跑「CHROME_BIN 指错 ⇒ 如实报错」边界
+ *   node items/app-ui/history/round-2026-10-16-detail/check-detail.mjs
+ *   node items/app-ui/history/round-2026-10-16-detail/check-detail.mjs --no-shot          # 只跑断言，不重出 PNG
+ *   node items/app-ui/history/round-2026-10-16-detail/check-detail.mjs --only=430         # 只跑一个视口
+ *   node items/app-ui/history/round-2026-10-16-detail/check-detail.mjs --selftest-chrome  # 只跑「CHROME_BIN 指错 ⇒ 如实报错」边界
  *
  * 需要什么：
  *   - Node（用到内置 fetch / WebSocket / net）；**本机实测 v25.9.0 通过**；
@@ -114,7 +114,7 @@ if (!CHROME || !existsSync(CHROME)) {
   console.error('找不到无头 Chromium：' + (CHROME || '(未设置)'));
   console.error('请用环境变量指定，例如：');
   console.error("  CHROME_BIN='C:/Users/wsqsy/AppData/Local/Chromium/Application/chrome.exe' \\");
-  console.error('    node items/app-ui/prototypes/check-detail.mjs');
+  console.error('    node items/app-ui/history/round-2026-10-16-detail/check-detail.mjs');
   console.error('（这就是 [8] 那条边界：CHROME_BIN 指到不存在的路径时，本脚本在这里如实退出，不假装通过。）');
   process.exit(2);
 }

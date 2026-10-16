@@ -20,12 +20,12 @@
 
 | 文件 | 作用 |
 | --- | --- |
-| `items/app-ui/prototypes/q-detail.html` | 原型页本体（**自包含单文件**：内嵌**只用到**的令牌快照 ＋ 内嵌脚本；**零外部引用**，双击即可打开）。图内 **4 块**：D0（候选完整页）／L1（题头对齐）／L2（来源块位置与呈现）／L3（`### ` 小标题呈现）。 |
-| `items/app-ui/prototypes/q-detail.320.png` | 320 真实 CSS px @DPR 2，**640×10134** 像素，1,415,367 字节（截图区 y=2878.92／h=5067.19 CSS px ⇒ 10134 设备 px，< 16384，**未拆图**）。 |
-| `items/app-ui/prototypes/q-detail.430.png` | 430 真实 CSS px @DPR 2，**860×8858** 像素，1,414,773 字节（y=2197.63／h=4429.16）。**任务书要求的验收宽。** |
-| `items/app-ui/prototypes/q-detail.1180.png` | 1180 真实 CSS px @DPR 2，**2360×5616** 像素，1,403,560 字节（y=1100.69／h=2808.92）。 |
-| `items/app-ui/prototypes/check-detail.mjs` | 可复跑自检（页面行为 ＋ **逐项几何** ＋ **文本逐字** ＋ 可点元素语义 ＋ **去线自证** ＋ 自包含 ＋ PNG）；**当前失败断言数 0**（全跑一轮 **115 条 PASS**；`--no-shot` **94 条 PASS**）。 |
-| `items/app-ui/prototypes/q-detail.md` | 本文件。 |
+| `items/app-ui/history/round-2026-10-16-detail/q-detail.html` | 原型页本体（**自包含单文件**：内嵌**只用到**的令牌快照 ＋ 内嵌脚本；**零外部引用**，双击即可打开）。图内 **4 块**：D0（候选完整页）／L1（题头对齐）／L2（来源块位置与呈现）／L3（`### ` 小标题呈现）。 |
+| `items/app-ui/history/round-2026-10-16-detail/q-detail.320.png` | 320 真实 CSS px @DPR 2，**640×10134** 像素，1,415,367 字节（截图区 y=2878.92／h=5067.19 CSS px ⇒ 10134 设备 px，< 16384，**未拆图**）。 |
+| `items/app-ui/history/round-2026-10-16-detail/q-detail.430.png` | 430 真实 CSS px @DPR 2，**860×8858** 像素，1,414,773 字节（y=2197.63／h=4429.16）。**任务书要求的验收宽。** |
+| `items/app-ui/history/round-2026-10-16-detail/q-detail.1180.png` | 1180 真实 CSS px @DPR 2，**2360×5616** 像素，1,403,560 字节（y=1100.69／h=2808.92）。 |
+| `items/app-ui/history/round-2026-10-16-detail/check-detail.mjs` | 可复跑自检（页面行为 ＋ **逐项几何** ＋ **文本逐字** ＋ 可点元素语义 ＋ **去线自证** ＋ 自包含 ＋ PNG）；**当前失败断言数 0**（全跑一轮 **115 条 PASS**；`--no-shot` **94 条 PASS**）。 |
+| `items/app-ui/history/round-2026-10-16-detail/q-detail.md` | 本文件。 |
 
 **每张图里有什么**：图内横幅写明「**原型说明 · 不属于应用页面**」「**本页没有夹具**：所有可见内容都来自只读源或固定标签」「已定＝内容只用 诗题／返回／底本与来源／正文 ＋ 不重复身份信息 ＋ 路由 ＋ 宽度口径 ＋ 正文 17px」；每块上方是**青色 mono 的块标题与实测数字行**；青色点线／青色小字＝原型为局部对照画的框与行标签（**不属于应用页面**）。
 
@@ -138,7 +138,7 @@ L2 每行为了看清**位置**，把详情正文的**第一个小标题**（真
 
 ## 7 · 自检覆盖了什么（`check-detail.mjs`，**失败断言数 0**）
 
-跑法：`node items/app-ui/prototypes/check-detail.mjs`（`--no-shot`／`--only=430`／`--selftest-chrome`）。
+跑法：`node items/app-ui/history/round-2026-10-16-detail/check-detail.mjs`（`--no-shot`／`--only=430`／`--selftest-chrome`）。
 
 - **[G] 全局**：令牌快照与 `theme-tech.css` **30 个令牌逐字一致（不一致数 0）**／没有「声明了却没用」的令牌／每个 `var()` 都有声明／记录快照来源短 sha（`778f480`）＋「权威仍是 `docs/design/visual-tokens.md`」／写明三个视口与 `C` 公式（含「24 是一次性扣除」「不夹 660／860」）／已定项逐条在页上／「材料不是实施｜选某档 ≠ 采纳整页规格｜不决定 JSON／MD 分界｜整页规格尚未采纳｜不重复身份信息」都在／**Markdown 语法与两端支持如实标注**／零外部引用（`<link`／`src=`／`@import`／`http(s)://` 均 0 处）／**全程无 JS 报错**。
 - **[T] 文本逐字**：页面内嵌的 `raw-title`／`source-txt`／`detail-md` 与只读源文件的 `title`／`source`／`## 详情` 节**逐字相同**；且**渲染出来的可见文字**＝种子去掉 Markdown 标记后的逐行文字（小标题去「`### `」、列表项去「`- `」、去「`**`」）—— **不丢字、不加字**；4 处「底本与来源」文字都逐字等于 `source`。
