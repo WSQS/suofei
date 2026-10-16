@@ -94,7 +94,8 @@ gradle.taskGraph.whenReady {
 
 // ── 单测的「仓库文件」输入声明 ────────────────────────────────────────────
 // 这些单测在**运行期读仓库文件**（`TestRepoFiles` 那一套）：`web/about-fields.json`、
-// `schema/unknown-authors.json`、`items/content-format/prototypes/rules-v4/json/`、`content/poems/**`，
+// `schema/unknown-authors.json`、`schema/markdown-subset.json`（最小 Markdown 闭集）、
+// `tests/fixtures/contract/`（`md-subset-legal.json` 与 `real-01-full.json`）、`content/poems/**`，
 // 还有**用相对路径读**的内置产物 `app/src/main/assets/content/content.json`。
 // Gradle 看不到这些读取 ⇒ 文件一变，`testDebugUnitTest` 仍可能 `FROM-CACHE` **回放旧结果**：
 // 实测（2026-10-16）`web/about-fields.json` 已改成 4 项、单测必红，裸 `./gradlew testDebugUnitTest
@@ -105,7 +106,11 @@ run {
     val repoInputs = listOf(
         "web/about-fields.json",
         "schema/unknown-authors.json",
-        "items/content-format/prototypes/rules-v4/json",
+        // 2026-10-16：原为 `items/content-format/prototypes/rules-v4/json`，那轮已归档 ⇒ 改指稳定契约位置。
+        // ⚠ 教训：归档/搬迁「运行期被读的文件」时，除了测试里的路径，**还要改这里声明的 Gradle 输入**，
+        //    否则 `testDebugUnitTest` 会在配置阶段因「输入文件不存在」直接 BUILD FAILED（真踩到）。
+        "schema/markdown-subset.json",
+        "tests/fixtures/contract",
         "content/poems",
     )
     tasks.withType<Test>().configureEach {
