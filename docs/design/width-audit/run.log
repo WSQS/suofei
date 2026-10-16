@@ -1,15 +1,15 @@
-(node:56024) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/Users/wsqsy/Documents/android/PoetryCollection/web/app/config.js is not specified and it doesn't parse as CommonJS.
+(node:45780) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/Users/wsqsy/Documents/android/PoetryCollection/web/app/config.js is not specified and it doesn't parse as CommonJS.
 Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
 To eliminate this warning, add "type": "module" to C:\Users\wsqsy\Documents\android\PoetryCollection\package.json.
 (Use `node --trace-warnings ...` to show where the warning was created)
 ================ 运行信息 ================
 仓库根   : C:\Users\wsqsy\Documents\android\PoetryCollection
-Commit   : fe65ff1a2eb6f9c4293ea10ecd9e2ff12da726ab
+Commit   : 78c19ac08f79711ce50fa6149166bbbd36b32e10
 分支     : master（工作区有 4 项未提交）＋**未 push**（本任务不做远端操作）
-加载方式 : **本地静态服务 http://127.0.0.1:53848/**（C:\Users\wsqsy\Documents\android\PoetryCollection\web\scripts\serve.mjs，root=C:\Users\wsqsy\AppData\Local\Temp\width-audit-kh0vsB\deploy）——不是 file://（与采纳锚的差别只有这一点；列宽由 JS 用 innerWidth 算，两者一致）
+加载方式 : **本地静态服务 http://127.0.0.1:60349/**（C:\Users\wsqsy\Documents\android\PoetryCollection\web\scripts\serve.mjs，root=C:\Users\wsqsy\AppData\Local\Temp\width-audit-Pg2KL2\deploy）——不是 file://（与采纳锚的差别只有这一点；列宽由 JS 用 innerWidth 算，两者一致）
 内容     : dist/content.json（真实产物）；formatVersion=2 contentVersion=2026.10.16.22 诗19首
-关于页   : http://127.0.0.1:53848/#/about
-详情页   : http://127.0.0.1:53848/#/p/%E5%8F%A4%E8%AF%97%E5%8D%81%E4%B9%9D%E9%A6%96-%E8%A1%8C%E8%A1%8C%E9%87%8D%E8%A1%8C%E8%A1%8C/detail（行行重行行；detail 355 字）
+关于页   : http://127.0.0.1:60349/#/about
+详情页   : http://127.0.0.1:60349/#/p/%E5%8F%A4%E8%AF%97%E5%8D%81%E4%B9%9D%E9%A6%96-%E8%A1%8C%E8%A1%8C%E9%87%8D%E8%A1%8C%E8%A1%8C/detail（行行重行行；detail 355 字）
 浏览器   : C:/Users/wsqsy/AppData/Local/Chromium/Application/chrome.exe（--headless=new --hide-scrollbars）
 口径     : C = min(V, max(320, 0.88 × (V − 24)))；行内沿 16.8px ⇒ 可用宽 = C − 33.6
 视口     : 320×568 / 360×932 / 390×844 / 412×915 / 430×932 / 740×360 / 834×1112 / 1180×900（与采纳锚同一组 8 个）
@@ -17,12 +17,12 @@ Commit   : fe65ff1a2eb6f9c4293ea10ecd9e2ff12da726ab
 
 === 320（320×568，手机 · 最小可用宽（列外余白在这一档是 0）） ===
 PASS  320·关于页与详情页的截图**确实不同**（防「两支图截了同一页」）
-        about 36636 B ≠ detail 306155 B
+        about 36636 B ≠ detail 302759 B
 PASS  320·截图像素宽 == V×DPR2（设备模拟生效、图没被截窄）
-        about 640×1136 / detail 640×2708
+        about 640×1136 / detail 640×2604
 PASS  320·截图高度不小于视口（全页截图没被截断）
-        about 高 1136 / detail 高 2708（视口 1136）
-    ⇒ 截图：about-320.png（640×1136）/ detail-320.png（640×2708）
+        about 高 1136 / detail 高 2604（视口 1136）
+    ⇒ 截图：about-320.png（640×1136）/ detail-320.png（640×2604）
   列宽：V=320  A=V−24=296  0.88×A=260.48  max(320,…)=320  ⇒ C(公式)=320；列外余白=(V−C)/2=0；正文可用宽=C−33.6=286.4
 PASS  关于页·visualViewport.width == 320（Chrome 没有 shrink-to-fit 把布局视口撑开）
         visualViewport.width=320
@@ -551,7 +551,7 @@ PASS  详情页·行内沿 = 16.8px（列内那一层照旧）
 
 === 1180（1180×900，桌面（C 在这里超过 860 ⇒ 同上）） ===
 PASS  1180·关于页与详情页的截图**确实不同**（防「两支图截了同一页」）
-        about 50198 B ≠ detail 299456 B
+        about 50198 B ≠ detail 296077 B
 PASS  1180·截图像素宽 == V×DPR2（设备模拟生效、图没被截窄）
         about 2360×1800 / detail 2360×1800
 PASS  1180·截图高度不小于视口（全页截图没被截断）
@@ -749,5 +749,5 @@ V=1180（可用宽 983.67；行数 9；最长行 959.313）
 ================ 汇总 ================
 口径/测量断言：86 / 86 通过
 观察项 FINDING：0 条（**只报不改**：默认不计入 exit code；加 --strict 可计入）
-截图（全页、DPR2）：about-320.png（36636 B，640×1136） / detail-320.png（306155 B，640×2708） / about-1180.png（50198 B，2360×1800） / detail-1180.png（299456 B，2360×1800）
-基线 SHA：fe65ff1a2eb6f9c4293ea10ecd9e2ff12da726ab（分支 master）
+截图（全页、DPR2）：about-320.png（36636 B，640×1136） / detail-320.png（302759 B，640×2604） / about-1180.png（50198 B，2360×1800） / detail-1180.png（296077 B，2360×1800）
+基线 SHA：78c19ac08f79711ce50fa6149166bbbd36b32e10（分支 master）
