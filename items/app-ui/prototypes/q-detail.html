@@ -7,7 +7,7 @@
 <style>
 /* 令牌快照（内嵌副本，不是新权威）
  *   来源：prototype/css/theme-tech.css（**只读**，本会话未改）
- *   仓库提交：778f480（git rev-parse --short HEAD；该文件在此提交上无未提交改动）
+ *   仓库提交：dae4746（git rev-parse --short HEAD；该文件在此提交上无未提交改动）
  *   权威仍是 docs/design/visual-tokens.md（§2 颜色 / §3 排版 / §4 间距形状 / §4.1 结构记号）。
  *   这里只是为「单文件自包含」复制的一份快照，值逐字照抄、未做微调；**只列本页实际用到的令牌**。
  */
@@ -21,7 +21,6 @@
   --text-faint: #788a88;
   --line: #233034;
   --accent-text: #7fd4c6;
-  --accent-line: rgba(79, 179, 165, 0.38);
   --radius-s: 3px;
   --test-line: rgba(79, 179, 165, 0.36);
   --test-soft: rgba(79, 179, 165, 0.07);
@@ -171,15 +170,14 @@ html[data-shot="1"] [data-shotframe] .capnote { display: none; }
 .detail { margin: var(--sec-gap-top) 0 0; padding: 0 var(--edge-x) 0.5rem;
   font-family: var(--font-poem); font-size: var(--poem-size); line-height: var(--poem-lh);
   letter-spacing: var(--poem-ls); color: var(--text); }
-/* ### 层小标题：本页候选①＝eyebrow（沿用 §4.1「组名」那一条发丝竖线记号） */
-.d-sub { margin: 0; padding: var(--sub-gap-top) 0 var(--sub-gap-bottom) 0.6rem;
-  border-left: 2px solid var(--accent-line);
+/* ### 层小标题：本页候选①＝eyebrow（只有字号／字重／上下留白表达层级，**无装饰竖线**） */
+.d-sub { margin: 0; padding: var(--sub-gap-top) 0 var(--sub-gap-bottom) 0;
   font-family: var(--font-ui); font-size: var(--note-size); font-weight: 500; letter-spacing: var(--gname-ls);
   color: var(--accent-text); line-height: 1.6; }
 .detail > .d-sub:first-child { padding-top: 0; }
-/* ### 层小标题的另两种呈现（**候选**）：② 同字号小行（淡色、无竖线）／③ 不解析（当普通段落） */
-.d-sub--line { border-left: none; padding-left: 0; letter-spacing: 0.02em; color: var(--text-dim); }
-.d-sub--plain { border-left: none; padding-left: 0; font-family: var(--font-poem);
+/* ### 层小标题的另两种呈现（**候选**）：② 同字号小行（淡色）／③ 不解析（当普通段落） */
+.d-sub--line { letter-spacing: 0.02em; color: var(--text-dim); }
+.d-sub--plain { font-family: var(--font-poem);
   font-size: var(--poem-size); font-weight: 400; letter-spacing: var(--poem-ls); color: var(--text); }
 
 .d-list { margin: 0; padding: 0; list-style: none; }
@@ -220,7 +218,7 @@ html[data-shot="1"] [data-shotframe] .capnote { display: none; }
   <ul>
     <li><b>L1 · 题头对齐</b>：诗题<b>左对齐</b>（与详情正文同一条左沿 ＝ ①）／诗题<b>居中</b>（沿用诗页题名那一条 ＝ ②）。</li>
     <li><b>L2 · 来源块的位置与呈现</b>：正文<b>前</b>·带「底本与来源」标签（＝ ①）／正文<b>前</b>·无标签小字（＝ ②）／正文<b>后</b>·脚注（＝ ③）。</li>
-    <li><b>L3 · <code>### </code> 小标题的呈现</b>：<b>eyebrow 真标题</b>＋§4.1 发丝竖线（＝ ①）／与正文<b>同字号的小行</b>（＝ ②）／<b>不解析</b>（当普通段落，＝ ③ —— 这也是「Web 不扩子集、Android 不做渲染」时会发生的样子）。</li>
+    <li><b>L3 · <code>### </code> 小标题的呈现</b>：<b>eyebrow 真标题</b>（只有字号／字重／上下留白，**无装饰竖线** ＝ ①）／与正文<b>同字号的小行</b>（＝ ②）／<b>不解析</b>（当普通段落，＝ ③ —— 这也是「Web 不扩子集、Android 不做渲染」时会发生的样子）。</li>
   </ul>
 
   <p><b>看图</b>：3 个真实视口宽各出一组图（<b>320／430／1180 真实 CSS px，@DPR 2</b>）；<b>先量高度</b>，超过内核上限（约 16000px）就按块边界<b>拆图</b>或<b>如实拒拍</b>，<b>不做缩放拼图</b>。<br>
@@ -544,7 +542,7 @@ html[data-shot="1"] [data-shotframe] .capnote { display: none; }
       '（≈ ' + r2(AVAIL / 17.765) + ' 个字位）｜<b>不夹 660／860</b>（clamp_measure＝0）<br>' +
       '左沿（相对内容列）：返回 <b>' + lefts.back + '</b>／诗题 <b>' + lefts.title + '</b>／来源标签 <b>' + lefts.provLabel +
       '</b>／来源文本 <b>' + lefts.provText + '</b>／小标题 <b>' + lefts.sub + '</b>／列表项 <b>' + lefts.li + '</b>／段落 <b>' + lefts.p +
-      '</b>（小标题因发丝竖线＋0.6rem 内边距而在 ' + r2(EDGE + 9.6 + 2) + 'px，其余都＝行内沿 ' + EDGE + 'px）<br>' +
+      '</b>（都＝行内沿 ' + EDGE + 'px；小标题已去掉装饰竖线，回到与正文同一条左沿）<br>' +
       '详情正文：<b class="hit">' + nLines + ' 行</b>（' + BLOCKS.length + ' 块＝2 小标题＋3 列表项＋1 段落），最长行宽 <b>' + r2(maxLineW) + 'px</b> ≤ 可用宽 ' + AVAIL + 'px ⇒ <b>无横向溢出</b><br>' +
       '返回 href＝<code>' + POEM_ROUTE + '</code>（<b>落到这首诗</b>，不是目录）；详情路由＝<code>' + DETAIL_ROUTE + '</code>',
       'D0 的逐项几何与文本由自检脚本实测并断言（自检另有一份独立的 Range 量测，不信本页自报）。' +
@@ -600,7 +598,7 @@ html[data-shot="1"] [data-shotframe] .capnote { display: none; }
   /* ══ L3 · ### 小标题的呈现（3 档）══════════════════════════════ */
   (function () {
     var b = newBlock('L3', '局部对照 3 · ### 小标题的呈现',
-      'L3 · <code>### </code> 小标题：**eyebrow 真标题**＋§4.1 发丝竖线（＝ ①，D0 用这档）／与正文**同字号的小行**（＝ ②）／**不解析**（当普通段落，＝ ③）',
+      'L3 · <code>### </code> 小标题：**eyebrow 真标题**（只有字号／字重／上下留白，**无装饰竖线** ＝ ①，D0 用这档）／与正文**同字号的小行**（＝ ②）／**不解析**（当普通段落，＝ ③）',
       '三行只差**小标题怎么呈现**；每行都跟一段**真实正文**（样例的第一条异文）。③ 就是「Web 不扩子集、Android 不做渲染」时会发生的样子：<code>### </code> 标记被当普通文字画出来、字号层级消失。');
     b.root.setAttribute('data-kind', 'cell-sub');
     var out = [];
@@ -611,9 +609,9 @@ html[data-shot="1"] [data-shotframe] .capnote { display: none; }
     });
     var sz = function (v) { return getComputedStyle(document.querySelector('.d-sub' + (v === 'line' ? '--line' : v === 'plain' ? '--plain' : ''))).fontSize; };
     report(b,
-      '小标题字号：① <b>' + sz('') + '</b>（<code>--note-size</code>，--accent-text，加 §4.1 发丝竖线）／② <b>' + sz('line') +
-      '</b>（同字号、--text-dim、无竖线）／③ <b>' + sz('plain') + '</b>（与正文同字号 ⇒ <b>层级消失</b>，且 <code>### </code> 标记<b>原样可见</b>）<br>' +
-      '小标题左沿（相对内容列）：① <b>' + out[0].dCol + '</b>（竖线 2px＋0.6rem 内边距）／② <b>' + out[1].dCol + '</b>／③ <b>' + out[2].dCol + '</b>（②③＝行内沿 ' + EDGE + 'px）',
+      '小标题字号：① <b>' + sz('') + '</b>（<code>--note-size</code>，--accent-text，只有字号／字重／上下留白）／② <b>' + sz('line') +
+      '</b>（同字号、--text-dim）／③ <b>' + sz('plain') + '</b>（与正文同字号 ⇒ <b>层级消失</b>，且 <code>### </code> 标记<b>原样可见</b>）<br>' +
+      '小标题左沿（相对内容列）：① <b>' + out[0].dCol + '</b>／② <b>' + out[1].dCol + '</b>／③ <b>' + out[2].dCol + '</b>（都＝行内沿 ' + EDGE + 'px）',
       '（三个**候选**，D0 挑了 ①；本格不是整页规格。③ 是「不解析」的诚实对照 —— 它**不是**已支持，只是把后果画出来。）',
       { kind: 'cell-sub', l3: JSON.stringify(out.map(function (x) { return { dCol: x.dCol, text: x.text.slice(0, 12) }; })) });
   })();
