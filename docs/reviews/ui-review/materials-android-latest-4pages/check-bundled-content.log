@@ -1,0 +1,2 @@
+内置内容一致性通过：已查 1 处（Android 内置内容）与当前 content/poems/ 编译结果一致（formatVersion=2，诗=19，带详情=13）。
+  ⚠ 另有 1 处**没查**：Web 本地内容（gitignore 的本地产物，缺 ⇒ 没查）（web/content.json）（没查 ≠ 通过）。
