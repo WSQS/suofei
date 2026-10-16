@@ -1,0 +1,946 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="tech" data-shot="0">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>中文断行与长行处理 · 讨论原型（最小范围）—— 断点的合法位置 ／ 折行后第二行怎么排</title>
+<style>
+/* 令牌快照（内嵌副本，不是新权威）
+ *   来源：prototype/css/theme-tech.css（**只读**，本会话未改）
+ *   仓库提交：9c1e2b6（git rev-parse --short HEAD；该文件在此提交上无未提交改动）
+ *   权威仍是 docs/design/visual-tokens.md（§2 颜色 / §3 排版 / §4 间距形状 / §4.1 结构记号）。
+ *   这里只是为「单文件自包含」复制的一份快照，值逐字照抄、未做微调；**只列本页实际用到的令牌**。
+ */
+/* == TOKEN-SNAPSHOT-BEGIN == */
+:root {
+  --bg: #0e1315;
+  --bg-pattern: linear-gradient(to right, rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+  --surface-hover: #182124;
+  --text: #dde5e4;
+  --text-dim: #98a8a6;
+  --text-faint: #788a88;
+  --line: #233034;
+  --radius-s: 3px;
+  --row-transition: border-color 0.15s ease, background 0.15s ease;
+  --test-line: rgba(79, 179, 165, 0.36);
+  --test-soft: rgba(79, 179, 165, 0.07);
+  --test-text: #7fd4c6;
+  --warn-soft: rgba(201, 162, 74, 0.08);
+  --warn-text: #dcc078;
+  --line-warn: rgba(201, 162, 74, 0.34);
+  --font-body: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-poem: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-title: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-ui: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-mono: 'Consolas', 'SFMono-Regular', ui-monospace, monospace;
+  --font-size: 15px;
+  --lh: 1.75;
+  --ls: 0.005em;
+  --poem-size: 17px;
+  --poem-lh: 2;
+  --poem-ls: 0.045em;
+  --title-size: 1.5rem;
+  --title-weight: 500;
+  --title-ls: 0.1em;
+  --gname-ls: 0.16em;
+  --ptitle-ls: 0.06em;
+  --row-pad: 0.9rem 1.05rem;
+}
+/* == TOKEN-SNAPSHOT-END == */
+
+/* 草案值 / 已定值（**都不在** docs/design/visual-tokens.md 里 —— 规范没有这些条目）
+ *   [已定]  用户已定的表达值（本会话照做，不重新提问）
+ *   [草案]  前几轮沿用下来的数（本会话**不是**在测它们；列在这里只为「用了就声明」）
+ *   [脚本写回] 页面脚本量完后写回的运行时值
+ */
+/* == DRAFT-VALUES-BEGIN == */
+:root {
+  --edge-x: 1.05rem;        /* [草案] 行内沿（内容行左右内边距）＝16.8px；正文可用宽＝C−2×16.8 */
+  --slot: 27.52px;          /* [草案] 目录页悬挂槽宽（记号排版宽 21.13px ＋ 0.4rem） */
+  --seam: 0.4rem;           /* [已定] 记号右沿 → 组名左沿的固定缝 */
+  --name-x: var(--slot);    /* [脚本写回] 诗目左内沿＝组名左沿（缩进 0） */
+  --cw: 100%;               /* [脚本写回] 本视口下的内容宽 C */
+  --col-gap: 6px;           /* [草案] 比较架：两列之间的固定缝（原型标注层，不是应用页面的值） */
+  --gname-size: 1.05rem;    /* [草案] 目录页组名 */
+  --mark-size: 0.8rem;      /* [草案] 目录页折叠记号 */
+  --count-size: 0.82rem;    /* [草案] 目录页计数 */
+  --author-size: 0.8rem;    /* [草案] 目录页作者 */
+  --author-gap: 0.45em;     /* [草案] 题名 → 作者 */
+  --about-size: 0.86rem;    /* [草案] 顶部「关于」 */
+  --ctl-size: 0.82rem;      /* [草案] 控件（返回／详情）字号 13.12px */
+  --ctl-ls: 0.06em;         /* [草案] 控件与身份行字距 */
+  --meta-size: 0.78rem;     /* [已定] 身份行字号 12.48px */
+  --head-pad-top: 1.5rem;   /* [已定] 诗页题头上方留白 */
+  --title-gap: 0.7rem;      /* [已定] 题名 → 身份行 */
+  --body-gap: 2.1rem;       /* [已定] 身份行 → 原文 */
+  --proto-pad: 12px;        /* [草案] 原型脚手架（说明／标注）的左右内边距，不是应用页面的值 */
+}
+/* == DRAFT-VALUES-END == */
+
+/* ── 底：颜色与字体只用令牌 ─────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background-color: var(--bg);
+  background-image: var(--bg-pattern);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--font-size);
+  line-height: var(--lh);
+  letter-spacing: var(--ls);
+}
+a { color: inherit; }
+
+/* ── 原型脚手架（**不是**被评审的那一层）───────────────────────── */
+.phead { padding: 1.4rem var(--proto-pad) 0; overflow-wrap: anywhere; }
+.phead .ptag {
+  display: inline-block; margin: 0 0 0.9rem; padding: 0.25rem 0.6rem;
+  border: 1px dashed var(--test-line); background: var(--test-soft); color: var(--test-text);
+  border-radius: var(--radius-s); font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.08em;
+}
+.phead h1 { font-size: 1.05rem; font-weight: 500; letter-spacing: 0.06em; margin: 0 0 0.8rem; line-height: 1.6; }
+.phead h2 { font-size: 0.92rem; font-weight: 500; color: var(--text); margin: 1.1rem 0 0.4rem; letter-spacing: 0.04em; }
+.phead p, .phead li { color: var(--text-dim); margin: 0.45rem 0; }
+.phead b { color: var(--text); font-weight: 500; }
+.phead code {
+  font-family: var(--font-mono); font-size: 0.85em; color: var(--text);
+  border: 1px solid var(--line); border-radius: var(--radius-s); padding: 0 0.25rem;
+}
+.pok { border-left: 2px solid var(--test-line); background: var(--test-soft); color: var(--text);
+  padding: 0.6rem 0.8rem; border-radius: var(--radius-s); }
+.pok b { color: var(--text); }
+.pwarn { border-left: 2px solid var(--line-warn); background: var(--warn-soft); color: var(--warn-text);
+  padding: 0.5rem 0.7rem; border-radius: var(--radius-s); }
+.pwarn b { color: var(--warn-text); }
+.phead table { border-collapse: collapse; margin: 0.5rem 0; font-family: var(--font-mono); font-size: 0.74rem; }
+.phead th, .phead td { border: 1px solid var(--line); padding: 0.25rem 0.45rem; text-align: left; color: var(--text-dim); }
+.phead th { color: var(--text); font-weight: 500; }
+
+/* 块区（截图范围）：横幅 ＋ 全部块 */
+.deck { margin-top: 1.2rem; }
+.imgban {
+  display: none; background: var(--test-soft); border: 1px dashed var(--test-line); color: var(--test-text);
+  border-radius: var(--radius-s); font-family: var(--font-mono); font-size: 0.74rem; line-height: 1.65;
+  letter-spacing: 0.03em; padding: 0.6rem 0.7rem; margin: 0 var(--proto-pad) 0.9rem; overflow-wrap: anywhere;
+}
+html[data-shot="1"] .imgban { display: block; }
+/* 看图态：说明性文字（.capnote）不进图，图里只留**数字行** —— 只为让图不过长、不撞截图高度上限。
+ * ⚠ 它只 display:none 说明文字，**不改任何排布规则**，也不碰任何被量测的元素。 */
+html[data-shot="1"] [data-shotframe] .capnote { display: none; }
+
+.demo { border-top: 1px dashed var(--test-line); border-bottom: 1px dashed var(--test-line);
+  padding: 0.5rem 0 0.6rem; margin: 0 0 0.8rem; overflow-wrap: anywhere; }
+.dhead { font-family: var(--font-mono); font-size: 0.76rem; line-height: 1.55; letter-spacing: 0.04em;
+  color: var(--test-text); padding: 0 var(--proto-pad); margin-bottom: 0.25rem; }
+.dhead .dcounter { display: inline-block; margin: 0 0 0.25rem; padding: 0.15rem 0.5rem;
+  border: 1px solid var(--line-warn); background: var(--warn-soft); color: var(--warn-text);
+  border-radius: var(--radius-s); font-size: 0.74rem; letter-spacing: 0.06em; }
+.dhead .dknob { display: block; color: var(--text-dim); }
+.cap { font-family: var(--font-mono); font-size: 0.72rem; line-height: 1.65; letter-spacing: 0.02em;
+  color: var(--text-dim); padding: 0 var(--proto-pad); margin: 0 0 0.45rem; overflow-wrap: anywhere; }
+.cap b { color: var(--text); font-weight: 500; }
+.cap .hit { color: var(--test-text); }
+.cap .capnote { display: block; color: var(--text-dim); margin-top: 0.2rem; }
+.fxban { background: var(--warn-soft); border: 1px solid var(--line-warn); color: var(--warn-text);
+  border-radius: var(--radius-s); font-family: var(--font-mono); font-size: 0.72rem; line-height: 1.55;
+  letter-spacing: 0.03em; padding: 0.4rem 0.55rem; margin: 0 var(--proto-pad) 0.4rem; overflow-wrap: anywhere; }
+
+/* ── 应用页面（被评审的那一层）────────────────────────────────────
+ * 结构：.pg（满视口宽，＝一个真机屏幕宽）> .col（内容列，宽 C）> 诗页各块
+ * 内容列居中于视口：width = C、margin-inline: auto ⇒ 列外余白 = (V−C)/2。
+ * ⚠ 行内沿（--edge-x 16.8px）是**列内**的一层；正文可用宽 = C − 2×16.8 = C − 33.6。
+ */
+.pg { position: relative; background: transparent; }
+.col { width: var(--cw); margin-inline: auto; }
+
+/* 诗页 —— 已定项（本会话不重新提问） */
+.topbar { display: flex; justify-content: space-between; align-items: baseline;
+  padding: 0.7rem var(--edge-x) 0; }
+.topbar > * { flex: 0 0 auto; white-space: nowrap; }
+.ctl { font-family: var(--font-ui); font-size: var(--ctl-size); letter-spacing: var(--ctl-ls);
+  color: var(--text-dim); text-decoration: none; }
+.poem-head { padding: var(--head-pad-top) var(--edge-x) 0; border-bottom: 0; text-align: center; }
+.p-title { margin: 0; font-family: var(--font-title); font-size: var(--title-size); font-weight: var(--title-weight);
+  letter-spacing: var(--title-ls); line-height: 1.4; }
+.p-id { margin: var(--title-gap) 0 0; font-family: var(--font-ui); font-size: var(--meta-size);
+  letter-spacing: var(--ctl-ls); color: var(--text-faint); }
+/* 「全部居中」（用户 2026-10-15 已定）：题名／身份行／**每一个行盒**各自居中。
+ * 被居中量是「文字盒」（含末字之后那一份字距）⇒ 着墨中心略偏左，见 q-break.md 的脚注。 */
+.poem-body { padding: var(--body-gap) var(--edge-x) 0.5rem; font-family: var(--font-poem);
+  font-size: var(--poem-size); line-height: var(--poem-lh); letter-spacing: var(--poem-ls);
+  text-align: center; }
+.poem-body .line { display: block; }
+
+/* ── 本页特有的东西 ───────────────────────────────────────────────
+ * 压窄容器：**不是**任何已定宽度；它是原型为了「让一行装不下」而压窄的容器，宽度写清（px 与字位）。 */
+.narrow { position: relative; margin-inline: auto; }
+/* ⚠ 量测台上的夹具必须用**诗页自己的字号/字距**，否则量出来的断点是错的：
+ *   正文 17px / 行高 2 / 字距 0.045em；题名 1.5rem / 500 / 0.1em。
+ *   两者互斥（一个元素只会是其中一个），所以先后顺序不重要。
+ *   两个都按已定「全部居中」（它们代表的就是诗页/题名的内容）。 */
+.pfont { font-family: var(--font-poem); font-size: var(--poem-size); line-height: var(--poem-lh);
+  letter-spacing: var(--poem-ls); text-align: center; }
+.ttitle { font-family: var(--font-title); font-size: var(--title-size); font-weight: var(--title-weight);
+  letter-spacing: var(--title-ls); line-height: 1.4; text-align: center; }
+/* 夹具标注：黄色虚框 ＋ 一枚「夹具」小标（**都不属于应用页面**） */
+.fxline { outline: 1px dashed var(--line-warn); outline-offset: 3px; }
+.fxbadge { display: block; font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.03em;
+  color: var(--warn-text); margin: 0.4rem 0 0.15rem; }
+/* 比较架（量测台）：一行一个夹具、一列一个候选；列宽固定 ⇒ 只有「这一维度的变量」在变。
+ * ⚠ 它是**量测台**、不是诗页版面：列本身按条排（左沿对齐内容列左沿）；被量的是列内那一段文字，
+ *   它仍按已定「每行都居中」。 */
+.bench { padding: 0 var(--edge-x); }
+.brow { margin: 0 0 0.5rem; }
+.browlab { display: block; font-family: var(--font-mono); font-size: 0.7rem; line-height: 1.85;
+  color: var(--test-text); letter-spacing: 0.02em; overflow-wrap: anywhere; }
+.bcols { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--col-gap); justify-content: flex-start; }
+.bcol { flex: 0 0 auto; }
+.clab { display: block; font-family: var(--font-mono); font-size: 0.66rem; line-height: 1.4;
+  color: var(--test-text); letter-spacing: 0.01em; margin-bottom: 0.4rem; overflow-wrap: anywhere; }
+/* 量测台（D4）：逐档看「几字位能装几字」 */
+.benchbox { outline: 1px dotted var(--test-line); outline-offset: 2px; font-family: var(--font-poem);
+  font-size: var(--poem-size); line-height: var(--poem-lh); letter-spacing: var(--poem-ls); text-align: center; }
+/* ── B② B③ 的续行排布：脚本按**浏览器自己选的断点**把行拆成若干 block 段。
+ * 首段：居中（与 ① 的首行一致）；续段：左对齐，左缩进 = 首段文字盒左沿（＋n 字）。 */
+.seg { display: block; }
+/* 隐藏的「自然断点」参照：同宽、同文字、**不拆分** ⇒ 供自检独立核对「拆分没有改断点」。
+ * 包在一个 0 高度的定位框里 ⇒ 既不占版面高度、也不会跑出容器。 */
+.natwrap { position: relative; height: 0; }
+.natref { position: absolute; left: 0; top: 0; width: 100%; visibility: hidden; pointer-events: none; }
+/* 隐藏的宽度尺（D4）：所有档都在这里量；不占高度、不进图 */
+.ruler { position: relative; height: 0; }
+.rulerbox { position: absolute; left: 0; top: 0; visibility: hidden; pointer-events: none;
+  font-family: var(--font-poem); font-size: var(--poem-size); line-height: var(--poem-lh);
+  letter-spacing: var(--poem-ls); text-align: center; }
+/* 原型标注用的点线框（＝压窄容器的框，**不属于应用页面**） */
+.protoout { outline: 1px dotted var(--test-line); outline-offset: 2px; }
+
+/* ── 目录页（固定块；**不进图**；只为「收起／展开各查一次无横向溢出」）──── */
+.bgsec { margin-top: 1.4rem; }
+/* ⚠ 左右内边距只加在**直接子元素**的文字上，**不加在容器上** —— 里面的 .pg 是「满视口宽」的模拟屏幕，
+ *   容器一旦有左右 padding，内容列就会越出视口（320 上真会把布局视口撑开、触发 shrink-to-fit）。 */
+.bgsec > h2 { font-size: 0.95rem; font-weight: 500; color: var(--warn-text); margin: 0 0 0.4rem; padding: 0 var(--proto-pad); }
+.bgsec > p { color: var(--text-dim); margin: 0.4rem 0; padding: 0 var(--proto-pad); overflow-wrap: anywhere; }
+.bgsec b { color: var(--text); font-weight: 500; }
+.topline { display: flex; justify-content: flex-end; padding: 0.7rem var(--edge-x);
+  border-bottom: 1px solid var(--line); }
+.aboutlink { color: var(--text-dim); text-decoration: none; font-size: var(--about-size); letter-spacing: var(--ctl-ls); }
+.ghead { display: flex; align-items: center; width: 100%; margin: 0; text-align: left; font: inherit;
+  color: var(--text); background: transparent; border: 0; border-bottom: 1px solid var(--line);
+  padding: 0.85rem 0 0.7rem; padding-right: var(--edge-x); cursor: pointer;
+  transition: var(--row-transition); }
+.gmark { flex: 0 0 auto; font-family: var(--font-mono); font-size: var(--mark-size); letter-spacing: 0;
+  color: var(--text-faint); margin-right: var(--seam); transition: var(--row-transition); }
+.gname { font-size: var(--gname-size); letter-spacing: var(--gname-ls); }
+.gcount { margin-left: auto; font-family: var(--font-mono); font-size: var(--count-size); color: var(--text-faint); }
+.gcount b::before { content: '['; color: var(--text-faint); font-size: 0.85em; margin-right: 1px; }
+.gcount b::after { content: ']'; color: var(--text-faint); font-size: 0.85em; margin-left: 1px; }
+.glist { list-style: none; margin: 0; padding: 0; }
+.poemrow { border-bottom: 1px solid var(--line); }
+.plink { display: block; padding: var(--row-pad); padding-left: var(--name-x); padding-right: var(--edge-x);
+  text-decoration: none; }
+.plink:hover { background: var(--surface-hover); }
+.ptitle { letter-spacing: var(--ptitle-ls); overflow-wrap: anywhere; }
+.pauthor { font-size: var(--author-size); color: var(--text-faint); margin-left: var(--author-gap); }
+.poemrow.fxrow { outline: 1px dashed var(--line-warn); outline-offset: -2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="phead">
+    <p class="ptag">讨论原型 · 最小范围 · 材料，不是实施</p>
+    <h1>中文<b>断行</b>与<b>长行</b>处理 —— 只回答两件事：<b>一行装不下时断在哪里</b>、<b>断了之后续行怎么排</b></h1>
+
+    <p class="pok"><b>本页不排推荐、不排序、不代表采纳。</b>三档断点候选与三档续行候选都是<b>并列</b>的；<b>选某档 ≠ 采纳整页规格</b>。<br>
+      本页也<b>不决定</b> JSON／MD 的分界、不决定产物字段、<b>不是</b>产品实施、不是发布。<br>
+      ⚠ 本页在「上文那条宽度口径已经选定」的前提下画：<code>C = min(V, max(320, 0.88 × (V − 24)))</code>；本页<b>只用</b>它，<b>不重开</b>它。</p>
+
+    <p class="pwarn">⚠ <b>夹具标注（重要）</b>：只要看到<b>黄框 ＋「夹具 · 不是真实数据」小标</b>，那段文字就是<b>夹具</b>：不是真实数据、不是内容、不代表真实题名或诗句；它只为把「装不下 ⇒ 怎么断」画出来。真实原文只来自 <code>content/poems/gushi-shijiu-shou-01.md</code>（只读、未改）。</p>
+
+    <h2>已定（固定，本页照做、不重新提问）</h2>
+    <ul>
+      <li><b>诗页</b>：题名 <code>1.5rem</code>／<code>500</code>／字距 <code>0.1em</code>；身份行＝作者 · 朝代 · 体裁／<code>0.78rem</code>／<code>--text-faint</code>；题名→身份 <code>0.7rem</code>；身份→原文 <code>2.1rem</code>；正文 <code>17px</code>／行高 <code>2</code>／字距 <code>0.045em</code>；<b>水平对齐＝全部居中</b>（题名／身份行／<b>每一行</b>居中）；<b>顶部行＝返回左／详情右、不参与居中</b>。</li>
+      <li><b>目录页</b>：记号悬挂 ＋ 竖直居中（槽 <code>27.52px</code>／固定缝 <code>0.4rem</code>）；诗目与组名首字<b>同一条竖线（缩进 0）</b>；作者紧随题名；「关于」在顶。</li>
+      <li><b>宽度口径</b>：<code>C = min(V, max(320, 0.88×(V−24)))</code>；<code>24</code> 是<b>一次性扣除总量</b>，<b>不是</b>左右各 12；上界＝视口 <code>V</code>；行内沿 <code>1.05rem</code>＝16.8px 照旧 ⇒ <b>正文可用宽 ＝ C − 33.6</b>。</li>
+      <li>视觉＝静默终端令牌（<code>prototype/css/theme-tech.css</code> <b>只读</b>）；字号／行高／字距<b>不随宽度变</b>。</li>
+    </ul>
+
+    <h2>本页的被测维度（并列候选，不排推荐）</h2>
+    <ul>
+      <li><b>维度 1 · 断点的合法位置（A 块）</b>：<b>① 不做任何处理（不写任何断行 CSS）</b>／<b>② 禁则（<code>line-break: strict</code>）</b>／<b>③ ②＋挤入／推出（<code>hanging-punctuation: allow-end</code>）</b>；另有一列标着<b>「不是候选之一 · 对照」</b>＝<code>line-break: anywhere</code>，用来量出「① 的字面含义（任意字间断）」到底长什么样。</li>
+      <li><b>维度 2 · 折行后第二行怎么排（B 块）</b>：<b>① 每行都居中（现状）</b>／<b>② 首行居中、续行左对齐到首行左沿</b>／<b>③ 悬挂缩进（续行＝首行左沿＋2 字）</b>。</li>
+      <li><b>维度 3 · 长题名（折行，C 块）</b>：与长诗句<b>分开</b>看（长诗句在 A／B 块里）；另给一格<b>真实原文</b>装不下时的表现（X1）。</li>
+      <li><b>维度 4 · 一行到底能放多少字（D4 块）</b>：可复算数字 ＋ 逐档实测。</li>
+    </ul>
+
+    <p><b>比较架的读法</b>：A／B／C 三块里，<b>一行</b>＝同一段夹具、<b>一列</b>＝一个候选；<b>列宽固定</b>（数字行里写清）⇒ 各列之间只差「这一维度的那一条」。列本身是<b>量测台</b>（原型标注层），列内那一段文字仍遵守已定「每行都居中」。<b>中心差</b>有两个口径：<b>列差</b>＝相对本列窄容器中心（＝这个夹具自己的「内容列」）；<b>页差</b>＝相对整页内容列中心。</p>
+    <p><b>本页里哪些不是应用页面</b>：顶上的这段说明、每块上方的标题与实测数字行、<b>黄色虚框与「夹具」小标</b>、青色点线与青色小字（压窄容器／量测台的框与列标签）、以及截图里的横幅 —— 都是<b>原型的说明／标注</b>，<b>不属于应用页面</b>。</p>
+    <p><b>看图</b>：3 个真实视口宽各出一张图（<b>320／430／1180 真实 CSS px，@DPR 2</b>，<b>一个视口一张</b>、<b>不做缩放拼图</b>）。<b>目录页不在图里</b>（它不在本轮问题里，只在下方对照区里用于自检）。</p>
+    <p>逐档实测数字、断点落在哪两个字之间、哪些档在本机做不到，见同目录 <code>q-break.md</code>；行为由 <code>check-break.mjs</code> 可复跑自证。</p>
+  </div>
+
+  <div class="deck" data-shotframe>
+    <div class="imgban" data-test="imgban">
+      <b>原型说明 · 不属于应用页面。</b>本图＝<b>一个</b>真实视口宽（<span data-test="shotinfo">…</span>）下的全部块，按真实 CSS px @DPR 2 拍摄，<b>没有</b>把不同宽度拼成缩放图。<br>
+      图中<b>黄框 ＋「夹具 · 不是真实数据」小标</b>＝<b>夹具（不是真实数据）</b>；<b>青色点线与青色小字</b>＝原型为「压窄容器／比较架」画的框与列标签（<b>不是</b>应用页面的东西）；<b>目录页不在图里</b>。<br>
+      <b>本图不排推荐、不排序；选某档 ≠ 采纳整页规格；本页不决定 JSON／MD 分界或产物字段。</b>
+    </div>
+    <div data-test="rack"></div>
+  </div>
+
+  <div class="bgsec">
+    <h2>不进图的对照区（图中的内容与数字都不含本区）</h2>
+    <p>本区只有一块：<b>固定 · 目录页（收起／展开）</b>。它<b>不属于本轮的问题</b>（本轮只问断行与续行），放它只为满足自检的一件要求：<b>「无横向溢出」要在收起态与展开态各查一次</b>。目录页的已定关系（悬挂槽 27.52px、固定缝 0.4rem、诗目与组名首字同一竖线）与上一轮一致，本轮未改。</p>
+    <div data-test="rack2"></div>
+  </div>
+</div>
+<script>
+(function () {
+  'use strict';
+
+  /* ══ 页面里可解析的固定参数（自检脚本会**独立**复算一遍，两边必须一致）══
+   * == BREAK-PARAMS-BEGIN ==
+   * char_advance     : 17.766   正文每汉字推进宽（px）＝ 17 × (1 + 0.045)，本机实测
+   * title_advance    : 26.4     题名每汉字推进宽（px）＝ 24 × (1 + 0.1)，本机实测
+   * brk_poem_slot    : 5        断点块（A）的诗句夹具容器＝5 字位
+   * cont_poem_slot   : 7        续行块（B）的诗句夹具容器＝7 字位
+   * cont_title_slot  : 9        续行块（B）的题名夹具容器＝9 题字位
+   * title_brk_slot   : 9        长题名块（C）的题名夹具容器＝9 题字位
+   * indent_slots     : 2        续行③ 的悬挂缩进＝2 个字位
+   * real_narrow_slot : 11       真实原文压窄容器＝11 字位
+   * slots_min        : 4        量测台（D4）隐藏尺的最小档
+   * slots_max        : 12       量测台（D4）隐藏尺的最大档
+   * slots_drawn      : 9 10 11 12  量测台（D4）在图里真正画出来的档
+   * deduct_total     : 24       宽度口径（已选）一次性扣除总量
+   * pct              : 88       宽度口径（已选）百分比
+   * floor            : 320      宽度口径（已选）下限
+   * edge_x           : 16.8     行内沿；正文可用宽 ＝ C − 2×16.8
+   * viewports        : 320 430 1180
+   * == BREAK-PARAMS-END ==
+   */
+  var CH = 17.766;
+  var CHT = 26.4;
+  var DEDUCT = 24, PCT = 88, FLOOR = 320, EDGE = 16.8;
+  var SLOT_P_A = 5, SLOT_P_B = 7, SLOT_T_B = 9, SLOT_T_C = 9, INDENT = 2, NARROW_REAL = 11;
+  var SLOTS_MIN = 4, SLOTS_MAX = 12, SLOTS_DRAWN = [9, 10, 11, 12];
+
+  /* ── 真实内容（只读来源；页面里不改任何源文件）──────────────────── */
+  var POEM = {
+    title: '行行重行行', author: '佚名', dynasty: '汉', genre: '五言古诗',
+    lines: [
+      '行行重行行，与君生别离。',
+      '相去万余里，各在天一涯。',
+      '道路阻且长，会面安可知？',
+      '胡马依北风，越鸟巢南枝。',
+      '相去日已远，衣带日已缓。',
+      '浮云蔽白日，游子不顾反。',
+      '思君令人老，岁月忽已晚。',
+      '弃捐勿复道，努力加餐饭。'
+    ]
+  };
+  var IDENT = POEM.author + ' · ' + POEM.dynasty + ' · ' + POEM.genre;
+  var TITLES = ['行行重行行', '青青河畔草', '青青陵上柏', '今日良宴会', '西北有高楼', '涉江采芙蓉',
+    '明月皎夜光', '冉冉孤生竹', '庭中有奇树', '迢迢牵牛星', '回车驾言迈', '东城高且长',
+    '驱车上东门', '去者日以疏', '生年不满百', '凛凛岁云暮', '孟冬寒气至', '客从远方来', '明月何皎皎'];
+
+  /* ── 夹具（**不是真实数据**；页面里用黄框＋「夹具 · 不是真实数据」小标醒目标出）──
+   * 夹具文字是**故意构造**的（天干地支＋括号一类），只为让断点落在指定位置；它**不是**内容。
+   * 每个夹具的容器宽都按「刚好装不下」选：让它折行，且断点落在一个明确的位置。 */
+  var FX = {
+    close: '甲乙丙丁戊，己庚辛',            /* 9 字：第 5 字是「，」（收尾标点）→ 5 字位容器 */
+    open: '甲乙丙丁（戊己庚）',             /* 9 字：第 5 字是「（」（开局标点）、第 9 字是「）」 → 5 字位容器 */
+    cont: '甲乙丙丁戊，己庚辛壬癸',         /* 11 字 → 7 字位容器 ⇒ 7 + 4 两行 */
+    contT: '【夹具】故意写长的题名看折',     /* 13 字 → 9 题字位容器 ⇒ 9 + 3 两行 */
+    titleL: '【夹具不是真实数据】故意写长的题名用来看折行' /* 22 字 → 5 题字位容器 ⇒ 5 行 */
+  };
+
+  /* ── 宽度口径（已选，照用不重开）── */
+  function Cw(V) { return Math.min(V, Math.max(FLOOR, PCT / 100 * (V - DEDUCT))); }
+  var V = window.innerWidth;
+  var CW = Cw(V);
+  var AVAIL = CW - 2 * EDGE;
+
+  var r2 = function (n) { return Math.round(n * 100) / 100; };
+  var px = function (n) { return r2(n) + 'px'; };
+  var slots = function (k) { return r2(k * CH); };
+  var tslots = function (k) { return r2(k * CHT); };
+  var el = function (tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined && text !== null) e.textContent = text;
+    return e;
+  };
+  /* 原型说明里用 `**…**` 当「加粗」写（为了在源码里好读）⇒ 落成真 HTML。
+   * ⚠ 只把配对的 `**…**` 换成 <b>，其余字符一律不动。 */
+  var rich = function (s) { return String(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>'); };
+  var elRich = function (tag, cls, html) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    e.innerHTML = rich(html);
+    return e;
+  };
+  var q = function (root, sel) { return root.querySelector(sel); };
+
+  /* ── 逐字用 Range 量，按 top 分行（「用文字范围量断点」的那一步）──────
+   * 这是本页所有「行」的数字的唯一来源：**不是**用 offsetHeight 或整段 Range 猜的
+   *（整段 Range 的 getClientRects 会带上**行盒**宽度，量出来不是着墨宽 —— 踩过，别用）。
+   * from/to 是**字符区间**（在整段文字里的下标）⇒ 断点就是「上一行 to」与「下一行 from」。 */
+  function textNodes(e) {
+    var out = [], w = document.createTreeWalker(e, NodeFilter.SHOW_TEXT, null), n;
+    while ((n = w.nextNode())) out.push(n);
+    return out;
+  }
+  function lineBoxes(e) {
+    var tns = textNodes(e);
+    if (!tns.length) return [];
+    var rg = document.createRange(), br = e.getBoundingClientRect();
+    var lines = [], cur = null, idx = 0, t, i, tn, data, r;
+    for (t = 0; t < tns.length; t += 1) {
+      tn = tns[t]; data = tn.data;
+      for (i = 0; i < data.length; i += 1) {
+        rg.setStart(tn, i); rg.setEnd(tn, i + 1);
+        r = rg.getBoundingClientRect();
+        if (!cur || Math.abs(r.top - cur.top) > 1) {
+          cur = { from: idx, to: idx + 1, text: data.charAt(i), l: r.left, r: r.right, top: r.top };
+          lines.push(cur);
+        } else {
+          cur.to = idx + 1; cur.text += data.charAt(i);
+          cur.l = Math.min(cur.l, r.left); cur.r = Math.max(cur.r, r.right);
+        }
+        idx += 1;
+      }
+    }
+    return lines.map(function (x) {
+      return { from: x.from, to: x.to, text: x.text, n: x.to - x.from,
+        left: r2(x.l - br.left), right: r2(x.r - br.left), w: r2(x.r - x.l),
+        cx: r2((x.l + x.r) / 2 - br.left) };
+    });
+  }
+  function breaksOf(lines) {
+    var out = [];
+    for (var i = 0; i + 1 < lines.length; i += 1) {
+      out.push({ after: lines[i].to, endChar: lines[i].text.slice(-1), startChar: lines[i + 1].text.charAt(0) });
+    }
+    return out;
+  }
+  var PUNCT = { '，': '收尾标点', '。': '收尾标点', '？': '收尾标点', '！': '收尾标点', '：': '收尾标点',
+    '；': '收尾标点', '、': '收尾标点', '）': '收尾标点', '】': '收尾标点', '》': '收尾标点', '」': '收尾标点', '』': '收尾标点',
+    '（': '开局标点', '【': '开局标点', '《': '开局标点', '「': '开局标点', '『': '开局标点' };
+
+  /* ── 断行规则（维度 1 的唯一变量）────────────────────────────────
+   * ① default  ：不写任何断行 CSS            （浏览器默认）
+   * ①c anywhere：line-break: anywhere         （① 的字面含义；对照用，不是候选之一）
+   * ② strict   ：line-break: strict          （禁则）
+   * ③ hang     ：② ＋ hanging-punctuation    （②＋挤入／推出）
+   */
+  var RULE_CSS = {
+    'default': '',
+    'anywhere': 'line-break:anywhere;word-break:break-all;',
+    'strict': 'line-break:strict;word-break:normal;overflow-wrap:normal;',
+    'hang': 'line-break:strict;word-break:normal;overflow-wrap:normal;hanging-punctuation:allow-end first last;'
+  };
+  /* 三档候选在前、①-对照在最后：320 上第四列会换行，让「对照」单独落在第二排。 */
+  var A_COLS = [
+    { key: 'A1', rule: 'default', lab: '① 默认', cand: '1', short: '不写断行 CSS' },
+    { key: 'A2', rule: 'strict', lab: '② 禁则', cand: '1', short: 'line-break: strict' },
+    { key: 'A3', rule: 'hang', lab: '③ ＋挤入', cand: '1', short: 'strict ＋ hanging-punctuation' },
+    { key: 'A1c', rule: 'anywhere', lab: '①-对照', cand: '0', short: 'line-break: anywhere（不是候选）' }
+  ];
+  var B_COLS = [
+    { key: 'B1', mode: 'center', lab: '① 每行都居中', cand: '1' },
+    { key: 'B2', mode: 'split0', lab: '② 续行左沿', cand: '1' },
+    { key: 'B3', mode: 'split2', lab: '③ 悬挂缩进 2 字', cand: '1' }
+  ];
+
+  /* ── 续行排布（维度 2 的唯一变量）────────────────────────────────
+   * ① center ：每行都居中（现状；不动 DOM）
+   * ② split0 ：按**浏览器自己选的断点**拆成 block 段：首段居中、续段左对齐到首段文字盒左沿
+   * ③ split2 ：同上，但续段再缩进 2 个字位（2 × 17.766 = 35.53px）
+   * ⚠ 拆分**只重排、不改断点**；每个块另留一个隐藏的「自然断点」参照，供自检独立核对。 */
+  function splitCont(box, extraPx) {
+    var nat = lineBoxes(box);
+    if (nat.length <= 1) return { nat: nat, contX: 0, segs: [box.textContent] };
+    var tn = textNodes(box)[0], text = tn.data;
+    var contX = r2(nat[0].left + (extraPx || 0));
+    var frag = document.createDocumentFragment();
+    nat.forEach(function (l, i) {
+      var s = el('span', 'seg', text.slice(l.from, l.to));
+      s.setAttribute('data-seg', String(i));
+      if (i === 0) s.style.textAlign = 'center';
+      else { s.style.textAlign = 'left'; s.style.marginLeft = px(contX); }
+      frag.appendChild(s);
+    });
+    box.replaceChild(frag, tn);
+    return { nat: nat, contX: contX, segs: Array.prototype.map.call(box.children, function (c) { return c.textContent; }) };
+  }
+  function natWrap(text, isTitle, width, forWhat) {
+    var wr = el('div', 'natwrap ' + (isTitle ? 'ttitle' : 'pfont'));
+    wr.style.width = px(width);
+    var r = el('div', 'natref', text);
+    r.setAttribute('data-test', 'natref');
+    r.setAttribute('data-for', forWhat);
+    wr.appendChild(r);
+    return { wrap: wr, ref: r };
+  }
+
+  /* ══ 构造页面块 ═════════════════════════════════════════════════ */
+  var rack = q(document, '[data-test="rack"]');
+  var rack2 = q(document, '[data-test="rack2"]');
+  var MEAS = [];
+
+  function newBlock(host, id, counter, title, knob) {
+    var d = el('div', 'demo');
+    d.setAttribute('data-test', 'demo'); d.setAttribute('data-block', id);
+    var h = el('div', 'dhead'); h.setAttribute('data-test', 'dhead');
+    if (counter) h.appendChild(el('span', 'dcounter', counter));
+    h.appendChild(document.createTextNode(title));
+    if (knob) h.appendChild(elRich('span', 'dknob', knob));
+    var cap = el('p', 'cap'); cap.setAttribute('data-test', 'cap');
+    var pg = el('div', 'pg'); pg.setAttribute('data-test', 'page');
+    var col = el('div', 'col'); col.setAttribute('data-test', 'col');
+    pg.appendChild(col);
+    d.appendChild(h); d.appendChild(cap); d.appendChild(pg);
+    host.appendChild(d);
+    return { root: d, cap: cap, pg: pg, col: col, id: id };
+  }
+  function fxBar(b, s) {
+    var e = elRich('div', 'fxban', s); e.setAttribute('data-test', 'fxban');
+    b.root.insertBefore(e, b.cap);
+  }
+  function report(b, numbers, note, data) {
+    b.cap.insertAdjacentHTML('beforeend', rich(numbers) + (note ? '<span class="capnote">' + rich(note) + '</span>' : ''));
+    Object.keys(data || {}).forEach(function (k) { b.cap.setAttribute('data-m-' + k, String(data[k])); });
+    MEAS.push({ block: b.id, cap: b.cap.textContent.replace(/\s+/g, ' ').trim() });
+  }
+  function colCenter(col) { var r = col.getBoundingClientRect(); return r.left + r.width / 2; }
+  /* 几何：列差＝相对**本列窄容器**中心；页差＝相对**整页内容列**中心 */
+  function geomOf(box, lines, cc) {
+    var br = box.getBoundingClientRect(), bc = br.left + br.width / 2;
+    return lines.map(function (x) {
+      return { t: x.text, n: x.n, l: x.left, r: x.right, cx: x.cx,
+        d: r2((br.left + x.cx) - bc), dC: r2((br.left + x.cx) - cc),
+        over: r2(x.right - br.width) };
+    });
+  }
+  function colEl(lab, text, width, isTitle, rule) {
+    var c = el('div', 'bcol');
+    var l = el('span', 'clab', lab);
+    l.style.width = px(width);
+    c.appendChild(l);
+    var box = el('div', 'narrow fxline ' + (isTitle ? 'ttitle' : 'pfont'), text);
+    box.style.width = px(width);
+    box.setAttribute('data-test', 'line');
+    box.setAttribute('data-fx', '1');
+    box.setAttribute('data-narrow', String(width));
+    if (rule && RULE_CSS[rule]) box.style.cssText += ';' + RULE_CSS[rule];
+    c.appendChild(box);
+    return { col: c, box: box, lab: l };
+  }
+  function benchRow(label) {
+    var r = el('div', 'brow');
+    r.appendChild(elRich('span', 'browlab', label));
+    var cols = el('div', 'bcols');
+    r.appendChild(cols);
+    return { row: r, cols: cols };
+  }
+  function brkStr(lines) {
+    var b = breaksOf(lines);
+    if (!b.length) return '无（一行装得下）';
+    return b.map(function (x) {
+      return '第' + x.after + '字后「' + x.endChar + '」→「' + x.startChar + '」' +
+        (PUNCT[x.startChar] ? '←行首是' + PUNCT[x.startChar] : '');
+    }).join('；');
+  }
+
+  /* ── X0 · 真实诗页 @ 当前视口（固定块）────────────────────────── */
+  (function () {
+    var b = newBlock(rack, 'X0', '固定 · 不在候选里',
+      '固定 · 真实诗页 @ 本视口（无笔记；8 行全部居中）',
+      '固定块，不随任何候选变。它回答：真实原文在这个宽度装不下吗。全页只有本块画了完整诗页（含顶部行／题名／身份行）。');
+    b.root.setAttribute('data-kind', 'real');
+    var col = b.col;
+    var bar = el('div', 'topbar');
+    var back = el('a', 'ctl', '返回'); back.setAttribute('data-test', 'back'); back.href = '#';
+    var det = el('a', 'ctl', '详情'); det.setAttribute('data-test', 'detail'); det.href = '#';
+    bar.appendChild(back); bar.appendChild(det); col.appendChild(bar);
+    var hd = el('div', 'poem-head');
+    var tt = el('h1', 'p-title', POEM.title); tt.setAttribute('data-test', 'title');
+    var idn = el('p', 'p-id', IDENT); idn.setAttribute('data-test', 'ident');
+    hd.appendChild(tt); hd.appendChild(idn); col.appendChild(hd);
+    var bd = el('div', 'poem-body'); bd.setAttribute('data-test', 'poem'); col.appendChild(bd);
+    POEM.lines.forEach(function (t) {
+      var l = el('div', 'line', t); l.setAttribute('data-test', 'line'); bd.appendChild(l);
+    });
+    var cc = colCenter(col), geom = [], boxes = 0, maxLine = 0, wrapped = 0, dev = 0;
+    Array.prototype.forEach.call(bd.querySelectorAll('[data-test="line"]'), function (l) {
+      var bx = lineBoxes(l);
+      boxes += bx.length;
+      if (bx.length > 1) wrapped += 1;
+      geomOf(l, bx, cc).forEach(function (x) { dev = Math.max(dev, Math.abs(x.dC)); geom.push(x); });
+      bx.forEach(function (x) { maxLine = Math.max(maxLine, x.w); });
+    });
+    var titleGap = r2(idn.getBoundingClientRect().top - tt.getBoundingClientRect().bottom);
+    var bodyGap = r2(bd.getBoundingClientRect().top + parseFloat(getComputedStyle(bd).paddingTop) - idn.getBoundingClientRect().bottom);
+    report(b,
+      'V=' + V + ' · C=' + r2(CW) + ' · <b>正文可用宽＝C−33.6＝' + r2(AVAIL) + 'px</b> ＝ ' + r2(AVAIL) + '÷' + CH + ' ＝ <b class="hit">' + r2(AVAIL / CH) + ' 个字位</b><br>' +
+      '真实 8 行：折行 <b class="hit">' + wrapped + ' 行</b>' + (wrapped === 0
+        ? ' ⇒ <b>本内容在该宽度不折行</b>（最长一行 ' + POEM.lines[0].length + ' 字＝' + r2(POEM.lines[0].length * CH) + 'px ≤ ' + r2(AVAIL) + 'px）' : '') +
+      '；行盒 ' + boxes + '；每行盒中心与内容列中心最大差 <b>' + r2(dev) + 'px</b><br>' +
+      '题名→身份行 <b>' + titleGap + 'px</b>（0.7rem）；身份行→原文 <b>' + bodyGap + 'px</b>（2.1rem）；正文后无页脚行',
+      '（本块没有夹具：题名与 8 行都是 <code>content/poems/gushi-shijiu-shou-01.md</code> 的原文，逐字未改。顶部行＝返回左／详情右，不参与居中。）',
+      { kind: 'real', v: V, cw: r2(CW), avail: r2(AVAIL), slotCount: r2(AVAIL / CH), wrapped: wrapped,
+        boxes: boxes, maxLine: r2(maxLine), lineDev: r2(dev), titleGap: titleGap, bodyGap: bodyGap,
+        geom: JSON.stringify(geom) });
+  })();
+
+  /* ── X1 · 真实原文 · 容器压窄到装不下（固定块）────────────────── */
+  (function () {
+    var b = newBlock(rack, 'X1', '固定 · 不在候选里',
+      '固定 · 真实原文 · 容器压窄到装不下（' + slots(NARROW_REAL) + 'px ＝ ' + NARROW_REAL + ' 字位）',
+      '固定块：内容**全是真实原文**（第 1、2 行，逐字未改），只有「容器宽度」是我压窄的；它**不是**任何已定宽度，只为把「装不下」画出来。');
+    b.root.setAttribute('data-kind', 'realnarrow');
+    var col = b.col;
+    var hd = el('div', 'poem-head');
+    hd.appendChild(el('h1', 'p-title', POEM.title));
+    hd.appendChild(el('p', 'p-id', IDENT));
+    col.appendChild(hd);
+    var bd = el('div', 'poem-body'); bd.setAttribute('data-test', 'poem'); col.appendChild(bd);
+    var cc = colCenter(col), rows = [], geom = [];
+    [0, 1].forEach(function (idx) {
+      var box = el('div', 'narrow protoout', POEM.lines[idx]);
+      box.style.width = px(slots(NARROW_REAL));
+      if (idx > 0) box.style.marginTop = '0.7rem';   /* 两个压窄容器分开一点，免得两条点线连成一个框 */
+      box.setAttribute('data-test', 'line'); box.setAttribute('data-real', '1');
+      box.setAttribute('data-narrow', String(slots(NARROW_REAL)));
+      bd.appendChild(box);
+      var bx = lineBoxes(box);
+      rows.push({ text: POEM.lines[idx], n: bx.length, lines: bx.map(function (x) { return x.text; }),
+        counts: bx.map(function (x) { return x.n; }), brk: breaksOf(bx) });
+      geomOf(box, bx, cc).forEach(function (x) { geom.push(x); });
+    });
+    report(b,
+      '容器可用宽＝<b>' + slots(NARROW_REAL) + 'px</b>（' + NARROW_REAL + ' 字位；**不是**已定宽度）<br>' +
+      rows.map(function (r, i) {
+        return '<b>真实第' + (i + 1) + '行</b>「' + r.text + '」（' + r.text.length + ' 字＝' + r2(r.text.length * CH) + 'px）⇒ <b class="hit">' + r.n + ' 行盒</b> ' +
+          r.lines.map(function (t) { return '「' + t + '」'; }).join(' ｜ ') + '（每行 ' + r.counts.join('／') + ' 字）｜断点：' +
+          r.brk.map(function (x) { return '第' + x.after + '字后「' + x.endChar + '」→「' + x.startChar + '」'; }).join('；');
+      }).join('<br>'),
+      '⚠ 两行都只用「浏览器默认」断行规则（不写任何断行 CSS）：实测收尾标点没有落在行首、开局标点没有落在行尾。',
+      { kind: 'realnarrow', narrowW: slots(NARROW_REAL), rows: JSON.stringify(rows), geom: JSON.stringify(geom) });
+  })();
+
+  /* ── A 块 · 维度 1：断点的合法位置 ─────────────────────────────── */
+  (function () {
+    var b = newBlock(rack, 'A', '维度 1 · 断点候选（并列，不排序）',
+      '维度 1 · 断点的合法位置（一行：一段夹具；一列：一个候选）',
+      '**四列只差一条**：断行规则（① 默认 ／ ② strict ／ ③ strict＋hanging-punctuation ／ ①-对照 anywhere）。夹具文字、容器宽（' +
+      slots(SLOT_P_A) + 'px）、居中方式**全都相同**。');
+    b.root.setAttribute('data-kind', 'break');
+    fxBar(b, '黄框里的文字全是<b>夹具（不是真实数据）</b>：一条第 5 字是收尾标点「，」、一条第 5 字是开局标点「（」；容器宽 <b>' +
+      slots(SLOT_P_A) + 'px（' + SLOT_P_A + ' 字位）</b>在四列里完全相同。「①-对照」标着**不是候选之一**，只为量出「不做任何处理」的字面含义。');
+    var col = b.col;
+    var bench = el('div', 'bench'); col.appendChild(bench);
+    var cc = colCenter(col);
+    var rowsSpec = [
+      { lab: '夹具诗句1 · 第 5 字是收尾标点「，」：' + FX.close, text: FX.close },
+      { lab: '夹具诗句2 · 第 5 字是开局标点「（」、第 9 字是收尾标点「）」：' + FX.open, text: FX.open }
+    ];
+    var measured = [];
+    rowsSpec.forEach(function (rs) {
+      var row = benchRow(rs.lab);
+      bench.appendChild(row.row);
+      A_COLS.forEach(function (A) {
+        var c = colEl(A.lab, rs.text, slots(SLOT_P_A), false, A.rule);
+        c.box.setAttribute('data-rule', A.rule);
+        c.box.setAttribute('data-cand', A.key);
+        row.cols.appendChild(c.col);
+        measured.push({ row: rs.text, key: A.key, rule: A.rule, lab: A.lab, box: c.box, lines: lineBoxes(c.box) });
+      });
+    });
+    var hangingOk = (typeof CSS !== 'undefined' && CSS.supports) ? CSS.supports('hanging-punctuation', 'allow-end') : null;
+    var dev = 0, over = 0, geom = [];
+    measured.forEach(function (m) {
+      geomOf(m.box, m.lines, cc).forEach(function (x) {
+        dev = Math.max(dev, Math.abs(x.d)); over = Math.max(over, x.over);
+        geom.push({ row: m.row, key: m.key, t: x.t, n: x.n, l: x.l, r: x.r, cx: x.cx, d: x.d, dC: x.dC });
+      });
+    });
+    report(b,
+      '窄列宽 <b>' + slots(SLOT_P_A) + 'px</b>（' + SLOT_P_A + ' 字位，四列相同）；每一行中心与本列窄容器中心差 <b>' + r2(dev) + 'px</b>（列内仍按已定「每行都居中」）<br>' +
+      rowsSpec.map(function (rs, ri) {
+        return '<b>夹具诗句' + (ri + 1) + '</b>（第 ' + (ri === 0 ? '5 字是「，」' : '5 字是「（」') + '）：' + A_COLS.map(function (A) {
+          var m = measured.filter(function (x) { return x.key === A.key && x.row === rs.text; })[0];
+          return '　' + A.lab + '（' + A.short + '）：<b>' + m.lines.map(function (x) { return x.n; }).join('／') +
+            ' 字</b>　断点：' + brkStr(m.lines);
+        }).join('<br>');
+      }).join('<br>') + '<br>' +
+      '<code>CSS.supports("hanging-punctuation","allow-end")</code> ＝ <b class="hit">' + hangingOk + '</b>' +
+      (hangingOk ? '' : ' ⇒ ③ 的「挤入」在本机**做不到**；本夹具上 ①／②／③ 的断点**逐字相同**，只有「①-对照」不同。'),
+      '（①-对照＝<code>line-break: anywhere</code>，是「① 不做任何处理」的**字面**读法，**不是**候选之一；本机默认落在另一侧。' +
+      '断点用**逐字 Range** 量：断点＝上一行最后一个字与下一行第一个字之间。列内每行都居中 ⇒ 列差恒为 0。）',
+      { kind: 'break', hangingOk: hangingOk, narrowW: slots(SLOT_P_A), dev: r2(dev), over: over,
+        cols: JSON.stringify(A_COLS.map(function (A) { return { key: A.key, rule: A.rule, cand: A.cand, lab: A.lab }; })),
+        measured: JSON.stringify(measured.map(function (m) {
+          return { row: m.row, key: m.key, rule: m.rule, lines: m.lines.map(function (x) { return x.text; }), brk: breaksOf(m.lines) };
+        })),
+        geom: JSON.stringify(geom) });
+  })();
+
+  /* ── B 块 · 维度 2：折行后第二行怎么排 ─────────────────────────── */
+  (function () {
+    var b = newBlock(rack, 'B', '维度 2 · 续行候选（并列，不排序）',
+      '维度 2 · 折行后第二行怎么排（一行：一段夹具；一列：一个候选）',
+      '**三列只差一条**：续行排布（① 每行都居中 ／ ② 续行左对齐到首行左沿 ／ ③ 续行＝首行左沿＋' + INDENT +
+      ' 字）。夹具文字、容器宽（' + slots(SLOT_P_B) + 'px ／ ' + tslots(SLOT_T_B) + 'px）、断行规则（浏览器默认）**全都相同**。');
+    b.root.setAttribute('data-kind', 'cont');
+    fxBar(b, '黄框里的文字全是<b>夹具（不是真实数据）</b>：一条夹具诗句（容器 ' + slots(SLOT_P_B) + 'px＝' + SLOT_P_B +
+      ' 字位）＋ 一条夹具题名（容器 ' + tslots(SLOT_T_B) + 'px＝' + SLOT_T_B + ' 题字位）。' +
+      '⚠ 纯 CSS **做不到**「首行居中、其余左对齐」（<code>text-align-last</code> 只改得动**末行**）⇒ ②③ 由脚本按**浏览器自己选的断点**把行拆成段重排，断点没改；另留隐藏参照供自检核对。');
+    var col = b.col;
+    var bench = el('div', 'bench'); col.appendChild(bench);
+    var cc = colCenter(col);
+    var refP = natWrap(FX.cont, false, slots(SLOT_P_B), 'poem');
+    var refT = natWrap(FX.contT, true, tslots(SLOT_T_B), 'title');
+    /* ⚠ 先挂到 DOM 再量：元素一旦是游离的，getBoundingClientRect 全为 0 ⇒ 它就不会折行（踩过）。 */
+    bench.appendChild(refP.wrap); bench.appendChild(refT.wrap);
+    var natP = lineBoxes(refP.ref).map(function (x) { return x.text; });
+    var natT = lineBoxes(refT.ref).map(function (x) { return x.text; });
+    var poemRow = benchRow('夹具诗句 · ' + natP.length + ' 行：' + FX.cont + '（容器 ' + slots(SLOT_P_B) + 'px＝' + SLOT_P_B + ' 字位）');
+    var titleRow = benchRow('夹具长题名 · ' + natT.length + ' 行：' + FX.contT + '（容器 ' + tslots(SLOT_T_B) + 'px＝' + SLOT_T_B + ' 题字位）');
+    bench.appendChild(poemRow.row); bench.appendChild(titleRow.row);
+    var got = [];
+    B_COLS.forEach(function (B) {
+      var cp = colEl(B.lab, FX.cont, slots(SLOT_P_B), false, null);
+      var ct = colEl(B.lab, FX.contT, tslots(SLOT_T_B), true, null);
+      cp.box.setAttribute('data-mode', B.mode); cp.box.setAttribute('data-cand', B.key);
+      ct.box.setAttribute('data-mode', B.mode); ct.box.setAttribute('data-cand', B.key);
+      poemRow.cols.appendChild(cp.col);
+      titleRow.cols.appendChild(ct.col);
+      var info = { poem: { contX: 0, segs: natP }, title: { contX: 0, segs: natT } };
+      if (B.mode !== 'center') {
+        info.poem = splitCont(cp.box, B.mode === 'split2' ? INDENT * CH : 0);
+        info.title = splitCont(ct.box, B.mode === 'split2' ? INDENT * CH : 0);
+      }
+      got.push({ key: B.key, mode: B.mode, lab: B.lab, contX: r2(info.poem.contX),
+        sameP: info.poem.segs.join('｜') === natP.join('｜'),
+        sameT: info.title.segs.join('｜') === natT.join('｜'),
+        pBox: cp.box, tBox: ct.box, pLines: lineBoxes(cp.box), tLines: lineBoxes(ct.box) });
+    });
+    /* ②-近似：纯 CSS 只能改末行 —— 放进诗句那一行的最后一列，明确标成近似（不是候选） */
+    var g2 = colEl('②-近似 纯CSS', FX.cont, slots(SLOT_P_B), false, null);
+    g2.box.style.textAlign = 'center';
+    g2.box.style.textAlignLast = 'left';
+    poemRow.cols.appendChild(g2.col);
+    got.push({ key: 'B2approx', mode: 'approx', lab: '②-近似 纯CSS', contX: 0, sameP: true, sameT: true,
+      pBox: g2.box, tBox: null, pLines: lineBoxes(g2.box), tLines: [] });
+    var dev = 0, over = 0, geom = [];
+    got.forEach(function (g) { g.pGeom = geomOf(g.pBox, g.pLines, cc); g.tGeom = g.tBox ? geomOf(g.tBox, g.tLines, cc) : []; });
+    got.forEach(function (g) {
+      g.pGeom.concat(g.tGeom).forEach(function (x) { dev = Math.max(dev, Math.abs(x.d)); over = Math.max(over, x.over); geom.push(x); });
+    });
+    report(b,
+      '<b>中心差＝列差</b>（相对本列窄容器中心）；每行差的最大绝对值 <b>' + r2(dev) + 'px</b>；' +
+      '续行右沿超出所在容器的最大量 <b>' + over + 'px</b>（③ 只挪续行、不缩小容器 ⇒ 续行接近容器宽时会顶出去）<br>' +
+      '<b>夹具诗句</b>（' + slots(SLOT_P_B) + 'px＝' + SLOT_P_B + ' 字位）⇒ ' + natP.length + ' 行盒（行1 ' + natP[0].split('').length + ' 字，三列相同：左0／右' + slots(SLOT_P_B) + '）：' +
+      got.map(function (g) {
+        return '<br>　' + g.lab + '：' + g.pGeom.slice(1).map(function (x) {
+          return '行' + (g.pGeom.indexOf(x) + 1) + '「' + x.t + '」左' + x.l + '／右' + x.r + '／列差' + x.d;
+        }).join('；');
+      }).join('') + '<br>' +
+      '<b>夹具长题名</b>（' + tslots(SLOT_T_B) + 'px＝' + SLOT_T_B + ' 题字位）⇒ ' + natT.length + ' 行盒（行1 ' + natT[0].split('').length + ' 字，三列相同：左0／右' + tslots(SLOT_T_B) + '）：' +
+      got.map(function (g) {
+        return '<br>　' + g.lab + '：' + (g.tBox ? g.tGeom.slice(1).map(function (x) {
+          return '行' + (g.tGeom.indexOf(x) + 1) + '「' + x.t + '」左' + x.l + '／列差' + x.d;
+        }).join('；') : '—（本格只作诗句那一条的对照）');
+      }).join('') + '<br>' +
+      '断点与隐藏参照逐段一致：' + got.map(function (g) {
+        return g.lab + ' 诗句' + (g.sameP ? '是' : '否') + (g.tBox ? '／题名' + (g.sameT ? '是' : '否') : '');
+      }).join('；'),
+      '（②③ 的续段左缩进＝首段文字盒左沿＋' + INDENT + ' 字（' + r2(INDENT * CH) + 'px）×0／1 ⇒ ② 是 0 字、③ 是 ' + INDENT + ' 字。' +
+      '「②-近似」＝<code>text-align:center</code>＋<code>text-align-last:left</code>，纯 CSS 只改得动**末行**：恰好 2 行时它与 ② 等价，≥3 行时中间行仍居中。' +
+      '本块不画诗页题头／身份行：那两行与断行无关，它们在 X0／X1 里出现过。）',
+      { kind: 'cont', indentPx: r2(INDENT * CH), dev: r2(dev), over: over,
+        narrowW: slots(SLOT_P_B), narrowTW: tslots(SLOT_T_B), natP: JSON.stringify(natP), natT: JSON.stringify(natT),
+        results: JSON.stringify(got.map(function (g) {
+          return { key: g.key, mode: g.mode, contX: g.contX, sameP: g.sameP, sameT: g.sameT,
+            poem: g.pLines.map(function (x) { return x.text; }), title: g.tLines.map(function (x) { return x.text; }),
+            poemN: g.pLines.map(function (x) { return x.n; }), titleN: g.tLines.map(function (x) { return x.n; }) };
+        })),
+        geom: JSON.stringify(geom) });
+  })();
+
+  /* ── C 块 · 维度 3：长题名（折行）与断点规则 ───────────────────── */
+  (function () {
+    var b = newBlock(rack, 'C', '维度 3 · 长题名（与 A 的长诗句分开看）',
+      '维度 3 · 长题名（折行）：同一段夹具题名，四列只差断行规则',
+      '**四列只差一条**：断行规则（同 A 块四列）。夹具题名、容器宽（' + tslots(SLOT_T_C) + 'px）、题名字号／字距（1.5rem／500／0.1em）**全都相同**。');
+    b.root.setAttribute('data-kind', 'titlebreak');
+    fxBar(b, '黄框里的文字是<b>夹具（不是真实数据）</b>的长题名：' + FX.titleL + '（' + FX.titleL.length + ' 字），按**题名**的字号／字距排（1.5rem／500／0.1em ⇒ 每汉字推进 ' +
+      CHT + 'px），容器宽 <b>' + tslots(SLOT_T_C) + 'px（' + SLOT_T_C + ' 题字位）</b>；一个视口一行放不下几列，所以四列是**竖着排**的。');
+    var col = b.col;
+    var bench = el('div', 'bench'); col.appendChild(bench);
+    var cc = colCenter(col);
+    var row = benchRow('夹具长题名 · ' + FX.titleL.length + ' 字，含「【」「】」');
+    bench.appendChild(row.row);
+    var measured = [];
+    A_COLS.forEach(function (A) {
+      var c = colEl(A.lab, FX.titleL, tslots(SLOT_T_C), true, A.rule);
+      c.box.setAttribute('data-rule', A.rule);
+      c.box.setAttribute('data-cand', A.key);
+      row.cols.appendChild(c.col);
+      measured.push({ key: A.key, rule: A.rule, lab: A.lab, short: A.short, box: c.box, lines: lineBoxes(c.box) });
+    });
+    var dev = 0, over = 0, geom = [];
+    measured.forEach(function (m) {
+      geomOf(m.box, m.lines, cc).forEach(function (x) {
+        dev = Math.max(dev, Math.abs(x.d)); over = Math.max(over, x.over);
+        geom.push({ key: m.key, t: x.t, n: x.n, l: x.l, r: x.r, cx: x.cx, d: x.d, dC: x.dC });
+      });
+    });
+    report(b,
+      '窄列宽 ' + tslots(SLOT_T_C) + 'px（' + SLOT_T_C + ' 题字位）；每一行中心与本列窄容器中心差 <b>' + r2(dev) + 'px</b>；行右沿超出容器 ' + over + 'px<br>' +
+      measured.map(function (m) {
+        return '　' + m.lab + '（' + m.short + '）：<b>' + m.lines.length + ' 行盒</b>，每行 ' + m.lines.map(function (x) { return x.n; }).join('／') + ' 字；断点：' + brkStr(m.lines);
+      }).join('<br>') + '<br>' +
+      '（四列里只有「①-对照」的断点不同：其他三列第 8 字后就把「数」推下去，好让收尾标点「】」不落在行首。）',
+      '（长题名的折行**本身尚未被采纳为规格**：本页只把它照实画出来并量出来。它与长诗句用同一套断行规则，只是字号／字距不同 ⇒ 每行能装的**字数**也不同。）',
+      { kind: 'titlebreak', narrowW: tslots(SLOT_T_C), dev: r2(dev), over: over,
+        measured: JSON.stringify(measured.map(function (m) {
+          return { key: m.key, rule: m.rule, n: m.lines.length, lines: m.lines.map(function (x) { return x.text; }),
+            counts: m.lines.map(function (x) { return x.n; }), brk: breaksOf(m.lines) };
+        })),
+        geom: JSON.stringify(geom) });
+  })();
+
+  /* ── D4 块 · 维度 4：一行到底能放多少字 ────────────────────────── */
+  (function () {
+    var b = newBlock(rack, 'D4', '维度 4 · 可复算数字',
+      '维度 4 · 一行到底能放多少字（真实第 1 行 · 逐档实测）',
+      '本块＝**量测台**，不是诗页版面：各行容器左沿对齐内容列左沿，只为便于逐档比较。文字是**真实原文**第 1 行。图里画 ' +
+      SLOTS_DRAWN.join('／') + ' 档，其余档用隐藏尺量（数字照样打印）。');
+    b.root.setAttribute('data-kind', 'slots');
+    var col = b.col;
+    var hd = el('div', 'poem-head');
+    hd.appendChild(el('h1', 'p-title', POEM.title));
+    hd.appendChild(el('p', 'p-id', IDENT));
+    col.appendChild(hd);
+    var bench = el('div', 'bench'); col.appendChild(bench);
+    SLOTS_DRAWN.forEach(function (k) {
+      var row = benchRow('容器 ' + k + ' 字位＝' + slots(k) + 'px');
+      var box = el('div', 'benchbox', POEM.lines[0]);
+      box.style.width = px(slots(k));
+      box.setAttribute('data-test', 'bench'); box.setAttribute('data-k', String(k));
+      box.setAttribute('data-narrow', String(slots(k)));
+      row.cols.appendChild(box);
+      bench.appendChild(row.row);
+    });
+    var ruler = el('div', 'ruler'); col.appendChild(ruler);
+    var all = [], drawn = [];
+    for (var k = SLOTS_MIN; k <= SLOTS_MAX; k += 1) {
+      var rb = el('div', 'rulerbox', POEM.lines[0]);
+      rb.style.width = px(slots(k));
+      rb.setAttribute('data-test', 'rulerbox'); rb.setAttribute('data-k', String(k));
+      ruler.appendChild(rb);
+      var bx = lineBoxes(rb);
+      all.push({ k: k, w: slots(k), one: bx.length === 1, lines: bx.map(function (x) { return x.text; }),
+        counts: bx.map(function (x) { return x.n; }) });
+    }
+    Array.prototype.forEach.call(bench.querySelectorAll('[data-test="bench"]'), function (bx) {
+      var lb = lineBoxes(bx);
+      drawn.push({ k: Number(bx.getAttribute('data-k')), w: r2(bx.getBoundingClientRect().width),
+        lines: lb.map(function (x) { return { t: x.text, n: x.n, l: x.left, r: x.right, cx: x.cx }; }) });
+    });
+    var minSlots = null;
+    all.forEach(function (r) { if (r.one && minSlots === null) minSlots = r.k; });
+    if (minSlots === null) minSlots = SLOTS_MAX;
+    report(b,
+      '<b>正文可用宽 ÷ 每汉字推进宽 ＝ ' + r2(AVAIL) + '÷' + CH + ' ＝ ' + r2(AVAIL / CH) + '</b>（本视口）⇒ 这段正文最多装 <b>' +
+      Math.floor(AVAIL / CH) + ' 个字位</b>（一个汉字或一个全角标点各占 1 个字位）<br>' +
+      '逐档实测（真实第 1 行「' + POEM.lines[0] + '」＝ ' + POEM.lines[0].length + ' 字）：' +
+      all.map(function (r) {
+        return '<br>　容器 ' + r.k + ' 字位（' + r.w + 'px）⇒ ' + (r.one ? '<b class="hit">不折行</b>（1 行）'
+          : r.lines.length + ' 行：' + r.lines.join('｜') + '（每行 ' + r.counts.join('／') + ' 字）');
+      }).join('') +
+      '<br>⇒ <b class="hit">最少 ' + minSlots + ' 个字位（' + slots(minSlots) + 'px）才不折行</b>；' +
+      '<b>' + (minSlots - 1) + ' 个字位（' + slots(minSlots - 1) + 'px）仍折成 2 行</b> —— 因为最后一个字是收尾标点「。」，' +
+      '它不能起行 ⇒ 前一个字被推到第二行（' + (minSlots - 2) + ' 字后断）。',
+      '（隐藏尺：' + SLOTS_MIN + '…' + SLOTS_MAX + ' 档全部量过（上表就是它的结果，断点均用逐字 Range 量）；图里只画了 ' +
+      SLOTS_DRAWN.join('／') + ' 档，其余档的**每行字数**在图里以文字给出。）',
+      { kind: 'slots', avail: r2(AVAIL), availSlots: r2(AVAIL / CH), charAdvance: CH, minSlots: minSlots,
+        rows: JSON.stringify(all), drawn: JSON.stringify(drawn) });
+  })();
+
+  /* ── 固定块 · 目录页（**不进图**；只为「收起／展开各查一次无横向溢出」）── */
+  (function () {
+    var b = newBlock(rack2, 'X2', '固定 · 不在候选里',
+      '固定 · 目录页 · 收起／展开（真实 19 首 ＋ 1 条夹具行）',
+      '固定块，不随任何候选变；与断行／续行无关。放它只为在**收起态**与**展开态**各查一次横向溢出。');
+    b.root.setAttribute('data-kind', 'hub');
+    fxBar(b, '本块第 1 行（黄框）是<b>夹具行</b>：题名故意写长，用来在窄列里看折行。<b>它不是内容</b>、不计入 19 首。');
+    var col = b.col;
+    var top = el('div', 'topline');
+    var about = el('a', 'aboutlink', '关于'); about.setAttribute('data-test', 'about'); about.href = '#';
+    top.appendChild(about); col.appendChild(top);
+    var gh = el('button', 'ghead');
+    gh.setAttribute('data-test', 'ghead'); gh.type = 'button'; gh.setAttribute('aria-expanded', 'false');
+    var mk = el('span', 'gmark', '[+]'); mk.setAttribute('data-test', 'gmark');
+    var gn = el('span', 'gname', '汉'); gn.setAttribute('data-test', 'gname');
+    var gc = el('span', 'gcount'); gc.setAttribute('data-test', 'gcount');
+    gc.appendChild(el('b', null, '19')); gc.appendChild(document.createTextNode(' 首'));
+    gh.appendChild(mk); gh.appendChild(gn); gh.appendChild(gc); col.appendChild(gh);
+    var list = el('ul', 'glist'); list.setAttribute('data-test', 'glist'); list.hidden = true;
+    var fxRow = el('li', 'poemrow fxrow');
+    fxRow.setAttribute('data-test', 'row'); fxRow.setAttribute('data-fx', '1');
+    var fa = el('a', 'plink'); fa.href = '#';
+    var ft = el('span', 'ptitle'); ft.appendChild(el('span', 'fxbadge', '夹具行'));
+    ft.appendChild(document.createTextNode(FX.titleL));
+    fa.appendChild(ft); fa.appendChild(el('span', 'pauthor', '佚名'));
+    fxRow.appendChild(fa); list.appendChild(fxRow);
+    TITLES.forEach(function (t) {
+      var li = el('li', 'poemrow'); li.setAttribute('data-test', 'row');
+      var a = el('a', 'plink'); a.href = '#';
+      a.appendChild(el('span', 'ptitle', t)); a.appendChild(el('span', 'pauthor', '佚名'));
+      li.appendChild(a); list.appendChild(li);
+    });
+    col.appendChild(list);
+    gh.addEventListener('click', function () {
+      var open = gh.getAttribute('aria-expanded') === 'true';
+      gh.setAttribute('aria-expanded', open ? 'false' : 'true');
+      mk.textContent = open ? '[+]' : '[−]';
+      list.hidden = open;
+    });
+    var gx = r2(gn.getBoundingClientRect().left - col.getBoundingClientRect().left);
+    col.style.setProperty('--name-x', px(gx));
+    b.root.setAttribute('data-name-x', String(gx));
+    b.root.setAttribute('data-seam', String(r2(gn.getBoundingClientRect().left - mk.getBoundingClientRect().right)));
+    b.root.setAttribute('data-rows', String(TITLES.length + 1));
+    report(b,
+      '记号悬挂槽（组名左沿相对内容列左沿）＝<b>' + gx + 'px</b>；记号右沿→组名左沿固定缝＝<b>' +
+      r2(gn.getBoundingClientRect().left - mk.getBoundingClientRect().right) + 'px</b>（0.4rem）<br>' +
+      '收起／展开：点组头展开 ' + (TITLES.length + 1) + ' 行（1 夹具行 ＋ 真实 ' + TITLES.length + ' 首）、再点收起 —— 两个状态各自查一次横向溢出（见自检）。',
+      '（本块**不进图**：它与断行／续行无关。它存在的唯一理由是自检要求「无横向溢出要在收起与展开各查一次」。）',
+      { kind: 'hub', nameX: gx, rows: TITLES.length + 1,
+        seam: r2(gn.getBoundingClientRect().left - mk.getBoundingClientRect().right) });
+  })();
+
+  /* ── 写回列宽与看图态 ─────────────────────────────────────────── */
+  document.documentElement.style.setProperty('--cw', px(CW));
+  document.documentElement.dataset.cw = String(r2(CW));
+  document.documentElement.dataset.v = String(V);
+  document.documentElement.dataset.charAdvance = String(CH);
+  document.documentElement.dataset.titleAdvance = String(CHT);
+  var si = q(document, '[data-test="shotinfo"]');
+  if (si) si.textContent = 'V=' + V + 'px · C=' + r2(CW) + 'px · DPR=' + window.devicePixelRatio;
+  document.documentElement.setAttribute('data-meas', JSON.stringify(MEAS));
+
+  /* 看图态：只影响「说明横幅／说明性文字」的显隐，**不改任何排布规则**（也不碰被量测的元素）。 */
+  if (location.hash === '#shot') document.documentElement.dataset.shot = '1';
+
+  document.documentElement.dataset.ready = '1';
+})();
+</script>
+</body>
+</html>
