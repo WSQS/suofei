@@ -7,7 +7,7 @@
 
 - **目录对齐轮已到待审**：`prototypes/q-hub-align.html`／`.430.png`／`.md`，自检 `check-align.mjs`。已含返修：槽内居中档改为2rem、另有1.6rem档；水平与竖直关系分别表达。尚无用户对这一轮的选择。
 - **诗页轮已到待审，不再制作中**：`prototypes/q-poem.head.html`／`.head.430.png`（题名/身份/原文主次），`q-poem.entries.html`／`.entries.430.png`（返回/详情/笔记入口）；说明 `q-poem.md`、自检 `check-poem.mjs`。负责人报告自检0失败；对话侧尚未独立审读全部诗页材料，不称用户已审。
-- **A路线整合稿已到待审**：`../content-format/prototypes/a-route/README.md`（字段、完整MD/JSON、缺省、歧义与Markdown范围）。A方向已选，具体格式未采纳。
+- **A路线首份整合稿已结束本轮使用并归档**：`../content-format/history/round-2026-10-15-a-route-draft/README.md`（归档提交 `4ecdd98`）。本轮已得到中文 `dynasty`、删除 `era`、保留 `genre/stanzas` 等局部选择；不再作为当前待审稿。**第二版字段稿正在制作**，计划位置 `../content-format/prototypes/a-route-v2/`；制作中不视为已交付，具体字段与规则仍未整套采纳。
 - **已归档三轮**：目录层级轮、目录水平轮、源格式A/B/C候选轮，各在专属 `history/<round-id>/`。原候选已不是当前待审材料。
 - **当前无在跑制作线**：负责人最近回报三条子线已归档、工作树已安全回收。现在是材料可分别讨论，不是缺材料的全局等待。关于页原型尚未制作。
 - 产品实施与发布保持暂停，版本号未预定，线上仍0.1.1。下面旧轮次描述作阶段经过，当前材料状态以本节为准。
