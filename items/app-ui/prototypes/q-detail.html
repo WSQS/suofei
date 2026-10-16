@@ -1,0 +1,630 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="tech" data-shot="0">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>诗歌详情页 · 完整表达（候选整页 ＋ 3 格局部对照）—— 逐项实测 ／ 自包含单文件</title>
+<style>
+/* 令牌快照（内嵌副本，不是新权威）
+ *   来源：prototype/css/theme-tech.css（**只读**，本会话未改）
+ *   仓库提交：778f480（git rev-parse --short HEAD；该文件在此提交上无未提交改动）
+ *   权威仍是 docs/design/visual-tokens.md（§2 颜色 / §3 排版 / §4 间距形状 / §4.1 结构记号）。
+ *   这里只是为「单文件自包含」复制的一份快照，值逐字照抄、未做微调；**只列本页实际用到的令牌**。
+ */
+/* == TOKEN-SNAPSHOT-BEGIN == */
+:root {
+  --bg: #0e1315;
+  --bg-pattern: linear-gradient(to right, rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+  --text: #dde5e4;
+  --text-dim: #98a8a6;
+  --text-faint: #788a88;
+  --line: #233034;
+  --accent-text: #7fd4c6;
+  --accent-line: rgba(79, 179, 165, 0.38);
+  --radius-s: 3px;
+  --test-line: rgba(79, 179, 165, 0.36);
+  --test-soft: rgba(79, 179, 165, 0.07);
+  --test-text: #7fd4c6;
+  --warn-soft: rgba(201, 162, 74, 0.08);
+  --warn-text: #dcc078;
+  --line-warn: rgba(201, 162, 74, 0.34);
+  --font-body: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-poem: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-title: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-ui: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-mono: 'Consolas', 'SFMono-Regular', ui-monospace, monospace;
+  --font-size: 15px;
+  --lh: 1.75;
+  --ls: 0.005em;
+  --poem-size: 17px;
+  --poem-lh: 2;
+  --poem-ls: 0.045em;
+  --note-size: 13.5px;
+  --title-size: 1.5rem;
+  --title-weight: 500;
+  --title-ls: 0.1em;
+  --gname-ls: 0.16em;
+}
+/* == TOKEN-SNAPSHOT-END == */
+
+/* 已定值 / 草案值 / 写回值（**都不在** docs/design/visual-tokens.md 里 —— 规范没有这些条目）
+ *   [已定]   用户已定的表达值（本页照做，不重新提问）
+ *   [草案]   本页**候选**用的数（本页在测它们；列在这里是为了「用了就声明」）
+ *   [写回]   页面脚本量完后写回的运行时值
+ */
+/* == DRAFT-VALUES-BEGIN == */
+:root {
+  --edge-x: 1.05rem;          /* [草案] 行内沿＝16.8px：题头／来源块／正文同一条左沿 */
+  --ctl-size: 0.82rem;        /* [草案] 返回字号 13.12px（沿用诗页顶部行） */
+  --ctl-ls: 0.06em;           /* [草案] 返回字距 */
+  --d-head-top: 1.5rem;       /* [草案] 顶部行→诗题 24px（沿用诗页题头上方留白） */
+  --src-gap-top: 1.6rem;      /* [草案] 诗题→来源块 25.6px */
+  --src-gap-in: 0.35rem;      /* [草案] 「底本与来源」标签→来源文本 5.6px */
+  --sec-gap-top: 1.6rem;      /* [草案] 来源块→详情正文 25.6px */
+  --sub-gap-top: 1.6rem;      /* [草案] 小标题（### 层）上间距 25.6px */
+  --sub-gap-bottom: 0.5rem;   /* [草案] 小标题下间距 8px */
+  --li-gap: 0.6rem;           /* [草案] 列表项间距 9.6px */
+  --para-gap: 0.9rem;         /* [草案] 段落间距 14.4px */
+  --cw: 100%;                 /* [写回] 本视口下的内容宽 C */
+  --proto-pad: 12px;          /* [草案] 原型脚手架（说明／标注）左右内边距，不是应用页面的值 */
+}
+/* == DRAFT-VALUES-END == */
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background-color: var(--bg);
+  background-image: var(--bg-pattern);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--font-size);
+  line-height: var(--lh);
+  letter-spacing: var(--ls);
+}
+a { color: inherit; }
+
+/* ── 原型脚手架（**不是**被表达的那一层）───────────────────────── */
+.phead { padding: 1.4rem var(--proto-pad) 0; }
+.phead .ptag {
+  display: inline-block; margin: 0 0 0.9rem; padding: 0.25rem 0.6rem;
+  border: 1px dashed var(--test-line); background: var(--test-soft); color: var(--test-text);
+  border-radius: var(--radius-s); font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.08em;
+}
+.phead h1 { font-size: 1.02rem; font-weight: 500; letter-spacing: 0.05em; margin: 0 0 0.8rem; line-height: 1.6; }
+.phead h2 { font-size: 0.9rem; font-weight: 500; margin: 1.1rem 0 0.4rem; letter-spacing: 0.04em; }
+.phead p, .phead li { color: var(--text-dim); margin: 0.45rem 0; }
+.phead b { color: var(--text); font-weight: 500; }
+.phead code { font-family: var(--font-mono); font-size: 0.85em; color: var(--text);
+  border: 1px solid var(--line); border-radius: var(--radius-s); padding: 0 0.25rem; }
+.pok { border-left: 2px solid var(--test-line); background: var(--test-soft); color: var(--text);
+  padding: 0.6rem 0.8rem; border-radius: var(--radius-s); }
+.pwarn { border-left: 2px solid var(--line-warn); background: var(--warn-soft); color: var(--warn-text);
+  padding: 0.5rem 0.7rem; border-radius: var(--radius-s); }
+.pwarn b { color: var(--warn-text); }
+
+/* ── 块区（截图范围）────────────────────────────────────────────── */
+.deck { margin-top: 1.2rem; }
+.imgban {
+  display: none; background: var(--test-soft); border: 1px dashed var(--test-line); color: var(--test-text);
+  border-radius: var(--radius-s); font-family: var(--font-mono); font-size: 0.74rem; line-height: 1.7;
+  letter-spacing: 0.03em; padding: 0.6rem 0.7rem; margin: 0 var(--proto-pad) 0.9rem;
+}
+html[data-shot="1"] .imgban { display: block; }
+/* 看图态：只隐去「说明性文字」（.capnote） —— 不改任何排布规则、不碰任何被量测的元素。 */
+html[data-shot="1"] [data-shotframe] .capnote { display: none; }
+
+.demo { border-top: 1px dashed var(--test-line); border-bottom: 1px dashed var(--test-line);
+  padding: 0.5rem 0 0.6rem; margin: 0 0 0.8rem; }
+.dhead { font-family: var(--font-mono); font-size: 0.76rem; line-height: 1.55; letter-spacing: 0.04em;
+  color: var(--test-text); padding: 0 var(--proto-pad); margin-bottom: 0.25rem; }
+.dhead .dcounter { display: inline-block; margin: 0 0 0.25rem; padding: 0.15rem 0.5rem;
+  border: 1px solid var(--line-warn); background: var(--warn-soft); color: var(--warn-text);
+  border-radius: var(--radius-s); font-size: 0.74rem; letter-spacing: 0.06em; }
+.dhead .dknob { display: block; color: var(--text-dim); }
+.cap { font-family: var(--font-mono); font-size: 0.72rem; line-height: 1.65; letter-spacing: 0.02em;
+  color: var(--text-dim); padding: 0 var(--proto-pad); margin: 0 0 0.45rem; }
+.cap b { color: var(--text); font-weight: 500; }
+.cap .hit { color: var(--test-text); }
+.cap .capnote { display: block; color: var(--text-dim); margin-top: 0.2rem; }
+.prow { padding: 0 var(--edge-x); margin: 0.35rem 0 0; }
+.prolab { display: block; font-family: var(--font-mono); font-size: 0.68rem; line-height: 1.85;
+  color: var(--test-text); letter-spacing: 0.02em; }
+.protomark { font-family: var(--font-mono); font-size: 0.66rem; line-height: 1.6; color: var(--warn-text);
+  background: var(--warn-soft); border: 1px dashed var(--line-warn); border-radius: var(--radius-s);
+  padding: 0.15rem 0.4rem; display: block; margin: 0.4rem var(--proto-pad) 0; }
+
+/* ── 应用页面（被表达的那一层）────────────────────────────────────
+ * .pg（满视口宽）> .col（内容列，宽 C）；内容列居中于视口。
+ * ⚠ 行内沿（--edge-x 16.8px）是**列内**的一层；正文可用宽 ＝ C − 2×16.8 ＝ C − 33.6。
+ */
+.pg { position: relative; }
+.col { width: var(--cw); margin-inline: auto; }
+
+/* 顶部行：返回左（**落到这首诗**），不参与居中 */
+.topbar { display: flex; justify-content: space-between; align-items: baseline; padding: 0.7rem var(--edge-x) 0; }
+.topbar > * { flex: 0 0 auto; white-space: nowrap; }
+.ctl { font-family: var(--font-ui); font-size: var(--ctl-size); letter-spacing: var(--ctl-ls);
+  color: var(--text-dim); text-decoration: none; }
+.ctl:hover { color: var(--accent-text); }
+
+/* 题头：诗题（不再显示作者／朝代／体裁） */
+.d-head { padding: var(--d-head-top) var(--edge-x) 0; }
+.d-title { margin: 0; font-family: var(--font-title); font-size: var(--title-size); font-weight: var(--title-weight);
+  letter-spacing: var(--title-ls); line-height: 1.4; }
+.d-title--left { text-align: left; }
+.d-title--center { text-align: center; }
+
+/* 来源块：底本与来源 */
+.prov { margin: var(--src-gap-top) 0 0; padding: 0 var(--edge-x); }
+.prov-label { margin: 0; padding: 0 0 var(--src-gap-in); font-family: var(--font-ui); font-size: var(--note-size);
+  font-weight: 500; letter-spacing: var(--gname-ls); color: var(--text-faint); line-height: 1.6; }
+.prov-text { margin: 0; font-family: var(--font-body); font-size: var(--note-size); line-height: var(--lh);
+  letter-spacing: var(--ls); color: var(--text-dim); }
+/* 局部对照用的另两种来源块呈现（**候选**，不引入新字号） */
+.prov--bare .prov-text { color: var(--text-faint); }
+.prov--foot { border-top: 1px solid var(--line); padding-top: var(--src-gap-in); }
+.prov--foot .prov-text { color: var(--text-faint); }
+
+/* 详情正文（detail 字段按最小 Markdown 渲染；正文＝17px／行高 2／字距 0.045em） */
+.detail { margin: var(--sec-gap-top) 0 0; padding: 0 var(--edge-x) 0.5rem;
+  font-family: var(--font-poem); font-size: var(--poem-size); line-height: var(--poem-lh);
+  letter-spacing: var(--poem-ls); color: var(--text); }
+/* ### 层小标题：本页候选①＝eyebrow（沿用 §4.1「组名」那一条发丝竖线记号） */
+.d-sub { margin: 0; padding: var(--sub-gap-top) 0 var(--sub-gap-bottom) 0.6rem;
+  border-left: 2px solid var(--accent-line);
+  font-family: var(--font-ui); font-size: var(--note-size); font-weight: 500; letter-spacing: var(--gname-ls);
+  color: var(--accent-text); line-height: 1.6; }
+.detail > .d-sub:first-child { padding-top: 0; }
+/* ### 层小标题的另两种呈现（**候选**）：② 同字号小行（淡色、无竖线）／③ 不解析（当普通段落） */
+.d-sub--line { border-left: none; padding-left: 0; letter-spacing: 0.02em; color: var(--text-dim); }
+.d-sub--plain { border-left: none; padding-left: 0; font-family: var(--font-poem);
+  font-size: var(--poem-size); font-weight: 400; letter-spacing: var(--poem-ls); color: var(--text); }
+
+.d-list { margin: 0; padding: 0; list-style: none; }
+.d-li { margin: 0; padding: 0 0 var(--li-gap); }
+.d-list > .d-li:last-child { padding-bottom: 0; }
+.d-p { margin: 0; padding: 0 0 var(--para-gap); }
+</style>
+</head>
+<body>
+<div class="phead">
+  <p class="ptag">材料，不是实施 · 诗歌详情页的**完整表达**（候选整页 ＋ 3 格局部对照）</p>
+  <h1>诗歌详情页 —— <b>完整表达</b>（题头＝诗题＋返回 ／ 底本与来源 ／ <code>detail</code> 正文）＋ <b>3 格局部对照</b>，在 <b>320／430／1180</b> 三个真实视口上<b>逐项实测</b></h1>
+
+  <p class="pok"><b>这一页的性质</b>：把<b>已定的内容集合</b>表达成<b>一份可打开的完整详情页</b>，并把<b>尚未拍板</b>的排布取舍摊成 <b>3 格局部对照</b>（每格最多 3 档）。<br>
+    ⚠ <b>整页规格尚未采纳</b>：本页的 D0 是<b>候选完整页</b>（它替 3 格各挑了 ① 档），<b>不是</b>已批准规格、<b>不是</b>产品实施。<br>
+    ⚠ <b>选某档 ≠ 采纳整页规格</b>；本页<b>不决定</b> JSON／MD 的分界、<b>不决定</b>产物字段、<b>不是</b>发布。<br>
+    本页只用已定宽度口径 <code>C = min(V, max(320, 0.88 × (V − 24)))</code> 定内容列宽，<b>不重开</b>它、<b>不改</b>任何已定排版数值。</p>
+
+  <h2>已定（照做，不重新提问）</h2>
+  <ul>
+    <li><b>内容只用四样</b>：<b>诗题</b>、<b>返回（落到这首诗）</b>、<b>底本与来源</b>、<code>detail</code> <b>正文</b>。⚠ <b>不重复身份信息</b> —— 作者／朝代／体裁<b>不再出现</b>（也不出现「这一首的考据与来源」这类固定副题）。</li>
+    <li><b>路由形态</b> <code>#/p/&lt;id&gt;/detail</code>（已局部选定）；本页用真实 id <code>gushi-shijiu-shou-01</code> ⇒ <code>#/p/gushi-shijiu-shou-01/detail</code>；「返回」落到<b>这首诗</b> <code>#/p/gushi-shijiu-shou-01</code>（<b>不是</b>目录）。</li>
+    <li><b>宽度口径</b> <code>C = min(V, max(320, 0.88 × (V − 24)))</code>；<code>24</code> 是<b>一次性扣除总量</b>（不是左右各 12）；上界＝视口 V、<b>不夹 660／860</b>。</li>
+    <li><b>视觉</b>＝静默终端令牌（<code>prototype/css/theme-tech.css</code> <b>只读</b>）；正文 <code>17px</code>／行高 <code>2</code>／字距 <code>0.045em</code>；其它字号照已定令牌（诗题 <code>1.5rem/500/0.1em</code>、小字 <code>--note-size</code> <code>13.5px</code>）。</li>
+    <li><b>水平对齐</b>：详情正文与来源块<b>左对齐</b>、同一条左沿（行内沿 <code>1.05rem</code>＝16.8px）；顶部行＝<b>返回左</b>。</li>
+  </ul>
+
+  <h2>内容来源（**只读复用**，一个字都不编）</h2>
+  <p><code>detail</code> 正文与 <b>底本与来源</b>都取自 <code>items/content-format/prototypes/rules-v3/samples/real-01-full.md</code>（<b>只读</b>，本会话未改它）：<br>
+    ① 详情正文＝该文件的 <code>## 详情</code> 节（真实已核《行行重行行》那套写法）；② 底本与来源＝它的 front matter <code>source</code> 值；③ 诗题＝front matter <code>title</code> 值。<b>没有夹具、没有构造文本</b>。</p>
+
+  <p class="pwarn">⚠ <b>最小 Markdown 渲染范围尚未拍板</b>。下面按样例里<b>真实出现</b>的语法照排，并<b>如实标注当前两端支持情况</b>（<b>不把未做的当成已支持</b>）：<br>
+    · 样例的 <code>## 详情</code> 节里真实出现的语法＝<code>### </code> <b>小标题</b>、<code>- </code> <b>列表</b>、<code>**粗体**</code>、<b>普通段落</b>（<b>没有</b> <code>&gt; </code> 引用块）。<br>
+    · <b>Web 最小子集</b>（<code>web/app/render.js</code> 的 <code>renderNotesBody</code>）含段落／<code>- </code> 列表／<code>**粗体**</code>，<b>不含</b> <code>### </code> 小标题 ⇒ 要用就得<b>扩子集</b>；<br>
+    · <b>Android 目前完全没有 Markdown 渲染</b>（<code>android/…/ui/Screens.kt</code> 的详情页是结构化字段＋Compose 文本）⇒ 要用就得<b>从零做</b>，<b>不当作已支持</b>。</p>
+
+  <h2>要表达的三格局部对照（每格最多 3 档，D0 各挑 ① 档）</h2>
+  <ul>
+    <li><b>L1 · 题头对齐</b>：诗题<b>左对齐</b>（与详情正文同一条左沿 ＝ ①）／诗题<b>居中</b>（沿用诗页题名那一条 ＝ ②）。</li>
+    <li><b>L2 · 来源块的位置与呈现</b>：正文<b>前</b>·带「底本与来源」标签（＝ ①）／正文<b>前</b>·无标签小字（＝ ②）／正文<b>后</b>·脚注（＝ ③）。</li>
+    <li><b>L3 · <code>### </code> 小标题的呈现</b>：<b>eyebrow 真标题</b>＋§4.1 发丝竖线（＝ ①）／与正文<b>同字号的小行</b>（＝ ②）／<b>不解析</b>（当普通段落，＝ ③ —— 这也是「Web 不扩子集、Android 不做渲染」时会发生的样子）。</li>
+  </ul>
+
+  <p><b>看图</b>：3 个真实视口宽各出一组图（<b>320／430／1180 真实 CSS px，@DPR 2</b>）；<b>先量高度</b>，超过内核上限（约 16000px）就按块边界<b>拆图</b>或<b>如实拒拍</b>，<b>不做缩放拼图</b>。<br>
+    <b>本页里哪些不是应用页面</b>：顶上这段说明、每块上方的标题与实测数字行、<b>青色点线／青色 mono 小字</b>（局部对照的行标签与「原型脚手架」小标）、图内横幅 —— 都是<b>原型的说明／标注</b>（图内已醒目标注「原型说明 · 不属于应用页面」），<b>不属于应用页面</b>。<br>
+    逐项实测数字与两端支持标注见同目录 <code>q-detail.md</code>；行为由 <code>check-detail.mjs</code> 可复跑自证。</p>
+</div>
+
+<div class="deck" data-shotframe>
+  <div class="imgban" data-test="imgban">
+    <b>原型说明 · 不属于应用页面。</b>本图＝<b>一个</b>真实视口宽（<span data-test="shotinfo">…</span>）下的全部块，按真实 CSS px @DPR 2 拍摄，<b>没有</b>把不同宽度拼成缩放图。<br>
+    本页<b>没有夹具</b>：所有可见内容都来自只读源（<code>real-01-full.md</code> 的 front matter 与 <code>## 详情</code> 节）或固定标签（<code>返回</code>、<code>底本与来源</code>）；<b>不编内容</b>。青色点线与青色小字＝原型为局部对照画的框与行标签（<b>不是</b>应用页面的东西）。<br>
+    <b>已定</b>：内容只用 诗题／返回（落到这首诗）／底本与来源／<code>detail</code> 正文；<b>不重复身份信息</b>｜路由 <code>#/p/&lt;id&gt;/detail</code>｜<code>C = min(V, max(320, 0.88 × (V − 24)))</code>、上界＝视口 V、<b>不夹 660／860</b>｜正文 <code>17px</code>／行高 <code>2</code>／字距 <code>0.045em</code>。<br>
+    <b>未采纳</b>：整页规格（D0 是候选完整页，各对照格最多 3 档）。<b>材料，不是实施；选某档 ≠ 采纳整页规格；不决定 JSON／MD 分界与产物字段。</b><br>
+    <b>Markdown 语法与两端支持（如实）</b>：样例真实出现 <code>### </code> 小标题、<code>- </code> 列表、<code>**粗体**</code>、段落；<b>Web 子集不含 <code>### </code></b>（要扩），<b>Android 无任何 Markdown 渲染</b>（要从零做）。
+  </div>
+  <div data-test="rack"></div>
+</div>
+
+<script type="text/plain" data-test="raw-title">行行重行行</script>
+<script type="text/plain" data-test="source-txt">《文选》卷二十九·杂诗上「古诗一十九首」（李善注本）。电子文本：汉典古籍 gj.zdic.net/jibu/1224/34173.html，2026-10-14 访问；以四库全书本《六臣注文选》卷二十九对校。异文校记见 docs/sources/gushi-shijiu-shou.md。</script>
+<script type="text/plain" data-test="detail-md">### 异文
+
+- **游子不顾返** —— 四库全书本《六臣注文选》卷二十九、《玉台新咏》卷一「枚乘杂诗」其三，此句均作「返」；底本（李善注本）作「反」。反、返古通用。
+- **胡马嘶北风** —— 《玉台新咏》宋刻本作「嘶」，见清·纪容舒《玉台新咏考异》卷一（四库全书本）校语：「依，宋刻作嘶。按：此二句乃以一南一北申足『各天一涯』之意，以起下『相去日远』，作依为是。今从文选。」纪昀校正本《玉台新咏》卷一影印本同此校语；二手转录站古文岛亦作「嘶」。底本《文选》李善注本、四库全书本《六臣注文选》、明《诗纪》两刻本均作「依」；宋本影像本工作线未目验。
+- **会面安可期** —— 明·冯惟讷《诗纪》卷二十（汉第十·古诗十九首）于「会面安可知」下出校语「一作期」，另一明刻本《诗纪》卷之十同；底本作「知」。
+
+### 分段依据
+
+底本（《文选》卷二十九李善注本、四库全书本《六臣注文选》、宋刻《玉台新咏》）通篇连排、篇内无空行 ⇒ 依底本不分段（本首正文＝单一 stanza）。</script>
+
+<script>
+
+(function () {
+  'use strict';
+
+  /* == DETAIL-PARAMS-BEGIN ==
+   * viewports      : 320 430 1180
+   * deduct_total   : 24       宽度口径（已定）一次性扣除总量（不是左右各 12）
+   * pct            : 88       宽度口径（已定）百分比
+   * floor          : 320      宽度口径（已定）下限
+   * clamp_measure  : 0        **不夹** 660／860（0＝不夹）
+   * edge_x         : 16.8     行内沿；正文可用宽 ＝ C − 2×16.8
+   * poem_id        : gushi-shijiu-shou-01
+   * poem_route     : #/p/gushi-shijiu-shou-01
+   * detail_route   : #/p/gushi-shijiu-shou-01/detail
+   * poem_size      : 17       详情正文（detail）字号（已定）
+   * poem_lh_px     : 34       详情正文行高（已定：line-height 2 ⇒ 34px）
+   * poem_ls_px     : 0.765    详情正文字距（已定：0.045em ⇒ 0.765px）
+   * title_size     : 24       诗题字号（已定 1.5rem）
+   * title_ls_px    : 2.4      诗题字距（已定 0.1em ⇒ 2.4px）
+   * note_size      : 13.5     小字（来源块／小标题）（令牌 --note-size）
+   * ctl_size       : 13.12    返回字号（草案 0.82rem）
+   * sub_ls_px      : 2.16     小标题字距（令牌 --gname-ls 0.16em ⇒ 2.16px）
+   * d_head_top     : 24       顶部行→诗题
+   * src_gap_top    : 25.6     诗题→来源块
+   * src_gap_in     : 5.6      来源标签→来源文本
+   * sec_gap_top    : 25.6     来源块→详情正文
+   * sub_gap_top    : 25.6     小标题上间距
+   * sub_gap_bottom : 8        小标题下间距
+   * li_gap         : 9.6      列表项间距
+   * para_gap       : 14.4     段落间距
+   * == DETAIL-PARAMS-END ==
+   */
+  var DEDUCT = 24, PCT = 88, FLOOR = 320, EDGE = 16.8;
+  var PID = 'gushi-shijiu-shou-01';
+  var POEM_ROUTE = '#/p/' + PID;
+  var DETAIL_ROUTE = POEM_ROUTE + '/detail';
+
+  var r2 = function (n) { return Math.round(n * 100) / 100; };
+  var px = function (n) { return r2(n) + 'px'; };
+  var el = function (tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined && text !== null) e.textContent = text;
+    return e;
+  };
+  var rich = function (s) { return String(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>'); };
+  var elRich = function (tag, cls, html) { var e = el(tag, cls); e.innerHTML = rich(html); return e; };
+  var q = function (root, sel) { return root.querySelector(sel); };
+
+  /* ══ 先定列宽（**必须在建块之前**：块一挂上就要按最终宽度排版）══ */
+  var V = window.innerWidth;
+  var CW = Math.min(V, Math.max(FLOOR, PCT / 100 * (V - DEDUCT)));
+  var AVAIL = r2(CW - 2 * EDGE);
+  document.documentElement.style.setProperty('--cw', px(CW));
+  document.documentElement.dataset.cw = String(r2(CW));
+  document.documentElement.dataset.v = String(V);
+  document.documentElement.dataset.avail = String(AVAIL);
+
+  /* ══ 只读源（**逐字**从内嵌的 text/plain 块取；自检会把它与只读源文件逐字比对）══ */
+  var TITLE = q(document, '[data-test="raw-title"]').textContent.trim();
+  var SOURCE = q(document, '[data-test="source-txt"]').textContent.trim();
+  var DETAIL_MD = q(document, '[data-test="detail-md"]').textContent.trim();
+
+  /* ── 最小 Markdown 解析：只认样例里**真实出现**的四种（### ／ - ／ ** ／ 段落）── */
+  function parseBlocks(md) {
+    var out = [], ls = md.split(/\r?\n/), i, s;
+    for (i = 0; i < ls.length; i += 1) {
+      s = ls[i].replace(/\s+$/, '');
+      if (s.trim() === '') continue;
+      if (s.indexOf('### ') === 0) out.push({ type: 'sub', raw: s, text: s.slice(4) });
+      else if (s.indexOf('- ') === 0) out.push({ type: 'li', raw: s, text: s.slice(2) });
+      else out.push({ type: 'p', raw: s, text: s });
+    }
+    return out;
+  }
+  var BLOCKS = parseBlocks(DETAIL_MD);
+  function appendInline(parent, text) {
+    var re = /\*\*([^*]+)\*\*/g, last = 0, m = re.exec(text);
+    while (m !== null) {
+      if (m.index > last) parent.appendChild(document.createTextNode(text.slice(last, m.index)));
+      var st = el('strong', '', m[1]);
+      st.setAttribute('data-strong', '1');
+      parent.appendChild(st);
+      last = m.index + m[0].length;
+      m = re.exec(text);
+    }
+    if (last < text.length) parent.appendChild(document.createTextNode(text.slice(last)));
+    return parent;
+  }
+
+  /* ── 渲染：detail 正文（供 D0 与 L3 复用）── */
+  function renderSub(text, raw, variant) {
+    var cls = 'd-sub';
+    if (variant === 'line') cls += ' d-sub--line';
+    if (variant === 'plain') cls += ' d-sub--plain';
+    var h = el('h2', cls);
+    h.setAttribute('data-test', 'd-sub');
+    h.setAttribute('data-role', 'sub');
+    /* ③ 不解析：把「### 」标记原样当普通文字画出来（这就是「不扩子集／不做渲染」的后果） */
+    var shown = (variant === 'plain') ? raw : text;
+    h.appendChild(document.createTextNode(shown));
+    h.setAttribute('data-shown', shown);
+    return h;
+  }
+  function renderDetail(host, variant, only) {
+    var box = el('div', 'detail');
+    box.setAttribute('data-test', 'detail');
+    var list = null, prevWasLi = false;
+    BLOCKS.forEach(function (b, i) {
+      if (only !== null && only !== undefined && i > only) return;
+      if (b.type === 'sub') {
+        box.appendChild(renderSub(b.text, b.raw, variant));
+        list = null; prevWasLi = false;
+      } else if (b.type === 'li') {
+        if (!prevWasLi || !list) { list = el('ul', 'd-list'); box.appendChild(list); }
+        var li = el('li', 'd-li');
+        li.setAttribute('data-test', 'd-li');
+        li.setAttribute('data-role', 'li');
+        li.appendChild(appendInline(document.createDocumentFragment(), b.text));
+        list.appendChild(li);
+        prevWasLi = true;
+      } else {
+        var p = el('p', 'd-p');
+        p.setAttribute('data-test', 'd-p');
+        p.setAttribute('data-role', 'p');
+        p.appendChild(appendInline(document.createDocumentFragment(), b.text));
+        box.appendChild(p);
+        list = null; prevWasLi = false;
+      }
+    });
+    host.appendChild(box);
+    return box;
+  }
+  /* ── 渲染：「底本与来源」块（三种呈现各一个 variant）── */
+  function renderProv(host, variant, withLabel) {
+    var p = el('div', 'prov' + (variant ? ' prov--' + variant : ''));
+    p.setAttribute('data-test', 'prov');
+    p.setAttribute('data-variant', variant || 'label');
+    if (withLabel) {
+      var l = el('p', 'prov-label', '底本与来源');
+      l.setAttribute('data-test', 'prov-label');
+      l.setAttribute('data-role', 'provLabel');
+      p.appendChild(l);
+    }
+    var t = el('p', 'prov-text', SOURCE);
+    t.setAttribute('data-test', 'prov-text');
+    t.setAttribute('data-role', 'provText');
+    p.appendChild(t);
+    host.appendChild(p);
+    return p;
+  }
+  function renderTopbar(host) {
+    var bar = el('div', 'topbar');
+    var back = el('a', 'ctl', '返回');
+    back.setAttribute('data-test', 'back');
+    back.setAttribute('data-role', 'back');
+    back.setAttribute('href', POEM_ROUTE);
+    back.setAttribute('title', '返回这首诗（不是目录）：' + POEM_ROUTE);
+    bar.appendChild(back);
+    host.appendChild(bar);
+    return bar;
+  }
+  function renderHead(host, align) {
+    var hd = el('div', 'd-head');
+    var t = el('h1', 'd-title d-title--' + align, TITLE);
+    t.setAttribute('data-test', 'd-title');
+    t.setAttribute('data-role', 'title');
+    t.setAttribute('data-align', align);
+    hd.appendChild(t);
+    host.appendChild(hd);
+    return hd;
+  }
+
+  /* ══ 块脚手架 ═══════════════════════════════════════════════════ */
+  var rack = q(document, '[data-test="rack"]');
+  var MEAS = [];
+  function newBlock(id, counter, title, knob) {
+    var d = el('div', 'demo');
+    d.setAttribute('data-test', 'demo');
+    d.setAttribute('data-block', id);
+    var h = el('div', 'dhead');
+    h.setAttribute('data-test', 'dhead');
+    if (counter) h.appendChild(el('span', 'dcounter', counter));
+    h.appendChild(elRich('span', 'dtitle', title));
+    if (knob) h.appendChild(elRich('span', 'dknob', knob));
+    var cap = el('p', 'cap');
+    cap.setAttribute('data-test', 'cap');
+    d.appendChild(h); d.appendChild(cap);
+    rack.appendChild(d);
+    return { root: d, cap: cap, id: id };
+  }
+  function report(b, numbers, note, data) {
+    b.cap.insertAdjacentHTML('beforeend', rich(numbers) + (note ? '<span class="capnote">' + rich(note) + '</span>' : ''));
+    Object.keys(data || {}).forEach(function (k) { b.cap.setAttribute('data-m-' + k, String(data[k])); });
+    MEAS.push({ block: b.id, cap: b.cap.textContent.replace(/\s+/g, ' ').trim() });
+  }
+  /* 一行＝「行标签 ＋ 一个满视口宽 .pg／宽 C 的 .col」 */
+  function pageRow(b, label, cand) {
+    if (label) {
+      var r = el('div', 'prow');
+      r.appendChild(elRich('span', 'prolab', label));
+      b.root.appendChild(r);
+    }
+    var pg = el('div', 'pg'); pg.setAttribute('data-test', 'page');
+    var col = el('div', 'col'); col.setAttribute('data-test', 'col');
+    if (cand) col.setAttribute('data-cand', cand);
+    pg.appendChild(col); b.root.appendChild(pg);
+    return col;
+  }
+  function protoMark(b, text) {
+    var m = el('div', 'protomark', text);
+    m.setAttribute('data-test', 'protomark');
+    b.root.appendChild(m);
+    return m;
+  }
+
+  /* ── 实测几何：逐字 Range 量墨迹盒（自检脚本另有自己一份，不靠页面自报）── */
+  function textNodes(e) {
+    var out = [], tw = document.createTreeWalker(e, NodeFilter.SHOW_TEXT, null), nd;
+    while ((nd = tw.nextNode())) out.push(nd);
+    return out;
+  }
+  function lineBoxes(e) {
+    var tns = textNodes(e);
+    if (!tns.length) return [];
+    var rg = document.createRange(), br = e.getBoundingClientRect();
+    var lines = [], cur = null, idx = 0, t, i, tn, data, r;
+    for (t = 0; t < tns.length; t += 1) {
+      tn = tns[t]; data = tn.data;
+      for (i = 0; i < data.length; i += 1) {
+        rg.setStart(tn, i); rg.setEnd(tn, i + 1);
+        r = rg.getBoundingClientRect();
+        if (!cur || Math.abs(r.top - cur.top) > 1) {
+          cur = { from: idx, to: idx + 1, text: data.charAt(i), l: r.left, r: r.right, top: r.top };
+          lines.push(cur);
+        } else {
+          cur.to = idx + 1; cur.text += data.charAt(i);
+          cur.l = Math.min(cur.l, r.left); cur.r = Math.max(cur.r, r.right);
+        }
+        idx += 1;
+      }
+    }
+    return lines.map(function (x) {
+      return { text: x.text, n: x.to - x.from, left: r2(x.l - br.left), right: r2(x.r - br.left), w: r2(x.r - x.l) };
+    });
+  }
+  function measureElement(e, cc) {
+    var br = e.getBoundingClientRect();
+    var g = lineBoxes(e);
+    var maxRight = 0, minLeft = 1e9;
+    g.forEach(function (x) { maxRight = Math.max(maxRight, x.right); minLeft = Math.min(minLeft, x.left); });
+    return { role: e.getAttribute('data-role') || '', test: e.getAttribute('data-test') || '',
+      variant: e.getAttribute('data-variant') || '', align: e.getAttribute('data-align') || '',
+      text: e.textContent, lines: g, nLines: g.length,
+      minLeft: g.length ? r2(minLeft) : null, maxRight: g.length ? r2(maxRight) : null,
+      dCol: g.length ? r2(br.left + minLeft - cc) : null, ink: g.length ? r2(maxRight - minLeft) : null };
+  }
+  /* ⚠ 只收**这一列**里的元素（之前写成了整块 querySelector，导致 L2／L3 的对照数字全部取到第一个元素）*/
+  function collect(b, col) {
+    var out = [];
+    var cc = col.getBoundingClientRect().left;
+    Array.prototype.forEach.call(col.querySelectorAll('[data-role]'), function (e) { out.push(measureElement(e, cc)); });
+    return out;
+  }
+
+  /* ══ D0 · 候选完整详情页 @ 本视口 ═══════════════════════════════ */
+  (function () {
+    var b = newBlock('D0', '候选完整页 · 未采纳整页规格',
+      'D0 · 诗歌详情页（候选完整页）：题头＝诗题＋返回 ／ 底本与来源 ／ <code>detail</code> 正文 —— 3 格对照各挑 ① 档',
+      '内容只用四样（诗题／返回／底本与来源／正文），<b>不重复身份信息</b>。三格对照各挑 ① 档：诗题<b>左对齐</b>／来源块在正文<b>前</b>带标签／<code>### </code> 小标题＝<b>eyebrow</b>。');
+    b.root.setAttribute('data-kind', 'detail-full');
+    var col = pageRow(b, null, null);
+    renderTopbar(col);
+    renderHead(col, 'left');
+    renderProv(col, '', true);
+    renderDetail(col, '', null);
+    var items = collect(b, col);
+    var byRole = function (r) { return items.filter(function (x) { return x.role === r; }); };
+    var first = function (r) { var a = byRole(r); return a.length ? a[0] : null; };
+    var lefts = {};
+    ['back', 'title', 'provLabel', 'provText', 'sub', 'li', 'p'].forEach(function (r) {
+      var it = first(r); lefts[r] = it ? it.dCol : null;
+    });
+    var detailItems = byRole('sub').concat(byRole('li'), byRole('p'));
+    var nLines = detailItems.reduce(function (a, x) { return a + x.nLines; }, 0);
+    var maxLineW = 0;
+    detailItems.forEach(function (x) { x.lines.forEach(function (l) { maxLineW = Math.max(maxLineW, l.w); }); });
+    report(b,
+      'V＝<b>' + V + '</b>px · C＝<b>' + r2(CW) + '</b>px · 正文可用宽 ＝ C − 33.6 ＝ <b class="hit">' + AVAIL + 'px</b>' +
+      '（≈ ' + r2(AVAIL / 17.765) + ' 个字位）｜<b>不夹 660／860</b>（clamp_measure＝0）<br>' +
+      '左沿（相对内容列）：返回 <b>' + lefts.back + '</b>／诗题 <b>' + lefts.title + '</b>／来源标签 <b>' + lefts.provLabel +
+      '</b>／来源文本 <b>' + lefts.provText + '</b>／小标题 <b>' + lefts.sub + '</b>／列表项 <b>' + lefts.li + '</b>／段落 <b>' + lefts.p +
+      '</b>（小标题因发丝竖线＋0.6rem 内边距而在 ' + r2(EDGE + 9.6 + 2) + 'px，其余都＝行内沿 ' + EDGE + 'px）<br>' +
+      '详情正文：<b class="hit">' + nLines + ' 行</b>（' + BLOCKS.length + ' 块＝2 小标题＋3 列表项＋1 段落），最长行宽 <b>' + r2(maxLineW) + 'px</b> ≤ 可用宽 ' + AVAIL + 'px ⇒ <b>无横向溢出</b><br>' +
+      '返回 href＝<code>' + POEM_ROUTE + '</code>（<b>落到这首诗</b>，不是目录）；详情路由＝<code>' + DETAIL_ROUTE + '</code>',
+      'D0 的逐项几何与文本由自检脚本实测并断言（自检另有一份独立的 Range 量测，不信本页自报）。' +
+      '⚠ 本页是<b>候选完整页</b>，不是已采纳规格。',
+      { kind: 'detail-full', cw: r2(CW), avail: AVAIL, nLines: nLines, maxLineW: r2(maxLineW), lefts: JSON.stringify(lefts) });
+    b.root.setAttribute('data-d0', JSON.stringify(items.map(function (x) {
+      return { role: x.role, variant: x.variant, dCol: x.dCol, ink: x.ink, nLines: x.nLines };
+    })));
+  })();
+
+  /* ══ L1 · 题头对齐（左 ／ 中）═══════════════════════════════════ */
+  (function () {
+    var b = newBlock('L1', '局部对照 1 · 题头对齐',
+      'L1 · 题头对齐：诗题**左对齐**（与详情正文同一条左沿 ＝ ①，D0 用这档）／诗题**居中**（沿用诗页题名那一条 ＝ ②）',
+      '两行只差一条：**诗题的水平对齐**。顶部行「返回」两行相同（都在左沿，不参与居中）。');
+    b.root.setAttribute('data-kind', 'cell-title');
+    var out = [];
+    [['①左对齐（D0）', 'left'], ['②居中（沿用诗页）', 'center']].forEach(function (a) {
+      var col = pageRow(b, '诗题' + a[0], a[0]);
+      renderTopbar(col);
+      renderHead(col, a[1]);
+      out.push(collect(b, col).filter(function (x) { return x.role === 'title'; })[0]);
+    });
+    report(b,
+      '① 左对齐：诗题左沿 <b>' + out[0].dCol + 'px</b>（＝行内沿 ' + EDGE + '）／右留白 <b>' + r2(CW - (out[0].dCol + out[0].ink)) + 'px</b>；' +
+      '② 居中：左留白 <b>' + out[1].dCol + 'px</b>／右留白 <b>' + r2(CW - (out[1].dCol + out[1].ink)) + 'px</b>（C＝' + r2(CW) + '）',
+      '（两个**候选**，D0 挑了 ①；本格不是整页规格。② 沿用诗页题名那条「水平对齐＝居中」。）',
+      { kind: 'cell-title', l1: JSON.stringify({ left: out[0].dCol, midLeft: out[1].dCol, midRight: r2(CW - (out[1].dCol + out[1].ink)), cw: r2(CW) }) });
+  })();
+
+  /* ══ L2 · 来源块的位置与呈现（3 档）═════════════════════════════ */
+  (function () {
+    var b = newBlock('L2', '局部对照 2 · 来源块的位置与呈现',
+      'L2 · 来源块：正文**前**·带「底本与来源」标签（＝ ①，D0 用这档）／正文**前**·无标签小字（＝ ②）／正文**后**·脚注（＝ ③）',
+      '三行只差**来源块放在哪里／怎么呈现**。为看清「位置」，每行把详情正文的**第一个小标题**（真实内容 <code>### 异文</code>）也画出来当顺序锚点 —— <b>正文其余从略＝原型脚手架，不是应用页面</b>。');
+    b.root.setAttribute('data-kind', 'cell-source');
+    var out = [];
+    [['①正文前 · 带标签（D0）', '', true], ['②正文前 · 无标签小字', 'bare', false], ['③正文后 · 脚注', 'foot', true]].forEach(function (a) {
+      var col = pageRow(b, a[0], a[0]);
+      renderHead(col, 'left');
+      if (a[0].indexOf('③') === 0) { renderDetail(col, '', 0); renderProv(col, a[1], a[2]); }
+      else { renderProv(col, a[1], a[2]); renderDetail(col, '', 0); }
+      out.push(collect(b, col).filter(function (x) { return x.role === 'provText'; })[0]);
+    });
+    protoMark(b, '原型脚手架：上面三行里，详情正文只画了第一个小标题（真实的「### 异文」），正文其余从略 —— 不是应用页面。');
+    report(b,
+      '来源文本左沿（相对内容列）：① <b>' + out[0].dCol + '</b>／② <b>' + out[1].dCol + '</b>／③ <b>' + out[2].dCol + '</b>（都＝行内沿 ' + EDGE + 'px）；' +
+      '字号都＝<b>' + getComputedStyle(document.querySelector('.prov-text')).fontSize + '</b>（令牌 <code>--note-size</code>），②③ 只换色／加发丝线，<b>不引入新字号</b>',
+      '（三个**候选**，D0 挑了 ①；本格不是整页规格。① 在「异文」之前、③ 在正文之后。）',
+      { kind: 'cell-source', l2: JSON.stringify(out.map(function (x) { return x.dCol; })) });
+  })();
+
+  /* ══ L3 · ### 小标题的呈现（3 档）══════════════════════════════ */
+  (function () {
+    var b = newBlock('L3', '局部对照 3 · ### 小标题的呈现',
+      'L3 · <code>### </code> 小标题：**eyebrow 真标题**＋§4.1 发丝竖线（＝ ①，D0 用这档）／与正文**同字号的小行**（＝ ②）／**不解析**（当普通段落，＝ ③）',
+      '三行只差**小标题怎么呈现**；每行都跟一段**真实正文**（样例的第一条异文）。③ 就是「Web 不扩子集、Android 不做渲染」时会发生的样子：<code>### </code> 标记被当普通文字画出来、字号层级消失。');
+    b.root.setAttribute('data-kind', 'cell-sub');
+    var out = [];
+    [['①eyebrow 真标题（D0）', ''], ['②同字号小行', 'line'], ['③不解析（普通段落）', 'plain']].forEach(function (a) {
+      var col = pageRow(b, '小标题' + a[0], a[0]);
+      renderDetail(col, a[1], 1);
+      out.push(collect(b, col).filter(function (x) { return x.role === 'sub'; })[0]);
+    });
+    var sz = function (v) { return getComputedStyle(document.querySelector('.d-sub' + (v === 'line' ? '--line' : v === 'plain' ? '--plain' : ''))).fontSize; };
+    report(b,
+      '小标题字号：① <b>' + sz('') + '</b>（<code>--note-size</code>，--accent-text，加 §4.1 发丝竖线）／② <b>' + sz('line') +
+      '</b>（同字号、--text-dim、无竖线）／③ <b>' + sz('plain') + '</b>（与正文同字号 ⇒ <b>层级消失</b>，且 <code>### </code> 标记<b>原样可见</b>）<br>' +
+      '小标题左沿（相对内容列）：① <b>' + out[0].dCol + '</b>（竖线 2px＋0.6rem 内边距）／② <b>' + out[1].dCol + '</b>／③ <b>' + out[2].dCol + '</b>（②③＝行内沿 ' + EDGE + 'px）',
+      '（三个**候选**，D0 挑了 ①；本格不是整页规格。③ 是「不解析」的诚实对照 —— 它**不是**已支持，只是把后果画出来。）',
+      { kind: 'cell-sub', l3: JSON.stringify(out.map(function (x) { return { dCol: x.dCol, text: x.text.slice(0, 12) }; })) });
+  })();
+
+  var si = q(document, '[data-test="shotinfo"]');
+  if (si) si.textContent = 'V=' + V + 'px · C=' + r2(CW) + 'px · 正文可用宽=' + AVAIL + 'px · DPR=' + window.devicePixelRatio;
+  document.documentElement.setAttribute('data-meas', JSON.stringify(MEAS));
+  if (location.hash === '#shot') document.documentElement.dataset.shot = '1';
+  document.documentElement.dataset.ready = '1';
+})();
+
+</script>
+</body>
+</html>
