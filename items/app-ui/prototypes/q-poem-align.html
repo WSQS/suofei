@@ -61,6 +61,8 @@
   --body-edge: var(--edge-x);   /* 草案值：正文左沿 */
   --body-first-indent: 0px;     /* 草案值：正文首行的额外缩进（0px ＝ 不缩进） */
   --title-hang: 0px;            /* 草案值：题名悬挂缩进（0px ＝ 折行第二行与首行同一竖线） */
+  --align-head: left;           /* 草案值：题名＋身份行的水平对齐（left ＝ 本轮基线；center ＝ 维度四） */
+  --align-body: left;           /* 草案值：正文每一行的水平对齐（left ＝ 基线；center ＝ 维度四） */
   --ctl-edge: var(--edge-x);    /* 草案值：顶部行的左右内沿（基线＝与内容同内沿） */
   --indent-2ch: 34px;           /* 草案值：一个「2 字符」单位 ＝ 2 × 正文 17px ＝ 34px；本页所有「退 2 字符」都用它 */
   --ctl-size: 0.82rem;          /* 草案值：控件（返回／详情）字号 13.12px */
@@ -202,7 +204,7 @@ html[data-shot="1"] .shotbanner { display: block; }
 .fxban b { color: var(--warn-text); font-weight: 500; }
 
 /* ── 应用页面（被评审的那一层）：宽固定 430，纵向流式 ──────────────────
- * 三个维度共用同一套页面结构；每个实例只通过覆盖少量自定义属性来「另起一沿」。
+ * 四个维度共用同一套页面结构；每个实例只通过覆盖少量自定义属性来「另起一沿」或「改成居中」。
  */
 .page {
   width: var(--block-w);
@@ -243,6 +245,7 @@ html[data-shot="1"] .shotbanner { display: block; }
   margin: 0;
   padding: 0 var(--edge-x) 0 calc(var(--title-edge) + var(--title-hang));
   text-indent: calc(-1 * var(--title-hang));
+  text-align: var(--align-head);
   font-family: var(--font-title);
   font-size: var(--title-size);
   font-weight: var(--title-weight);
@@ -252,19 +255,22 @@ html[data-shot="1"] .shotbanner { display: block; }
 .p-id {
   margin: var(--title-gap) 0 0;
   padding: 0 var(--edge-x) 0 var(--ident-edge);
+  text-align: var(--align-head);
   font-family: var(--font-ui);
   font-size: var(--meta-size);
   letter-spacing: var(--ctl-ls);
   color: var(--text-faint);
 }
-/* 正文：分行靠 DOM（每个印刷行一个 .line）；左右内沿固定，首行可另加缩进。 */
+/* 正文：分行靠 DOM（每个印刷行一个 .line）；左右内沿固定，首行可另加缩进。
+ * ⚠ 居中作用于哪几样：**题名、身份行、正文的每一行**（① --align-head ② --align-body）；
+ *   顶部行（返回／详情）**不参与居中** —— 它总是两端贴内沿（返回左 16.8px、详情右 413.2px）。 */
 .poem-body {
   padding: var(--body-gap) var(--edge-x) var(--body-pad-b) var(--body-edge);
+  text-align: var(--align-body);
   font-family: var(--font-poem);
   font-size: var(--poem-size);
   line-height: var(--poem-lh);
   letter-spacing: var(--poem-ls);
-  text-align: left;
 }
 .stanza { margin: 0; }
 .stanza + .stanza { margin-top: var(--stanza-gap); }
@@ -278,16 +284,17 @@ html[data-shot="1"] .shotbanner { display: block; }
 
 <p class="ptag">讨论原型 · 不是产品实施 · 不是发布 · 不是已采纳规格</p>
 <h1>诗页（阅读页）<b>水平对齐</b>讨论原型 —— 只回答「<b>谁与谁对齐</b>」</h1>
-<p>本页只有<b>三个维度</b>，<b>逐维度干净对照</b>：一个维度一组块，组内<b>只有该维度的变量在动</b>，其余一律固定在「基线」。块<b>并列、不排序、不写推荐</b>；<b>选某一块 ≠ 采纳整页规格</b>（选的只是那一条对齐关系）。</p>
+<p>本页只有<b>四个维度</b>，<b>逐维度干净对照</b>：一个维度一组块，组内<b>只有该维度的变量在动</b>，其余一律固定在「基线」。块<b>并列、不排序、不写推荐</b>；<b>选某一块 ≠ 采纳整页规格</b>（选的只是那一条对齐关系）。</p>
 <p><b>固定不变（本轮不许改）：</b>题名 <b>1.5rem／500／字距 0.1em</b>；身份行 <b>作者 · 朝代 · 体裁</b>／<b>0.78rem</b>／<code>--text-faint</code>；题名→身份 <b>0.7rem</b>；身份→原文 <b>2.1rem</b>；正文 <b>17px／行高 2／字距 0.045em</b>。顶部行＝<b>返回与详情同在顶部一行</b>（返回左、<b>详情右</b>），<b>正文之后没有页脚行</b>。诗页<b>不放</b>细时代、底本／来源、异文。视觉＝静默终端令牌，块宽＝<b>真实 430 CSS px</b>。</p>
 <p class="pnote">⚠ 本轮<b>不收</b>「阅读时附带的个人批注入口」（用户已明确：它的位置未定）—— 本页<b>不画它</b>，也<b>不留占位</b>。</p>
 <p class="pnote">⚠ <b>本页不决定 JSON／MD 分界，也不决定任何产物字段</b>；<b>也不改产品代码</b>。页面里的数只有「题名 24px／正文 17px·行高 2·字距 0.045em」与「0.7rem／2.1rem」是本轮固定值，其余都标着<b>草案值</b>；每个块的说明文字、维度标题、夹具横幅都是<b>原型的说明与夹具标注，不属于应用页面</b>（看图时尤其注意）。</p>
-<p>原文一律用<b>真实文本</b>（<code>content/poems/gushi-shijiu-shou-01.md</code> 的正文 8 行，只读、未改动）；需要长题名时用<b>醒目标注的测试夹具</b>（维度三），夹具题名在图里、页里都写着「不是真实数据」。</p>
+<p>原文一律用<b>真实文本</b>（<code>content/poems/gushi-shijiu-shou-01.md</code> 的正文 8 行，只读、未改动）；需要长题名时用<b>醒目标注的测试夹具</b>（维度三／维度四 ④d），需要「一行装不下、必须折行」的诗句时用<b>醒目标注的夹具长句</b>（维度四 ④e），两者在图里、页里都写着「不是真实数据」。</p>
+<p>维度四问「<b>居中到底作用于哪几样</b>」：作用对象是<b>题名／身份行／正文的每一行</b>；<b>顶部行（返回 …… 详情）不参与居中</b> —— 它总是返回左沿 16.8px、详情右沿 413.2px（本轮已选的 P2 选项 A）。</p>
 
   </div>
 
   <div class="shotframe" data-shotframe>
-    <div class="shotbanner"><b>诗页水平对齐讨论原型 · 原型的说明与夹具标注，不属于应用页面。</b>本图＝本页 <b>9 个块</b>（每块恰好 430 CSS px 宽）纵向排列：<b>维度一 4 块</b>（题名／身份行／正文的左沿关系）· <b>维度二 3 块</b>（顶部行的左右内沿）· <b>维度三 2 块</b>（长题名折行，含<b>测试夹具</b>）。维度三的<b>长题名是测试夹具，不是真实数据</b>（身份行与正文仍是真实文本照排）。图里青／黄色的文字都是原型标注与夹具标注，页面正常打开不含这条横幅。</div>
+    <div class="shotbanner"><b>诗页水平对齐讨论原型 · 原型的说明与夹具标注，不属于应用页面。</b>本图＝本页 <b>13 个块</b>（每块恰好 430 CSS px 宽）纵向排列：<b>维度一 4 块</b>（题名／身份行／正文的左沿关系）· <b>维度二 3 块</b>（顶部行的左右内沿）· <b>维度三 2 块</b>（长题名折行）· <b>维度四 4 块</b>（居中范围：④a 全部居中／④b 仅题头居中／④d 长题名夹具／④e 长句夹具；④c ＝ 维度一① 基线）。维度三的长题名与 ④d／④e 的夹具都<b>不是真实数据</b>（身份行与正文仍是真实文本照排）。图里青／黄色的文字都是原型标注与夹具标注，页面正常打开不含这条横幅。</div>
 
     <section class="dimgroup" data-test="dim" data-dim="d1">
       <h2 class="dimtitle">维度一 · 三块内容的左沿关系：题名／身份行／正文 是否贴同一条竖线</h2>
@@ -306,6 +313,13 @@ html[data-shot="1"] .shotbanner { display: block; }
       <p class="dimsub">基线 ① 第二行与首行同一竖线；选项 ② 悬挂缩进（第二行退到竖线右侧 2 字符）。两块都问同一件事：身份行／正文还跟不跟首行对齐。</p>
       <div class="fxban" data-test="fxban"><b>夹具：本组两块用的题名是测试夹具 —— 「不是真实数据」</b>（题名文字只为撑出「长题名折行」，页面上、图里都写着它不是真实题名）。<b>身份行与正文是真实文本</b>（<code>content/poems/gushi-shijiu-shou-01.md</code> 的 8 行，只读照排）。这条横幅本身也是原型标注，不属于应用页面。</div>
       <div class="rack" data-rack="d3"></div>
+    </section>
+
+    <section class="dimgroup" data-test="dim" data-dim="d4">
+      <h2 class="dimtitle">维度四 · 居中范围：居中到底作用于哪几样（题名／身份行／诗文每一行；顶部行不参与）</h2>
+      <p class="dimsub">④a 全部居中（题名、身份行、<b>诗文每一行</b>都居中）· ④b 仅题头居中（题名＋身份行居中、<b>正文仍左对齐</b>，用来对照「居中范围」这个变量）· <b>④c ＝ 维度一① 基线</b>（三块同一竖线、正文左齐 —— <b>不重复画</b>，就在上面维度一组的第一块）。<br>⚠ 居中作用于：题名／身份行／正文的每一行；<b>顶部行（返回 …… 详情）不参与居中</b> —— 它总是返回左沿 16.8px、详情右沿 413.2px（本轮已选的 P2 选项 A）。列中心＝内容内沿到右内沿的中点＝<b>215px</b>。</p>
+      <div class="fxban" data-test="fxban"><b>夹具：本组有两处测试夹具，都不是真实数据</b> —— ④d 的<b>长题名</b>、④e 里多出来的一行<b>长句</b>（都不在真实诗里，只为让你看清「折行 + 居中」的样子）。<b>其余文字（④a／④b 的题名与正文、④d 的身份行与正文）都是真实文本</b>。这条横幅本身也是原型标注，不属于应用页面。</div>
+      <div class="rack" data-rack="d4"></div>
     </section>
   </div>
 </div>
@@ -335,6 +349,8 @@ html[data-shot="1"] .shotbanner { display: block; }
   };
   // 夹具题名：**不是真实数据**，只为在 430 宽下撑出「长题名折行」（24px ＋ 字距 0.1em ⇒ 每行约 15 字）。
   var FX_TITLE = '测试夹具长题名：行行重行行并序（不是真实数据）';
+  // 夹具长句：**不是真实数据**，只为在 430 宽下撑出「一行装不下、必须折行」（17px ＋ 字距 0.045em ⇒ 一行约 22 字）。
+  var FX_LINE = '（夹具行，不是真实数据）测试长句：一字二字三字四字五字六字七字八字九字十字十一字';
 
   var CFG = {
     "dims": [
@@ -360,6 +376,23 @@ html[data-shot="1"] .shotbanner { display: block; }
         "insts": [
           { "inst": "d3-same", "fx": "long-title", "title": FX_TITLE, "cap": "① 基线：长题名折行时 <b>第二行与首行同一竖线</b>（两行左沿都 ＝ <b>16.8px</b>）；身份行与正文也与首行同沿 <b>16.8px</b>", "vars": {} },
           { "inst": "d3-hang", "fx": "long-title", "title": FX_TITLE, "cap": "② 选项：<b>悬挂缩进</b> —— 折行第二行退到竖线右侧 2 字符（<b>50.8px</b>）；首行、身份行、正文仍在 <b>16.8px</b>（只把第二行推右）", "vars": { "--title-hang": "var(--indent-2ch)" } }
+        ]
+      },
+      {
+        "id": "d4",
+        "insts": [
+          { "inst": "d4-all",
+            "cap": "④a 选项：<b>全部居中</b> —— 题名、身份行、<b>诗文每一行</b>都居中（下面每行都有实测：文字中心 ＝ <b>列中心 215px</b>）。顶部行<b>不参与居中</b>（返回左沿 16.8px、详情右沿 413.2px 不变）",
+            "vars": { "--align-head": "center", "--align-body": "center" } },
+          { "inst": "d4-head",
+            "cap": "④b 选项（对照）：<b>仅题头居中</b> —— 题名与身份行居中，<b>正文仍左对齐</b>（逐行与维度一①基线一致：左沿 16.8px）。同一组里就④a／④b 差这一个变量：<b>居中范围</b>",
+            "vars": { "--align-head": "center" } },
+          { "inst": "d4-fx-title", "fx": "long-title", "title": FX_TITLE,
+            "cap": "④d （夹具）<b>长题名（折行）＋ 全部居中</b> —— 夹具题名在 430 下折成 <b>2 行</b>，<b>两行各自居中</b>（每行中心都 ＝ 215px）；身份行与正文也跟着居中。题目文字是<b>夹具，不是真实数据</b>",
+            "vars": { "--align-head": "center", "--align-body": "center" } },
+          { "inst": "d4-fx-line", "fxLine": true,
+            "cap": "④e （夹具）<b>多行长句（折行）＋ 全部居中</b> —— 前面的 8 行是真实原文（居中）；最后多出来那一行是夹具长句，在 430 下一行装不下 ⇒ 折成 <b>2 个视觉行</b>，<b>两行各自居中</b>。这就是「折行的第二行也居中」的样子（是否合诗句阅读直觉正是本块要看的）",
+            "vars": { "--align-head": "center", "--align-body": "center" } }
         ]
       }
     ]
@@ -418,6 +451,16 @@ html[data-shot="1"] .shotbanner { display: block; }
       });
       body.appendChild(d);
     });
+    // 夹具长句（**不是真实数据**）：只维度四 ④e 用 —— 多出一整段，那一行在 430 下必须折行。
+    if (spec.fxLine) {
+      var fxStanza = el('div', 'stanza');
+      fxStanza.dataset.test = 'fx-stanza';
+      var fxLine = el('span', 'line', FX_LINE);
+      fxLine.dataset.test = 'line';
+      fxLine.dataset.fx = 'long-line';
+      fxStanza.appendChild(fxLine);
+      body.appendChild(fxStanza);
+    }
     page.appendChild(body);
     return page;
   }
