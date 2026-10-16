@@ -12,11 +12,12 @@ import org.junit.Test
 /**
  * 诗歌详情页要呈现的东西**从产物里真解析出来**算，不是「页面不为空」。
  *
- * ⚠ **本轮的一处实质变化（必须写清）**：字段集升版后，产物里**不再有 `variants`**——
- * 异文（24 条 / 13 首）改由每首的 `## 详情` 节整段进 `detail`（Markdown），而那一步属**内容迁移（S3）**：
- * `content/poems/` 现在还没有 `## 详情` 节 ⇒ **内置产物里 19 首的 `detail` 全是 `null`**（真实状态）。
- * 所以详情页现在对每一首都显示「这一首在产物里没有详情正文。」这句实话 —— 这不是丢数据，
- * 而是 `detail` 还没被写进去（源文与 `docs/sources/` 里的校记一字未动）。
+ * ⚠ **2026-10-16 的实质变化（必须写清）**：字段集升版（`formatVersion` 2）后，产物里**不再有 `variants`**——
+ * 异文（24 条 / 13 首）改由每首的 `## 详情` 节整段进 `detail`（Markdown），那一步是**内容迁移（S3）**，
+ * 并且**已经落进内置产物**：`content/poems/古诗十九首/` 里 13 首有 `## 详情` ⇒ 内置产物这 13 首的
+ * `detail` **非空**，其余 6 首 `null`（真实状态，不是丢数据）；`notes` 仍全为 `null`。
+ * ⇒ 详情页那句「这一首在产物里没有详情正文。」现在只对**那 6 首**显示（逐首与源文对照的强断言在
+ * `ContentParserTest.detailAndNotes_reflectTheSourceProduct_forEveryPoem`）。
  */
 class PoemDetailContentTest {
 
@@ -25,12 +26,16 @@ class PoemDetailContentTest {
     )
 
     @Test
-    fun detailField_isNullForEveryPoemToday_soThePageMustSaySoHonestly() {
+    fun detailIsPresentWhereTheSourceHasASection_andTheEmptyHintCoversOnlyTheRest() {
         assertEquals(19, content.poems.size)
-        assertTrue(
-            "本版产物还没有详情正文（`## 详情` 节由 S3 迁移写入）",
-            content.poems.all { it.detail == null },
-        )
+        val withDetail = content.poems.filter { it.detail != null }
+        val withoutDetail = content.poems.filter { it.detail == null }
+        // 与源文一致（`content/poems/古诗十九首/` 里 13 首有 `## 详情`）。
+        assertEquals("带 `## 详情` 的应是 13 首", 13, withDetail.size)
+        assertEquals("没有详情正文的应是 6 首（详情页只对它们显示「没有详情正文」这句实话）", 6, withoutDetail.size)
+        assertTrue("带详情的正文不得是空白占位", withDetail.all { !it.detail!!.isBlank() })
+        // 详情页的最小 Markdown 渲染要吃的就是 `### 小标题` 这种形状（S3 写的是「异文／分段依据」）
+        assertTrue("带详情的正文应含 Markdown 小标题", withDetail.all { it.detail!!.contains("### ") })
     }
 
     @Test

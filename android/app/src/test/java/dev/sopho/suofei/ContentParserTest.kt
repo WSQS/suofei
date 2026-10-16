@@ -71,7 +71,8 @@ class ContentParserTest {
     @Test
     fun embeddedContent_keepsEveryPrintedLine() {
         val content = ContentParser.parse(assetText)
-        val poem = content.poems.first { it.id == "gushi-shijiu-shou-01" }
+        // v2 布局（2026-10-16）里 id 是「组名-题名」，不再是 `gushi-shijiu-shou-01` 那种旧序号。
+        val poem = content.poems.first { it.id == "古诗十九首-行行重行行" }
         // 《行行重行行》底本共 8 个印刷行，每行两句，底本无空行分段
         assertEquals(1, poem.stanzas.size)
         assertEquals(8, poem.stanzas[0].size)
@@ -95,13 +96,34 @@ class ContentParserTest {
     }
 
     @Test
-    fun detailAndNotes_areNullKeys_kept_onTheBundledProduct() {
+    fun detailAndNotes_reflectTheSourceProduct_forEveryPoem() {
         val content = ContentParser.parse(assetText)
         // 「没有笔记」是真实状态：不得生成占位笔记（AGENTS：agent 不代写第一人称内容）
         assertTrue("本版内容不应出现任何笔记文本", content.poems.all { it.notes == null })
-        // 详情正文来自 `## 详情` 节；19 首的 Markdown 源现在还没有这一节（S3 迁移负责写入）
-        // ⇒ 产物里 detail 全为 null 是**真实状态**，界面要如实说明而不是留白。
-        assertTrue("本版产物还没有详情正文", content.poems.all { it.detail == null })
+        // 详情正文来自每首的 `## 详情` 节。S3 迁移（v2，2026-10-16）已把它写进内置产物 ⇒
+        // 有这一节的 13 首 detail **非空**，其余 6 首**没有这一节 ⇒ null（不是空串、也不是占位）**。
+        // ⚠ 不看硬编码的条数：**逐首对着唯一来源**（`content/poems/古诗十九首/<题名>.md`）核
+        // 「源里有 `## 详情` ⟺ 产物里 detail 非 null」——内容线日后增删详情，这条会真报红。
+        val sourceDir = TestRepoFiles.repoFile(
+            "content/poems/古诗十九首/行行重行行.md",
+            "内容的唯一来源（S3 迁移后的 v2 布局）；读不到即失败，不跳过。",
+        ).parentFile
+        val withDetail = content.poems.filter { it.detail != null }
+        assertTrue("至少应有带 `## 详情` 的诗（S3 迁移已进产物）", withDetail.isNotEmpty())
+        assertTrue("也应有**没有** `## 详情` 的诗（否则这条对照就白做了）", withDetail.size < content.poems.size)
+        for (poem in content.poems) {
+            val src = File(sourceDir, "${poem.title}.md")
+            assertTrue("源文应存在：${src.absolutePath}", src.isFile)
+            val hasSection = src.readText(Charsets.UTF_8).lineSequence().any { it.trim() == "## 详情" }
+            assertEquals(
+                "「${poem.title}」的 detail 与源里的 `## 详情` 节不一致（有节 ⇒ 非 null；无节 ⇒ null）",
+                hasSection,
+                poem.detail != null,
+            )
+            if (poem.detail != null) {
+                assertTrue("detail 不得是空白占位", poem.detail!!.isNotBlank())
+            }
+        }
     }
 
     /**
