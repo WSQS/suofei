@@ -73,9 +73,12 @@ const USAGE = `用法：node release/build-release.mjs [选项]
                           （内容随壳走，更新交给 SW 生命周期）。none 只用于本地演练，不是发布形态。
   --no-android-manifest   = --android-feed none
   --min-app-version-code <n>  远端更新清单里的 minAppVersionCode：**能读这份内容的最小 app versionCode**。
-                          不传则＝本次 APK 的 versionCode（与以前一致）。
-                          ⚠ 本次（0.1.3）内容仍是 formatVersion: 2，而 0.1.2（vc3）就支持 2 ⇒ 可传 3：
-                          不让 vc3 设备白白拒掉一次它本来能采用的更新（bug 修复在 APK，与内容更新是两条道）。
+                          不传则＝本次 APK 的 versionCode（正常升版靠这个默认值就是对的：
+                          内容与壳同批发布，旧客户端读不懂新 format 时本就不该去下载）。
+                          ⚠ 历史教训（2026-10-16，0.1.3）：当内容 format 没升、旧客户端仍能读时，
+                          该值可**小于**本次 versionCode（那次写 3，不让 vc3 设备白白拒掉一次能采用的更新）。
+                          ⚠ 2026-10-18（0.1.4）：内容已是 **formatVersion 3**，0.1.3/vc4 及更早**读不懂**
+                          ⇒ 必须写 **5**（＝本版 versionCode），**不能沿用 3**。
   --online                不用 Gradle --offline（默认 offline，避免发布构建偷偷依赖网络）
   --content-only          【已作废：被 --same-app-content-refresh 取代（用户 2026-10-16 纠正：
                           「应该更新 Release 和 apk，这样下载新的 apk 不用联网」）】传它会直接报错。
@@ -85,7 +88,10 @@ const USAGE = `用法：node release/build-release.mjs [选项]
                           · 把 contentVersion **盖章**成站点缓存名里的内容修订 ⇒ sw.js 字节随内容变
                             （否则同 app 版本重发时浏览器不会装新 SW、老缓存继续服务，用户永远看不到新内容）
                           · --min-app-version-code 在本模式下**必须显式给**：默认值＝本次 APK 的 versionCode，
-                            而本次要故意写成 3（0.1.2/vc3 也能读 format 2，不让它白白拒掉一次能采用的更新）
+                            而同版本重打包时「能读这份内容的最小 versionCode」往往是**更旧**的号
+                            （0.1.3 那次应写 3），忘写就退化成当前号、白白拒掉一批能采用的更新。
+                            ⚠ 给哪个号要看**产物 formatVersion 与各版客户端支持范围**：内容升了格式（例：
+                            format 2 → 3）时，老客户端**读不懂**，那就不能写成老客户的号。
                           · tag 仍是 v<应用版本>+content-<内容版本>，且 tag 里的应用版本必须**等于**代码里的 APP_VERSION
                           门在两种模式下的对照见 docs/design/same-app-content-refresh.md
   -h, --help              显示本帮助
@@ -287,13 +293,16 @@ function main() {
   //  · 对外版本号不变是这条路径的定义 ⇒ 应用版本以 tag 兼作锚点，必须与代码里的 APP_VERSION 一致
   //    （差一个号就是「忘了升版」或「忘了删模式开关」，两种都该在建之前拦住）；
   //  · min-app-version-code 的默认值（＝本次 APK 的 versionCode）在这里是**陷阱**：
-  //    本次要故意写成 3（0.1.2/vc3 也能读 format 2），忘了写就退化成 4、白白拒掉一批能采用的更新。
+  //    同版本重打包时「能读这份内容的最小 versionCode」通常是老号，忘了写就退化成当前号、
+  //    白白拒掉一批本来能采用的更新。（2026-10-18 补：同版本重打包**只能**用于内容格式没升的情况；
+  //    格式升了（format 2 → 3）就必须升版发布，老客户端读不懂。）
   if (opts.sameAppRefresh && opts.minAppVersionCode === null) {
     throw new ReleaseError(
       [
         '--same-app-content-refresh 必须显式给 --min-app-version-code：',
-        '  它的含义是“**能读这份内容的最小 app versionCode**”。当前内容仍是 formatVersion 2',
-        '  ⇒ 0.1.2（vc3）就能读 ⇒ 应该写 3，而不是默认的本次 APK 的 4。',
+        '  它的含义是“**能读这份内容的最小 app versionCode**”，默认值只是本次 APK 的号，'
+        + '而同版本重打包时答案通常是更旧的号（0.1.3 那次是 3）。',
+        '  ⇒ 请按产物 formatVersion 与各版客户端的 SUPPORTED_FORMAT_VERSION 算出来再写。',
       ].join('\n'),
       { code: 'USAGE' },
     );
@@ -419,7 +428,14 @@ function main() {
   const prev = resolvePreviousVersion({
     explicit: opts.previousVersion,
     manifestFile: A.manifestPath(outDir),
+    // 「上一版」必须严格小于本次 —— 发布准备会把新内容先编进仓库内置产物（三份同源），
+    // 那个候选就会等于本次版本；不筛掉就会在编译前报「新版本不大于上一版」。
+    currentVersion: versionReq.contentVersion,
+    tagOutput: git(['tag', '-l']),
   });
+  if (prev.skipped?.length) {
+    note(`不作为基线（等于或高于本次 ${versionReq.contentVersion}）：${prev.skipped.join('；')}`);
+  }
   if (prev.version) info('单调性基线（上一版）', `${prev.version}    ← 来源：${prev.source}`);
   else warn('没有可用的「上一版」基线；编译器会跳过单调性检查（这一次的版本号不会被自动拦住）');
 
@@ -532,10 +548,10 @@ function main() {
       sha256: distSha,
       size: distBuf.length,
       // ⚠ 2026-10-16：`minAppVersionCode` ＝「**能读这份内容的**最小 app versionCode」，
-      //   **不**必然等于本次 APK 的 versionCode。本次（0.1.3）内容仍是 `formatVersion: 2`，
-      //   而 0.1.2（vc3）的 `ContentParser.SUPPORTED_FORMAT_VERSION` 就是 2 ⇒ vc3 **能读**这份内容
-      //   ⇒ 写 4 会白白拒掉 vc3 设备一次它本来能采用的更新（两个 bug 修复在 APK 里，与内容更新是两条道）。
-      //   所以这里改成**可显式指定**（默认仍＝本次 APK 的 versionCode，保持与以前一致）。
+      //   **不**必然等于本次 APK 的 versionCode。
+      //   2026-10-18（0.1.4）校正：内容已是 `formatVersion 3`，0.1.3/vc4 及更早只支持 2 ⇒ 它们
+      //   **读不懂**这份内容 ⇒ 正常升版下默认值（＝本版 versionCode 5）就是正确答案，旧的 3 是错的。
+      //   （可显式指定的能力保留：真出现「格式没升、老客户端仍能读」的同版本内容刷新时，它要能写更小的号。）
       minAppVersionCode: opts.minAppVersionCode ?? app.versionCode,
     };
     writeFileEnsured(A.androidManifestInWeb(outDir), JSON.stringify(latest, null, 2) + '\n');

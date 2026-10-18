@@ -228,6 +228,34 @@ export function pickSameAppBaseline({ appVersion, tagOutput, currentTag = null }
  * 内容版本必须**严格大于**基线（线上真值与基线 tag 两者都要比）。
  * 返回 `{ok, detail}`；不 ok 时 detail 说明是哪一边没过。
  */
+/**
+ * 上一版发布（**升版发布**时的旧基底）：全部发布 tag 里 contentVersion 最大的那个（排除本次 tag）。
+ *
+ * 为何需要单独一个（2026-10-18，0.1.4 发布准备时发现）：`pickSameAppBaseline` 按**应用版本相等**筛，
+ * 而升版发布时「上一版」的应用版本本来就**不相等**（0.1.4 的基底是 0.1.3）⇒ 旧基底永远找不到，
+ * 于是 `format 2 → format 3` 的过渡就没人验（旧行为是静默“没验”，而「没验」不能被读成通过）。
+ *
+ * @param {{tagOutput: string, excludeTag?: string|null}} opts
+ * @returns {{tag: string, appVersion: string, contentVersion: string}|null}
+ */
+export function pickPreviousReleaseBaseline({ tagOutput, excludeTag = null }) {
+  let best = null;
+  for (const line of String(tagOutput ?? '').split('\n')) {
+    const tag = line.trim();
+    if (!tag) continue;
+    if (excludeTag && tag === String(excludeTag).replace(/^refs\/tags\//, '')) continue;
+    const parsed = parseReleaseTag(tag);
+    if (!parsed) continue;
+    if (!best) { best = { tag, ...parsed }; continue; }
+    try {
+      if (compareContentVersion(parsed.contentVersion, best.contentVersion) > 0) best = { tag, ...parsed };
+    } catch {
+      /* 形状不合法的 tag 不参与比较 */
+    }
+  }
+  return best;
+}
+
 export function compareAgainstBaselines({ contentVersion, liveContentVersion, baselineContentVersion }) {
   const problems = [];
   if (liveContentVersion) {

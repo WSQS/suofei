@@ -29,7 +29,10 @@ import { spawnSync } from 'node:child_process';
 
 import * as A from './artifacts.mjs';
 import { gradlewCommand, prepareAndroidWorkDir, readUnitTestCounts } from './android-work.mjs';
-import { pickSameAppBaseline } from './content-refresh.mjs';
+import {
+  SHELL_STAMP_FILES, pickPreviousReleaseBaseline, pickSameAppBaseline,
+  readAppVersionConstant, readContentRevision, stampContentRevision,
+} from './content-refresh.mjs';
 import { downloadLiveContentFile } from './live-version.mjs';
 import {
   REPO_ROOT,
@@ -244,6 +247,34 @@ function prepareE2ERoot({ outDir, distFile }) {
  */
 function materializeBaselineForE2E({ root, outDir }) {
   try {
+    // ── 0. 调用方**已经把旧基底摆好了**（本次 0.1.4 的发布演练就是这样跑的）──────────
+    // 为什么要先看环境：旧逻辑只走「自己找同 app 版本的旧 tag」，于是
+    //   ① 升版发布（0.1.4 的基底是 0.1.3）**永远找不到**基线；
+    //   ② 就算调用方自己把 SUOFEI_BASELINE_* 传进来了、e2e 真的验过了，
+    //      回执里仍写着「旧基底未提供 —— 更新链没验」（**谎报**，比不验更坏）。
+    const fromEnv = ['SUOFEI_BASELINE_WEB_DIR', 'SUOFEI_BASELINE_TAG', 'SUOFEI_BASELINE_CONTENT_VERSION']
+      .map((k) => process.env[k]);
+    if (fromEnv.every((v) => typeof v === 'string' && v.trim() !== '')) {
+      const [webDirIn, tag, contentVersion] = fromEnv;
+      const need = ['sw.js', 'app/config.js', 'app/main.js', 'content.json'];
+      const missing = need.filter((rel) => !exists(path.join(webDirIn, rel)));
+      if (missing.length === 0) {
+        return {
+          ok: true,
+          env: {},   // 已经在 process.env 里，子进程本就会继承
+          tag,
+          contentVersion,
+          contentSha256: process.env.SUOFEI_BASELINE_CONTENT_SHA || null,
+          detail: '旧基底 = **调用方环境提供**（SUOFEI_BASELINE_*）：tag ' + tag + ' ＋ 内容 ' + contentVersion,
+        };
+      }
+      return {
+        ok: false,
+        reason: '调用方给的 SUOFEI_BASELINE_WEB_DIR 缺 ' + missing.join('/') + '（' + webDirIn + '）',
+        env: {},
+      };
+    }
+
     const cfgText = fs.readFileSync(path.join(A.webDir(outDir), 'app/config.js'), 'utf8');
     const appVersion = /APP_VERSION\s*=\s*'([^']+)'/.exec(cfgText)?.[1] ?? null;
     if (!appVersion) return { ok: false, reason: '读不到本次产物的 APP_VERSION', env: {} };
@@ -254,10 +285,19 @@ function materializeBaselineForE2E({ root, outDir }) {
       /* 旧产物可能没有 manifest；不影响基线挑选 */
     }
     const tagOutput = git(['tag', '-l']) ?? '';
-    const baseline = pickSameAppBaseline({ appVersion, tagOutput, currentTag });
+    // 先找**同 app 版本**的旧发布（同版本内容刷新路径），找不到再退到**上一版发布**（升版路径）。
+    // ⚠ 不允许「找不到就算」：那样 format 过渡就没人验，而回执只会说“没验”——门形同不存在。
+    const sameApp = pickSameAppBaseline({ appVersion, tagOutput, currentTag });
+    const previous = sameApp ? null : pickPreviousReleaseBaseline({ tagOutput, excludeTag: currentTag });
+    const baseline = sameApp ?? previous;
     if (!baseline) {
-      return { ok: false, reason: '没有任何「v' + appVersion + '+content-*」旧发布 tag 可当旧基底（git tag -l 里没有）', env: {} };
+      return {
+        ok: false,
+        reason: 'git tag -l 里既没有同应用版本（v' + appVersion + '+content-*）的旧发布 tag，也没有任何更早的发布 tag',
+        env: {},
+      };
     }
+    const kind = sameApp ? '同应用版本的旧发布' : '上一版发布（升版基线）';
     const files = findE2EDeployFiles();
     if (!files || files.length === 0) return { ok: false, reason: '读不到 E 线的 DEPLOY_FILES', env: {} };
 
@@ -272,6 +312,27 @@ function materializeBaselineForE2E({ root, outDir }) {
         return { ok: false, reason: 'tag ' + baseline.tag + ' 里读不到 web/' + rel + '（git show 退出码 ' + r.status + '）', env: {} };
       }
       fs.writeFileSync(dest, r.stdout);
+    }
+    // ⚠ **tag 里的壳是仓库态（CONTENT_REVISION='dev'），线上那一份是发布构建盖过章的**。
+    //   不盖章就会得到「旧缓存名 pc-resources-<版本>+dev」这个线上从来不存在的值，
+    //   e2e 里「旧缓存名带修订段」那条会红（红得对，但红在旧基底摆错，不是产物问题）。
+    //   盖的就是发布构建同一个函数，且断言它**不动** APP_VERSION。
+    const stampNote = [];
+    for (const rel of SHELL_STAMP_FILES) {
+      const file = path.join(webDir, rel);
+      if (!exists(file)) return { ok: false, reason: '旧基底缺 ' + rel + '（' + webDir + '）', env: {} };
+      const before = fs.readFileSync(file, 'utf8');
+      const appBefore = readAppVersionConstant(before);
+      const stamped = stampContentRevision(before, baseline.contentVersion, 'baseline ' + rel);
+      fs.writeFileSync(file, stamped.text, 'utf8');
+      const after = fs.readFileSync(file, 'utf8');
+      if (readContentRevision(after) !== baseline.contentVersion) {
+        return { ok: false, reason: '旧基底 ' + rel + ' 盖章后读回不一致', env: {} };
+      }
+      if (readAppVersionConstant(after) !== appBefore) {
+        return { ok: false, reason: '旧基底 ' + rel + ' 盖章把 APP_VERSION 也改了', env: {} };
+      }
+      stampNote.push(rel + ' ' + (stamped.previous ?? '?') + '→' + baseline.contentVersion);
     }
     const contentFile = path.join(webDir, 'content.json');
     const dl = downloadLiveContentFile({ contentVersion: baseline.contentVersion, dest: contentFile });
@@ -295,8 +356,8 @@ function materializeBaselineForE2E({ root, outDir }) {
       tag: baseline.tag,
       contentVersion: baseline.contentVersion,
       contentSha256: dl.sha256,
-      detail: '旧基底 = tag ' + baseline.tag + ' 的 web/** ＋ 线上 content/' + baseline.contentVersion
-        + '/content.json（sha256 ' + dl.sha256.slice(0, 16) + '…，' + dl.bytes + ' 字节）',
+      detail: '旧基底（' + kind + '）= tag ' + baseline.tag + ' 的 web/**（壳按发布口径盖章：' + stampNote.join('、') + '）'
+        + ' ＋ 线上 content/' + baseline.contentVersion + '/content.json（sha256 ' + dl.sha256.slice(0, 16) + '…，' + dl.bytes + ' 字节）',
     };
   } catch (err) {
     return { ok: false, reason: '准备旧基底时异常：' + err.message, env: {} };
@@ -435,6 +496,9 @@ export function runWebE2E({ outDir: outDirIn, requireBaseline = false } = {}) {
       meta: { passed: Number(pass), total: Number(total) },
       detail:
         `e2e 真跑了并失败：通过 ${pass} / ${total}（退出码 ${r.status}，${r.seconds.toFixed(0)}s，${portNote}）\n` +
+        // 旧基底这一行**成功/失败两条路都打**：只在成功路打的话，「旧基底没准备好」这种失败
+        // 就只在 e2e 尾部里露一句，check-ready 这里看不到原因（2026-10-18 真踩到）。
+        `  旧基底：${baseline.ok ? baseline.detail : `**没提供**（${baseline.reason}）⇒ 「旧→新」更新链没验`}\n` +
         (failed.length ? `失败项（原样，含实际/期望值）：\n${failed.map((f, i) => `  - ${f}${details[i] ? `\n      ${details[i]}` : ''}`).join('\n')}` : '') +
         `\n这算红，不算通过。负责人已确认 E 的 e2e 在本机负载高时有**偶发时序敏感失败**；` +
         `若你怀疑就是那类偶发，请对照上面的失败点重跑 \`node release/check-ready.mjs --live-only\` 再定。` +

@@ -40,8 +40,12 @@ export const ORDER_STRATEGY = 'source';
 /** 本流水线与客户端共同支持的内容结构版本（IF-30）。
  * ⚠ 2026-10-16 随本次内容格式升版从 1 → **2**（发布 0.1.2 时）：两端客户端早已是 2
  * （Web `app/config.js`、Android `ContentParser.SUPPORTED_FORMAT_VERSION`），只有这里漏改 ⇒ `format-version` 门
- * 在真实发布前的演练里**报红把它挡下来了**（这正是该门存在的意义：改了结构就得三处一起改）。 */
-export const SUPPORTED_FORMAT_VERSION = 2;
+ * 在真实发布前的演练里**报红把它挡下来了**（这正是该门存在的意义：改了结构就得三处一起改）。
+ * ⚠ 2026-10-18 随标签（tags）字段落定从 2 → **3**（0.1.4 首发 format 3）：
+ *   两端客户端（Web `app/config.js` 的 `SUPPORTED_FORMAT_VERSION`、Android `ContentParser.SUPPORTED_FORMAT_VERSION`）
+ *   与 `tools/lib/interface.mjs` 的 `FORMAT_VERSION` 都已是 3，只有这里还停在 2 ⇒ 不跟改的话
+ *   `format-version` 门会在 0.1.4 的发布演练里报红（这次是**它先红，我们照着改**，不是它放过去）。 */
+export const SUPPORTED_FORMAT_VERSION = 3;
 
 // ---------- Web 部署目录：什么该进、什么绝不能进 ----------
 
