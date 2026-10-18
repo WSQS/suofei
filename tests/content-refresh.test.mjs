@@ -22,6 +22,7 @@ import {
   checkSwCacheNameShape,
   compareAgainstBaselines,
   parseChangedPaths,
+  pickPreviousReleaseBaseline,
   pickSameAppBaseline,
   readAppVersionConstant,
   readContentRevision,
@@ -119,6 +120,23 @@ test('同 app 版本基线：只认 v<同一 app 版本>+content-*，取内容�
   assert.equal(b2.contentVersion, '2026.10.16.26', '不给本次 tag 时取最大值（CI 里本 tag 也在本地，所以必须过滤）');
 
   assert.equal(pickSameAppBaseline({ appVersion: '9.9.9', tagOutput: TAGS }), null, '没有同版本发布就是 null（不造基线）');
+});
+
+test('上一版发布基线（升版路径）：跨应用版本取 contentVersion 最大者，且排除本次 tag', () => {
+  // 0.1.4 的旧基底就是 0.1.3 的 .26 —— 应用版本**不相等**，这正是同 app 版式挑不出来的那种。
+  assert.equal(pickSameAppBaseline({ appVersion: '0.1.4', tagOutput: TAGS }), null,
+    '前提：同 app 版式找 0.1.4 确实什么都没有（否则这个用例测不到东西）');
+  const p = pickPreviousReleaseBaseline({ tagOutput: TAGS });
+  assert.equal(p.tag, 'v0.1.3+content-2026.10.16.26', '应当取内容版本最大的发布 tag');
+  assert.equal(p.appVersion, '0.1.3', '并且把 tag 里的应用版本一起带回来（回执要说清基底是哪个应用版本）');
+  // CI 的 fetch-depth: 0 里，本次 tag 也在本地 ⇒ 必须能排除自己（否则“上一版”就是自己）。
+  const withoutSelf = pickPreviousReleaseBaseline({
+    tagOutput: `${TAGS}\nv0.1.4+content-2026.10.18.3`,
+    excludeTag: 'v0.1.4+content-2026.10.18.3',
+  });
+  assert.equal(withoutSelf.tag, 'v0.1.3+content-2026.10.16.26');
+  assert.equal(pickPreviousReleaseBaseline({ tagOutput: 'not-a-release-tag' }), null,
+    '一个发布 tag 都没有时就是 null（不造基线）');
 });
 
 test('内容版本要**严格大于**线上真值与基线（两个都要比）', () => {

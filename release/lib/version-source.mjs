@@ -137,19 +137,40 @@ export function resolveVersionRequest({ explicit, tag, source }) {
  *   - 没给显式值时，按优先级取**最大**的一个：
  *       1. 已提交进仓库的内置内容（`android/app/src/main/assets/content/content.json`）
  *          —— 上一次随 APK 真正发出去的版本；
- *       2. 已有的 release/out/release-manifest.json（本机上跑过的上一次发布）。
- * 都没有就返回 null，流水线会打印「未提供上一版，跳过了单调性检查」——不假装检查过。
+ *       2. 已有的 release/out/release-manifest.json（本机上跑过的上一次发布）；
+ *       3. **已有的发布 tag**（`v<应用>+content-<内容>`）—— CI 从空目录构建、或在
+ *          「内置内容已随发布准备提交到本次版本」的树上构建时，前两个候选会等于本次版本
+ *          （那就不是“上一版”），这时唯一的一手源就是旧 tag。
+ *   - ⚠️ 2026-10-18（0.1.4 发布准备时真踩到）：发布准备会先把新内容编进仓库里的内置产物
+ *     （三份同源），于是候选 1 就是本次的 2026.10.18.3 ⇒ 不筛掉的话流水线会报
+ *     「新版本 2026.10.18.3 不大于上一版 2026.10.18.3」而**在建 APK 之前**就失败。
+ *     所以：**等于本次版本的候选不算基线**（它不是“上一版”），并补上发布 tag 这一路。
+ * 都没有就返回 null，流水线会打印「未提供上一版、跳过了单调性检查」—— 不假装检查过。
+ *
+ * @param {{explicit?: string|null, manifestFile: string, currentVersion?: string|null, tagOutput?: string|null}} opts
  */
-export function resolvePreviousVersion({ explicit, manifestFile }) {
+export function resolvePreviousVersion({ explicit, manifestFile, currentVersion = null, tagOutput = null }) {
   if (explicit != null && explicit !== '') {
     return { version: explicit, source: `explicit(--previous-version=${explicit})，不再与其他候选比大小` };
   }
+  /** “上一版”必须严格小于本次（等于本次它就不是上一版）。 */
+  const isOlder = (v) => {
+    if (!currentVersion) return true;
+    try {
+      return compareContentVersion(v, currentVersion) < 0;
+    } catch {
+      return true;
+    }
+  };
   const candidates = [];
+  const skipped = [];
   const bundled = path.join(REPO_ROOT, 'android/app/src/main/assets/content/content.json');
   try {
     const doc = JSON.parse(fs.readFileSync(bundled, 'utf8'));
     if (typeof doc.contentVersion === 'string' && doc.contentVersion !== '') {
-      candidates.push({ version: doc.contentVersion, source: '已提交的内置内容 android/app/src/main/assets/content/content.json' });
+      const src = '已提交的内置内容 android/app/src/main/assets/content/content.json';
+      if (isOlder(doc.contentVersion)) candidates.push({ version: doc.contentVersion, source: src });
+      else skipped.push(`${doc.contentVersion}（${src}）`);
     }
   } catch {
     /* 读不到就不作为候选，不猜 */
@@ -157,12 +178,23 @@ export function resolvePreviousVersion({ explicit, manifestFile }) {
   try {
     const doc = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
     if (typeof doc.contentVersion === 'string' && doc.contentVersion !== '') {
-      candidates.push({ version: doc.contentVersion, source: '上次的 release/out/release-manifest.json' });
+      const src = '上次的 release/out/release-manifest.json';
+      if (isOlder(doc.contentVersion)) candidates.push({ version: doc.contentVersion, source: src });
+      else skipped.push(`${doc.contentVersion}（${src}）`);
     }
   } catch {
     /* 同上 */
   }
-  if (candidates.length === 0) return { version: null, source: null };
+  // 候选 3：发布 tag（一手、离线可查；CI 的 fetch-depth: 0 里就有）。
+  if (tagOutput) {
+    for (const line of String(tagOutput).split('\n')) {
+      const parsed = parseReleaseTag(line.trim());
+      if (!parsed) continue;
+      if (!isOlder(parsed.contentVersion)) continue;
+      candidates.push({ version: parsed.contentVersion, source: `发布 tag ${line.trim()}` });
+    }
+  }
+  if (candidates.length === 0) return { version: null, source: null, skipped };
 
   // 用与编译器和客户端同一套比较规则挑最大值。
   let best = candidates[0];
@@ -173,5 +205,5 @@ export function resolvePreviousVersion({ explicit, manifestFile }) {
       /* 形状不合法的候选不参与比较 */
     }
   }
-  return best;
+  return { ...best, skipped };
 }

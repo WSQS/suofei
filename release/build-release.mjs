@@ -428,7 +428,14 @@ function main() {
   const prev = resolvePreviousVersion({
     explicit: opts.previousVersion,
     manifestFile: A.manifestPath(outDir),
+    // 「上一版」必须严格小于本次 —— 发布准备会把新内容先编进仓库内置产物（三份同源），
+    // 那个候选就会等于本次版本；不筛掉就会在编译前报「新版本不大于上一版」。
+    currentVersion: versionReq.contentVersion,
+    tagOutput: git(['tag', '-l']),
   });
+  if (prev.skipped?.length) {
+    note(`不作为基线（等于或高于本次 ${versionReq.contentVersion}）：${prev.skipped.join('；')}`);
+  }
   if (prev.version) info('单调性基线（上一版）', `${prev.version}    ← 来源：${prev.source}`);
   else warn('没有可用的「上一版」基线；编译器会跳过单调性检查（这一次的版本号不会被自动拦住）');
 
