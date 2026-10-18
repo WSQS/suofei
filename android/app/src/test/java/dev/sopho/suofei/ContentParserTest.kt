@@ -173,12 +173,19 @@ class ContentParserTest {
         val guShi = content.tags[0]
         val tang = content.tags[1]
         assertEquals("古诗十九首 19 首", 19, guShi.memberIds.size)
-        assertEquals("唐诗三百首 2 首", 2, tang.memberIds.size)
-        // 唐300 两行且顺序为 其一 → 其二（orderInTag 1、2）
+        // ⚠ 2026-10-19（新增杜甫《望岳》：唐诗三百首 2 首 → 3 首）：成员数**不再写死**，
+        //   期望值从内容的**唯一来源**（`content/poems/**` 的 tags 块）派生——与上一条“产物 == 源”契约同侧，
+        //   且比字面量更强：源里加了归属而内置产物忘了重编 ⇒ 这里真报红。
+        val tangExpected = ContentSources.tagsBySource["唐诗三百首"]
+            ?: throw AssertionError("源文里没有任何「唐诗三百首」归属，下面的断言会变成空的")
+        assertEquals("唐诗三百首 成员数 == 源文里声明该标签的条数（派生，不写死 2）", tangExpected.size, tang.memberIds.size)
+        assertEquals("唐诗三百首 成员 == 源文声明按 orderInTag 升序", tangExpected, tang.memberIds)
+        // 唐300 顺序（本次实况）：望岳 → 其一 → 其二（orderInTag 1、2、3）
+        // 次序依据：汉典古籍《唐诗三百首》站内相对先后（见 docs/sources/wangyue-intake.md §4）
         val tangGroup = content.tagGroups.first { it.name == "唐诗三百首" }
         assertEquals(
-            "唐诗三百首展开后两行、顺序为 其一 → 其二",
-            listOf("梦李白二首·其一", "梦李白二首·其二"), tangGroup.poems.map { it.title },
+            "唐诗三百首展开后顺序为 望岳 → 其一 → 其二",
+            listOf("望岳", "梦李白二首·其一", "梦李白二首·其二"), tangGroup.poems.map { it.title },
         )
         assertEquals("标签页的组数 == 2（两个组头）", 2, content.tagGroups.size)
         // 毛诗仍没有标签

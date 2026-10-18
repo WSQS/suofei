@@ -1152,6 +1152,38 @@ async function main() {
     });
   const sourcesWithDetail = sourcePoemRel.filter((rel) => readFileSync(resolve(repoRoot, 'content', 'poems', rel), 'utf8')
     .split('\n').some((l) => l.trim() === '## 详情'));
+  // 标签期望值同样派生自**源文**（与 `tools/lib/content-build.mjs`、Android 侧 `ContentSources` 同一口径：
+  // front matter 的 `- id: X` ＋ `orderInTag: N`；id 与编译器的 C2 规则一致：相对路径去 `.md`、`/`→`-`、NFC）。
+  // ⚠ 2026-10-19（新增杜甫《望岳》，《唐诗三百首》2 首 → 3 首）：本节原先写死「成员数 == 2」「就是那两首」，
+  //   加一首就要改测试，而且抓不到「源文加了归属、产物忘了重编」。改成派生 ⇒ 断言反而更严（产物 == 源）。
+  const idOfSourceRel = (rel) => rel.slice(0, -3).split('/').join('-').normalize('NFC');
+  const tagDecls = [];                                                    // [{ poemId, tagId, orderInTag }]
+  for (const rel of sourcePoemRel) {
+    const lines = readFileSync(resolve(repoRoot, 'content', 'poems', rel), 'utf8').split(/\r?\n/);
+    const start = lines.findIndex((l) => l.trim() === '---');
+    const end = lines.findIndex((l, i) => i > start && l.trim() === '---');
+    const poemId = idOfSourceRel(rel);
+    let inTags = false;
+    let cur = null;
+    for (const raw of lines.slice(start + 1, end)) {
+      if (/^\S/.test(raw)) { inTags = /^tags\s*:/.test(raw); cur = null; continue; }
+      if (!inTags) continue;
+      const item = raw.match(/^\s*-\s*id\s*:\s*(.+)$/);
+      if (item) {
+        cur = { poemId, tagId: item[1].trim().replace(/^"(.*)"$/, '$1'), orderInTag: null };
+        tagDecls.push(cur);
+        continue;
+      }
+      const order = raw.match(/^\s*orderInTag\s*:\s*(.+)$/);
+      if (order && cur) cur.orderInTag = Number(order[1].trim());
+    }
+  }
+  const sourceMembersOf = (tagId) => tagDecls.filter((d) => d.tagId === tagId)
+    .sort((a, b) => a.orderInTag - b.orderInTag).map((d) => d.poemId);
+  check('源文里确实有人声明标签（否则下面按源派生的那几条是空的）', tagDecls.length > 0,
+    dump(tagDecls));
+  check('源文的每条标签声明都读了 orderInTag（没有 null：契约要求必填）',
+    tagDecls.every((d) => Number.isInteger(d.orderInTag)), dump(tagDecls));
   eq('产物首数 == content/poems/ 的源文数（产物 == 源）', baseDoc.poems.length, sourcePoemRel.length);
   eq(`产物事实：带 detail 的诗 ${poemsWithDetail.length} 首、没有 detail 的诗 ${noDetailPoems.length} 首（期望值派生自源文的 \`## 详情\` 节，不写死）`,
     [poemsWithDetail.length, noDetailPoems.length], [sourcesWithDetail.length, sourcePoemRel.length - sourcesWithDetail.length]);
@@ -2212,16 +2244,18 @@ async function main() {
 
   // ---------------------------------------------------------------- 9. format 2 → format 3（真·旧基底）
   //
-  // 本轮过渡的实质**不是「加了多少首诗」**：线上已发布的基底 `.26` 与本轮新内容**都是 22 首**，
-  // 差别在 **formatVersion 2 → 3**（每首多 `tags: []`、顶层多 `tags: [{id, members}]`）、内容修订号，
-  // 以及壳本身（format2 壳只认 2，format3 壳只认 3）。所以下面盯的是四件事：
+  // 本轮过渡的实质**不是「加了多少首诗」**：线上已发布的基底 `.26` 与本轮新内容在 **formatVersion 2 → 3**
+  // （每首多 `tags: []`、顶层多 `tags: [{id, members}]`）、内容修订号、壳字节上不同——本轮**另加**了杜甫《望岳》
+  // （2026-10-19，22 → 23 首），但**首数差不是过渡证据**（下面只作「不丢诗」的不变式）。所以盯的是四件事：
   //   ① 两端的**格式身份/资源身份**（formatVersion、contentVersion、sha256、缓存名）；
   //   ② **版本门两个方向都受控**：旧壳不读 3、新壳不读 2 —— 如实报原因，不渲染、不猜；
   //   ③ **成对发布**：新修订 ⇒ 新 sw.js 字节 ⇒ 新 cache（壳+内容同批），旧 cache 的字节**从头到尾没变**；
-  //   ④ 接受之后 v3 真能渲染（22 首 + 「古诗十九首」19 首照产物顺序）；半套部署**装不上**且不污染现有缓存。
+  //   ④ 接受之后 v3 真能渲染（全库 ${total} 首 ＋「古诗十九首」19 首照产物顺序）；半套部署**装不上**且不污染现有缓存。
   //
   // ⚠ 上一轮的写法（本节曾写「20 首 → 22 首」「旧缓存名只有前缀＋应用版本」）**已作废**：
   //   已发布基底 `.26` 就是 22 首、而且缓存名里**已经带修订段**。拿首数差当过渡证据是空的。
+  // ⚠ 2026-10-19 又一条作废：本节曾断言「两版首数**相同**」——本轮真的多了一首（《望岳》），那句话不再成立。
+  //   改成更硬的不变式：**旧基底里的诗一首都不丢**（id 全在），首数不减。
   section('9 format 2 → format 3：真·旧基底（已发布那一对字节）→ 本轮新内容（formatVersion 3）');
   const sha256 = (text) => createHash('sha256').update(Buffer.from(String(text), 'utf8')).digest('hex');
   const readConstFrom = (text, name) => new RegExp(`(?:const|export const) ${name} = '([^']*)'`).exec(text)?.[1] ?? null;
@@ -2271,7 +2305,14 @@ async function main() {
       `${RESOURCE_CACHE_PREFIX}${oldAppVersion}+${oldRev}`);
     check('旧缓存名确实带修订段（`.26` 就是带修订发布的；「只由前缀＋应用版本组成」的旧断言已作废）',
       oldRev !== null && oldRev !== 'dev' && oldCacheName.endsWith('+' + oldRev), dump({ oldRev, oldCacheName }));
-    eq('两版首数**相同**（本轮不是「多两首」：别拿首数差当过渡证据）', oldDoc.poems.length, baseDoc.poems.length);
+    // ⚠ 2026-10-19：旧断言「两版首数**相同**」作废（本轮真的多了一首《望岳》）。
+    //   过渡的实质仍是格式身份（format 2 → 3、内容修订、壳字节、缓存名），首数差**不是**证据（这条不变）；
+    //   这里换成更硬的不变式：旧基底的诗**一首都没丢**，首数不减。
+    const newIdSet = new Set(baseDoc.poems.map((p) => p.id));
+    eq('旧基底里的每一首都还在新产物里（加诗不删诗）',
+      oldDoc.poems.map((p) => p.id).filter((id) => !newIdSet.has(id)), []);
+    check('首数没有减少',
+      baseDoc.poems.length >= oldDoc.poems.length, dump({ old: oldDoc.poems.length, new: baseDoc.poems.length }));
     check('旧内容没有顶层 tags 字段（format 2 没有这一层）', oldDoc.tags === undefined, dump(Object.keys(oldDoc)));
     eq('旧内容每首的键集里也没有 tags（format 2 的键集）',
       oldDoc.poems.filter((p) => p.tags !== undefined).length, 0);
@@ -2299,14 +2340,18 @@ async function main() {
     check('本次实况：古诗十九首与唐诗三百首都真在产物里', Boolean(gjss && tang300), dump(baseTagIds));
     eq('「古诗十九首」的成员数 == 19（第一版验收重点）', gjss.members.length, 19);
     eq('「古诗十九首」成员 id 不重复', new Set(gjss.members).size, gjss.members.length);
-    eq('「唐诗三百首」的成员数 == 2', tang300.members.length, 2);
-    eq('「唐诗三百首」的成员就是那两首（其一 → 其二，产物 members 顺序）',
+    eq('「唐诗三百首」的成员数 == 源文里声明该标签的条数（2 首时代的写死断言已作废）',
+      tang300.members.length, sourceMembersOf('唐诗三百首').length);
+    eq('「唐诗三百首」的成员 == 源文声明按 orderInTag 升序（产物 == 源）',
+      tang300.members, sourceMembersOf('唐诗三百首'));
+    // 本次实况层（真实数据，不是夹具；诗目增删时改的就是这里）：
+    eq('本次实况：「唐诗三百首」就是望岳 → 梦李白其一 → 梦李白其二（次序依据见 docs/sources/wangyue-intake.md §4）',
       tang300.members.map((id) => baseDoc.poems.find((p) => p.id === id)?.title),
-      ['梦李白二首·其一', '梦李白二首·其二']);
-    eq('「唐诗三百首」两首的 orderInTag 是 1、2（members 次序的唯一依据）',
+      ['望岳', '梦李白二首·其一', '梦李白二首·其二']);
+    eq('本次实况：三首的 orderInTag 是 1、2、3（members 次序的唯一依据）',
       tang300.members.map((id) => (baseDoc.poems.find((p) => p.id === id)?.tags ?? [])
         .filter((x) => x.id === '唐诗三百首').map((x) => x.orderInTag)),
-      [[1], [2]]);
+      [[1], [2], [3]]);
     check('成员都是产物里真实存在的诗（引用闭合）',
       baseTagGroups.every((t) => t.members.every((id) => baseDoc.poems.some((p) => p.id === id))),
       dump(baseTagGroups.map((t) => t.members)));
@@ -2477,7 +2522,7 @@ async function main() {
       return [...g.querySelectorAll('[data-test="poem-row"]')].filter((r) => r.offsetParent !== null).map((r) => r.dataset.poemId);
     })()`);
     eq('「古诗十九首」展开后的行顺序 == 产物 members 顺序', v3TagRows, gjss.members);
-    eq('「古诗十九首」展开后就是 19 行（不是 22：标签只收带该标签的诗）', v3TagRows.length, 19);
+    eq(`「古诗十九首」展开后就是 19 行（不是全库 ${total} 首：标签只收带该标签的诗）`, v3TagRows.length, 19);
     eq('别的组收起时，它的行不可见（标签只收带该标签的诗，不是把整库倒出来）',
       await evaluate(`[...document.querySelectorAll('[data-test="tag-group"]:not([data-tag-id=' + ${JSON.stringify(JSON.stringify(baseTagGroups[0].id))} + ']) [data-test="poem-row"]')].filter((r) => r.offsetParent !== null).length`),
       0);
@@ -2491,10 +2536,13 @@ async function main() {
     await evaluate(`document.querySelector('[data-test="tag-group"][data-tag-id="唐诗三百首"] [data-test="tag-group-title"]').click(); true`);
     const tangRows = await evaluate(`[...document.querySelectorAll('[data-test="tag-group"][data-tag-id="唐诗三百首"] [data-test="poem-row"]')]`
       + `.map((r) => ({ id: r.dataset.poemId, title: r.querySelector('.poem-row-title').textContent }))`);
-    eq('「唐诗三百首」展开后**两行**，行序 == 产物 members（其一 → 其二）',
+    eq('「唐诗三百首」展开后的行数 == 产物 members 数（不再写死「两行」）',
       tangRows.map((r) => r.id), tang300.members);
-    eq('「唐诗三百首」两行的题名确实是 其一 → 其二',
-      tangRows.map((r) => r.title), ['梦李白二首·其一', '梦李白二首·其二']);
+    eq('「唐诗三百首」各行的题名 == 产物里这些 id 的题名（本次实况：望岳 → 梦李白其一 → 梦李白其二）',
+      tangRows.map((r) => r.title),
+      tang300.members.map((id) => baseDoc.poems.find((p) => p.id === id)?.title));
+    eq('本次实况：三行的题名确实是 望岳 → 其一 → 其二',
+      tangRows.map((r) => r.title), ['望岳', '梦李白二首·其一', '梦李白二首·其二']);
     eq('「唐诗三百首」展开不影响另一组：古诗十九首仍展开、行数仍是它的 members 数',
       await evaluate(`(() => {
         const g = document.querySelector('[data-test="tag-group"][data-tag-id="古诗十九首"]');
