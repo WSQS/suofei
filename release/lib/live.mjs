@@ -276,7 +276,7 @@ function materializeBaselineForE2E({ root, outDir }) {
     }
 
     const cfgText = fs.readFileSync(path.join(A.webDir(outDir), 'app/config.js'), 'utf8');
-    const appVersion = /APP_VERSIONs*=s*'([^']+)'/.exec(cfgText)?.[1] ?? null;
+    const appVersion = /APP_VERSION\s*=\s*'([^']+)'/.exec(cfgText)?.[1] ?? null;
     if (!appVersion) return { ok: false, reason: '读不到本次产物的 APP_VERSION', env: {} };
     let currentTag = null;
     try {
@@ -496,6 +496,9 @@ export function runWebE2E({ outDir: outDirIn, requireBaseline = false } = {}) {
       meta: { passed: Number(pass), total: Number(total) },
       detail:
         `e2e 真跑了并失败：通过 ${pass} / ${total}（退出码 ${r.status}，${r.seconds.toFixed(0)}s，${portNote}）\n` +
+        // 旧基底这一行**成功/失败两条路都打**：只在成功路打的话，「旧基底没准备好」这种失败
+        // 就只在 e2e 尾部里露一句，check-ready 这里看不到原因（2026-10-18 真踩到）。
+        `  旧基底：${baseline.ok ? baseline.detail : `**没提供**（${baseline.reason}）⇒ 「旧→新」更新链没验`}\n` +
         (failed.length ? `失败项（原样，含实际/期望值）：\n${failed.map((f, i) => `  - ${f}${details[i] ? `\n      ${details[i]}` : ''}`).join('\n')}` : '') +
         `\n这算红，不算通过。负责人已确认 E 的 e2e 在本机负载高时有**偶发时序敏感失败**；` +
         `若你怀疑就是那类偶发，请对照上面的失败点重跑 \`node release/check-ready.mjs --live-only\` 再定。` +
