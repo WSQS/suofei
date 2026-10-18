@@ -24,7 +24,7 @@
 | [`content-tags`](content-tags/item.md) | **能力总项**：内容标签（选本/作品集合归属）＋「默认视图之外」的多浏览视图 | **方向已确认（2026-10-18）、字段与视觉未定**；**三个子项均已在制**，本阶段只出原型/契约候选 |
 | [`tag-semantics`](tag-semantics/item.md) | 标签的**域场景与语义**（父项 `content-tags`）：标签≠朝代/体裁/目录/source；10 例为**待审检验场景/建议**（非已批功能） | 首稿在制（调度侧） |
 | [`tag-format`](tag-format/item.md) | **MD 标注写法 ＋ JSON 数据稿**（父项 `content-tags`）：真实诗→候选 frontmatter→完整 JSON 三层对照 | **交付待审**（`19e649c`；已按七条纠正修准 `d0cc63c`） |
-| [`tag-views`](tag-views/item.md) | **多视图 UI 原型**（父项 `content-tags`）：朝代浏览＋标签视图候选、入口/切换/列表/空与未收全/返回原视图与状态 | **交付待审**（`ec28041` 合入；48/0 自检、13 图、README 13 条未表达） |
+| [`tag-views`](tag-views/item.md) | **多视图 UI 原型**（父项 `content-tags`）：**已改为 A 单版「朝代 ｜ 标签」**（用户已选 A 并要重出） | **交付待审**（`126d76e` 合入；64/0 自检、9 图、旧 A/B/C 轮归档到 `history/round-2026-10-18-abc-candidates/`） |
 
 ## Edges（**硬边**＝从「缺的那个结果」指向「被它挡住的范围」）
 
