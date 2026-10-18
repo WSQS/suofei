@@ -29,11 +29,14 @@ import { spawnSync } from 'node:child_process';
 
 import * as A from './artifacts.mjs';
 import { gradlewCommand, prepareAndroidWorkDir, readUnitTestCounts } from './android-work.mjs';
+import { pickSameAppBaseline } from './content-refresh.mjs';
+import { downloadLiveContentFile } from './live-version.mjs';
 import {
   REPO_ROOT,
   copyTree,
   display,
   exists,
+  git,
   rmrf,
   runCaptureFull,
   sha256File,
@@ -194,6 +197,12 @@ function prepareE2ERoot({ outDir, distFile }) {
   // 为什么必须在**镜像根**里也放一份：e2e 把镜像根当仓库根用（`resolve(repoRoot, …)`），
   // 而 `findE2ERepoReads` 的接缝预检要求「它读的路径在镜像里必须存在」——缺了就要红。
   // 这两个文件**不进任何发布产物**（站点白名单里没有它们）；这里只是把仓库里的唯一来源搬给测试读。
+  // ★ 内容源（**不是**发布产物）：e2e 有一条断言按路径派生 id 回查源 Markdown（证明 detail 与源文对得上）。
+  //   镜像根原本没有 content/ ⇒ 那条断言会以「接缝」报红，而产物本身没问题。
+  copyTree(path.join(REPO_ROOT, 'content', 'poems'), path.join(root, 'content', 'poems'), {
+    filter: (from) => path.basename(from) !== 'node_modules',
+  });
+
   for (const rel of ['prototype/css/theme-tech.css', 'docs/design/visual-tokens.md']) {
     const src = path.join(REPO_ROOT, rel);
     if (!exists(src)) throw new Error(`测试要读的仓库文件不存在：${display(src)}`);
@@ -224,7 +233,77 @@ function prepareE2ERoot({ outDir, distFile }) {
   return root;
 }
 
-export function runWebE2E({ outDir: outDirIn }) {
+/**
+ * 把**真正已发布的那份旧基底**摆到镜像根里，供 E 的 e2e 做「旧 → 新」的更新链验证。
+ *
+ * 为何必须这样（负责人 2026-10-16 明确要求）：「旧侧必须是**已发布的那份字节**，
+ * 不是新 main ＋ 20 首夹具」。所以这里取的是：
+ *   · 壳：**旧发布 tag** 的 `web/**`（`git show <tag>:web/<file>`，逐字节）；
+ *   · 内容：**线上那份已发布的内容快照** `content/<版本>/content.json`（不重编、不代替）。
+ * 拿不到就如实返回失败原因（**不造一个“看起来像旧版”的代替品**）。
+ */
+function materializeBaselineForE2E({ root, outDir }) {
+  try {
+    const cfgText = fs.readFileSync(path.join(A.webDir(outDir), 'app/config.js'), 'utf8');
+    const appVersion = /APP_VERSION\s*=\s*'([^']+)'/.exec(cfgText)?.[1] ?? null;
+    if (!appVersion) return { ok: false, reason: '读不到本次产物的 APP_VERSION', env: {} };
+    let currentTag = null;
+    try {
+      currentTag = JSON.parse(fs.readFileSync(A.manifestPath(outDir), 'utf8'))?.releaseTag?.name ?? null;
+    } catch {
+      /* 旧产物可能没有 manifest；不影响基线挑选 */
+    }
+    const tagOutput = git(['tag', '-l']) ?? '';
+    const baseline = pickSameAppBaseline({ appVersion, tagOutput, currentTag });
+    if (!baseline) {
+      return { ok: false, reason: '没有任何「v' + appVersion + '+content-*」旧发布 tag 可当旧基底（git tag -l 里没有）', env: {} };
+    }
+    const files = findE2EDeployFiles();
+    if (!files || files.length === 0) return { ok: false, reason: '读不到 E 线的 DEPLOY_FILES', env: {} };
+
+    const webDir = path.join(root, 'baseline-web');
+    fs.mkdirSync(webDir, { recursive: true });
+    for (const rel of files) {
+      const dest = path.join(webDir, rel);
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      // ⚠ 不能走 git()（它是 utf8 字符串）：图标是 PNG，必须取**原始字节**。
+      const r = spawnSync('git', ['show', baseline.tag + ':web/' + rel], { maxBuffer: 1 << 28 });
+      if (r.status !== 0 || !r.stdout) {
+        return { ok: false, reason: 'tag ' + baseline.tag + ' 里读不到 web/' + rel + '（git show 退出码 ' + r.status + '）', env: {} };
+      }
+      fs.writeFileSync(dest, r.stdout);
+    }
+    const contentFile = path.join(webDir, 'content.json');
+    const dl = downloadLiveContentFile({ contentVersion: baseline.contentVersion, dest: contentFile });
+    if (!dl.ok) {
+      return {
+        ok: false,
+        reason: '取不到线上已发布的旧内容快照 ' + baseline.contentVersion + '：' + dl.error
+          + ' —— 旧侧必须是用户真正收到的那份字节；没它就不做更新链验证，不拿仓库副本充数',
+        env: {},
+      };
+    }
+    const env = {
+      SUOFEI_BASELINE_WEB_DIR: webDir,
+      SUOFEI_BASELINE_TAG: baseline.tag,
+      SUOFEI_BASELINE_CONTENT_VERSION: baseline.contentVersion,
+      SUOFEI_BASELINE_CONTENT_SHA: dl.sha256,
+    };
+    return {
+      ok: true,
+      env,
+      tag: baseline.tag,
+      contentVersion: baseline.contentVersion,
+      contentSha256: dl.sha256,
+      detail: '旧基底 = tag ' + baseline.tag + ' 的 web/** ＋ 线上 content/' + baseline.contentVersion
+        + '/content.json（sha256 ' + dl.sha256.slice(0, 16) + '…，' + dl.bytes + ' 字节）',
+    };
+  } catch (err) {
+    return { ok: false, reason: '准备旧基底时异常：' + err.message, env: {} };
+  }
+}
+
+export function runWebE2E({ outDir: outDirIn, requireBaseline = false } = {}) {
   // 统一成绝对路径：下面会给子进程设 cwd，相对路径会跟 cwd 叠成两层。
   const outDir = path.resolve(outDirIn);
   const distFile = A.distPath(outDir);
@@ -245,6 +324,14 @@ export function runWebE2E({ outDir: outDirIn }) {
     root = prepareE2ERoot({ outDir, distFile });
   } catch (err) {
     return { status: 'FAIL', detail: `准备被测站点失败：${err.message}` };
+  }
+  // 旧基底（真正已发布的那份字节）：没有它就没有「旧 → 新」的更新链验证。
+  const baseline = materializeBaselineForE2E({ root, outDir });
+  if (!baseline.ok && requireBaseline) {
+    return {
+      status: 'FAIL',
+      detail: '旧基底取不到 ⇒ **更新链没验**（本模式要求验）：' + baseline.reason,
+    };
   }
 
   // ★ 接缝预检（把 E 需要的**仓库级**文件对清楚；缺了必须红，不许跳过）
@@ -314,6 +401,7 @@ export function runWebE2E({ outDir: outDirIn }) {
       TEST_PORT: String(ports.port),
       TEST_DEBUG_PORT: String(ports.debugPort),
       ...envOverrides,
+      ...baseline.env,
     },
     logFile,
     tailLines: 12,
@@ -359,7 +447,10 @@ export function runWebE2E({ outDir: outDirIn }) {
   //   站点文件（index.html/sw.js/app/*）必须与 out/web 一致（APP_VERSION 一行允许被 harness 改成同一个值）。
   const problems = [];
   const deployDir = path.join(root, 'web/tests/artifacts/deploy/v1');
-  const stripAppVersion = (text) => text.replace(/APP_VERSION\s*=\s*'[^']*'/g, "APP_VERSION = '<v>'");
+  // 两个版本常量都要归一化：E 的 harness 会按部署改写它们（v1 是原值，v2/v3 是派生值）。
+  const stripAppVersion = (text) => text
+    .replace(/APP_VERSION\s*=\s*'[^']*'/g, "APP_VERSION = '<v>'")
+    .replace(/CONTENT_REVISION\s*=\s*'[^']*'/g, "CONTENT_REVISION = '<rev>'");
   const deployFiles = findE2EDeployFiles() ?? ['index.html', 'styles.css', 'manifest.json', 'sw.js', 'app/config.js', 'app/content.js', 'app/main.js', 'app/render.js'];
   let servedVersion = null;
   if (!exists(deployDir)) {
@@ -386,8 +477,17 @@ export function runWebE2E({ outDir: outDirIn }) {
   }
   // 被测站点的版本必须就是**我构建出来的那一版**（不是别人顺手改的值）
   const builtVersion = /APP_VERSION\s*=\s*'([^']+)'/.exec(fs.readFileSync(path.join(A.webDir(outDir), 'app/config.js'), 'utf8'))?.[1] ?? null;
+  const builtRevision = /CONTENT_REVISION\s*=\s*'([^']+)'/.exec(fs.readFileSync(path.join(A.webDir(outDir), 'app/config.js'), 'utf8'))?.[1] ?? null;
+  const servedRevision = (() => {
+    if (!exists(deployDir)) return null;
+    const text = fs.readFileSync(path.join(deployDir, 'app/config.js'), 'utf8');
+    return /CONTENT_REVISION\s*=\s*'([^']+)'/.exec(text)?.[1] ?? null;
+  })();
   if (servedVersion && builtVersion && servedVersion !== builtVersion) {
     problems.push(`被测站点的 APP_VERSION=${servedVersion} ≠ out/web 里的 ${builtVersion} —— 测的不是我这一版`);
+  }
+  if (servedRevision !== builtRevision) {
+    problems.push('被测站点的 CONTENT_REVISION=' + servedRevision + ' ≠ out/web 里的 ' + builtRevision + ' —— 内容修订不是本次建的值');
   }
   if (problems.length) {
     return { status: 'FAIL', detail: `e2e 通过了（${pass}/${total}），但「被测站点是本次产物」这件事不成立：\n${problems.map((p) => `  - ${p}`).join('\n')}` };
@@ -397,7 +497,8 @@ export function runWebE2E({ outDir: outDirIn }) {
     meta: { passed: Number(pass), total: Number(total) },
     detail:
       `通过 ${pass} / ${total}（${r.seconds.toFixed(0)}s，真 Chromium，${portNote}）\n` +
-      `  基座 = out/dist/content.json（sha256 ${distSha.slice(0, 16)}…），站点载荷 = out/web（APP_VERSION=${builtVersion}），仓库 web/content.json 未参与\n` +
+      `  基座 = out/dist/content.json（sha256 ${distSha.slice(0, 16)}…），站点载荷 = out/web（APP_VERSION=${builtVersion}，内容修订=${builtRevision}），仓库 web/content.json 未参与\n` +
+      (baseline.ok ? `  ${baseline.detail}` + `\n` : `  ⚠ 旧基底未提供（${baseline.reason}）—— 「旧→新」更新链**没验**` + `\n`) +
       (envNotes.length ? `  接缝：${envNotes.join('；')}（镜像根故意不带 schema/，仓库级唯一来源指回仓库）\n` : '') +
       `  机械核对：E 发的 v1 目录里 content.json 与 dist 逐字节相同；index.html/sw.js/app/* 与 out/web 一致\n` +
       `  完整输出：${display(logFile)}`,

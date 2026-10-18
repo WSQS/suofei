@@ -139,14 +139,22 @@ web/
 > 清单；而 **Web 的内容与壳（HTML/JS/CSS）本来就是同一次部署一起换的**，独立通道只是多一套
 > 会漂移的状态。删掉之后只剩一条真相来源（站点部署），也就不可能出现「旧壳配新内容」。
 
-### 4.1 一条通道：站点缓存按 `APP_VERSION` 成对切换
+### 4.1 一条通道：站点缓存按 `APP_VERSION` ＋ **内容修订** 成对切换
 
 | | 站点资源（壳） | 内容 |
 |---|---|---|
-| 放在哪 | 同一个 Cache Storage：`pc-resources-<APP_VERSION>` | **同一个** cache 里的 `content.json` |
+| 放在哪 | 同一个 Cache Storage：`pc-resources-<APP_VERSION>+<CONTENT_REVISION>` | **同一个** cache 里的 `content.json` |
 | 谁写 | `sw.js` 的 install 预缓存（`cache: 'reload'`，绕开 HTTP 缓存） | 同上，和壳在同一份预缓存清单里 |
-| 版本键 | 只有 `APP_VERSION` 一个 | 不再单独做更新决策（`contentVersion` 只在界面上展示） |
+| 版本键 | `APP_VERSION`（应用/壳）＋ `CONTENT_REVISION`（内容修订，发布构建盖章为本次 `contentVersion`） | 不做独立内容通道（`contentVersion` 在界面上展示，另在本地充当缓存名里的修订） |
 | 取用策略 | **cache-first**：本版本缓存里有就直接给，没有才去网络（且**不写回**本版本缓存） | 同左 |
+
+**为什么要第二根轴（2026-10-16，用户拍板「版本号不变只更新内容」，同时也要求出新的 APK）**：
+浏览器只在 **`sw.js` 的字节**变化时才装新 SW。若缓存名只跟 `APP_VERSION` 走，那么「同 app 版本
+重发一份新内容」会发生两件事：① `sw.js` 字节没变 ⇒ 新 SW 不会装 ⇒ 老缓存继续服务，**用户永远
+看不到新内容**；② 就算硬塞一个新 SW，缓存名相同 ⇒ 新旧内容挤进同一个 cache ⇒「壳与内容成对切换」
+就破了。所以缓存名改成 `<前缀><APP_VERSION>+<CONTENT_REVISION>`，而 **前缀 `pc-resources-` 不动**
+（activate 靠它认出「本前缀的旧 cache 才删」）。`CONTENT_REVISION` 在仓库里恒为 `dev`，
+**发布构建把产物里的那一份盖章成本次 `contentVersion`**（见 `docs/design/same-app-content-refresh.md`）。
 
 - **成对生效**：装好新版本后停在 waiting，页面上只是提示；用户点「刷新」（或在诗页时回到目录）
   才切换。旧 SW 还在控制时，即使服务器已经换成新版本，页面拿到的仍是旧缓存里的**整套** ——
@@ -491,9 +499,13 @@ node ../android/tools/make-launcher-icon.mjs              # Android 侧的矢量
    SW 的**作用域**就是它所在的目录。
 5. 发新版：改 `APP_VERSION`（**`app/config.js` 与 `sw.js` 两处都要改**，e2e 会交叉断言，
    漂移会报红），同时把新 `content.json` 一起发布；两者是同一批产物。
-6. 不要用同一个 `APP_VERSION` 重发（会既有旧 cache 又有同名新 cache，浏览器可能沿用旧的）。
-   编译器现在也会拒绝「同版本产物重编」（`VERSION_NOT_MONOTONIC`）——重编同一版本时先清掉
-   `dist/content.json` 或显式传 `--previous-version`，这条属于发布流程（F 线）。
+6. **只换内容、不换应用版本**（2026-10-16 起支持，同时也出新 APK）：`APP_VERSION` / `versionCode`
+   留着不动，由**发布构建**把产物里的 `CONTENT_REVISION` 盖章成本次 `contentVersion`
+   （`node release/build-release.mjs --tag v<app>+content-<内容> --same-app-content-refresh --min-app-version-code 3`）；
+   这样缓存名变、`sw.js` 字节变，浏览器才会装新 SW。**不要**在「同 app 版本 + 同修订」上重发
+   （缓存名相同 ⇒ 浏览器可能沿用旧 cache）。编译器也会拒「同版本产物重编」
+   （`VERSION_NOT_MONOTONIC`）——重编同一版本时先清掉 `dist/content.json` 或显式传
+   `--previous-version`，这条属于发布流程（F 线）。
 7. `sw.js` 自身不要被 CDN 长缓存：注册时已经用 `updateViaCache:'none'` 兜住，但发布流程
    最好也别给 `sw.js` 设置长 `max-age`。
 
@@ -506,8 +518,9 @@ node ../android/tools/make-launcher-icon.mjs              # Android 侧的矢量
 | 接口 | 谁依赖 | 暂定成什么样 | 要改的话动哪里 |
 |---|---|---|---|
 | **内容文件位置/名字** | Android 端（同一份产物）、内容线 C、发布流程、已上线的站点 | 站点根下 `content.json`（`dist/content.json` 原样发布），相对路径引用，**单独取、不内联** | `config.js: CONTENT_URL`、`sw.js` 的预缓存清单、发布脚本 |
-| **站点缓存名字** | 已缓存过旧站点的浏览器（清旧 cache 依赖这个前缀） | Cache Storage `pc-resources-<APP_VERSION>`，前缀 `pc-resources-`；**壳与内容同处一个 cache** | `config.js: RESOURCE_CACHE_PREFIX/APP_VERSION` + `sw.js` 同名常量 |
-| **站点版本号** | 已缓存旧资源的浏览器、发布流程 | `APP_VERSION`（`0.1.0` 起），发新版必须递增；是**唯一**的版本键 | `config.js` + `sw.js`（两处，e2e 交叉断言） |
+| **站点缓存名字** | 已缓存过旧站点的浏览器（清旧 cache 依赖这个前缀） | Cache Storage `pc-resources-<APP_VERSION>+<CONTENT_REVISION>`，前缀 `pc-resources-`；**壳与内容同处一个 cache** | `config.js: RESOURCE_CACHE_PREFIX/APP_VERSION/CONTENT_REVISION` + `sw.js` 同名常量 |
+| **站点版本号** | 已缓存旧资源的浏览器、发布流程 | `APP_VERSION`（`0.1.0` 起）；**升版发布**时递增；**只换内容**时它不变（见下行） | `config.js` + `sw.js`（两处，e2e 交叉断言） |
+| **内容修订 `CONTENT_REVISION`** | 已缓存旧资源的浏览器（同 app 版本重发内容时靠它区分 cache）、发布流程 | 仓库里恒为 `dev`；**发布构建把产物里的盖上本次 `contentVersion`**；它一变 ⇒ `sw.js` 字节变 ⇒ 浏览器装新 SW | `config.js` + `sw.js`（两处）＋ `release/lib/content-refresh.mjs`（盖章） |
 | **更新检查协议** | 发布流程、已上线站点 | **没有**额外的内容清单接口：浏览器按标准 SW 生命周期取 `sw.js`（`updateViaCache:'none'`）；内容随站点一起换 | `sw.js`（install/activate/updatefound） |
 | **内容版本 `contentVersion`** | 内容线 C、Android 端（那边仍用它做热更决策） | Web **只展示、不参与决策**（状态面板里注明「仅展示」） | `app/main.js` 的状态面板 |
 | **`content.json.sha256` 边车** | 发布线（去掉产出）、Android 端（那边仍需要远端清单里的 `sha256`） | **Web 侧不产出、也不依赖**（用户 2026-10-14 拍板）。完整性由「同一次部署 + HTTPS + SW 预缓存整体性」承担；没人消费的边车只会让人以为还有一道校验环节 | `web/` 侧已无此项（`config.js` 无 `CHECKSUM_URL`、`prepare-dev-content.mjs` 不再写它）；发布线去掉产出 |
@@ -523,10 +536,12 @@ node ../android/tools/make-launcher-icon.mjs              # Android 侧的矢量
 
 ## 9. 待协调（需要父会话 / 其他线决定）
 
-1. **发布流程要改的地方（F 线）**：一次发布 = 新 `content.json` + 递增的 `APP_VERSION`
-   （`config.js` 与 `sw.js` 两处）+ 同批发布；`sw.js` 不要长缓存；重编同版本产物会被编译器拒
-   （`VERSION_NOT_MONOTONIC`）。发布白名单已与 `web/tests/lib/deploy.mjs: DEPLOY_FILES` 求并
-   （F 线自动跟我的发布集，不另写一份清单）。
+1. **发布流程要改的地方（F 线）**：一次**升版**发布 = 新 `content.json` + 递增的 `APP_VERSION`
+   （`config.js` 与 `sw.js` 两处）+ 同批发布；一次**只换内容**的发布 = `APP_VERSION`/`versionCode`
+   不变，由构建把产物里的 `CONTENT_REVISION` 盖章成本次 `contentVersion`
+   （`--same-app-content-refresh`，门对照见 `docs/design/same-app-content-refresh.md`）。
+   `sw.js` 不要长缓存；重编同版本产物会被编译器拒（`VERSION_NOT_MONOTONIC`）。发布白名单已与
+   `web/tests/lib/deploy.mjs: DEPLOY_FILES` 求并（F 线自动跟我的发布集，不另写一份清单）。
 2. **匿名作者清单的唯一来源是 `schema/unknown-authors.json`**（含 `阙名`，用户 2026-10-14 拍板）：
    我按负责人转达的决定把 `阙名` 并入 `app/render.js` 的副本，e2e 改成**读那个文件逐字核对**
    （不再正则解析契约散文——以前一改措辞就报「找不到清单」，对排查没帮助）。

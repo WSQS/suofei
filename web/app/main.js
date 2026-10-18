@@ -11,7 +11,7 @@
 import {
   ContentError, SUPPORTED_FORMAT_VERSION, loadContent,
 } from './content.js';
-import { APP_VERSION, ROUTES, resourceCacheName } from './config.js';
+import { APP_VERSION, CONTENT_REVISION, ROUTES, resourceCacheName } from './config.js';
 import {
   productOrderStatus, relayoutPoemBody, renderAboutPage, renderDetailPage, renderIndex, renderPoemPage,
 } from './render.js';
@@ -38,8 +38,9 @@ const state = {
     registered: false,
     controlled: false,
     error: null,
-    cache: null,        // {appVersion, cacheName, entries, hasContent}
+    cache: null,        // {appVersion, contentRevision, cacheName, entries, hasContent}
     waitingVersion: null,
+    waitingRevision: null,
   },
   update: { available: false, applying: false },
   persist: null,
@@ -229,6 +230,16 @@ function renderView() {
   }
 }
 
+/** 一条给用户看的「这一版是什么」的描述：应用版本 ＋ 内容修订。
+ *
+ * 为何两者都写（2026-10-16）：内容可以**不升应用版本**单独发一次（缓存名带修订），
+ * 那时只说「应用资源 v0.1.3 → v0.1.3」会让人以为没更新 —— 要让提示**说明内容修订**。
+ * 修订取不到时只写应用版本（不编造）。 */
+function versionLabel(appVersion, contentRevision) {
+  const app = appVersion ? `应用资源 v${appVersion}` : '应用资源版本未知';
+  return contentRevision ? `${app}，内容 ${contentRevision}` : app;
+}
+
 function renderNotices() {
   els.notices.replaceChildren();
 
@@ -248,10 +259,11 @@ function renderNotices() {
 
   if (state.update.available) {
     const next = state.sw.waitingVersion;
+    const nextRevision = state.sw.waitingRevision;
     els.notices.append(h('div', { class: 'notice notice--info', dataset: { test: 'update-available' } }, [
       h('span', {
         dataset: { test: 'update-available-text' },
-        text: `站点有新版本${next ? `（应用资源 v${next}，当前 v${APP_VERSION}）` : ''}`
+        text: `站点有新版本${next ? `（${versionLabel(next, nextRevision)}，当前 ${versionLabel(APP_VERSION, CONTENT_REVISION)}）` : ''}`
           + '已经下载完成并等待生效。为了不打断阅读，本站不会自动刷新：'
           + '点「刷新」立即改用新版本；在诗页阅读时可以先继续读，回到目录后会自动生效。',
       }),
@@ -347,7 +359,7 @@ function markUpdateAvailable(reg, worker = null) {
   state.sw.registration = reg;
   render();
 
-  // 问 waiting 的 worker 要它的站点版本，好在提示里写明。
+  // 问 waiting 的 worker 要它的站点版本与内容修订，好在提示里写明。
   // 两个坑：① 刚装好的那一瞬，注册对象上可能还没体现为 waiting（所以把 worker 本身也带进来）；
   // ② 绝不能退回去问 active —— 那时 active 还是**旧**的，会把旧版本当成新版本写进提示。
   const target = () => {
@@ -360,6 +372,8 @@ function markUpdateAvailable(reg, worker = null) {
       const report = await askWorker(target());
       if (report?.appVersion) {
         state.sw.waitingVersion = report.appVersion;
+        // 修订可能读不到（旧 SW 没这个字段）—— 读不到就不写，不编造。
+        state.sw.waitingRevision = report.contentRevision ?? null;
         renderChrome();
         return;
       }
@@ -425,7 +439,7 @@ async function checkForSiteUpdate() {
   if (state.update.available) {
     setNotice('info', '发现新版本，见上方提示：点「刷新」立即生效。');
   } else {
-    setNotice('info', `已是最新站点版本（应用资源 v${APP_VERSION}）。`);
+    setNotice('info', `已是最新站点版本（${versionLabel(APP_VERSION, CONTENT_REVISION)}）。`);
   }
 }
 
@@ -554,6 +568,7 @@ window.__app = {
         controlled: state.sw.controlled,
         error: state.sw.error,
         waitingVersion: state.sw.waitingVersion,
+        waitingRevision: state.sw.waitingRevision,
         cache: state.sw.cache,
       },
       // 内部诊断（**不进产品 UI**）：页脚面板去掉后，测试仍要能核这些事实。
@@ -562,6 +577,7 @@ window.__app = {
       supportedFormatVersion: SUPPORTED_FORMAT_VERSION,
       update: state.update,
       persist: state.persist,
+      contentRevision: CONTENT_REVISION,
       expectedCacheName: resourceCacheName(),
     };
   },

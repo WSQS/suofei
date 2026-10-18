@@ -3,6 +3,10 @@
 > 只此一份台账。当前版本、阶段、并行工作线/写入范围、下一步、未决问题都在这里。
 
 - 更新时间：**2026-10-16**（承接负责人 `bff673a1-4708-41bf-ac1d-4a93f3af2800` 维护）
+- **同 app 版本的内容刷新路径（2026-10-16，本地实现、未发布）**：`build`/`check-ready` 新增
+  `--same-app-content-refresh`（应用版本/versionCode **不变**、照常产 APK、只递增 contentVersion；
+  Web 缓存名带上内容修订）。设计与门对照见
+  [`docs/design/same-app-content-refresh.md`](design/same-app-content-refresh.md)；发布仍由负责人打 tag。
 - 阶段：**已发布 `0.1.3`（tag `v0.1.3+content-2026.10.16.24`，2026-10-16 S5 第二次）** —— CI run `38905672593` **全绿（26 绿/0 黄/0 跳/0 红）**、正式签名 `CN=Suofei`（指纹与 0.1.2 逐字相同）、Pages 已部署、Release 已建、Android 前馈清单已推进（`minAppVersionCode 3`）。读回见 [`docs/local-stage-delivery.md`](local-stage-delivery.md) §0c。
   - **本版内容＝20 首 / 2 组**：汉 19（《古诗十九首》）＋ 近现代 1（用户自行录入并提交的《七律·和郭沫若同志》）；**未从网补诗/注**，来源与许可的**未核**事实**未改写**。
   - 本版包含两个 Android 修复：**系统返回键/手势**按层级返回（目录根才退出）＋关于页**按钮上下暗缝**（边框与底色同 Surface）。

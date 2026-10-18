@@ -22,11 +22,15 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 import * as A from './lib/artifacts.mjs';
-import { REPO_ROOT, display, exists, listTop, runCapture, sha256 } from './lib/util.mjs';
+import { REPO_ROOT, display, exists, git, listTop, runCapture, sha256 } from './lib/util.mjs';
 import { RELEASE_VERSION_RE } from './lib/version-source.mjs';
 import { compareContentVersion } from '../tools/lib/version.mjs';
 import { LIVE_CHECK_IDS, findE2EDeployFiles, runAndroidUnitTests, runMarkdownConformance, runWebE2E } from './lib/live.mjs';
-import { readLiveAppVersion } from './lib/live-version.mjs';
+import { downloadLiveContentFile, readLiveAppVersion } from './lib/live-version.mjs';
+import {
+  checkSwCacheNameShape, classifyWebChanges, compareAgainstBaselines, parseChangedPaths,
+  pickSameAppBaseline, readAppVersionConstant, readContentRevision,
+} from './lib/content-refresh.mjs';
 import { decideSigning } from './lib/apksigner.mjs';
 import { listZipEntries, readZipEntry } from './lib/zip.mjs';
 
@@ -35,6 +39,16 @@ const USAGE = `用法：node release/check-ready.mjs [选项]
   --out <dir>   产物目录，默认 ${A.OUT_DEFAULT}
   --skip-live   不跑两个「真跑」门（Web e2e、Android 单测）—— 它们会标黄，不会当成通过
   --live-only   只跑那两个「真跑」门（迭代时用，跳过静态检查）
+  --same-app-content-refresh   **同 app 版本的内容刷新**（2026-10-16 用户拍板）：
+                            · **APK 五门照旧真跑**（本次确实产出 APK，只是同版本号重打包）；
+                            · 不做 app-version-bumped / apk-versioncode-bumped（那两条的前提是“号要递增”），
+                              改为**正面断言号**没有变**：APP_VERSION == 线上现值（取自线上站点）、
+                              versionCode == 同一个 app 版本的**旧发布 tag** 里的值（读 git tag，不写死数字）；
+                            · 新增「**代码没被额外改**」：android/ 产品源码与那一个旧 tag 逐字节相同（只许
+                              assets/content/content.json 变）；Web 只许修订盖章相关的文件变（其余产品文件冻住）；
+                            · 新增「内容相对线上真值与基线发布**严格递增**」＋「已发布作品逐字节未变」；
+                            · 结论行写「same-app 内容刷新就绪」，不得混说成升版发布。
+                            门对照见 docs/design/same-app-content-refresh.md
   --json        末尾额外打印一份机器可读的结果
   -h, --help    显示本帮助
 `;
@@ -43,7 +57,14 @@ class CheckFailed extends Error {}
 class CheckSkipped extends Error {}
 
 function parseArgs(argv) {
-  const opts = { out: A.OUT_DEFAULT, json: false, help: false, skipLive: false, liveOnly: false };
+  const opts = {
+    out: A.OUT_DEFAULT,
+    json: false,
+    help: false,
+    skipLive: false,
+    liveOnly: false,
+    sameAppRefresh: false,
+  };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--out') {
@@ -52,7 +73,15 @@ function parseArgs(argv) {
       opts.out = v;
     } else if (a === '--json') opts.json = true;
     else if (a === '--skip-live') opts.skipLive = true;
-    else if (a === '--live-only') opts.liveOnly = true;
+    else if (a === '--content-only' || a === '--live-only') {
+      if (a === '--content-only') {
+        throw new Error(
+          '--content-only 已作废（用户 2026-10-16 纠正：「应该更新 Release 和 apk」）：\n'
+            + '  改用 --same-app-content-refresh —— 本模式**仍要真跑 APK 五门**。',
+        );
+      }
+      opts.liveOnly = true;
+    } else if (a === '--same-app-content-refresh') opts.sameAppRefresh = true;
     else if (a === '-h' || a === '--help') opts.help = true;
     else throw new Error(`未知选项：${a}`);
   }
@@ -95,6 +124,13 @@ const PREREQUISITES = {
   'apk-builtin-same-source': ['apkBuf', 'dist'],
   'apk-identity': ['apkFile', 'manifest'],
   'apk-signing': ['apkFile', 'manifest'],
+  'content-revision-stamped': ['manifest'],
+  'same-app-baseline-tag': ['manifest'],
+  'same-app-app-version-unchanged': ['manifest'],
+  'same-app-version-code-unchanged': ['manifest'],
+  'same-app-android-source-identical': ['manifest'],
+  'same-app-web-source-scope': ['manifest'],
+  'same-app-content-delta': ['dist', 'manifest'],
 };
 
 // ─────────────────────────── 检查项 ───────────────────────────
@@ -311,6 +347,33 @@ check('app-version-agree', '站点版本 APP_VERSION 确实写进了两处（con
     fail(`tag 里的应用版本 ${tagApp} ≠ 代码里的 APP_VERSION ${cfg} —— 发布锚点与代码不一致（改代码或改 tag）`);
   }
   return `config.js = sw.js = ${cfg}${tagApp ? `，与 tag ${tagApp} 一致` : '（本次没给 tag：本地演练；正式发布以 tag 为准）'}`;
+  // （旧门一字未改：上面四条断言都在。下面只是**追加**内容修订的对账 —— 少了它，
+  //  「同 app 版本重发内容」时缓存名不变、浏览器根本不装新 SW，而所有旧门都还是绿的。）
+  const rev = (rel) => readContentRevision(fs.readFileSync(path.join(dir, rel), 'utf8'));
+  const cfgRev = rev('app/config.js');
+  const swRev = rev('sw.js');
+  if (!cfgRev || !swRev) {
+    fail(
+      `读不到 CONTENT_REVISION（config.js=${JSON.stringify(cfgRev)} / sw.js=${JSON.stringify(swRev)}）——\n`
+      + '   发布构建应当把它盖章为本次 contentVersion；读不到说明没盖章，站点缓存名不会随内容变。',
+    );
+  }
+  if (cfgRev !== swRev) fail(`CONTENT_REVISION 两处不一致：config.js=${cfgRev} / sw.js=${swRev}（缓存名由两处共同决定）`);
+  if (cfgRev !== c.manifest.contentVersion) {
+    fail(
+      `盖在站点里的内容修订 ${cfgRev} ≠ 本次 contentVersion ${c.manifest.contentVersion}\n`
+      + '   盖章必须就是这次发布的内容版本，否则缓存名里写着另一个版本的号，排查时必然误导。',
+    );
+  }
+  const shape = checkSwCacheNameShape(fs.readFileSync(path.join(dir, 'sw.js'), 'utf8'));
+  if (!shape.ok) fail(`sw.js 的缓存名没有同时带应用版本与内容修订：${shape.detail}`);
+  const prefix = /CACHE_PREFIX\s*=\s*'([^']*)'/.exec(fs.readFileSync(path.join(dir, 'sw.js'), 'utf8'))?.[1] ?? null;
+  if (prefix !== A.WEB_CACHE_PREFIX) {
+    fail(`sw.js 的缓存名前缀变成了 ${JSON.stringify(prefix)}（应为 ${A.WEB_CACHE_PREFIX}）——`
+      + ' activate 靠这个前缀认“自己的旧 cache”，变了就会删错/不删别人的数据。');
+  }
+  return `config.js = sw.js = ${cfg}；内容修订 = ${cfgRev}（= contentVersion）；${shape.detail}`
+    + `${tagApp ? `，与 tag ${tagApp} 一致` : '（本次没给 tag：本地演练；正式发布以 tag 为准）'}`;
 });
 
 check('app-version-bumped', 'APP_VERSION 比上一版大（同版本重发会让浏览器沿用旧 cache）', (c) => {
@@ -540,10 +603,216 @@ check('apk-versioncode-bumped', 'APK 的 versionCode 严格大于**已有发布 
   return `${prev.code}（tag ${prev.tag}）→ ${code}（+${code - prev.code}）`;
 });
 
+/** 只在 `--same-app-content-refresh` 下成立的门的 id（默认「升版」模式不跑它们）。
+ *  为什么必须显式列出来：其中 `same-app-app-version-unchanged` 要求“APP_VERSION == 线上现值”，
+ *  而**升版发布**的定义就是它变大 ⇒ 若在默认模式里也跑，一次正常的升版会被误判成红。
+ *  （反方向不受影响：默认模式的两条“递增”门在同 app 模式下被 SKIP，理由写在 SAME_APP_SKIP。） */
+const SAME_APP_ONLY_IDS = Object.freeze([
+  'same-app-baseline-tag',
+  'same-app-app-version-unchanged',
+  'same-app-version-code-unchanged',
+  'same-app-android-source-identical',
+  'same-app-web-source-scope',
+  'same-app-content-delta',
+  'same-app-content-bumped',
+]);
+
+// ─────────────── 同 app 版本的内容刷新（--same-app-content-refresh）专用门 ───────────────
+// 这些门**只在**该模式登记（默认「正常升版」模式一字不改）。它们的共同主张是：
+//   「这一版对外就是 0.1.3 / code 4，应用代码没变，变的是内容」——
+//   所以每一条都是**正面断言那个“没变”**，而不是把旧门关掉。
+
+/** 同 app 版本旧发布 tag 里的一手事实（versionCode / versionName / APP_VERSION）。 */
+check('same-app-baseline-tag', '同 app 版本的旧发布 tag 可查（versionCode 与源码基线的唯一来源）', (c) => {
+  const appVersion = c.manifest.app?.webAppVersion ?? null;
+  if (!appVersion) fail('清单里没有本次 APP_VERSION —— 读不到就无法挑基线');
+  const tagOutput = git(['tag', '-l']);
+  if (tagOutput === null) fail('git tag 读不到（CI 需要 actions/checkout 的 fetch-depth: 0；本地要在仓库里跑）');
+  const baseline = pickSameAppBaseline({ appVersion, tagOutput, currentTag: c.manifest.releaseTag?.name ?? null });
+  if (!baseline) {
+    fail(
+      `没有任何「v${appVersion}+content-*」形式的历史发布 tag ⇒ 拿不到 versionCode 与源码基线。\n`
+      + '   本模式的意义就是「与那一个已发布版本逐字节比」；没有基线就只能“没查”，而没查不算通过。',
+    );
+  }
+  const kts = git(['show', `${baseline.tag}:android/app/build.gradle.kts`]);
+  if (!kts) fail(`读不到 tag ${baseline.tag} 的 android/app/build.gradle.kts`);
+  const code = Number(/versionCode\s*=\s*(\d+)/.exec(kts)?.[1] ?? NaN);
+  const versionName = /versionName\s*=\s*"([^"]+)"/.exec(kts)?.[1] ?? null;
+  if (!Number.isInteger(code)) fail(`tag ${baseline.tag} 里读不到 versionCode`);
+  const cfgText = git(['show', `${baseline.tag}:web/app/config.js`]) ?? '';
+  const baselineAppVersion = readAppVersionConstant(cfgText);
+  c.sameAppBaseline = { ...baseline, versionCode: code, versionName, appVersion: baselineAppVersion };
+  return `基线 tag ${baseline.tag}（内容 ${baseline.contentVersion}）：versionCode=${code} versionName=${versionName} APP_VERSION=${baselineAppVersion}`
+    + (baseline.all.length > 1 ? `（同 app 版本的发布共 ${baseline.all.length} 个，取内容版本最大者）` : '');
+}, ['manifest']);
+
+check('same-app-app-version-unchanged', '**正面断言应用版本没变**：APP_VERSION == 线上站点现值 == 基线 tag 里的值', (c) => {
+  const base = c.sameAppBaseline;
+  if (!base) skip('基线 tag 没就绪（上一条已报）');
+  const current = readAppVersionConstant(fs.readFileSync(path.join(A.webDir(c.outDir), 'app/config.js'), 'utf8'));
+  if (!current) fail('读不到产物里的 APP_VERSION');
+  const live = readLiveAppVersion();
+  if (!live.version) {
+    fail(
+      `取不到线上站点的 APP_VERSION（${live.error}）—— 本模式必须证明“应用版本没变”，\n`
+      + '   拿不到线上现值就是**没有证据**，不能当通过（这是 fail-closed，不是保守）。',
+    );
+  }
+  if (live.version !== current) fail(`线上站点 APP_VERSION=${live.version} ≠ 本次 ${current} —— 线上已经换过应用版本，本模式的前提不成立`);
+  if (base.appVersion !== current) fail(`基线 tag 里的 APP_VERSION=${base.appVersion} ≠ 本次 ${current}`);
+  return `线上 ${live.version} == 本次 ${current} == 基线 tag ${base.tag} 的 ${base.appVersion}（来源：${live.siteUrl}/app/config.js）`;
+}, ['manifest']);
+
+check('same-app-version-code-unchanged', '**正面断言 versionCode / versionName 没变**（基线＝同 app 版本旧 tag 里的值，不写死数字）', (c) => {
+  const base = c.sameAppBaseline;
+  if (!base) skip('基线 tag 没就绪（上面已报）');
+  const code = Number(c.manifest.app?.versionCode);
+  const name = c.manifest.app?.versionName ?? null;
+  if (!Number.isInteger(code)) fail('清单里没有 versionCode');
+  if (code !== base.versionCode) {
+    fail(
+      `本次 versionCode=${code} ≠ 基线 tag ${base.tag} 里的 ${base.versionCode}\n`
+      + '   本模式要求号不变（同版本号重打包）；号变了就是升版发布，要走默认模式的全部升版门。',
+    );
+  }
+  if (name !== base.versionName) fail(`本次 versionName=${name} ≠ 基线 tag 里的 ${base.versionName}`);
+  return `versionCode ${base.versionCode} → ${code}（未变）、versionName ${base.versionName} → ${name}（未变）；基线来源 tag ${base.tag}`;
+}, ['manifest']);
+
+check('same-app-android-source-identical', '**APK 就是纯内容重打包**：android/ 与基线 tag 逐字节相同（只许 assets/content/content.json 变）', (c) => {
+  const base = c.sameAppBaseline;
+  if (!base) skip('基线 tag 没就绪（上面已报）');
+  const ALLOWED = ['android/app/src/main/assets/content/content.json'];
+  // 范围：**进 APK 的源码**。android/app/src/test/** 是 JVM 单测，**不打包进 APK**，
+  // 它跟着内容变（按路径派生 id、查源文件）是这次内容线的正当改动 ⇒ 单列报告，不参与“纯重打包”判定。
+  const isTestSource = (x) => x.startsWith('android/app/src/test/');
+  const changed = parseChangedPaths(git(['diff', '--name-only', base.tag, '--', 'android/']) ?? '');
+  const testChanged = changed.filter(isTestSource);
+  const shippedChanged = changed.filter((x) => !isTestSource(x));
+  const unexpected = shippedChanged.filter((x) => !ALLOWED.includes(x));
+  if (unexpected.length) {
+    fail(
+      `android/ 下有 ${unexpected.length} 个文件与基线 tag ${base.tag} 不同 ⇒ 这不是“只重打包内容”，而是改了应用代码：\n`
+      + unexpected.map((x) => `     - ${x}`).join('\n')
+      + '\n   真改了代码就必须走升版发布（默认模式要求 APP_VERSION/versionCode 递增），不能用本模式。',
+    );
+  }
+  const untracked = (git(['status', '--porcelain', '--untracked-files=all', '--', 'android/']) ?? '')
+    .split('\n').filter((l) => l.startsWith('??'));
+  if (untracked.length) {
+    fail(`android/ 下有未跟踪文件（构建会带上它们，却不属于基线 tag）：\n${untracked.map((l) => `     ${l}`).join('\n')}`);
+  }
+  const inContent = shippedChanged.includes(ALLOWED[0]);
+  if (!inContent) fail('android/ 的内置内容与基线 tag 相同 —— 那这次“内容刷新”没有进 APK');
+  const stat = git(['diff', '--stat', base.tag, '--', ALLOWED[0]]) ?? '';
+  return `相对 ${base.tag}：**进 APK 的源码**变化 ${shippedChanged.length} 个文件 = 仅 assets/content/content.json`
+    + `（其余 ${shippedChanged.length - 1} 个 0 改动）；未跟踪 0 个\n`
+    + `     ${stat.split('\n').filter(Boolean).slice(-1)[0] ?? ''}\n`
+    + (testChanged.length
+      ? `     JVM 单测源码变化 ${testChanged.length} 个（**不进 APK**，供审查）：${testChanged.map((x) => x.split('/').pop()).join('、')}`
+      : '     JVM 单测源码变化 0 个');
+}, ['manifest']);
+
+check('same-app-web-source-scope', 'Web 端只改了**内容修订协议**相关的文件；渲染/解析/样式/标记与基线 tag 逐字节相同', (c) => {
+  const base = c.sameAppBaseline;
+  if (!base) skip('基线 tag 没就绪（上面已报）');
+  const shipped = new Set((findE2EDeployFiles() ?? []).map((rel) => `web/${rel}`));
+  const changed = parseChangedPaths(git(['diff', '--name-only', base.tag, '--', 'web/']) ?? '');
+  const shippedChanged = changed.filter((x) => shipped.has(x));
+  const notShipped = changed.filter((x) => !shipped.has(x));
+  const { frozen, allowlisted, unexpected } = classifyWebChanges(shippedChanged);
+  if (frozen.length) {
+    fail(
+      `这些**产品文件**与基线 tag ${base.tag} 不同（本模式不许动它们）：\n`
+      + frozen.map((x) => `     - ${x}`).join('\n')
+      + '\n   它们决定页面怎么解析/渲染/长什么样 —— 改了就不是“只换内容”。',
+    );
+  }
+  if (unexpected.length) {
+    fail(
+      `这些已发布文件既不在允许清单、也不是冻结文件，却在基线 tag 之后变了：\n`
+      + unexpected.map((x) => `     - ${x}`).join('\n')
+      + '\n   要么它确实属于本次协议改动（在 release/lib/content-refresh.mjs 的 WEB_PRODUCT_CHANGE_ALLOWLIST 里逐条登记并写清理由），要么它不该动。',
+    );
+  }
+  return `相对 ${base.tag}：已发布文件中允许改动 ${allowlisted.length} 个（${allowlisted.join('、') || '无'}）；`
+    + `冻结文件改动 0 个；非发布文件（tests/scripts/fixtures/README 等）变化 ${notShipped.length} 个不参与判定`;
+}, ['manifest']);
+
+check('same-app-content-delta', '内容相对**线上已发布那一份**：已发布作品逐字节未变，且确有新增；组名不删不乱序', (c) => {
+  const base = c.sameAppBaseline;
+  if (!base) skip('基线 tag 没就绪（上面已报）');
+  const workDir = path.join(c.outDir, '.work', 'baseline');
+  fs.mkdirSync(workDir, { recursive: true });
+  const dest = path.join(workDir, `content-${base.contentVersion}.json`);
+  const dl = downloadLiveContentFile({ contentVersion: base.contentVersion, dest });
+  if (!dl.ok) {
+    fail(
+      `取不到线上已发布的内容快照 ${base.contentVersion}（${dl.error}）——\n`
+      + '   本门要比的就是“用户手里那一份”，取不到就**没查**（没查不是通过）。',
+    );
+  }
+  const before = JSON.parse(fs.readFileSync(dest, 'utf8'));
+  const after = c.dist;
+  const afterById = new Map((after.poems ?? []).map((x) => [x.id, x]));
+  const missing = [];
+  const modified = [];
+  for (const bp of before.poems ?? []) {
+    const np = afterById.get(bp.id);
+    if (!np) missing.push(bp.id);
+    else if (JSON.stringify(np) !== JSON.stringify(bp)) modified.push(bp.id);
+  }
+  if (missing.length) fail(`本次**删掉了已发布作品**：${missing.join('、')}`);
+  if (modified.length) fail(`本次**改动了已发布作品的字句**：${modified.join('、')}（已发布内容只增不改）`);
+  const added = (after.poems ?? []).filter((x) => !(before.poems ?? []).some((b) => b.id === x.id));
+  if (added.length === 0) fail('本次相对已发布内容没有任何新增作品 —— 那这次“内容刷新”刷新了什么？');
+  // 组名：基线里的组必须按同一次序仍然存在（不许删组、不许乱序）
+  const seq = (sub, all) => {
+    let i = 0;
+    for (const x of all) if (x === sub[i]) i += 1;
+    return i === sub.length;
+  };
+  if (!seq(before.dynasties ?? [], after.dynasties ?? [])) {
+    fail(`分组次序被改了：基线 ${JSON.stringify(before.dynasties)} → 本次 ${JSON.stringify(after.dynasties)}（基线里的组必须按原次序保留）`);
+  }
+  return `线上 ${base.contentVersion}：${(before.poems ?? []).length} 首 / ${(before.dynasties ?? []).length} 组 `
+    + `→ 本次 ${(after.poems ?? []).length} 首 / ${(after.dynasties ?? []).length} 组；`
+    + `新增 ${added.length} 首（${added.map((x) => x.title).join('、')}）；已发布 ${(before.poems ?? []).length} 首逐字节未变；`
+    + `快照 sha256=${dl.sha256.slice(0, 16)}…`;
+}, ['dist', 'manifest']);
+
+check('same-app-content-bumped', 'contentVersion **严格大于**线上真值与基线发布（否则已更新的客户端不会采用）', (c) => {
+  const base = c.sameAppBaseline;
+  if (!base) skip('基线 tag 没就绪（上面已报）');
+  const live = readLiveAppVersion(); // 只为把站点地址/错误一起带出来
+  const backend = compareAgainstBaselines({
+    contentVersion: c.dist.contentVersion,
+    liveContentVersion: base.contentVersion,
+    baselineContentVersion: base.contentVersion,
+  });
+  if (!backend.ok) fail(`${backend.detail}（线上真值取自 ${live.siteUrl ?? '?'}/content/latest.json 对应的快照版本）`);
+  return backend.detail;
+}, ['dist', 'manifest']);
+
+check('content-revision-stamped', '站点缓存名 = <前缀><APP_VERSION>+<内容修订>，且前缀未变（activate 仍只删本前缀的旧 cache）', (c) => {
+  const dir = A.webDir(c.outDir);
+  const sw = fs.readFileSync(path.join(dir, 'sw.js'), 'utf8');
+  const shape = checkSwCacheNameShape(sw);
+  if (!shape.ok) fail(`sw.js 的缓存名不含内容修订：${shape.detail}`);
+  const prefix = /CACHE_PREFIX\s*=\s*'([^']*)'/.exec(sw)?.[1] ?? null;
+  if (prefix !== A.WEB_CACHE_PREFIX) fail(`缓存名前缀 ${JSON.stringify(prefix)} ≠ ${A.WEB_CACHE_PREFIX}`);
+  const rev = readContentRevision(fs.readFileSync(path.join(dir, 'app/config.js'), 'utf8'));
+  if (rev !== c.manifest.contentVersion) fail(`内容修订 ${JSON.stringify(rev)} ≠ contentVersion ${c.manifest.contentVersion}`);
+  if (rev === 'dev') fail('内容修订还是仓库默认的 dev —— 说明发布构建没盖章，同 app 版本重发时浏览器不会装新 SW');
+  const app = readAppVersionConstant(fs.readFileSync(path.join(dir, 'app/config.js'), 'utf8'));
+  return `缓存名 = ${prefix}${app}+${rev}；${shape.detail}`;
+}, ['manifest']);
+
 // ─────────────────────── 真跑门（慢；需要真浏览器 / 真 JVM）───────────────────────
 
 check('live-web-e2e', '真跑：用 out/web 当站点跑 E 线自己的 Web e2e（真无头 Chromium；条数不写死，取自它的输出）', (c) => {
-  const r = runWebE2E({ outDir: c.outDir });
+  const r = runWebE2E({ outDir: c.outDir, requireBaseline: Boolean(c.sameAppRefresh) });
   return r;
 });
 
@@ -636,14 +905,31 @@ function main() {
   console.log(`产物目录：${display(outDir)}`);
   console.log('');
 
-  const ctx = { outDir };
+  const ctx = { outDir, sameAppRefresh: opts.sameAppRefresh };
+
+  // 同 app 版本模式下这两条门会被 SKIP —— 不是“放松”，而是**它们的前提被取代了**：
+  //   · app-version-bumped：「APP_VERSION 必须递增」与本模式的定义（号不变）直接冲突；
+  //   · apk-versioncode-bumped：「versionCode 必须大于历史值」同理。
+  //   两条的前提都由**更硬的正面断言**接班：
+  //   same-app-app-version-unchanged（== 线上现值）与 same-app-version-code-unchanged（== 旧 tag 里的值）。
+  const SAME_APP_SKIP = {
+    'app-version-bumped': '同 app 版本内容刷新：本模式的定义就是 APP_VERSION **不变**；改由 same-app-app-version-unchanged **正面断言它等于线上现值与基线 tag 的值**（比“递增”更严：必须三个值相等）',
+    'apk-versioncode-bumped': '同 app 版本内容刷新：versionCode **不变**（同版本号重打包）；改由 same-app-version-code-unchanged 正面断言它等于同 app 版本旧发布 tag 里的值',
+  };
   const results = [];
   const isLive = (id) => LIVE_CHECK_IDS.includes(id);
   for (const c of CHECKS) {
+    if (!opts.sameAppRefresh && SAME_APP_ONLY_IDS.includes(c.id)) continue;
     if (opts.liveOnly && !isLive(c.id)) continue;
     let status = 'PASS';
     let detail = '';
     let meta;
+    if (opts.sameAppRefresh && SAME_APP_SKIP[c.id]) {
+      const why = SAME_APP_SKIP[c.id];
+      results.push({ id: c.id, title: c.title, status: 'SKIP', detail: why });
+      console.log(`[跳] ${c.id.padEnd(28, ' ')} ${c.title}\n     ${why}`);
+      continue;
+    }
     if (opts.skipLive && isLive(c.id)) {
       // 明确的「本次不跑」：标黄，绝不能当成通过。
       results.push({ id: c.id, title: c.title, status: 'WARN', detail: '本次用 --skip-live 跳过：**没跑**，不是通过' });
@@ -739,7 +1025,30 @@ function main() {
   //   **黄 = 没通过**（环境不可用/需人工确认）、**跳过 = 没查** —— 都不能被读成“可以推进”。
   const gating = [...LIVE_CHECK_IDS, 'apk-signing'].map((id) => results.find((r) => r.id === id)).filter(Boolean);
   const notGreen = gating.filter((r) => r.status !== 'PASS');
-  if (variant === 'debug') {
+  if (opts.sameAppRefresh) {
+    const sameAppGating = [
+      ...LIVE_CHECK_IDS,
+      'same-app-app-version-unchanged',
+      'same-app-version-code-unchanged',
+      'same-app-android-source-identical',
+      'same-app-web-source-scope',
+      'same-app-content-delta',
+      'content-revision-stamped',
+    ].map((id) => results.find((r) => r.id === id)).filter(Boolean);
+    const sameAppNotGreen = sameAppGating.filter((r) => r.status !== 'PASS');
+    if (sameAppNotGreen.length === 0) {
+      const base = ctx.sameAppBaseline;
+      console.log(
+        `结论：**same-app 内容刷新就绪**（APK 为同版本号重打包、内置 ${ctx.dist?.poems?.length ?? '?'} 首；`
+        + `APP_VERSION ${ctx.manifest?.app?.webAppVersion} / versionCode ${ctx.manifest?.app?.versionCode} 未变，`
+        + `内容 ${base?.contentVersion} → ${ctx.dist?.contentVersion}）。`,
+      );
+      console.log('  即：可以按新 tag 建 Release 并附这个 APK；**不是**一次升版发布（应用版本与 versionCode 都没动）。');
+    } else {
+      console.log('结论：**不满足推进条件** —— same-app 内容刷新这些门不是绿的（黄=没跑/未确认，跳过=没查，都不能当通过）：');
+      for (const r of sameAppNotGreen) console.log(`  · ${r.id} = ${r.status}：${String(r.detail).split('\n')[0]}`);
+    }
+  } else if (variant === 'debug') {
     console.log('结论：**演练口径就绪**（debug 变体：三样产物齐、各门过，但 **debug 签名 → 不得用于正式发布**）。');
   } else if (notGreen.length === 0) {
     console.log('结论：**三样产物就绪**（release 变体）。可以推进「最新版」。');
