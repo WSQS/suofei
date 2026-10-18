@@ -67,7 +67,23 @@
 
 ---
 
-## 1. 候选在哪（两端 ＋ 构建身份与签名）（历史轮次记录，见 §0b/§0c 的最新发布）
+## 0d. **内容刷新发布（2026-10-18，同 app 版本、含新 APK）**
+
+**tag `v0.1.3+content-2026.10.16.26`**｜CI run **`39083735474`**（success）｜Release <https://github.com/WSQS/suofei/releases/tag/v0.1.3%2Bcontent-2026.10.16.26>
+
+- **应用版本没变**：`APP_VERSION` / `versionName` **0.1.3**、`versionCode` **4**、`formatVersion` **2**；**只有内容** `.24 → .26`。
+- **但打了新 APK**（用户要求：新下载不联网也能读 22）：`suofei-2026.10.16.26.apk`（7,052,306 B），**同版本号同证书**（`CN=Suofei` `1346444c…`），**内置内容 sha256 ＝ 线上内容 sha256**（`9281d03e…`）。
+- **线上读回**：`APP_VERSION=0.1.3`；**`CONTENT_REVISION=2026.10.16.26`**（config.js 与 sw.js 都读到了）；**缓存键 `pc-resources-0.1.3+2026.10.16.26`**；内容 **22 首 / 3 组 `["汉","唐","近现代"]`**、26083 字节；`latest.json` 同 sha、**`minAppVersionCode 3`**（0.1.2/vc3 仍能读 format 2）。
+- **门**：绿 **32** / 黄 0 / 跳 2 / 红 0（共 34）；真跑门 e2e **500/500**、Android **151/0**。那 2 跳是 `app-version-bumped` 与 `apk-versioncode-bumped`，**被同模式下的正面断言取代**（`same-app-app-version-unchanged`：线上现值 == 基线 tag == 本次；`same-app-version-code-unchanged`：与同 app 版本旧 tag 相等，**不写死数字**）。
+- **不用新工作流**：仍走 `release.yml`（只多了 `--same-app-content-refresh` 两处）；`v*` tag 触发。
+- **旧历史未动**：`v0.1.3+content-2026.10.16.24` 的 tag（对象 `d32e1f6` → commit `f2c2490`）/Release/APK 均在；**GitHub 自动把新 Release 标为 Latest**，旧包仍可下载。
+- **Web 缓存迁移**：旧键 `pc-resources-0.1.3` → 新键 `pc-resources-0.1.3+2026.10.16.26`；activate 仍只删**本前缀**的旧 cache（壳与内容同一 cache、停 waiting、不自动刷新）。
+
+> ⚠ 已知边界（如实）：① **已发布旧包的首轮提示无信息量**（旧 `main.js` 只拿 `report.appVersion`，同 0.1.3 时显示两个相同版本号）——发现与切换是安全的，但文案要等新壳；② 本地只跑了 debug 仿真，**正式签名断言由 CI 的 release 变体真跑**；③ **真机未验**（只有本项目模拟器）。
+
+---
+
+## 1. 候选在哪（两端 ＋ 构建身份与签名）（历史轮次记录，见 §0b/§0c/§0d 的最新发布）
 
 （⚠ 下表的「本机候选」是**发布前**的表述；**正式发布已按 §0b 完成**（tag `v0.1.2+…`、正式签名包已上线），
 本表保留下来是为了说明两端候选与线上现行的对应关系。）
