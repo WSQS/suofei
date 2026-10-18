@@ -287,13 +287,18 @@ button {
 
 /* ---------- 目录：分组（组头＝可折叠层，IF-44） ---------- */
 
-.dynasty-group {
+/* 组这一层：朝代 tab 与标签 tab **共用同一套尺寸**（用户 2026-10-18：「页面结构和朝代页保持一致」）。
+ * 两类组只是 data-test 与 class 名不同（`.dynasty-*` / `.tag-*`），样式一律并列 —— 这样“同构”不是靠
+ * 两处手抄一致，而是**同一条规则**。 */
+.dynasty-group,
+.tag-group {
   margin: 0 0 1.6rem;
 }
 
 /* 组头：不画卡片（组头与页底同色）；整组头可点；记号悬挂在组名左沿之外。
  * 头部盒从**列左沿**起（用负外边距顶出内容行内边距）⇒ 记号左沿＝列左沿。 */
-.dynasty-group-title {
+.dynasty-group-title,
+.tag-group-title {
   display: flex;
   align-items: center;
   margin: 0;
@@ -322,7 +327,8 @@ button {
   color: var(--text-dim);
 }
 
-.dynasty-group-title:hover .gh-mark {
+.dynasty-group-title:hover .gh-mark,
+.tag-group-title:hover .gh-mark {
   color: var(--text);
 }
 
@@ -330,7 +336,8 @@ button {
  * width-pct §4 都是「组头与页底同色」「组名左沿＝题名左沿」；题名与组名首字必须同一竖线）。
  * ⚠ visual-tokens.md §4.1 结构记号① 写的是「组名左沿一条发丝竖线」——那条与本轮采纳的目录
  * 对齐口径相抵，已在报告里单列请负责人裁决。 */
-.dynasty-label {
+.dynasty-label,
+.tag-label {
   font-family: var(--font-title);
   font-size: 1.3rem;
   letter-spacing: var(--gname-ls);
@@ -409,20 +416,58 @@ button {
 /* 用户 2026-10-15 定：目录行**不再有「有笔记」标记**（两端都无）⇒ 原来的 `.poem-row-notes`
    规则已删（不留一条没人用的样式）。反同断言在 e2e §4e。 */
 
-/* ---------- 目录：顶部一行（摘要 + 「关于」入口） ---------- */
+/* ---------- 目录：顶部一行（「朝代 ｜ 标签」两 tab ＋「关于」入口） ---------- */
 
+/* 采纳锚（round-2026-10-18-tag-tab-adopted）的 topline：左 tab 组／右关于，底下一条发丝线；
+ * 线要跨满**内容列宽 C**（不是 C−2×行内边距）⇒ 用负外边距顶出列内边距，再用 padding 加回来。 */
 .index-bar {
   display: flex;
   align-items: baseline;
-  justify-content: flex-end; /* 目录页顶部只放「关于」，右沿＝列右沿−行内边距 */
-  gap: 0.75rem;
+  justify-content: space-between;
+  gap: 0.8rem;
   flex-wrap: wrap;
-  margin: 0.2rem 0 1.2rem;
+  margin: 0 calc(-1 * var(--edge-x)) 1.2rem;
+  padding: 0.7rem var(--edge-x);
+  border-bottom: 1px solid var(--line);
+}
+
+/* tab 组：两个 `<button role="tab">`，间距 1.05rem（采纳锚）；**没有**任何分隔符字符，
+ * 「｜」只是评审时对两个 tab 的读法。 */
+.tabs {
+  display: flex;
+  gap: 1.05rem;
+  min-width: 0;
+}
+
+.tab {
+  font-family: var(--font-ui);
+  font-size: 0.86rem;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  padding: 0 0 0.18rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: var(--chip-transition);
+}
+
+.tab:hover {
+  color: var(--text);
+}
+
+/* 选中态：文字变亮 ＋ 一条 accent 下边线（采纳锚 `.tab[aria-selected="true"]`）。 */
+.tab[aria-selected="true"] {
+  color: var(--text);
+  border-bottom-color: var(--accent-line);
 }
 
 .about-link {
   font-family: var(--font-ui);
-  font-size: 0.78rem;
+  /* 采纳锚的 topline 上，tab 与「关于」同一号字（`--about-size` 0.86rem）；此前这只是一行右对齐的
+   * 小链接，所以是 0.78rem。现在它与 tab 同处一行 ⇒ 跟采纳锚对齐（只改字号，颜色/交互不变）。 */
+  font-size: 0.86rem;
   letter-spacing: 0.06em;
   color: var(--text-dim);
   white-space: nowrap;

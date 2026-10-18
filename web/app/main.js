@@ -48,10 +48,23 @@ const state = {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/** 目录页「组」展开状态（IF-44）。
- *  存在会话里而不是 DOM 里：从诗页返回目录时重新渲染目录，展开状态不能丢
- *  ——否则 IF-45「返回目录恢复原滚动位置」会因为内容高度突然变矮而失效。 */
-const indexExpanded = new Set();
+/** 目录页的两种分组视图（用户 2026-10-18 采纳：「朝代 ｜ 标签」两个 tab）。
+ *  **各自**记住展开状态与滚动位置；返回链回的是**进入诗页的那个原视图**。 */
+const LIST_KINDS = ['index', 'tags'];
+const isListKind = (kind) => kind === 'index' || kind === 'tags';
+const routeOfListKind = (kind) => (kind === 'tags' ? ROUTES.tags : ROUTES.index);
+const labelOfListKind = (kind) => (kind === 'tags' ? '标签' : '目录');
+
+/** 展开状态：**按 tab 分开**（朝代组 / 标签组的 key 空间也可能撞，所以不共用一张表）。
+ *  存在会话里而不是 DOM 里：从诗页返回时重新渲染，展开状态不能丢
+ *  ——否则 IF-45「返回恢复原滚动位置」会因为内容高度突然变矮而失效。 */
+const expandedByKind = { index: new Set(), tags: new Set() };
+
+/** 每个目录视图各自的滚动位置（用户 2026-10-18：两个 tab 各自保滚动）。 */
+const listScroll = { index: { y: 0, restore: false }, tags: { y: 0, restore: false } };
+
+/** **进入下钻页之前的那个目录视图**（诗的「返回」回它；深链接默认朝代 tab）。 */
+let lastListKind = 'index';
 
 /** 列宽口径（用户 2026-10-15/16 选定，采纳锚 round-2026-10-16-width-pct）：
  *  `C = min(V, max(320, 0.88 × (V − 24)))`，`24` 是**一次性扣除总量**（不是左右各 12）。
@@ -111,9 +124,8 @@ function setNotice(kind, text, action = null) {
  *   从诗页返回目录时落回刚才的位置；**深链接直开目录仍从顶部**。
  * 做法：离开目录前把 `scrollY` 记下来并置 `restore`；再回到目录时恢复一次。
  * 新开文档（深链接/刷新）时 `restore` 初值为 false ⇒ 从顶部开始。
+ * ⚠ 2026-10-18：位置**按目录视图（朝代/标签）分开**记（`listScroll`），切 tab 也各自保持。
  */
-const indexScroll = { y: 0, restore: false };
-
 function parseHashString(hash) {
   const bare = String(hash).replace(/^#/, '');
   // 详情页必须**先**匹配：否则 `/p/<id>/detail` 会被 poemPattern 当成 id 为 `<id>/detail`。
@@ -122,6 +134,7 @@ function parseHashString(hash) {
   const p = ROUTES.poemPattern.exec(bare);
   if (p) return { kind: 'poem', id: decodeURIComponent(p[1]) };
   if (ROUTES.aboutPattern.test(bare)) return { kind: 'about', id: null };
+  if (ROUTES.tagsPattern.test(bare)) return { kind: 'tags', id: null };
   return { kind: 'index', id: null };
 }
 
@@ -129,21 +142,26 @@ function parseHash() {
   return parseHashString(location.hash);
 }
 
-/** 离开目录前记下位置（只有「从目录去非目录」才记，一直待在目录里不动它）。 */
-function captureLeavingIndex(nextHash) {
-  if (state.view.kind !== 'index') return;
-  if (parseHashString(nextHash).kind !== 'index') {
-    indexScroll.y = window.scrollY || 0;
-    indexScroll.restore = true;
-  }
+/** 离开目录视图前记下位置（只有「从目录去别的视图」才记，同一视图内不动它）。
+ *  切 tab 也算离开：朝代 → 标签时会记下朝代的滚动，再切回来就恢复（用户 2026-10-18）。 */
+function captureLeavingList(nextHash) {
+  const kind = state.view.kind;
+  if (!isListKind(kind)) return;
+  const next = parseHashString(nextHash);
+  if (next.kind === kind) return;
+  listScroll[kind].y = window.scrollY || 0;
+  listScroll[kind].restore = true;
 }
 
-/** 视图切完后调：目录按需恢复位置；非目录页从顶部开始（不要带着上一页的滚动量）。 */
+/** 视图切完后调：目录视图按需恢复位置（没记过就从顶部开始）；非目录页从顶部开始
+ *  （不要带着上一页的滚动量）。 */
 function afterViewChange() {
-  if (state.view.kind === 'index') {
-    if (!indexScroll.restore) return;
-    indexScroll.restore = false;
-    const y = indexScroll.y;
+  const kind = state.view.kind;
+  if (isListKind(kind)) {
+    const mem = listScroll[kind];
+    if (!mem.restore) { window.scrollTo(0, 0); return; }
+    mem.restore = false;
+    const y = mem.y;
     // 等新目录完成布局再滚，否则位置会被上一次的布局带偏。
     // ⚠ 2026-10-16 修：原来只等**一帧**；当时页脚诊断面板的 DOM 写入恰好把布局顶完，所以看起来是对的。
     //   面板移除后，短目录在第一个 rAF 里**还没完成布局** ⇒ `scrollTo(0, y)` 被夹到 0，
@@ -155,7 +173,7 @@ function afterViewChange() {
 }
 
 function navigate(hash) {
-  captureLeavingIndex(hash);
+  captureLeavingList(hash);
   if (location.hash === hash) {
     state.view = parseHashString(hash);
     render();
@@ -166,10 +184,11 @@ function navigate(hash) {
   maybeApplyUpdateOnIndex();
 }
 
-/** 回到目录（不是诗页/详情页）时，若已有待生效的新版本，就切换（刷新）。 */
+/** 回到目录（不是诗页/详情页）时，若已有待生效的新版本，就切换（刷新）。
+ *  **两个目录视图都算目录**（朝代 / 标签）：在标签视图里阅读完也算回到目录。 */
 function maybeApplyUpdateOnIndex() {
   if (!state.update.available || state.update.applying) return;
-  if (state.view.kind !== 'index') return; // 还在阅读（诗页/详情/关于）：不打断
+  if (!isListKind(state.view.kind)) return; // 还在阅读（诗页/详情/关于）：不打断
   applyUpdate('回到目录后自动生效');
 }
 
@@ -204,10 +223,31 @@ function renderView() {
   }
 
   const onOpen = (id) => navigate(ROUTES.poem(id));
+  if (isListKind(state.view.kind)) {
+    // 记下「现在停在哪个目录视图」：下锼页的「返回」回它（用户 2026-10-18 采纳的返回链）。
+    lastListKind = state.view.kind;
+    const kind = state.view.kind;
+    els.view.append(renderIndex(state.doc, {
+      activeTab: kind === 'tags' ? 'tags' : 'dynasty',
+      onOpen,
+      onAbout: () => navigate(ROUTES.about),
+      // tab 切换 = **路由切换**（不是内存状态）：深链接/刷新/浏览器后退都对得上。
+      onSelectTab: (tab) => navigate(tab === 'tags' ? ROUTES.tags : ROUTES.index),
+      isExpanded: (key) => expandedByKind[kind].has(key),
+      onToggle: (key, open) => {
+        const set = expandedByKind[kind];
+        if (open) set.add(key); else set.delete(key);
+      },
+    }));
+    return;
+  }
   if (state.view.kind === 'poem') {
     els.view.append(renderPoemPage(state.doc, state.view.id, {
-      onBack: () => navigate(ROUTES.index),
+      // 诗页「返回」⇒ **进入它的原视图**（朝代 tab / 标签 tab），不跳层（用户 2026-10-18）。
+      onBack: () => navigate(routeOfListKind(lastListKind)),
       onDetail: () => navigate(ROUTES.detail(state.view.id)),
+      backHref: routeOfListKind(lastListKind),
+      backLabel: `← ${labelOfListKind(lastListKind)}`,
     }));
   } else if (state.view.kind === 'detail') {
     // 详情页的「返回」落到**那首诗**（不是目录）；深链接直开也一样（用户 2026-10-15 定）。
@@ -218,14 +258,10 @@ function renderView() {
     els.view.append(renderAboutPage({
       appVersion: APP_VERSION,
       doc: state.doc,
-      onBack: () => navigate(ROUTES.index),
-    }));
-  } else {
-    els.view.append(renderIndex(state.doc, {
-      onOpen,
-      onAbout: () => navigate(ROUTES.about),
-      isExpanded: (key) => indexExpanded.has(key),
-      onToggle: (key, open) => { if (open) indexExpanded.add(key); else indexExpanded.delete(key); },
+      // 关于页的「返回」回到**从哪个目录视图进来的**（同样是「不跳掉用户刚才的位置」）。
+      onBack: () => navigate(routeOfListKind(lastListKind)),
+      backHref: routeOfListKind(lastListKind),
+      backLabel: `← ${labelOfListKind(lastListKind)}`,
     }));
   }
 }
@@ -522,8 +558,8 @@ async function boot() {
 
 window.addEventListener('hashchange', () => {
   // hashchange 可能来自站内点击，也可能来自地址栏直改 / 浏览器前进后退。
-  // 此刻 state.view 仍是**旧**视图 —— 正好用来判断「是不是刚离开目录」。
-  captureLeavingIndex(location.hash);
+  // 此刻 state.view 仍是**旧**视图 —— 正好用来判断「是不是刚离开哪个目录视图」。
+  captureLeavingList(location.hash);
   state.view = parseHash();
   render();
   afterViewChange();
@@ -561,6 +597,9 @@ window.__app = {
       formatVersion: state.doc?.formatVersion ?? null,
       error: state.error,
       view: state.view,
+      /** 进入下锼页之前的目录视图（'index' 朝代 / 'tags' 标签）—— 诗页「返回」回它。 */
+      lastListKind,
+      expanded: { index: [...expandedByKind.index], tags: [...expandedByKind.tags] },
       online: state.online,
       sw: {
         supported: state.sw.supported,

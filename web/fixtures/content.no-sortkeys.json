@@ -1,5 +1,5 @@
 {
-  "formatVersion": 2,
+  "formatVersion": 3,
   "contentVersion": "2026.10.14.1",
   "generatedAt": "2026-10-14T12:00:00Z",
   "placeholder": true,
@@ -24,7 +24,8 @@
           "举头望明月，低头思故乡。"
         ]
       ],
-      "notes": null
+      "notes": null,
+      "tags": []
     },
     {
       "id": "tang-libai-wanglushanpubu",
@@ -41,7 +42,8 @@
           "飞流直下三千尺，疑是银河落九天。"
         ]
       ],
-      "notes": null
+      "notes": null,
+      "tags": []
     },
     {
       "id": "gushi-shijiu-shou-01",
@@ -62,7 +64,8 @@
           "胡马依北风，越鸟巢南枝。"
         ]
       ],
-      "notes": null
+      "notes": null,
+      "tags": []
     },
     {
       "id": "gushi-shijiu-shou-02",
@@ -79,7 +82,9 @@
           "盈盈楼上女，皎皎当窗牖。"
         ]
       ],
-      "notes": null
+      "notes": null,
+      "tags": []
     }
-  ]
+  ],
+  "tags": []
 }

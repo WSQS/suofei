@@ -17,9 +17,11 @@
 > 令牌 `--mark-bg`/`--mark-text` 仍留在 `:root`，但**已无任何规则使用者** —— 只为与原型/规范
 > 逐项对齐（e2e §1d 逐值比对），规范侧条目待负责人删除。
 >
-> **页面集合＝四个（用户 2026-10-15）**：**目录 `#/` / 诗 `#/p/<id>` / 诗歌详情 `#/p/<id>/detail` / 关于 `#/about`（原「更新页」改名）**。
+> **页面集合＝四个页面 / 五条路由（用户 2026-10-15，目录多一个视图见 2026-10-18）**：**目录 `#/`（朝代 tab）／ 目录的标签 tab `#/tags` ／ 诗 `#/p/<id>` ／ 诗歌详情 `#/p/<id>/detail` ／ 关于 `#/about`（原「更新页」改名）**。
+> `#/tags` 不是第五个页面：它和 `#/` 是**同一个目录页的两种分组**（顶部「朝代 ｜ 标签」两 tab）。
 > **S2 Web 落地（2026-10-16，对应 `docs/design/implementation-plan.md` §2.2）**：
-> - **字段形状＝`formatVersion: 2`**：顶层 `dynasties` 是**有序中文值数组**；每首 **10 键**
+> - **字段形状＝`formatVersion: 2`**（⚠ 2026-10-18 **已被 v3 取代**，见上面的「标签 tab」块：每首 11 键，多一个 `tags`；
+>   顶层多一个 `tags`）：顶层 `dynasties` 是**有序中文值数组**；余下 10 键
 >   `id,title,author,dynasty,genre,source,orderInSource,detail,stanzas,notes`（`dynasty` 单值、`detail` 是最小 Markdown；`variants`/`era` 不再发布）。组名**精确匹配**。
 > - **目录页**：组这一层**可折叠**（IF-44，首态全部收起、整组头可点、各组独立）；记号＝悬挂在组名左沿之外的方括号 `[+]/[−]`；
 >   **组名左沿＝题名左沿（缩进 0）**；作者紧随题名、不右对齐；顶部只放「关于」。
@@ -30,8 +32,27 @@
 > - **列宽口径**：`C = min(V, max(320, 0.88 × (V − 24)))`，`24` 是**一次性扣除总量**；内容行内边距 `1.05rem`＝16.8px（列内一层）。
 > - **详情页返回→那首诗**（深链接直开也一样）；**诗页返回目录恢复原滚动位置（IF-45）**，深链接直开目录仍从顶部。
 > - ⚠ **过渡适配已到期删除（2026-10-16，`docs/design/implementation-plan.md` §4b）**：字段集升版（1→2）已在 `tools/` ＋ `schema/` 落地，真实产物就是 `formatVersion: 2`
->   ⇒ 过渡件 `scripts/lib/upgrade-content.mjs`（v1→v2 幂等适配）**已整份删除**。基座必须是**真实 v2 产物**：
->   客户端只认 2（`SUPPORTED_FORMAT_VERSION`），**v1 照样如实拒绝**，**不得静默升版后自称支持 2**。
+>   ⇒ 过渡件 `scripts/lib/upgrade-content.mjs`（v1→v2 幂等适配）**已整份删除**。基座必须是**真实产物**：
+>   客户端只认 3（`SUPPORTED_FORMAT_VERSION`），**v1/v2 照样如实拒绝**，**不得静默升版后自称支持 3**。
+>
+> **2026-10-18：标签 tab（`formatVersion: 3`）已落地**（用户采纳的整合版原型：
+> `../items/tag-views/history/round-2026-10-18-tag-tab-adopted/`）。要点：
+> - **字段集＝v3**：每首多一个 `tags: [{ id, orderInTag }]`（**可为 `[]`**；字段名是 `id`，与
+>   `schema/content.schema.json` 一致；`orderInTag` 是 ≥1 的整数，必填）；顶层多一个
+>   `tags: [{ id, members: [poemId…] }]`（编译期从诗的归属汇总，**标签之间已按拼音排好、members 已按
+>   `orderInTag` 升序**）。⇒ 客户端**一处都不重排**，也**不造任何排序键**（产物里没有 SortKey）。
+> - **顶部＝「朝代 ｜ 标签」两个 tab ＋右侧「关于」**（`role=tab` 的按钮；点 tab ＝**换路由**，
+>   所以深链接/刷新/浏览器后退都对得上）。
+> - **标签页与朝代页同构**：组头＝悬挂 `[+]/[−]`（与组名竖直居中）＋组名、**整行可点**、**初态全收起**、
+>   各组独立；展开后子诗题左沿＝标签名首字、作者紧随、**无序号**。
+> - **标签页不显示任何数量**（没有计数、没有「本库已收录 N 首」、没有编号）；**朝代页计数照旧**。
+> - **零成员标签不渲染**（数据侧 `members` 的 `minItems` 是 1，不会产出；客户端仍然按「成员数 ≥1 才出组」过滤，
+>   且不出空组/空态文字）。无标签的诗照旧留在朝代页。
+> - **返回链逐层**：详情「返回」⇒ 诗页；诗页「返回」⇒ **进入它的那个原视图**（从标签 tab 进的回 `#/tags`
+>   并保留展开与滚动，从朝代 tab 进的回 `#/`）；浏览器后退同样一次退一层；**关于页的「返回」也回原视图**。
+> - **两个 tab 各自保展开与滚动**（本会话内；跨刷新不记）。
+> - 测试：v3 形状的派生夹具与标签夹具在 `web/scripts/lib/v3-test-content.mjs`（**标明测试、不编造真实诗标签**，
+>   `fixture: true` ⇒ 界面会显示黄条）；e2e §0k 与 §10 覆盖次序/零成员/返回链/各 tab 状态。
 
 ## 1. 怎么看效果（确切命令）
 
@@ -81,7 +102,7 @@ web/
   scripts/build-icons.mjs           从只读交付源生成 icons/（svg + 用无头 Chromium 出 PNG）
   sw.js                 ★ Service Worker：站点的唯一缓存与更新通道（壳 + 内容一起缓存）
   about-fields.json     ★ 「关于」页的**共享字段集唯一来源**（两端各一份副本，测试逐项比对；不部署）
-  app/config.js         ★ 所有对外接口常量集中在这里（见 §8；含 ROUTES 四条 + 关于页字段副本 ABOUT）
+  app/config.js         ★ 所有对外接口常量集中在这里（见 §8；含 ROUTES 五条 + 关于页字段副本 ABOUT）
   app/content.js        内容装载：单独取 + 结构校验 + 格式版本兼容检查（不做更新决策）
   app/render.js         纯渲染：可折叠分组目录 / 诗页（全部居中+语义折行）/ 诗歌详情页（最小 Markdown）/ 关于页
   app/main.js           入口：先渲染外壳 → 单独取内容 → 渲染；路由（目录/诗/详情/关于）+ 列宽口径 + IF-45 滚动位置
@@ -220,7 +241,7 @@ web/
 
 ### 4.6 四个页面的显示集合（与 Android 端对照，以用户决定为准）
 
-**页面集合（用户 2026-10-15）**：目录 `#/` ／ 诗 `#/p/<id>` ／ **诗歌详情 `#/p/<id>/detail`** ／ **关于 `#/about`**。
+**页面集合（用户 2026-10-15；2026-10-18 加目录的标签 tab）**：目录 `#/`（朝代 tab）／ 目录标签 tab `#/tags` ／ 诗 `#/p/<id>` ／ **诗歌详情 `#/p/<id>/detail`** ／ **关于 `#/about`**。
 「关于」页两端都有、**同一批字段**（唯一来源 `about-fields.json`）；Web 的更新交给 SW，所以 Web 的「关于」页**没有**「更新」块，Android 在那页多一块。
 
 **诗页**（`renderPoemPage`）：
@@ -402,6 +423,10 @@ node ../android/tools/make-launcher-icon.mjs              # Android 侧的矢量
     没有 detail 的诗如实说明（`detail-empty`）；
     **详情页「返回」落到那首诗**（含真·深链接直开详情页后返回）；
   - **§1c-3 关于页**：`config.ABOUT` 与唯一来源 `about-fields.json` 逐字一致，且字段集就是采纳锚那 **4 项**；目录有「关于」入口（`#/about`）与深链接直开；
+  - **§0k ＋ §10 标签 tab（2026-10-18）**：`tags` 形状/引用闭合两向、标签与成员的**页面顺序 == 产物数组顺序**（用单独算的
+    拼音序反证「确实不同」）、**零成员标签不渲染**（组头/按钮/空态文字都没有）、标签页**无任何数量**、与朝代页同构的几何
+    （槽 27.52px、记号竖直居中 <1px、题名左沿＝标签名首字 ±1px）、**详情 → 诗页 → 原视图**逐层（页面返回与浏览器后退各一次）、
+    两个 tab 各自保展开与滚动、关于页返回也回原视图；真实产物那一段还验了「无标签的诗不在标签页里」；
     **排布＝采纳锚 A3／V3 逐项对账**：应用名＝`h1` 页标题（不画标签行）、页面上不再有 `dt` 标签行（「应用名」「仓库链接」两行都没了）、
     版本组「标签行」只有「应用版本／内容版本」两项、标签左对齐（`text-align:left`）；**四条线合一量到归档实测值**：
     页标题／两条版本标签文字／仓库链接的文字左沿都 ＝ **16.8px**（相对内容列左沿），两条版本值都落在**同一条值列 93.02px**（离内容左沿 76.22）；
@@ -524,9 +549,10 @@ node ../android/tools/make-launcher-icon.mjs              # Android 侧的矢量
 | **更新检查协议** | 发布流程、已上线站点 | **没有**额外的内容清单接口：浏览器按标准 SW 生命周期取 `sw.js`（`updateViaCache:'none'`）；内容随站点一起换 | `sw.js`（install/activate/updatefound） |
 | **内容版本 `contentVersion`** | 内容线 C、Android 端（那边仍用它做热更决策） | Web **只展示、不参与决策**（状态面板里注明「仅展示」） | `app/main.js` 的状态面板 |
 | **`content.json.sha256` 边车** | 发布线（去掉产出）、Android 端（那边仍需要远端清单里的 `sha256`） | **Web 侧不产出、也不依赖**（用户 2026-10-14 拍板）。完整性由「同一次部署 + HTTPS + SW 预缓存整体性」承担；没人消费的边车只会让人以为还有一道校验环节 | `web/` 侧已无此项（`config.js` 无 `CHECKSUM_URL`、`prepare-dev-content.mjs` 不再写它）；发布线去掉产出 |
-| **`formatVersion` 支持范围** | 内容线（什么时候递增）、Android 端（同样要判） | 只接受 `=== 2`（**1 → 2 已升**，用户 2026-10-15「字段集一变就升」，不可逆）；不匹配按**部署不一致**处理（内容与壳一起发布才对） | `config.js: SUPPORTED_FORMAT_VERSION` + `app/content.js: checkCompatibility()` |
+| **`formatVersion` 支持范围** | 内容线（什么时候递增）、Android 端（同样要判） | 只接受 `=== 3`（**2 → 3 已升**，用户 2026-10-18 标签字段集；1 → 2 亦不可逆）；不匹配按**部署不一致**处理（内容与壳一起发布才对） | `config.js: SUPPORTED_FORMAT_VERSION` + `app/content.js: checkCompatibility()` |
 | **组内 / 分组次序权威** | Android 端、原型端、B 线设计的阅读次序 | **判定依据 = `orderInSource`**：组内有任何一首带整数 `orderInSource` 就一律照数组次序（分组次序照 `dynasties` 数组）；一首都没带才退回本机拼音兜底 | `app/render.js: hasProductOrder / productOrderStatus / groupPoems` |
-| **可分享 URL 形态** | 用户已分享出去的链接、Android 端「打开链接」、书签 | 哈希路由（**四条**）：目录 `#/`，诗 `#/p/<稳定 id>`，**诗歌详情 `#/p/<id>/detail`**，**关于 `#/about`**（后两条为 2026-10-15 页面集合）。**没有搜索**（第一版不做，完整移除） | `config.js: ROUTES`（含 `poemPattern`/`detailPattern`/`aboutPattern`）+ `app/main.js: parseHashString()` |
+| **可分享 URL 形态** | 用户已分享出去的链接、Android 端「打开链接」、书签 | 哈希路由（**五条**）：目录（朝代 tab）`#/`，目录（标签 tab）`#/tags`，诗 `#/p/<稳定 id>`，**诗歌详情 `#/p/<id>/detail`**，**关于 `#/about`**（标签 tab 为 2026-10-18）。**没有搜索**（第一版不做，完整移除） | `config.js: ROUTES`（含 `poemPattern`/`detailPattern`/`aboutPattern`/`tagsPattern`）+ `app/main.js: parseHashString()` |
+| **标签次序** | 内容线（编译期排序）、Android 端 | **只照产物顺序**：标签之间＝顶层 `tags` 数组顺序，标签内＝`members` 数组顺序；客户端不重排、不造排序键；标签名＝`id` 本身（中文 id 即显示名） | `app/render.js: tagGroups()` + e2e §0k/§10（用刻意不同序的夹具当牙齿） |
 | **本地存储键空间** | — | **完全不用 `localStorage`，也不用 IndexedDB**（离线副本只在 Cache Storage 里） | `config.js: LOCAL_STORAGE_KEYS`（空对象，显式声明） |
 
 最容易后悔的是 **URL 形态**（分享出去收不回）：当前选择「hash + 稳定 id」，
