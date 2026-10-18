@@ -44,9 +44,10 @@ import {
   warn,
   writeFileEnsured,
 } from './lib/util.mjs';
-import { RELEASE_TAG_HINT, resolvePreviousVersion, resolveVersionRequest } from './lib/version-source.mjs';
+import { RELEASE_TAG_HINT, assertBaselineIsOlder, resolvePreviousVersion, resolveVersionRequest } from './lib/version-source.mjs';
 import { SAME_APP_MODE, stampWebShell, assertTagAppVersionMatches } from './lib/content-refresh.mjs';
 import { gradlewCommand, prepareAndroidWorkDir } from './lib/android-work.mjs';
+import { readLiveContentVersion } from './lib/live-version.mjs';
 import { listZipEntries, readZipEntry } from './lib/zip.mjs';
 
 const USAGE = `用法：node release/build-release.mjs [选项]
@@ -56,7 +57,10 @@ const USAGE = `用法：node release/build-release.mjs [选项]
                           两个号都必须解析得出来，否则**拒绝发布**（不猜、不填默认）
   --content-version <v>   只给内容版本，形如 2026.10.14.2 —— **本地演练用途**；正式发布以 tag 为准
   --version-source date   本地演练用：UTC 当天日期 + 当天已有最大 N + 1（N 从 git tag 里数）
-  --previous-version <v>  单调性基线（默认取「已提交的内置内容版本」与上次 release-manifest 里的较大者）
+  --previous-version <v>  单调性基线（**候选之一**，不是后门）：默认取「线上内容真值 / 已发布 tag /
+                          已提交的内置内容 / 上次 release-manifest」里**最大**的那个（只按**身份**排除
+                          “本次自己”的产物与本次 tag 自身）。显式给的号若**小于**线上/已发布 tag，
+                          门仍然按更高的那个报红 —— 回退发布不许蒙混过关。
   --out <dir>             产物目录，默认 ${A.OUT_DEFAULT}（release/.gitignore 忽略 /out/）
   --android-src <dir>     要构建的 Android 工程，默认 android/（只读，会被复制）
   --android-variant <v>   构建哪个变体：debug（默认，演练用）| release（正式发布用）
@@ -425,19 +429,46 @@ function main() {
     info('应用版本锚点', assertTagAppVersionMatches({ tagAppVersion: versionReq.appVersion, appVersion: webAppVersion }));
   }
   info('本次 contentVersion', `${versionReq.contentVersion}    ← 来源：${versionReq.source}`);
+  // 线上内容真值：**单调门的真值候选**（2026-10-18 补）。只读一次 HTTP（GET），不改任何东西；
+  // 取不到就如实说「没查到」，不悄悄当成通过（`live-version.mjs` 的设计约定）。
+  const live = readLiveContentVersion();
+  if (live.contentVersion) {
+    info('线上内容真值', `${live.contentVersion}（${live.siteUrl}/content/latest.json）`);
+  } else {
+    warn(
+      `取不到线上内容真值（${live.error}）—— 这次它不参与基线；\n`
+      + '    已发布 tag 与内置产物仍会参与。要把它纳入守卫，请让本机能访问站点（或 `SUOFEI_SITE_URL` 指定站点根）。',
+    );
+  }
   const prev = resolvePreviousVersion({
     explicit: opts.previousVersion,
     manifestFile: A.manifestPath(outDir),
-    // 「上一版」必须严格小于本次 —— 发布准备会把新内容先编进仓库内置产物（三份同源），
-    // 那个候选就会等于本次版本；不筛掉就会在编译前报「新版本不大于上一版」。
     currentVersion: versionReq.contentVersion,
     tagOutput: git(['tag', '-l']),
+    // 「本次正在发的 tag 自身」要按**名字**认身份（不能按「版本 ≥ 本次」筛：
+    // 那会把线上/已发布 tag 里**更高**的版本也滤掉 ⇒ 回退发布能过门，见 2026-10-18 的修复）。
+    currentTag: opts.tag,
+    liveVersion: live.contentVersion,
+    liveSource: live.siteUrl ? `${live.siteUrl}/content/latest.json` : null,
   });
-  if (prev.skipped?.length) {
-    note(`不作为基线（等于或高于本次 ${versionReq.contentVersion}）：${prev.skipped.join('；')}`);
+  if (prev.excluded?.length) {
+    note(`不作为基线（**本次自己**的产物/本次 tag，按身份排除）：${prev.excluded.join('；')}`);
+  }
+  if (prev.layers?.length > 1) {
+    note(`参与比较的候选：${prev.layers.map((l) => `${l.version}[${l.layer}]`).join('、')}`);
   }
   if (prev.version) info('单调性基线（上一版）', `${prev.version}    ← 来源：${prev.source}`);
-  else warn('没有可用的「上一版」基线；编译器会跳过单调性检查（这一次的版本号不会被自动拦住）');
+  // 单调门（**编译之前**就报）：基线比本次还新 ⇒ 回退发布，门不放行；没有基线 ⇒ 明确“未验”。
+  const monotonic = assertBaselineIsOlder({
+    previous: prev.version,
+    current: versionReq.contentVersion,
+    source: prev.source,
+  });
+  if (!monotonic.checked) {
+    warn(`${monotonic.detail}；编译器会跳过单调性检查（这一次的版本号不会被自动拦住）`);
+  } else {
+    note(monotonic.detail);
+  }
 
   // ── 3. 编译内容（唯一一次）────────────────────────────────────
   step(3, TOTAL_STEPS, '编译内容（调用 tools/build-content.mjs，只此一次）');
