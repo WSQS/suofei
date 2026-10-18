@@ -25,14 +25,22 @@
  * 每张图都是**一个真实视口**（真实 CSS px，@DPR 2），没有把不同宽度拼成缩放对照图。
  */
 import { spawn } from 'node:child_process';
-import { readFileSync, writeFileSync, mkdtempSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync, readdirSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import net from 'node:net';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const ROOT = resolve(HERE, '../../..');
+/* 归档后目录深度变了：向上找「同时有 content/poems 与 schema/」的祖先，不写死层级 */
+const ROOT = (function () {
+  let d = HERE;
+  for (let i = 0; i < 8; i++) {
+    if (existsSync(join(d, 'content', 'poems')) && existsSync(join(d, 'schema'))) return d;
+    d = resolve(d, '..');
+  }
+  throw new Error('找不到仓库根（content/poems 与 schema 同时存在的祖先）: ' + HERE);
+})();
 const PAGE = join(HERE, 'q-tag-views.html');
 const NO_SHOT = process.argv.includes('--no-shot');
 
