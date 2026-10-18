@@ -6,7 +6,9 @@
     "③ formatVersion 写 3 只是为了标出「如果采纳，它会是一个新版本」——**本期没有升、schema/ 与 content/ 一个字都没改**。",
     "④ 本文件的 _README 不是产物字段（计入字段集时必须排除）。",
     "⑤ 读法与三种形态（无标签/多标签/同名不同选本）见同目录 q-tag-format.md §4。",
-    "⑥ tags[].members 是**编译期派生**的索引（由 poems[].tags 排序算出），不是人写的第二份事实来源；它的排序键就是 poems[].tags[].orderInTag。"
+    "⑥ tags[].members 是**编译期派生**的索引（由 poems[].tags 排序算出），不是人写的第二份事实来源；它的排序键就是 poems[].tags[].orderInTag。",
+    "⑦ id 用 slug（如 gushi-shijiu-shou）只是一种实例：**中文稳定 key 同样成立**（如 古诗十九首），两者同构（稳定 key ＋ 可改显示名），见 q-tag-format.md §2.2 的子形态对照。",
+    "⑧ tags[].members 与诗侧 tags[] 的「一致」是**构建时要断言**的约束，不是 JSON 本身保证的（同一个文件里两处当然可能写得不一致）——采纳时必须加双向互查的校验。"
   ],
   "formatVersion": 3,
   "contentVersion": "0.0.0-dev+exampledata00",
