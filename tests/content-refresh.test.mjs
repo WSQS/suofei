@@ -207,3 +207,27 @@ test('构建：同 app 版本模式仍**照常出 APK**，且必须显式给最�
   assert.match(src, /mode: opts\.sameAppRefresh \? SAME_APP_MODE : 'full'/, '清单必须记下模式，检查侧才能据此切门');
   assert.match(src, /stampWebShell\(/, '构建必须盖章内容修订');
 });
+
+test('只在同 app 模式成立的门单独成表，默认（升版）模式跳过它们', () => {
+  const src = read('release/check-ready.mjs');
+  const m = /const SAME_APP_ONLY_IDS = Object\.freeze\(\[([\s\S]*?)\]\);/.exec(src);
+  assert.ok(m, '找不到 SAME_APP_ONLY_IDS —— 那些门若在默认模式里也跑，一次正常升版会被误判成红');
+  const ids = [...m[1].matchAll(/'([a-z0-9-]+)'/g)].map((x) => x[1]);
+  for (const id of [
+    'same-app-baseline-tag',
+    'same-app-app-version-unchanged',
+    'same-app-version-code-unchanged',
+    'same-app-android-source-identical',
+    'same-app-web-source-scope',
+    'same-app-content-delta',
+    'same-app-content-bumped',
+  ]) {
+    assert.ok(ids.includes(id), `SAME_APP_ONLY_IDS 缺 ${id}`);
+  }
+  // APK 五门**不在**这张表里：它们在**两种模式**下都要真跑。
+  for (const apkGate of ['apk-present', 'apk-builtin-same-source', 'apk-signing', 'apk-identity']) {
+    assert.ok(!ids.includes(apkGate), `APK 门 ${apkGate} 被挪进“只在同 app 模式”的表 —— 升版发布就没人查它了`);
+  }
+  assert.match(src, /if \(!opts\.sameAppRefresh && SAME_APP_ONLY_IDS\.includes\(c\.id\)\) continue;/,
+    '跳过必须挂在模式上，且只有这一处');
+});

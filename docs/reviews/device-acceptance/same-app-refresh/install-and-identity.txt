@@ -1,0 +1,30 @@
+# 设备身份与安装核对（2026-10-16，emulator-5556）
+
+$ adb -s emulator-5556 shell getprop ro.serialno
+EMULATOR36X1X9X0
+
+$ adb -s emulator-5556 install -r release/out/apk/suofei-2026.10.16.26-debug.apk
+Performing Streamed Install
+Success
+
+$ adb -s emulator-5556 shell dumpsys package dev.sopho.suofei | grep -E "versionCode=|versionName=|lastUpdateTime|firstInstallTime"
+    versionCode=4 minSdk=26 targetSdk=36
+    versionName=0.1.3
+    lastUpdateTime=2026-10-18 08:30:44
+      firstInstallTime=2026-10-16 16:10:41
+
+# 新旧包签名证书（同一张 ⇒ 覆盖安装合法）
+$ apksigner verify --print-certs <装前设备上的 base.apk>
+Signer #1 certificate DN: CN=Android Debug, O=Android, C=US
+Signer #1 certificate SHA-256 digest: faff248f15977835c25c25ec8c0b865fa6c4207bada8cfc8e5785ea8aa94e956
+$ apksigner verify --print-certs release/out/apk/suofei-2026.10.16.26-debug.apk
+Signer #1 certificate DN: CN=Android Debug, O=Android, C=US
+Signer #1 certificate SHA-256 digest: faff248f15977835c25c25ec8c0b865fa6c4207bada8cfc8e5785ea8aa94e956
+
+# 断网核对
+$ adb shell cmd connectivity airplane-mode enable; sleep 2; settings get global airplane_mode_on
+1
+$ adb shell ping -c 1 -W 1 8.8.8.8
+connect: Network is unreachable
+$ adb shell dumpsys connectivity | grep -m1 "Active default network"
+Active default network: none

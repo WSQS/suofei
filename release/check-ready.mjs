@@ -603,6 +603,20 @@ check('apk-versioncode-bumped', 'APK 的 versionCode 严格大于**已有发布 
   return `${prev.code}（tag ${prev.tag}）→ ${code}（+${code - prev.code}）`;
 });
 
+/** 只在 `--same-app-content-refresh` 下成立的门的 id（默认「升版」模式不跑它们）。
+ *  为什么必须显式列出来：其中 `same-app-app-version-unchanged` 要求“APP_VERSION == 线上现值”，
+ *  而**升版发布**的定义就是它变大 ⇒ 若在默认模式里也跑，一次正常的升版会被误判成红。
+ *  （反方向不受影响：默认模式的两条“递增”门在同 app 模式下被 SKIP，理由写在 SAME_APP_SKIP。） */
+const SAME_APP_ONLY_IDS = Object.freeze([
+  'same-app-baseline-tag',
+  'same-app-app-version-unchanged',
+  'same-app-version-code-unchanged',
+  'same-app-android-source-identical',
+  'same-app-web-source-scope',
+  'same-app-content-delta',
+  'same-app-content-bumped',
+]);
+
 // ─────────────── 同 app 版本的内容刷新（--same-app-content-refresh）专用门 ───────────────
 // 这些门**只在**该模式登记（默认「正常升版」模式一字不改）。它们的共同主张是：
 //   「这一版对外就是 0.1.3 / code 4，应用代码没变，变的是内容」——
@@ -905,6 +919,7 @@ function main() {
   const results = [];
   const isLive = (id) => LIVE_CHECK_IDS.includes(id);
   for (const c of CHECKS) {
+    if (!opts.sameAppRefresh && SAME_APP_ONLY_IDS.includes(c.id)) continue;
     if (opts.liveOnly && !isLive(c.id)) continue;
     let status = 'PASS';
     let detail = '';
