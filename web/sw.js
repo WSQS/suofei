@@ -22,7 +22,7 @@
 // tests/e2e-cdp.mjs 有一条断言会读本文件源码与之交叉核对，改一处会立刻报红。
 // 其中 CONTENT_REVISION **由发布构建盖章**为本次 contentVersion（见 release/lib/content-refresh.mjs）。
 
-const APP_VERSION = '0.1.3';
+const APP_VERSION = '0.1.4';
 const CONTENT_REVISION = 'dev';
 const CACHE_PREFIX = 'pc-resources-';
 const CACHE_NAME = `${CACHE_PREFIX}${APP_VERSION}+${CONTENT_REVISION}`;

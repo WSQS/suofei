@@ -55,7 +55,7 @@ export const ABOUT = {
 
 /** 站点（应用资源）版本：**应用代码/壳**的版本键。发布新站点（含新内容）时递增它。
  *  对外显示的就是它（「关于」页的应用版本）。 */
-export const APP_VERSION = '0.1.3';
+export const APP_VERSION = '0.1.4';
 
 /** 内容/部署修订：**同一个 APP_VERSION 下**再发布一次内容时用来区分站点缓存的第二根轴。
  *
