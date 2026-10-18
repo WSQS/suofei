@@ -20,7 +20,7 @@
 // 注意：下面三个常量与 app/config.js 的 APP_VERSION / CONTENT_REVISION / RESOURCE_CACHE_PREFIX
 // 是一回事。经典 worker 不能 import ES 模块，所以这里必须各写一遍；
 // tests/e2e-cdp.mjs 有一条断言会读本文件源码与之交叉核对，改一处会立刻报红。
-// 其中 CONTENT_REVISION **由发布构建盖章**为本次 contentVersion（见 release/lib/content-only.mjs）。
+// 其中 CONTENT_REVISION **由发布构建盖章**为本次 contentVersion（见 release/lib/content-refresh.mjs）。
 
 const APP_VERSION = '0.1.3';
 const CONTENT_REVISION = 'dev';
