@@ -5,6 +5,7 @@ import dev.sopho.suofei.data.ContentParser
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -354,6 +355,55 @@ class ContentParserTest {
                 formatVersion = 3,
                 tags = """[{"id":"古诗十九首","members":["a"]}]""",
             ),
+        )
+    }
+
+    // ── 「照产物次序渲染、不重排」（Web 端 e2e 同一条口径；这里两条都要有）─────────────────
+
+    /**
+     * 口径一：**标签之间**的次序＝产物 `tags[]` 的次序。
+     * 夹具故意给一个「不是按名字排序」的次序；若客户端自行按名排（或按拼音再排一次），这条就红。
+     */
+    @Test
+    fun tagOrder_isTheProductOrder_andTheClientNeverResorts() {
+        val content = ContentParser.parse(
+            product(
+                poemJson("p1", tags = """[{"id":"汉魏六朝诗选","orderInTag":1}]"""),
+                poemJson("p2", tags = """[{"id":"古诗十九首","orderInTag":1}]"""),
+                formatVersion = 3,
+                tags = """[{"id":"汉魏六朝诗选","members":["p1"]},{"id":"古诗十九首","members":["p2"]}]""",
+            ),
+        )
+        val rendered = content.tagGroups.map { it.name }
+        assertEquals(listOf("汉魏六朝诗选", "古诗十九首"), rendered)
+        assertNotEquals(
+            "客户端不得按名字自己排（那就推翻了编译期按拼音定好的次序）",
+            rendered.sorted(),
+            rendered,
+        )
+    }
+
+    /**
+     * 口径二：**标签内部**的次序＝产物 `members[]` 的次序（它本身就是 `orderInTag` 升序）。
+     * 夹具里题名的码位序恰好相反，所以「客户端按题名重排」会被抓住。
+     */
+    @Test
+    fun tagMembers_keepTheProductOrder_whichIsOrderInTagAscending() {
+        val content = ContentParser.parse(
+            product(
+                poemJson("a", title = "甲诗", tags = """[{"id":"古诗十九首","orderInTag":1}]"""),
+                poemJson("b", title = "乙诗", tags = """[{"id":"古诗十九首","orderInTag":2}]"""),
+                formatVersion = 3,
+                tags = """[{"id":"古诗十九首","members":["a","b"]}]""",
+            ),
+        )
+        val group = content.tagGroups.single()
+        assertEquals(listOf("甲诗", "乙诗"), group.poems.map { it.title })
+        assertNotEquals("不得按题名重排（题名的码位序恰好相反）", group.poems.map { it.title }.sorted(), group.poems.map { it.title })
+        assertEquals(
+            "成员次序必须就是 orderInTag 升序（编译期语义）",
+            listOf(1, 2),
+            group.poems.map { p -> p.tags.single { it.id == "古诗十九首" }.orderInTag },
         )
     }
 

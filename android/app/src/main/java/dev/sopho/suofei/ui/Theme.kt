@@ -254,9 +254,9 @@ object PoetryTokens {
     const val AUTHOR_GAP_EM = 0.45f
 
     // ── 目录页顶部两个 tab（2026-10-18：用户定「朝代 ｜ 标签」；形状照采纳锚 `q-tag-views.html`）──
-    // ⚠ 下列四个值来自原型里的 `[草案]` 标记（tab 字号沿用「关于」的 0.86rem、缝 1.05rem、
-    //    下划线 1px 用 `--accent-line`）：它们只**把结构表达出来**，不是已采纳的视觉。
-    /** tab 字号 0.86rem（原型 `.tab` 沿用 `--about-size`）. */
+    // ⚠ 下列四个值来自原型里的 `[草案]` 标记（缝 1.05rem、下划线 1px 用 `--accent-line`）：
+    //    它们只**把结构表达出来**，不是已采纳的视觉。
+    /** tab 字号 0.86rem（原型 `--about-size`；**「关于」与 tab 同号**，2026-10-18 与 Web 对齐）。 */
     const val TAB_REM = 0.86f
     /** 两个 tab 之间的缝 `gap: 1.05rem`. */
     const val TAB_GAP_REM = 1.05f

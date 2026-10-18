@@ -83,6 +83,15 @@ class ScreenInventoryTest {
         assertTrue("选中时文字用主色", tab.contains("PoetryTokens.text"))
         assertTrue("下划线用 accent-line 令牌", tab.contains("PoetryTokens.accentLine"))
         assertEquals("下划线 1px", PoetryTokens.TAB_UNDERLINE_DP, 1f, 1e-6f)
+        // 「关于」与两个 tab **同一行、同一个字号**（0.86rem；Web 2026-10-18 已对齐）
+        assertTrue(
+            "「关于」必须与 tab 同号（PoetryTextStyles.tab），不得再用 ctl 的 0.82rem",
+            top.contains("Text(\"关于\", style = PoetryTextStyles.tab"),
+        )
+        assertFalse(
+            "「关于」不得再用 ctl 样式（同一行两种字号）",
+            Regex("""Text\(\"关于\", style = PoetryTextStyles\.ctl""").containsMatchIn(top),
+        )
     }
 
     @Test

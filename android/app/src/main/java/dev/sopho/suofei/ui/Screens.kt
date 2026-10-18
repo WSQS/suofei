@@ -347,7 +347,9 @@ private fun LibraryTopRow(tab: LibraryTab, onSelectTab: (LibraryTab) -> Unit, on
                     onSelectTab(LibraryTab.TAG)
                 }
             }
-            Text("关于", style = PoetryTextStyles.ctl, modifier = Modifier.clickable { onAbout() })
+            // 「关于」与两个 tab **同一行、同一个字号**（0.86rem＝原型 `--about-size`；Web 已按此对齐）：
+            // 不要单独给它 `--ctl-size`（0.82rem），否则同一行两种字号。
+            Text("关于", style = PoetryTextStyles.tab, modifier = Modifier.clickable { onAbout() })
         }
         HairLine()
     }

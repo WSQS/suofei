@@ -32,7 +32,8 @@ Kotlin + Jetpack Compose 的 Android 端骨架，含**最小可运行阅读实�
 | **版本门先于解析** | `data/ContentStore.kt` | `install()` 先读顶层 `formatVersion` 再完整解析：更高版本的载荷即使形状大变，也报 **`FORMAT_TOO_NEW`（保留旧内容、提示升级应用）**，而不是被误报成「JSON 非法」。清单侧的 `formatVersion`/`minAppVersionCode` 门不变（`update/ContentUpdater.kt`） |
 | **目录页两个 tab** | `ui/Screens.kt`、`ui/AppState.kt`、`ui/ScreenContent.kt`、`ui/Theme.kt` | 顶部 `朝代 ｜ 标签`（左）＋`关于`（右），下方一条发丝线；两个视图**共用同一段 `groupItems` 渲染**（悬挂记号、整行可点、初态全收起、各组独立）。**标签视图不显示任何数量**（`count == null` ⇒ 不画计数；`orderInTag` 不上界面）、**零成员标签整组不渲染**（`Content.tagGroups` 已过滤，连空态文字都没有）。`libraryTab` 是 `AppState` 的状态：**回目录不改它** ⇒ 「诗页返回回到进入它的原视图」；两个 tab 的**滚动与展开各一套**（`AppRoot` 的 `remember`） |
 | **真实系统返回链** | `ui/Screens.kt`（`BackHandler`）、`ui/AppState.kt` | 沿用既有的分层返回：详情 ⇒ 那首诗 ⇒ 目录（原视图，展开与滚动保持）。返回键与手势走**同一个** `state.back()`；目录根不拦（按返回离开 app） |
-| **单测与仓级门** | `app/src/test/**` | 新增/改写：标签解析 10 例（含零成员不渲染、两处事实打架、`orderInTag` 必填、members 次序与 `orderInTag` 矛盾）、v3 载荷端到端激活、载荷版本高于清单声明时拒收、v2 快照升级后仍可读、tab 状态与「返回原视图」、UI 源码级守卫（两 tab、无计数、同构渲染）。**Android 单测 170 例 / 0 失败**（`--no-build-cache --rerun-tasks`）；合并 master 后仓级 `npm test` **175/175** 绿、`node tools/check-bundled-content.mjs` **exit 0**（已查 Android 内置内容；Web 那份是 gitignore 的本地产物 ⇒ 记为「没查」） |
+| **与 Web 对齐的两条口径（2026-10-18）** | `ui/Screens.kt`、`ui/Theme.kt` | ① **「关于」与 tab 同一行、同一个字号 0.86rem**（原型 `--about-size`；此前本端给了 `ctl` 的 0.82rem）。② **组头下的发丝线不为标签页另加**：标签页与朝代页共用 `GroupHeaderRow`（含既有那条 `HairLine`），两端同一条规则；本条差异（原型组头有 `border-bottom`、Web 未跟）由负责人记在整合记录里 |
+| **单测与仓级门** | `app/src/test/**` | 新增/改写：标签解析 12 例（含零成员不渲染、两处事实打架、`orderInTag` 必填、members 次序与 `orderInTag` 矛盾、**「标签之间」与「标签内部」两条「照产物不重排」**）、v3 载荷端到端激活、载荷版本高于清单声明时拒收、v2 快照升级后仍可读、tab 状态与「返回原视图」、UI 源码级守卫（两 tab、无计数、同构渲染、**「关于」与 tab 同号**）。**Android 单测 172 例 / 0 失败**（`--no-build-cache --rerun-tasks`）；合并 master 后仓级 `npm test` **175/175** 绿、`node tools/check-bundled-content.mjs` **exit 0**（已查 Android 内置内容；Web 那份是 gitignore 的本地产物 ⇒ 记为「没查」） |
 
 **本批**不**动**的东西（避免误以为已做）**
 
