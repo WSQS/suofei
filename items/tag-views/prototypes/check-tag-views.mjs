@@ -9,7 +9,9 @@
  *   标签 tab 与朝代页同构；组头＝悬挂 [−]/[+] ＋ 标签名、整行可点、初态全部收起；
  *   子诗目题名左沿＝标签名首字左沿（缩进 0）、作者紧随、**无序号**；
  *   **标签页不出现任何数量**（无组头计数、无「本库已收录 N 首」、无 001）；
- *   空标签可展开、展开后只有一句空态、**不写「0 首」**；
+ *   **零成员的标签不渲染**（用户 2026-10-18：「标签下面没有诗就该没有标签」）：
+ *     数据里那条零成员标签仍然存在（反例），页面上没有它的组头／展开按钮／空态文字；
+ *     有诗的标签照常渲染，对齐规则不变；
  *   进诗 → 返回后仍在标签视图，且**展开状态与滚动位置**都保持；
  *   朝代 ↔ 标签来回切各自保持状态；朝代 tab 的计数（[19] 首）**未被改动**。
  *
@@ -263,14 +265,41 @@ try {
   await open('/tags', 't1');
   check('深链 #/tags 直接落在标签视图（data-view=tags）', (await viewOf()) === 'tags', await routeOf());
   const tagHeads = await js('Array.prototype.map.call(document.querySelectorAll(\'[data-test="ghead"]\'),function(e){return e.getAttribute("data-ghead")+":"+e.textContent;})');
-  check('标签 tab 是 5 个组头（每个标签一个），**组头文字里只有记号与标签名**',
-    tagHeads.length === 5 && /^tag:gushi-shijiu-shou:\[\+\]古诗十九首$/.test(tagHeads[0]), JSON.stringify(tagHeads));
+  check('标签 tab 是 4 个组头（只渲染有诗的标签），**组头文字里只有记号与标签名**',
+    tagHeads.length === 4 && /^tag:gushi-shijiu-shou:\[\+\]古诗十九首$/.test(tagHeads[0]), JSON.stringify(tagHeads));
   check('标签页组头不带任何计数（没有 .gcount 元素）',
     (await js('document.querySelectorAll(\'[data-test="gcount"]\').length')) === 0);
   check('标签页初态全部收起（既没有诗目也没有空态）',
     (await js('document.querySelectorAll(".glist").length')) === 0
     && (await js('document.querySelectorAll(\'[data-test="tempty"]\').length')) === 0);
   const tagPgText0 = await pgText();
+  /* ══ 本轮返修的核心（成对断言 1–3）：数据里仍有零成员标签，页面上没有它 ══ */
+  /* ① 反例仍然存在：在**运行中的页面**里读夹具（window.__TAGFIX 是原型给自检脚本的出口）*/
+  const fix = await js(`(function(){
+    var f=window.__TAGFIX;
+    if(!f) return {err:'no fixture hook'};
+    var empty=f.tags.filter(function(t){return f.members(t.id).length===0;}).map(function(t){return t.id+'/'+t.name;});
+    var withP=f.tags.filter(function(t){return f.members(t.id).length>=1;}).map(function(t){return t.name;});
+    return {total:f.tags.length, empty:empty, rawEmpty:(f.tagging['yutai-xinyong']||[]).length, withPoems:withP};
+  })()`);
+  check('① 夹具数据里**确实还有**那条零成员标签（玉台新咏：成员数 0，定义未删）',
+    !fix.err && fix.total === 5 && fix.empty.length === 1 && fix.empty[0] === 'yutai-xinyong/玉台新咏' && fix.rawEmpty === 0,
+    JSON.stringify(fix));
+  /* ② 页面上不出现它的名字（组头不存在），也没有任何「还没有诗」类空态文案 */
+  const yutaiInPage = await js(`(function(){
+    var t=document.querySelector('[data-test="pg"]').textContent;
+    return {name:/玉台新咏/.test(t), head:!!document.querySelector('[data-ghead="tag:yutai-xinyong"]'),
+            tempty:document.querySelectorAll('[data-test="tempty"]').length,
+            phrase:/还没有诗|该标签下|本标签下|空的标签/.test(t)};
+  })()`);
+  check('② 页面上既不出现「玉台新咏」的组头，也没有任何空态说明文字',
+    yutaiInPage.name === false && yutaiInPage.head === false && yutaiInPage.tempty === 0 && yutaiInPage.phrase === false,
+    JSON.stringify(yutaiInPage));
+  /* ③ 有诗的 4 个标签照常出现（名字全在，顺序不变）*/
+  check('③ 有诗的 4 个标签照常出现，且条目名与夹具一致（顺序不变）',
+    fix.withPoems.length === 4 && fix.withPoems.join('|') === '古诗十九首|唐诗三百首|汉魏六朝诗选|咏怀'
+    && tagHeads.map((h) => h.split(':')[2].replace(/^\[\+\]/, '')).join('|') === fix.withPoems.join('|'),
+    JSON.stringify(fix.withPoems));
   /* 「去掉数量」的准确范围：只去**统计与条目前编次**（组头计数／「本库已收录 N 首」／001 这类编号）；
    * 标签名本身里的数字字样（古诗十九首／唐诗三百首）**照原样显示**，不得为「去数字」改名或截断。 */
   check('标签页没有任何数量（无组头计数、无「本库已收录」、无 001 类编号；不是 ASCII 数字出现就判错）',
@@ -331,10 +360,11 @@ try {
   await js('document.querySelector(\'[data-ghead="tag:yonghuai"] .gname\').click()');
   await sleep(120);
   const expandedNow = await js('Array.prototype.map.call(document.querySelectorAll(\'[data-test="ghead"]\'),function(e){return e.getAttribute("data-ghead")+"="+e.getAttribute("aria-expanded");})');
-  check('再展开「咏怀」⇒ 两个组同时展开（19 + 3 行），其余三个仍收起',
+  check('再展开「咏怀」⇒ 两个组同时展开（19 + 3 行），其余两个仍收起',
     (await js('document.querySelectorAll(".glist").length')) === 2
     && (await js('document.querySelectorAll(".glist .poemrow").length')) === 22
-    && /tag:yutai-xinyong=false/.test(expandedNow.join('|')), JSON.stringify(expandedNow));
+    && /tag:tangshi-sanbai-shou=false/.test(expandedNow.join('|'))
+    && /tag:hanwei-liuchao=false/.test(expandedNow.join('|')), JSON.stringify(expandedNow));
   /* 图要能看出「多个组同时展开」：滚到第二个展开的组（咏怀）附近（否则 19 行的第一组会把视口占满，
    * 两个展开态的截图会一模一样——第一次跑就撞上了，字节完全相同）。 */
   const yMulti = await js('(function(){var h=document.querySelector(\'[data-ghead="tag:yonghuai"]\');return Math.max(0, h.getBoundingClientRect().top + window.scrollY - 240);})()');
@@ -432,19 +462,25 @@ try {
     /\/detail$/.test(detailRouteB) && afterB1 === detailRouteB.replace(/\/detail$/, '') && afterB2 === '/tags',
     [detailRouteB, afterB1, afterB2].join(' → '));
 
-  /* ══ 7 · 空标签：可展开、只有一句空态、不写「0 首」══ */
-  section('7 · 空标签：组头照常可展开，展开后一句空态（无「0 首」）');
+  /* ══ 7 · 零成员的标签：不渲染（组头／展开按钮／空态文字都不出现）══ */
+  section('7 · 零成员的标签不渲染：没有组头、没有展开按钮、没有任何空态文字');
   await open('/tags', 't6');
-  await js('document.querySelector(\'[data-ghead="tag:yutai-xinyong"] .gname\').click()');
-  await sleep(120);
-  check('空标签（玉台新咏）也可展开：没有诗目行，出现空态元素',
-    (await js('document.querySelectorAll(".glist .poemrow").length')) === 0
-    && (await js('document.querySelectorAll(\'[data-test="tempty"]\').length')) === 1);
-  const emptyTxt = await txt('[data-test="tempty"]');
-  check('空态是一句简洁的话（「这个标签下还没有诗。」），**不写「0 首」**',
-    /这个标签下还没有诗/.test(emptyTxt) && !/0\s*首|共\s*0|收录/.test(emptyTxt), emptyTxt);
-  check('空标签展开后整页仍**没有任何数字**', !/[0-9]/.test(await pgText()));
-  await shot('06-tag-empty-open.430.png');
+  /* 连点两下“本该在那里”的位置：一个不存在的控件点不动，页面状态也不变 */
+  const ghostClick = await js(`(function(){
+    var y=document.querySelector('[data-ghead="tag:yutai-xinyong"]');
+    if(y) y.click();
+    return {existed:!!y, heads:document.querySelectorAll('[data-test="ghead"]').length,
+            lists:document.querySelectorAll('.glist').length,
+            tempty:document.querySelectorAll('[data-test="tempty"]').length,
+            emptyClass:document.querySelectorAll('.gempty').length};
+  })()`);
+  check('零成员标签的组头压根不存在（点不到、页面不变：4 个组头、0 个诗目列表、0 个空态）',
+    ghostClick.existed === false && ghostClick.heads === 4 && ghostClick.lists === 0
+    && ghostClick.tempty === 0 && ghostClick.emptyClass === 0, JSON.stringify(ghostClick));
+  check('标签页文本里没有「还没有诗」这类空态句，也没有「0 首」',
+    !/还没有诗/.test(await pgText()) && !/0\s*首|共\s*0/.test(await pgText()));
+  check('零成员标签不渲染后，标签页仍然没有任何数字（无计数、无编号）', !/[0-9]/.test(await pgText()));
+  /* 截图：02 已经是“零成员标签不在、其余 4 个组头在”那一屏，不再造新状态图 */
 
   /* ══ 8 · 两个 tab 各自保持状态（同一会话内）══ */
   section('8 · 朝代 ↔ 标签：各自保持展开状态与滚动位置');

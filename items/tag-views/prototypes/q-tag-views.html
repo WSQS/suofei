@@ -79,7 +79,7 @@
   --ctl-size: 0.82rem;           /* [草案] 控件（返回／详情／tab） */
   --ctl-ls: 0.06em;
   --meta-size: 0.78rem;          /* [草案] 诗页身份行 */
-  --empty-top: 1.9rem;           /* [草案] 空标签里那句空态的上方留白 */
+  --empty-top: 1.9rem;           /* [草案] 兜底一句（如「这首诗不在夹具里」）的上方留白 */
   --head-pad-top: 1.5rem;        /* [已定] 诗页题头上方留白 */
   --title-gap: 0.7rem;           /* [已定] 题名 → 身份行 */
   --body-gap: 2.1rem;            /* [已定] 身份行 → 原文 */
@@ -236,7 +236,8 @@ a.ctl, button.ctl { background: none; border: 0; padding: 0; cursor: pointer; }
 .plink:hover { background: var(--surface-hover); }
 .ptitle { letter-spacing: var(--ptitle-ls); overflow-wrap: anywhere; }
 .pauthor { font-size: var(--author-size); color: var(--text-faint); margin-left: var(--author-gap); }
-/* 空标签展开后的一句空态（**不写「0 首」**） */
+/* 兜底一句。⚠ 零成员的标签**不再渲染**（本轮返修），所以「这个标签下还没有诗」那句已随分支删除；
+ *   .gempty 现在只剩「这首诗不在夹具里」这类兜底用途。 */
 .gempty {
   margin: 0;
   padding: var(--empty-top) 0 0 var(--slot);
@@ -341,6 +342,9 @@ a.ctl, button.ctl { background: none; border: 0; padding: 0; cursor: pointer; }
     'yutai-xinyong': []
   };
   function tagById(id) { for (var i = 0; i < TAGS.length; i++) if (TAGS[i].id === id) return TAGS[i]; return null; }
+  /* 只给自检脚本（check-tag-views.mjs）读的夹具出口：让脚本能**在运行的页面里**核对
+   * 「零成员标签确实还在数据里」（而不是只看页面文本）。原型专用，产品无此物。 */
+  window.__TAGFIX = { tags: TAGS, tagging: TAGGING, members: tagPoems };
   /* 标签下的诗：**按夹具的标签内次序排**（这个次序值本身不显示在界面上） */
   function tagPoems(id) {
     return (TAGGING[id] || []).map(function (x) { return BY_ID[x.id]; }).filter(function (p) { return !!p; });
@@ -515,7 +519,8 @@ a.ctl, button.ctl { background: none; border: 0; padding: 0; cursor: pointer; }
    *     opts ：{ count } —— 只有朝代 tab 传 count；标签 tab **不传**（组头不出现任何数量）
    *     组头＝悬挂记号 [−]/[+] ＋ 组名，**整行可点**；初态收起由调用方决定
    *     展开后：子诗目＝题名左沿与组名首字同一竖线（缩进 0）＋ 作者紧随；**无序号**
-   *     空组（只有标签 tab 会有）：展开后给一句空态，**不写「0 首」**
+   *     ⚠ 没有「零成员的组」这一种输入：朝代 tab 跳过空朝代，标签 tab 在渲染前就
+   *        把「本库没有关联任何诗」的标签滤掉（见 renderTags）⇒ 这里不再有空态分支。
    * ══════════════════════════════════════════════════════════════ */
   function groupBlock(key, name, poems, open, opts) {
     opts = opts || {};
@@ -541,12 +546,6 @@ a.ctl, button.ctl { background: none; border: 0; padding: 0; cursor: pointer; }
     }
     grp.appendChild(head);
     if (!open) return grp;
-    if (!poems.length) {
-      var em = el('p', 'gempty', '这个标签下还没有诗。');
-      em.setAttribute('data-test', 'tempty');
-      grp.appendChild(em);
-      return grp;
-    }
     var ul = el('ul', 'glist');
     ul.setAttribute('data-test', 'glist');
     poems.forEach(function (p) {
@@ -579,9 +578,16 @@ a.ctl, button.ctl { background: none; border: 0; padding: 0; cursor: pointer; }
   function renderTags() {
     clear(colEl);
     colEl.appendChild(hubTopline('tags'));
-    /* 与朝代页同构：每个标签就是一个组头；**组头不带数量**、页面不出现任何数量 */
+    /* 与朝代页同构：每个标签就是一个组头；**组头不带数量**、页面不出现任何数量。
+     * [本轮返修 · 用户 2026-10-18] 「标签下面没有诗就该没有标签，而不是显示『这个标签下还没有诗。』」
+     *   判据＝**成员数 ≥ 1**（该标签在本库至少关联 1 首诗）。零成员的标签**不渲染**：
+     *   不出现组头、不出现展开按钮、不出现任何空态说明文字。
+     *   ⚠ 只是不出界面：标签定义与（空的）归属仍留在夹具里（见 TAGS/TAGGING 的 yutai-xinyong），
+     *     不是删除标签、也不是给它造作品。无标签的诗**照旧留在朝代页**。 */
     TAGS.forEach(function (t) {
-      colEl.appendChild(groupBlock('tag:' + t.id, t.name, tagPoems(t.id), !!exp.tag[t.id], {}));
+      var poems = tagPoems(t.id);
+      if (poems.length < 1) return;
+      colEl.appendChild(groupBlock('tag:' + t.id, t.name, poems, !!exp.tag[t.id], {}));
     });
   }
 
