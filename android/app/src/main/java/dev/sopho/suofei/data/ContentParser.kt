@@ -9,7 +9,7 @@ class ContentParseException(message: String) : Exception(message)
  *
  * **字段新形状（2026-10-18，`formatVersion` 3）**：在 v2 形状上新增两处标签字段
  * - 顶层 `tags[] = [{ id: 中文标签名, members: [诗 id …] }]`（**可为空数组**；次序＝显示次序）；
- * - 每首 `poems[].tags[] = [{ tagId: 中文标签名, orderInTag: 整数（必填） }]`（**可为空数组**）。
+ * - 每首 `poems[].tags[] = [{ id: 中文标签名, orderInTag: 整数（必填） }]`（**可为空数组**）。
  * 标签之间与标签内的次序**都由产物给定**（编译期已按拼音／`orderInTag` 排好），客户端**不重排**；
  * 本端还校验「`members` 与诗侧 `tags` 两处不打架」「`members` 次序确实与 `orderInTag` 升序一致」，
  * 因为客户端的「不重排」正建立在这个前提上。
@@ -45,13 +45,13 @@ object ContentParser {
     )
 
     /**
-     * 现行（v3）每首的键：`tags` 插在 `orderInSource` 之后、`detail` 之前
-     * （与已采纳形状同序）。单测 `ContentParserTest` 拿它去比对真实产物的**键序**，所以它不是
-     * 「另一份副本」，而是被那份产物钉住的接口。
+     * 现行（v3）每首的键：**`tags` 在末尾**（与编译器产物逐字同序：`…detail,stanzas,notes,tags`）。
+     * 单测 `ContentParserTest` 拿它去比对真实产物的**键序**，所以它不是「另一份副本」，
+     * 而是被那份产物钉住的接口；值以 `schema/content.schema.json` 为唯一权威。
      */
     val POEM_KEYS = listOf(
         "id", "title", "author", "dynasty", "genre", "source",
-        "orderInSource", "tags", "detail", "stanzas", "notes",
+        "orderInSource", "detail", "stanzas", "notes", "tags",
     )
 
     /**
@@ -169,16 +169,16 @@ object ContentParser {
             val poemTags = (0 until (tagsJsonOfPoem?.length() ?: 0)).map { t ->
                 val e = tagsJsonOfPoem!!.optJSONObject(t)
                     ?: throw ContentParseException("poems[$i].tags[$t] 不是对象")
-                val tagId = Json.requiredString(e, "tagId")
+                val tagId = Json.requiredString(e, "id")
                 if (tagId !in declaredTagIds) {
                     throw ContentParseException(
-                        "poems[$i]（$poemId）.tags[$t].tagId=$tagId 未在顶层 tags 中声明；已声明：$declaredTagIds",
+                        "poems[$i]（$poemId）.tags[$t].id=$tagId 未在顶层 tags 中声明；已声明：$declaredTagIds",
                     )
                 }
-                TagRef(tagId = tagId, orderInTag = Json.requiredInt(e, "orderInTag"))
+                TagRef(id = tagId, orderInTag = Json.requiredInt(e, "orderInTag"))
             }
-            if (poemTags.map { it.tagId }.toSet().size != poemTags.size) {
-                throw ContentParseException("poems[$i]（$poemId）重复声明了同一个标签：${poemTags.map { it.tagId }}")
+            if (poemTags.map { it.id }.toSet().size != poemTags.size) {
+                throw ContentParseException("poems[$i]（$poemId）重复声明了同一个标签：${poemTags.map { it.id }}")
             }
 
             Poem(
@@ -220,6 +220,9 @@ object ContentParser {
      *    本端**不会**按 `orderInTag` 重新排序——所以「产物说有序」必须是真的。
      *
      * 三条都是「产物坏了就拒收（更新时保留旧内容）」，不是静默兜底。
+     *
+     * ⚠ **`members: []` 本端不报错**：编译器不会产出这种标签（schema 的 `minItems: 1`），
+     * 但界面要求「零成员的标签不渲染」（用户 2026-10-18）⇒ 这里容忍它、由 `Content.tagGroups` 过滤。
      */
     private fun validateTagIndex(tags: List<Tag>, poems: List<Poem>) {
         val byId = poems.associateBy { it.id }
@@ -227,7 +230,7 @@ object ContentParser {
             for (ref in poem.tags) {
                 if (ref.orderInTag < 1) {
                     throw ContentParseException(
-                        "诗「${poem.title}」（${poem.id}）在标签「${ref.tagId}」上的 orderInTag 应为 ≥ 1 的整数，实际 ${ref.orderInTag}",
+                        "诗「${poem.title}」（${poem.id}）在标签「${ref.id}」上的 orderInTag 应为 ≥ 1 的整数，实际 ${ref.orderInTag}",
                     )
                 }
             }
@@ -238,7 +241,7 @@ object ContentParser {
                     throw ContentParseException("标签「${tag.id}」的成员 $memberId 不指向任何诗")
                 }
             }
-            val declared = poems.filter { p -> p.tags.any { it.tagId == tag.id } }.map { it.id }.toSet()
+            val declared = poems.filter { p -> p.tags.any { it.id == tag.id } }.map { it.id }.toSet()
             if (declared != tag.memberIds.toSet()) {
                 val onlyInMembers = tag.memberIds.filterNot { it in declared }
                 val onlyInPoems = declared.filterNot { it in tag.memberIds }
@@ -248,7 +251,7 @@ object ContentParser {
                 )
             }
             val orders = tag.memberIds.map { id ->
-                byId.getValue(id).tags.first { it.tagId == tag.id }.orderInTag
+                byId.getValue(id).tags.first { it.id == tag.id }.orderInTag
             }
             if (orders != orders.sorted() || orders.toSet().size != orders.size) {
                 throw ContentParseException(

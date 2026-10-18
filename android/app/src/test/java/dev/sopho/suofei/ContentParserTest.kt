@@ -5,6 +5,7 @@ import dev.sopho.suofei.data.ContentParser
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -68,8 +69,10 @@ class ContentParserTest {
             content.formatVersion in 2..ContentParser.SUPPORTED_FORMAT_VERSION,
         )
         assertTrue(
-            "contentVersion 应是 YYYY.MM.DD.N 形式的发布版本：${content.contentVersion}",
-            content.contentVersion.matches(Regex("""\d{4}\.\d{2}\.\d{2}\.\d+""")),
+            "contentVersion 应是发布版本（YYYY.MM.DD.N）或本地派生版本（0.0.0-dev+12 位十六进制）——" +
+                "后者是未指定版本号时编译器的本地版本（不可发布）：${content.contentVersion}",
+            content.contentVersion.matches(Regex("""\d{4}\.\d{2}\.\d{2}\.\d+""")) ||
+                content.contentVersion.matches(Regex("""0\.0\.0-dev\+[0-9a-f]{12}""")),
         )
 
         // 组名＝顶层数组里的中文串；只列实际有内容的组（注册表 order 升序：先秦…近现代）。
@@ -110,6 +113,26 @@ class ContentParserTest {
         assertEquals(1, modern.poems.size)
         assertEquals("七律·和郭沫若同志", modern.poems.single().title)
         assertEquals(null, modern.poems.single().orderInSource)
+
+        // v3：内置产物必须带标签，而且**标签内次序照产物**（客户端不重排）。
+        // 真实事实（内容线 2026-10-18）：《古诗十九首》19 首各有一条真实归属，1…19。
+        if (content.formatVersion >= 3) {
+            val tag = content.tags.firstOrNull { it.id == "古诗十九首" }
+            assertNotNull("v3 内置产物应有「古诗十九首」标签", tag)
+            assertEquals(
+                "标签内的成员次序必须与朝代组内次序（底本原次序 1…19）一致",
+                han.poems.map { it.id },
+                tag!!.memberIds,
+            )
+            assertEquals(
+                "标签视图的组数 = 至少一个成员的标签数（零成员不渲染）",
+                content.tags.count { it.memberIds.isNotEmpty() },
+                content.tagGroups.size,
+            )
+            // 没有标签的诗仍在朝代页（标签是附加轴，不把人从目录里抽走）
+            val tagged = content.tags.flatMap { it.memberIds }.toSet()
+            assertTrue("应有没打标签的诗（梦李白二首、毛诗）", content.poems.any { it.id !in tagged })
+        }
     }
 
     @Test
@@ -191,32 +214,29 @@ class ContentParserTest {
             "新字段形状的机器可读产物（稳定契约副本）是这套键序的锚；读不到即失败，不跳过。",
         )
         val keys = keysOfFirstPoem(raw)
-        // 该夹具是 **v2** 产物（`formatVersion: 2`）⇒ 它钉的是 v2 键序；v3 只是在后面多一个 `tags`。
-        // ⚠ v3 的键序锚要等契约线把 v3 夹具放进 `tests/fixtures/contract/`（本端不自己造第二份产物）。
-        val expected = ContentParser.POEM_KEYS_V2.filter { it in keys }
-        assertEquals("规范产物的键序应与 POEM_KEYS_V2 的相对次序一致", expected, keys)
+        // 2026-10-18：该夹具已升到 v3（每首 11 键，`tags` 在末尾；顶层多一个 `tags`）
+        // ⇒ 它直接钉住 [ContentParser.POEM_KEYS] 的全序；v3 就是在 v2 后面多一个 `tags`。
+        assertEquals("每首的键与键序应等于 ContentParser.POEM_KEYS（v3）", ContentParser.POEM_KEYS, keys)
         assertEquals(
-            "已知差异：那份产物不含 source（实施计划里含）",
-            listOf("source"),
-            ContentParser.POEM_KEYS_V2 - keys.toSet(),
+            "v3 只是 v2 的末尾多一个 tags（不多不少、不改序）",
+            ContentParser.POEM_KEYS_V2,
+            ContentParser.POEM_KEYS.dropLast(1),
         )
+        assertEquals("v3 末尾那个键就是 tags", "tags", ContentParser.POEM_KEYS.last())
         assertEquals(
-            "v3 只在 v2 的基础上多一个 tags 键（不多不少）",
-            ContentParser.POEM_KEYS_V2.size + 1,
-            ContentParser.POEM_KEYS.size,
-        )
-        assertTrue("v3 的 tags 键必须在位：${ContentParser.POEM_KEYS}", "tags" in ContentParser.POEM_KEYS)
-        assertEquals(
-            "顶层同样只多一个 tags",
-            ContentParser.TOP_LEVEL_KEYS_V2.size + 1,
-            ContentParser.TOP_LEVEL_KEYS.size,
+            "顶层同样只多一个 tags（在 dynasties 之后、poems 之前）",
+            ContentParser.TOP_LEVEL_KEYS.filter { it != "tags" },
+            ContentParser.TOP_LEVEL_KEYS_V2,
         )
 
-        // 那份产物真的行使了 detail（含 `### 异文`，正是最小 Markdown 渲染要处理的东西）
+        // 那份产物真的行使了 detail（含 `### 异文`，正是最小 Markdown 渲染要处理的东西）与 tags
         val content = ContentParser.parse(raw)
-        assertEquals(2, content.formatVersion)
+        assertEquals(3, content.formatVersion)
         assertEquals(listOf("汉"), content.dynasties)
-        assertTrue("v2 夹具没有 tags 两处键 ⇒ 空表（旧内容仍可读）", content.tags.isEmpty() && content.poems.all { it.tags.isEmpty() })
+        assertEquals("夹具里的顶层 tags", listOf("古诗十九首"), content.tags.map { it.id })
+        assertEquals(listOf("real-01-full"), content.tags.single().memberIds)
+        assertEquals(listOf("古诗十九首" to 1), content.poems.single().tags.map { it.id to it.orderInTag })
+        assertEquals(listOf("古诗十九首"), content.tagGroups.map { it.name })
         val detail = content.poems.single().detail
         assertTrue("真实样例的 detail 应含 `### 异文`：$detail", detail != null && detail.contains("### 异文"))
         assertNull("真实样例的 notes 是空节 ⇒ null（键仍在）", content.poems.single().notes)
@@ -226,8 +246,8 @@ class ContentParserTest {
 
     /** v3 的最小合法产物：两首诗、两个标签（其中一个零成员，用来验「不渲染」）。 */
     private fun v3Product(): String = product(
-        poemJson("a", title = "甲诗", orderInSource = "1", tags = """[{"tagId":"古诗十九首","orderInTag":2}]"""),
-        poemJson("b", title = "乙诗", orderInSource = "2", tags = """[{"tagId":"古诗十九首","orderInTag":1},{"tagId":"咏怀","orderInTag":1}]"""),
+        poemJson("a", title = "甲诗", orderInSource = "1", tags = """[{"id":"古诗十九首","orderInTag":2}]"""),
+        poemJson("b", title = "乙诗", orderInSource = "2", tags = """[{"id":"古诗十九首","orderInTag":1},{"id":"咏怀","orderInTag":1}]"""),
         formatVersion = 3,
         // 标签次序就是**产物次序**（编译期已按拼音排好；本端不重排——所以这里故意写成非拼音序）。
         tags = """[{"id":"咏怀","members":["b"]},{"id":"古诗十九首","members":["b","a"]},{"id":"玉台新咏","members":[]}]""",
@@ -241,7 +261,7 @@ class ContentParserTest {
         assertEquals(listOf("咏怀", "古诗十九首", "玉台新咏"), content.tags.map { it.id })
         assertEquals(listOf("b", "a"), content.tags[1].memberIds)
         // 每首的 tags 与 orderInTag 都在（orderInTag 不是可选：它是标签内位置的唯一来源）
-        assertEquals(listOf("古诗十九首" to 2), content.poems.first { it.id == "a" }.tags.map { it.tagId to it.orderInTag })
+        assertEquals(listOf("古诗十九首" to 2), content.poems.first { it.id == "a" }.tags.map { it.id to it.orderInTag })
 
         // 标签视图：**照产物次序、不重排**；成员次序也是产物给的（b 的 orderInTag=1 在前）
         assertEquals(listOf("咏怀", "古诗十九首"), content.tagGroups.map { it.name })
@@ -271,7 +291,7 @@ class ContentParserTest {
     fun poemTag_referringToUndeclaredTag_isRejected() {
         ContentParser.parse(
             product(
-                poemJson("a", tags = """[{"tagId":"未声明","orderInTag":1}]"""),
+                poemJson("a", tags = """[{"id":"未声明","orderInTag":1}]"""),
                 formatVersion = 3,
                 tags = """[{"id":"古诗十九首","members":["a"]}]""",
             ),
@@ -282,7 +302,7 @@ class ContentParserTest {
     fun orderInTag_missing_isRejected_notTreatedAsOptional() {
         ContentParser.parse(
             product(
-                poemJson("a", tags = """[{"tagId":"古诗十九首"}]"""),
+                poemJson("a", tags = """[{"id":"古诗十九首"}]"""),
                 formatVersion = 3,
                 tags = """[{"id":"古诗十九首","members":["a"]}]""",
             ),
@@ -305,7 +325,7 @@ class ContentParserTest {
         // `tags[].members` 是编译期派生的索引；两处事实打架时报错，不静默挑一边。
         ContentParser.parse(
             product(
-                poemJson("a", tags = """[{"tagId":"古诗十九首","orderInTag":1}]"""),
+                poemJson("a", tags = """[{"id":"古诗十九首","orderInTag":1}]"""),
                 poemJson("b"),
                 formatVersion = 3,
                 tags = """[{"id":"古诗十九首","members":["a"]},{"id":"咏怀","members":["b"]}]""",
@@ -318,8 +338,8 @@ class ContentParserTest {
         // 客户端**不重排**（编译期是唯一排序权威）⇒ 产物给的 members 次序必须真的是 orderInTag 升序。
         ContentParser.parse(
             product(
-                poemJson("a", tags = """[{"tagId":"古诗十九首","orderInTag":2}]"""),
-                poemJson("b", tags = """[{"tagId":"古诗十九首","orderInTag":1}]"""),
+                poemJson("a", tags = """[{"id":"古诗十九首","orderInTag":2}]"""),
+                poemJson("b", tags = """[{"id":"古诗十九首","orderInTag":1}]"""),
                 formatVersion = 3,
                 tags = """[{"id":"古诗十九首","members":["a","b"]}]""",
             ),
@@ -330,7 +350,7 @@ class ContentParserTest {
     fun duplicateTagIdInOnePoem_isRejected() {
         ContentParser.parse(
             product(
-                poemJson("a", tags = """[{"tagId":"古诗十九首","orderInTag":1},{"tagId":"古诗十九首","orderInTag":2}]"""),
+                poemJson("a", tags = """[{"id":"古诗十九首","orderInTag":1},{"id":"古诗十九首","orderInTag":2}]"""),
                 formatVersion = 3,
                 tags = """[{"id":"古诗十九首","members":["a"]}]""",
             ),

@@ -5,7 +5,7 @@ package dev.sopho.suofei.data
  * 这里只有「读」的模型：客户端不解析 Markdown 源文件，也不写回 JSON。
  *
  * **字段形状（2026-10-18，`formatVersion` 3）**：在 v2（顶层 `dynasties` ＝有序中文值数组；每首 10 键）上
- * **新增两处标签字段**——顶层 `tags[] = [{id, members[]}]`、每首 `poems[].tags[] = [{tagId, orderInTag}]`（可为空数组）。
+ * **新增两处标签字段**——顶层 `tags[] = [{id, members[]}]`、每首 `poems[].tags[] = [{id, orderInTag}]`（可为空数组）。
  * `formatVersion` 仍是「字段集一变就升」的 B 判据（用户 2026-10-15 定）：新字段 ⇒ 3，旧客户端拒收。
  * **v2 内容仍可读**：v2 载荷根本没有这两个键 ⇒ 解析成空标签表（不是失败）——这正是「旧快照保留且可读」的依据。
  *
@@ -26,8 +26,10 @@ data class DynastyGroup(val name: String, val poems: List<Poem>)
  * `orderInTag` ＝ **这一首在该标签内的位置**（必填、由内容侧给出；它**不是**底本次序——
  * 底本次序是另一个字段 [Poem.orderInSource]，两者互不顶替）。
  * 标签内的成员次序由编译期按 `orderInTag` 升序算好在顶层 `tags[].members` 里，客户端**不重排**。
+ *
+ * 形状以 `schema/content.schema.json` 为唯一权威：**元素键是 `id`（不是 `tagId`）**。
  */
-data class TagRef(val tagId: String, val orderInTag: Int)
+data class TagRef(val id: String, val orderInTag: Int)
 
 /**
  * 顶层 `tags[]` 的一项：`id` 是**中文标签名本身**（就是显示名，本期不带 name/qualifier）；

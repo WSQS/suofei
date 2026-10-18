@@ -104,7 +104,7 @@ class UpdateFlowTest {
             ""
         }
         val poemTags = if (formatVersion >= 3) {
-            if (tagId == null) "\"tags\":[]," else "\"tags\":[{\"tagId\":\"$tagId\",\"orderInTag\":1}],"
+            if (tagId == null) "\"tags\":[]," else "\"tags\":[{\"id\":\"$tagId\",\"orderInTag\":1}],"
         } else {
             ""
         }
