@@ -13,7 +13,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { ReleaseError, REPO_ROOT, git } from './util.mjs';
+import { ReleaseError, REPO_ROOT, display, git } from './util.mjs';
 // 契约线的版本比较实现**唯一处**（C 线）。直接 import 它，而不是自己再写一份逐段比较
 // —— 两份实现迟早会漂移，而「谁更新」的判定必须两端 + 流水线同句。
 import { compareContentVersion } from '../../tools/lib/version.mjs';
@@ -129,74 +129,112 @@ export function resolveVersionRequest({ explicit, tag, source }) {
   );
 }
 
+/** 内置内容的固定位置（默认候选来源；测试可以用 `bundledFile` 指向临时文件）。 */
+export const BUNDLED_CONTENT_REL = 'android/app/src/main/assets/content/content.json';
+
 /**
  * 单调性基线（「上一版」）的解析。
- *   - 显式 `--previous-version` 给了就**就用它**（不再与其他候选比大小）。
- *     否则：本地已有产物（或 :out:/release-manifest.json 里更新的那一个）会把
- *     显式值盖掉 —— 真要重发同一个版本号时，人会得到一条莫名其妙的 VERSION_NOT_MONOTONIC。
- *   - 没给显式值时，按优先级取**最大**的一个：
- *       1. 已提交进仓库的内置内容（`android/app/src/main/assets/content/content.json`）
- *          —— 上一次随 APK 真正发出去的版本；
- *       2. 已有的 release/out/release-manifest.json（本机上跑过的上一次发布）；
- *       3. **已有的发布 tag**（`v<应用>+content-<内容>`）—— CI 从空目录构建、或在
- *          「内置内容已随发布准备提交到本次版本」的树上构建时，前两个候选会等于本次版本
- *          （那就不是“上一版”），这时唯一的一手源就是旧 tag。
- *   - ⚠️ 2026-10-18（0.1.4 发布准备时真踩到）：发布准备会先把新内容编进仓库里的内置产物
- *     （三份同源），于是候选 1 就是本次的 2026.10.18.3 ⇒ 不筛掉的话流水线会报
- *     「新版本 2026.10.18.3 不大于上一版 2026.10.18.3」而**在建 APK 之前**就失败。
- *     所以：**等于本次版本的候选不算基线**（它不是“上一版”），并补上发布 tag 这一路。
- * 都没有就返回 null，流水线会打印「未提供上一版、跳过了单调性检查」—— 不假装检查过。
  *
- * @param {{explicit?: string|null, manifestFile: string, currentVersion?: string|null, tagOutput?: string|null}} opts
+ * ⚠️ 2026-10-18 修正（**回退发布**能过门的真缺陷，见 tests/release-version-source.test.mjs）：
+ *  旧实现对**所有**候选都用 `< 本次` 过滤 ⇒ 等于/高于本次的候选被**全部丢掉**。后果很具体：
+ *  线上/已发布 tag 是 `2026.10.19.1`、本次准备 `2026.10.18.3` 时，`19.1` 被滤掉、
+ *  基线退回 `2026.10.16.26` ⇒ 单调门照样绿，**一次回退发布就发出去了**。
+ *
+ * 现在的规则：
+ *  1. **候选分层收集、一律保留**（含**更高**的）：
+ *       线上真值（`liveVersion`，由调用方读好传入；本函数**不联网**）
+ *       → 已发布 tag（`tagOutput`）
+ *       → 已提交的内置内容
+ *       → 本次 out 目录里的 release-manifest
+ *       → 显式 `--previous-version`
+ *  2. **只按身份排除「本次自己」**，绝不按「版本 ≥ 本次」排除：
+ *       · 本次正在发的那个 tag **自身**（按 tag 名认身份，`currentTag`）；
+ *       · 本次准备的**产物资产**（内置内容 / out 清单里版本号**恰好等于**本次的那些）。
+ *     这两样不是“上一版”，而是这次发布自己的产物（发布准备会先把新内容编进三份同源产物）——
+ *     它们必须被排除，否则 0.1.4 那次会报「新版本 X 不大于上一版 X」这种**假红**。
+ *     注意：**同版本但不同名**的已发布 tag、以及线上真值，**不**算“自己” ⇒ 保留 ⇒ 由单调门报红
+ *     （那条 tag 说明这个内容版本**已经被过发布**，客户端的缓存/采纳语义不会认它）。
+ *  3. 取最大者当基线；**显式 `--previous-version` 只是候选之一**，不再是后门：
+ *     线上真值/已发布 tag 更高时，单调门必须见到**更高那个**。
+ *  4. 一个候选都没有 ⇒ 返回 null，流水线打印「未提供上一版」——**未验，不假装检查过**。
+ *
+ * @param {{explicit?: string|null, manifestFile?: string, currentVersion?: string|null,
+ *          tagOutput?: string|null, currentTag?: string|null,
+ *          liveVersion?: string|null, liveSource?: string|null, bundledFile?: string}} opts
+ * @returns {{version: string|null, source: string|null, sources: string[], excluded: string[], layers: object[]}}
  */
-export function resolvePreviousVersion({ explicit, manifestFile, currentVersion = null, tagOutput = null }) {
-  if (explicit != null && explicit !== '') {
-    return { version: explicit, source: `explicit(--previous-version=${explicit})，不再与其他候选比大小` };
-  }
-  /** “上一版”必须严格小于本次（等于本次它就不是上一版）。 */
-  const isOlder = (v) => {
-    if (!currentVersion) return true;
+export function resolvePreviousVersion({
+  explicit,
+  manifestFile,
+  currentVersion = null,
+  tagOutput = null,
+  currentTag = null,
+  liveVersion = null,
+  liveSource = null,
+  bundledFile = path.join(REPO_ROOT, BUNDLED_CONTENT_REL),
+} = {}) {
+  const candidates = [];
+  const excluded = [];
+  /** 候选版本号是否**恰好等于**本次（＝“这次自己”；不是“上一版”）。 */
+  const isSelfVersion = (v) => {
+    if (!currentVersion) return false;
     try {
-      return compareContentVersion(v, currentVersion) < 0;
+      return compareContentVersion(v, currentVersion) === 0;
     } catch {
-      return true;
+      return false;
     }
   };
-  const candidates = [];
-  const skipped = [];
-  const bundled = path.join(REPO_ROOT, 'android/app/src/main/assets/content/content.json');
-  try {
-    const doc = JSON.parse(fs.readFileSync(bundled, 'utf8'));
-    if (typeof doc.contentVersion === 'string' && doc.contentVersion !== '') {
-      const src = '已提交的内置内容 android/app/src/main/assets/content/content.json';
-      if (isOlder(doc.contentVersion)) candidates.push({ version: doc.contentVersion, source: src });
-      else skipped.push(`${doc.contentVersion}（${src}）`);
-    }
-  } catch {
-    /* 读不到就不作为候选，不猜 */
-  }
-  try {
-    const doc = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
-    if (typeof doc.contentVersion === 'string' && doc.contentVersion !== '') {
-      const src = '上次的 release/out/release-manifest.json';
-      if (isOlder(doc.contentVersion)) candidates.push({ version: doc.contentVersion, source: src });
-      else skipped.push(`${doc.contentVersion}（${src}）`);
-    }
-  } catch {
-    /* 同上 */
-  }
-  // 候选 3：发布 tag（一手、离线可查；CI 的 fetch-depth: 0 里就有）。
-  if (tagOutput) {
-    for (const line of String(tagOutput).split('\n')) {
-      const parsed = parseReleaseTag(line.trim());
-      if (!parsed) continue;
-      if (!isOlder(parsed.contentVersion)) continue;
-      candidates.push({ version: parsed.contentVersion, source: `发布 tag ${line.trim()}` });
-    }
-  }
-  if (candidates.length === 0) return { version: null, source: null, skipped };
 
-  // 用与编译器和客户端同一套比较规则挑最大值。
+  // 层 1：线上真值（调用方读好传入；更高/相等都保留 —— 相等说明这个版本已经在线上）。
+  if (typeof liveVersion === 'string' && liveVersion !== '') {
+    candidates.push({ version: liveVersion, layer: 'live', source: `线上内容真值（${liveSource ?? 'content/latest.json'}）` });
+  }
+  // 层 2：已发布 tag（一手、离线可查；CI 的 fetch-depth: 0 里就有）。
+  if (tagOutput) {
+    const skipTag = currentTag ? String(currentTag).trim().replace(/^refs\/tags\//, '') : null;
+    for (const line of String(tagOutput).split('\n')) {
+      const tag = line.trim();
+      if (!tag) continue;
+      const parsed = parseReleaseTag(tag);
+      if (!parsed) continue;
+      if (skipTag && tag.replace(/^refs\/tags\//, '') === skipTag) {
+        excluded.push(`${parsed.contentVersion}（发布 tag ${tag}：**本次正在发的 tag 自身**，按名字排除）`);
+        continue;
+      }
+      candidates.push({ version: parsed.contentVersion, layer: 'tag', source: `发布 tag ${tag}` });
+    }
+  }
+  // 层 3：已提交的内置内容；层 4：上次的 release-manifest。
+  // 这两样是**本次准备的产物资产**：版本号恰好等于本次就不是“上一版”。
+  for (const [file, layer, src] of [
+    [bundledFile, 'bundled', `已提交的内置内容 ${display(bundledFile)}`],
+    [manifestFile, 'manifest', `上次的 ${manifestFile ? display(manifestFile) : 'release out 目录里的 release-manifest.json'}`],
+  ]) {
+    if (!file) continue;
+    let doc = null;
+    try {
+      doc = JSON.parse(fs.readFileSync(file, 'utf8'));
+    } catch {
+      continue; // 读不到就不作为候选，不猜
+    }
+    const v = doc?.contentVersion;
+    if (typeof v !== 'string' || v === '') continue;
+    if (isSelfVersion(v)) {
+      excluded.push(`${v}（${src}：版本号就是本次 ${currentVersion}，属于**本次准备的产物资产**，不是上一版）`);
+      continue;
+    }
+    candidates.push({ version: v, layer, source: src });
+  }
+  // 层 5：显式 `--previous-version`。只是**候选之一**：真值更高时它盖不住真值。
+  if (explicit != null && explicit !== '') {
+    candidates.push({ version: explicit, layer: 'explicit', source: `explicit(--previous-version=${explicit})` });
+  }
+
+  if (candidates.length === 0) {
+    return { version: null, source: null, sources: [], excluded, layers: [], skipped: excluded };
+  }
+
+  // 用与编译器和客户端同一套比较规则挑最大值；并列时把**所有**来源都说出来（不挑一个假造因果）。
   let best = candidates[0];
   for (const c of candidates.slice(1)) {
     try {
@@ -205,5 +243,71 @@ export function resolvePreviousVersion({ explicit, manifestFile, currentVersion 
       /* 形状不合法的候选不参与比较 */
     }
   }
-  return { ...best, skipped };
+  const tied = candidates.filter((c) => {
+    try {
+      return compareContentVersion(c.version, best.version) === 0;
+    } catch {
+      return false;
+    }
+  });
+  const sources = tied.map((c) => c.source);
+  return {
+    version: best.version,
+    source: sources.join(' ＋ '),
+    sources,
+    excluded,
+    layers: candidates.map((c) => ({ layer: c.layer, version: c.version, source: c.source })),
+    skipped: excluded,
+  };
+}
+
+/**
+ * 单调门的**显式**守卫：本次 contentVersion 必须**严格大于**基线（「上一版」）。
+ *
+ * 为什么要它（2026-10-18）：编译器那道门（`tools/lib/version.mjs` 的 `VERSION_NOT_MONOTONIC`）
+ * 只说「新版本 X 不大于上一版 Y」，读的人分不出是**回退**（基线本来就更新）还是**重发同号**。
+ * 这里在**编译之前**就把「基线比本次新」这件事点名（`VERSION_BASELINE_AHEAD`），
+ * 并带上基线来源（线上真值／发布 tag／explicit…），免得人对着一个数字猜。
+ *
+ * 没有基线时**不假装检查过**：返回 `checked: false`，调用方据此打印「未验」。
+ *
+ * @param {{previous?: string|null, current: string, source?: string|null}} opts
+ * @returns {{ok: true, checked: boolean, detail: string}}
+ * @throws {ReleaseError} 基线更新（`VERSION_BASELINE_AHEAD`）或同号（`VERSION_NOT_MONOTONIC`）
+ */
+export function assertBaselineIsOlder({ previous = null, current, source = null }) {
+  const where = source ? `\n  基线来源：${source}` : '';
+  if (previous == null || previous === '') {
+    return {
+      ok: true,
+      checked: false,
+      detail: `没有可用的「上一版」基线 ⇒ 本次 contentVersion ${current} **没有被自动拦住**（未验，不是验过）`,
+    };
+  }
+  let cmp;
+  try {
+    cmp = compareContentVersion(previous, current);
+  } catch (err) {
+    throw new ReleaseError(
+      `单调性基线 ${previous} 与本次 ${current} 无法按同一套规则比较：${err.message}${where}`,
+      { code: 'VERSION_FORMAT' },
+    );
+  }
+  if (cmp > 0) {
+    throw new ReleaseError(
+      [
+        `单调性基线 ${previous} **比本次 ${current} 新** ⇒ 这是一次回退发布，门不放行。`,
+        `  已经拿到 ${previous}（或更新）内容/应用版本的客户端，不会把 ${current} 当成更新采用；`,
+        '  若确实要发新内容，就在更高版本之上继续递增，而不是把版本号往回调。',
+      ].join('\n') + where,
+      { code: 'VERSION_BASELINE_AHEAD' },
+    );
+  }
+  if (cmp === 0) {
+    throw new ReleaseError(
+      `单调性基线 ${previous} 与本次 ${current} 相同（要求**严格大于**上一版）：已安装的客户端不会采用它。${where}`,
+      { code: 'VERSION_NOT_MONOTONIC' },
+    );
+  }
+  return { ok: true, checked: true, detail: `单调性检查通过：${previous} → ${current}（严格递增）${where}` };
 }

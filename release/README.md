@@ -46,9 +46,17 @@ node release/build-release.mjs --tag 'v0.2.0+content-2026.10.16.5' --android-var
   解析只认 `certificate DN:` 这个共同子串；**验签通过但读不出 DN ⇒ 黄**（不是红）。可自测：`node release/selftest-apksigner.mjs`。
 - 签名约定见 `docs/design/ci-and-signing.md`。
 
-常用开关（`--help` 有全量）：`--out <dir>`、`--previous-version <v>`（严格大于它，否则拒绝）、
+常用开关（`--help` 有全量）：`--out <dir>`、`--previous-version <v>`（单调性基线的**候选之一**：最终基线＝
+「线上内容真值 / 已发布 tag / 已提交内置内容 / 上次 manifest / 显式值」里**最大**的那个，
+只按**身份**排除「本次自己的产物与本次 tag 自身」；本次 contentVersion 必须**严格大于**它，否则拒绝——
+显式给小号**盖不住**线上/已发布 tag 的真值）、
 `--skip-apk`（只出内容/Web；就绪检查会因缺 APK 报红）、`--android-feed none`（不产出小纸条清单，仅演练用）、
 `--source-date-epoch <秒>`（固定 `generatedAt`，让产物字节可复现）、`--online`（Gradle 默认 `--offline`）。
+
+基线里**线上内容真值**这一路：构建时会发**一次只读 GET** 到站点 `content/latest.json`
+（`release/lib/live-version.mjs`，地址来源＝Android 的 `UpdateProtocol.BASE_URL`，可用 `SUOFEI_SITE_URL` 覆盖）。
+它只用于单调门，不改任何产物；**取不到就打印原因**并明说“这次它不参与基线”（已发布 tag 与内置产物仍参与）——
+不把“没查到”当成通过。
 
 ## 产物（`release/out/`）
 
