@@ -19,6 +19,7 @@
 import { spawn } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -27,12 +28,12 @@ import { fileURLToPath } from 'node:url';
 import {
   SUPPORTED_FORMAT_VERSION, checkCompatibility, validateContent,
 } from '../app/content.js';
-import { ABOUT, APP_VERSION, CONTENT_URL, ROUTES, resourceCacheName } from '../app/config.js';
+import { ABOUT, APP_VERSION, CONTENT_REVISION, CONTENT_URL, ROUTES, resourceCacheName } from '../app/config.js';
 import {
   breakPoemLine, comparePoems, groupPoems, hasProductOrder, isUnknownAuthor, productOrderStatus, UNKNOWN_AUTHORS,
 } from '../app/render.js';
 import { buildVariants } from '../scripts/lib/variants.mjs';
-import { DEPLOY_FILES, DEPLOY_TEXT_FILES, makeDeployment } from './lib/deploy.mjs';
+import { DEPLOY_FILES, DEPLOY_TEXT_FILES, makeDeployment, makeDeploymentFromDir } from './lib/deploy.mjs';
 
 const webRoot = fileURLToPath(new URL('..', import.meta.url));
 const repoRoot = resolve(webRoot, '..');
@@ -153,6 +154,30 @@ function nextAppVersion(base, step) {
   const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(base));
   if (!m) throw new Error(`APP_VERSION 不是 x.y.z 形状，无法派生部署版本：${base}`);
   return `${m[1]}.${Number(m[2]) + step}.0`;
+}
+
+/** 同 APP_VERSION 下的「下一个内容修订」：从当前修订派生一个**不同**的值（不写死任何版本号）。 */
+function nextContentRevision(base) {
+  const m = /^(\d{4})\.(\d{2})\.(\d{2})\.(\d+)$/.exec(String(base));
+  if (!m) throw new Error(`内容修订不是 YYYY.MM.DD.N 形状：${base}`);
+  return `${m[1]}.${m[2]}.${m[3]}.${Number(m[4]) + 1}`;
+}
+
+/**
+ * 环境里交给本轮的「真·旧基底」：**已发布那一版**的 web/** 字节 ＋ 线上已发布的内容快照。
+ * 由 release/lib/live.mjs 的 materializeBaselineForE2E() 准备（tag 里的字节 + 线上快照），
+ * **不是**「新 main ＋ 20 首夹具」。没提供时本节**没跑**（不假装通过）。
+ */
+function readBaselineFromEnv() {
+  const webDir = process.env.SUOFEI_BASELINE_WEB_DIR || null;
+  const tag = process.env.SUOFEI_BASELINE_TAG || null;
+  const contentVersion = process.env.SUOFEI_BASELINE_CONTENT_VERSION || null;
+  const contentSha256 = process.env.SUOFEI_BASELINE_CONTENT_SHA || null;
+  if (!webDir || !tag || !contentVersion) return { ok: false, reason: '环境里没有 SUOFEI_BASELINE_*（旧基底没准备）' };
+  for (const rel of ['sw.js', 'app/config.js', 'app/main.js', 'content.json']) {
+    if (!existsSync(resolve(webDir, rel))) return { ok: false, reason: '旧基底缺 ' + rel + '（' + webDir + '）' };
+  }
+  return { ok: true, webDir: resolve(webDir), tag, contentVersion, contentSha256 };
 }
 
 // ------------------------------------------------------------------ CDP 薄客户端
@@ -1601,7 +1626,9 @@ async function main() {
   await waitForSiteCaches([expectedCache]);
   await waitForCacheEntry(expectedCache, `/${CONTENT_URL}`);
   const entries = await cacheEntries(expectedCache);
-  eq('站点缓存名 = 前缀 + 站点版本', await siteCaches(), [expectedCache]);
+  eq('站点缓存名 = 前缀 + 站点版本 + 内容修订', await siteCaches(), [expectedCache]);
+  check('缓存名里含**内容修订**（同 app 版本重发内容时，浏览器才会因此装新 SW）',
+    expectedCache === `pc-resources-${APP_VERSION}+${CONTENT_REVISION}`, dump({ expectedCache, CONTENT_REVISION }));
   check('缓存里有外壳', entries.some((p) => p.endsWith('/index.html'))
     && entries.some((p) => p.endsWith('/app/main.js')) && entries.some((p) => p.endsWith('/styles.css')), dump(entries));
   check('缓存里有 content.json（内容与壳同一份清单、同一个 cache）',
@@ -2013,6 +2040,13 @@ async function main() {
   const swSource = await readFile(resolve(webRoot, 'sw.js'), 'utf8');
   eq('sw.js APP_VERSION ←→ app/config.js', /const APP_VERSION = '([^']+)'/.exec(swSource)?.[1], APP_VERSION);
   eq('sw.js CACHE_PREFIX ←→ app/config.js', /const CACHE_PREFIX = '([^']+)'/.exec(swSource)?.[1], 'pc-resources-');
+  eq('sw.js CONTENT_REVISION ←→ app/config.js', /const CONTENT_REVISION = '([^']+)'/.exec(swSource)?.[1], CONTENT_REVISION);
+  const cacheNameLine = (/const CACHE_NAME = [^;]+;/.exec(swSource) || [])[0];
+  check('sw.js 的缓存名 = 前缀 + 应用版本 + 内容修订（两个版本常量都要参与）',
+    ['CACHE_PREFIX', 'APP_VERSION', 'CONTENT_REVISION'].every((k) => String(cacheNameLine).includes(k)), dump(cacheNameLine));
+  const removedLine = (/const removed = [^;]+;/.exec(swSource) || [])[0];
+  check('activate 只删**同前缀**的旧 cache（不碰别人的数据）',
+    String(removedLine).includes('startsWith(CACHE_PREFIX)') && String(removedLine).includes('!== CACHE_NAME'), dump(removedLine));
   eq('deploy 目录里没有测试/脚本文件', DEPLOY_FILES.filter((f) => f.startsWith('tests/') || f.startsWith('scripts/') || f.startsWith('fixtures/')), []);
   check('整轮没有未捕获异常 / JS 级 error 日志', pageErrors.length === 0, pageErrors.join(' | ') || '（无）');
   const shotsOk = screenshotAttempts.length - screenshotFailures.length;
@@ -2021,6 +2055,170 @@ async function main() {
 
   await writeFile(resolve(artifactsDir, 'dom-dumps.txt'), domDump.join('\n\n'), 'utf8');
   console.log('\n产物：web/tests/artifacts/（截图 + dom-dumps.txt + deploy/ 各版本部署目录，均已 gitignore）');
+
+  // ---------------------------------------------------------------- 9. 同 APP_VERSION 跨内容修订（真·旧基底）
+  section('9 同 APP_VERSION 跨内容修订：真·旧基底（已发布那份字节，20 首）→ 新内容（新修订，22 首）');
+  const baselineEnv = readBaselineFromEnv();
+  const baselineRequired = process.env.SUOFEI_REQUIRE_BASELINE === '1';
+  if (!baselineEnv.ok) {
+    const msg = '旧基底没提供（' + baselineEnv.reason + '）⇒ 本节**没跑**：「旧 → 新」更新链没验';
+    if (baselineRequired) check('本模式要求验「旧 → 新」更新链（旧基底必须提供）', false, msg);
+    else console.log('SKIP  ' + msg);
+  } else {
+    const pageErrsBefore = pageErrors.length;
+    const oldText = await readFile(resolve(baselineEnv.webDir, 'content.json'), 'utf8');
+    const oldDoc = JSON.parse(oldText);
+    const oldSha = createHash('sha256').update(Buffer.from(oldText, 'utf8')).digest('hex');
+    console.log('  旧基底 tag：' + baselineEnv.tag);
+    console.log('  旧内容：contentVersion=' + oldDoc.contentVersion + ' poems=' + oldDoc.poems.length
+      + ' dynasties=' + JSON.stringify(oldDoc.dynasties) + ' sha256=' + oldSha);
+    eq('旧内容就是线上已发布的那一份（版本号 == 环境声明）', oldDoc.contentVersion, baselineEnv.contentVersion);
+    if (baselineEnv.contentSha256) eq('旧内容字节就是线上快照（sha256 == 环境声明）', oldSha, baselineEnv.contentSha256);
+    check('旧内容确实是「更少的那一版」（否则下面 20→22 的对比是空的）',
+      oldDoc.poems.length < baseDoc.poems.length, dump({ old: oldDoc.poems.length, new: baseDoc.poems.length }));
+
+    // ---- 9a 部署**旧的那一份字节**（一个字都不改写），装好并记录缓存 ID ----
+    const vOld = await makeDeploymentFromDir({
+      destDir: join(deployRoot, 'same-app-old'), webDir: baselineEnv.webDir, contentText: oldText,
+    });
+    console.log('  旧站点：appVersion=' + vOld.appVersion + ' 内容修订=' + String(vOld.contentRevision) + ' cache=' + vOld.cacheName);
+    await evaluate('(async () => { const reg = await navigator.serviceWorker.getRegistration(); if (reg) await reg.unregister(); for (const k of await caches.keys()) await caches.delete(k); })()');
+    await redeploy(vOld.destDir);
+    await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+    await goto(BASE);
+    await waitForIndexExpanded();
+    s = await summary();
+    eq('旧站点：应用版本', s.appVersion, APP_VERSION);
+    eq('旧站点：读的是已发布那一版内容', s.contentVersion, oldDoc.contentVersion);
+    eq('旧站点：诗数量', s.poems, oldDoc.poems.length);
+    await waitForSiteCaches([vOld.cacheName], '旧站点缓存就位');
+    eq('旧站点的缓存 ID（线上那一个，没有修订段）', await siteCaches(), [vOld.cacheName]);
+    check('旧缓存名确实只由「前缀＋应用版本」组成（与线上一致）',
+      vOld.cacheName === 'pc-resources-' + vOld.appVersion, dump(vOld.cacheName));
+    await screenshot('13-same-app-old-deployed.png');
+
+    // ---- 9b 失败保旧：新修订的部署**缺 content.json** ⇒ 预缓存必失败 ⇒ 旧版继续服务 ----
+    const revBroken = nextContentRevision(baseDoc.contentVersion);
+    const brokenDep = await makeDeployment({
+      destDir: join(deployRoot, 'same-app-broken'), appVersion: APP_VERSION, contentRevision: revBroken, contentText: oldText,
+    });
+    await rm(join(brokenDep.destDir, 'content.json'));
+    console.log('  故意失败的一次部署：cache=' + brokenDep.cacheName + '（content.json 已删 ⇒ 预缓存必失败）');
+    await redeploy(brokenDep.destDir);
+    await reload();
+    await sleep(3000);
+    s = await summary();
+    const regState = await evaluate('(async () => { const r = await navigator.serviceWorker.getRegistration(); return { waiting: Boolean(r && r.waiting), installing: Boolean(r && r.installing), active: Boolean(r && r.active) }; })()');
+    check('取不到预缓存文件 ⇒ 新 SW 没装成（没有 waiting）', regState.waiting === false, dump(regState));
+    eq('失败保旧：仍在读已发布的旧内容版本', s.contentVersion, oldDoc.contentVersion);
+    eq('失败保旧：仍是旧内容的首数', s.poems, oldDoc.poems.length);
+    check('失败保旧：页面没有出现「有新版本」提示', !(await evaluate('Boolean(document.querySelector(\'[data-test="update-available"]\'))')));
+    // 失败时 Chrome 会留下**一个空的/半套的** cache（我们的 install 先 open 再逐个取），
+    // 所以正确的判据不是「新 cache 不存在」，而是「新 cache 里没有可用的 content.json」，且旧 cache 完好。
+    const failProbe = await evaluate('(async () => {'
+      + ' const key = new URL("content.json", self.location.href).href;'
+      + ' const hasOld = await caches.has(' + JSON.stringify(vOld.cacheName) + ');'
+      + ' const oldOk = hasOld ? Boolean(await (await caches.open(' + JSON.stringify(vOld.cacheName) + ')).match(key)) : false;'
+      + ' const hasBroken = await caches.has(' + JSON.stringify(brokenDep.cacheName) + ');'
+      + ' const brokenOk = hasBroken ? Boolean(await (await caches.open(' + JSON.stringify(brokenDep.cacheName) + ')).match(key)) : false;'
+      + ' const swStatus = await fetch("content.json?probe=1", { cache: "no-store" }).then((r) => r.status).catch((e) => "rejected:" + e.name);'
+      + ' return { names: await caches.keys(), oldHasContent: oldOk, brokenCacheExists: hasBroken, brokenHasContent: brokenOk, swContentJsonStatus: swStatus };'
+      + '})()');
+    check('失败保旧：旧缓存里的 content.json 完好，半套的新缓存里没有 content.json（装不上＝不可用）',
+      failProbe.oldHasContent === true && failProbe.brokenHasContent === false, dump(failProbe));
+    eq('失败码证据：预缓存要取的 content.json 在服务器上是 404（install 因此失败）', failProbe.swContentJsonStatus, 404);
+    check('失败是「装不上」，不是「装上了却读不了」（页面没有失败状态）',
+      !(await evaluate('Boolean(document.querySelector(\'[data-test="view-error"]\'))')));
+    console.log('  这次失败部署的浏览器侧报错（SW 安装失败的原因在这里）：'
+      + (pageErrors.slice(pageErrsBefore).length
+        ? pageErrors.slice(pageErrsBefore).map((e) => String(e).split('\n')[0]).join(' | ')
+        : '（页面级没有新增；失败发生在 SW 安装里，旧 SW 原样继续服务）'));
+    await screenshot('14-same-app-failed-keeps-old.png');
+
+    // ---- 9c 不兼容内容（formatVersion+1）：能装、能发现，但**未接受**时仍读旧内容 ----
+    const revBad = nextContentRevision(revBroken);
+    const badDoc = { ...structuredClone(oldDoc), formatVersion: Number(oldDoc.formatVersion) + 1 };
+    const incompatible = await makeDeployment({
+      destDir: join(deployRoot, 'same-app-incompatible'), appVersion: APP_VERSION, contentRevision: revBad,
+      contentText: JSON.stringify(badDoc, null, 2) + '\n',
+    });
+    await redeploy(incompatible.destDir);
+    await reload();
+    await waitFor('Boolean(document.querySelector(\'[data-test="update-available"]\'))', { label: '不兼容版本被发现（新 SW 能装上）' });
+    await sleep(1200);
+    s = await summary();
+    eq('不兼容版本未接受时：仍在读旧内容', s.contentVersion, oldDoc.contentVersion);
+    eq('不兼容版本未接受时：仍是旧内容的首数', s.poems, oldDoc.poems.length);
+    check('不兼容版本未接受时：页面没有裂（没有失败状态）',
+      !(await evaluate('Boolean(document.querySelector(\'[data-test="view-error"]\'))')));
+    await screenshot('15-same-app-incompatible-not-accepted.png');
+
+    // ---- 9d 部署**新内容（同 APP_VERSION、新修订）**：发现 → 接受 → 22 首、壳内容同批 ----
+    const vNew = await makeDeployment({
+      destDir: join(deployRoot, 'same-app-new'), appVersion: APP_VERSION, contentRevision: baseDoc.contentVersion, contentText: baseText,
+    });
+    console.log('  新站点：cache=' + vNew.cacheName + '（壳与内容同一次部署）');
+    await redeploy(vNew.destDir);
+    await reload();
+    // 旧包的发现逻辑是「有没有 waiting」（不比较版本号），所以同 APP_VERSION 它照样能发现。
+    await waitFor('Boolean(document.querySelector(\'[data-test="update-available"]\'))', { label: '旧包发现新版本（同 APP_VERSION）' });
+    const hintText = await evaluate('document.querySelector(\'[data-test="update-available-text"]\').textContent');
+    console.log('  旧包（已发布那份 main.js）的提示原文：' + hintText);
+    const appMentions = (hintText.match(new RegExp('v' + APP_VERSION.replace(/\./g, '\\.'), 'g')) || []).length;
+    check('已发布旧包的提示里两个版本号相同（它不理解内容修订 —— 旧包的固有限制，如实记录）',
+      appMentions >= 2, dump({ hintText, appMentions }));
+    s = await summary();
+    eq('旧包问到的 waiting 版本仍是 ' + APP_VERSION + '（它没有修订概念）', s.sw.waitingVersion, APP_VERSION);
+    await waitForCacheEntry(vNew.cacheName, '/content.json');
+    const newCacheDoc = JSON.parse(await cacheText(vNew.cacheName, '/content.json'));
+    eq('新缓存里的内容就是新版本（首数与产物一致）', newCacheDoc.poems.length, baseDoc.poems.length);
+    eq('新缓存里的内容版本', newCacheDoc.contentVersion, baseDoc.contentVersion);
+    const newCacheCfg = String(await cacheText(vNew.cacheName, '/app/config.js'));
+    check('新缓存里的**壳**也带新修订（壳与内容同一批，不是旧壳配新内容）',
+      newCacheCfg.includes("CONTENT_REVISION = '" + baseDoc.contentVersion + "'"),
+      dump((/CONTENT_REVISION = '[^']*'/.exec(newCacheCfg) || [])[0]));
+    const cachesBeforeAccept = await siteCaches();
+    check('新旧缓存并存：新的已就绪、旧的仍在服务',
+      cachesBeforeAccept.includes(vOld.cacheName) && cachesBeforeAccept.includes(vNew.cacheName), dump(cachesBeforeAccept));
+    eq('接受前：生效的仍是旧内容', s.poems, oldDoc.poems.length);
+    await screenshot('16-same-app-update-available.png');
+
+    const tokenSameApp = await docToken();
+    await evaluate('document.querySelector(\'[data-test="apply-update"]\').click(); true');
+    await waitForNewDocument(tokenSameApp, '点刷新后新文档');
+    await waitForIndexExpanded();
+    s = await summary();
+    eq('接受后：应用版本仍是 ' + APP_VERSION + '（同 app 版本的内容刷新）', s.appVersion, APP_VERSION);
+    eq('接受后：内容版本 = 新修订', s.contentVersion, baseDoc.contentVersion);
+    eq('接受后：首数 = 新产物首数', s.poems, baseDoc.poems.length);
+    console.log('  内容条数：' + oldDoc.poems.length + ' → ' + s.poems);
+    eq('接受后：目录次序 == 新产物数组次序', await domPoemIds(), expectedDomOrder(baseDoc));
+    await waitForSiteCaches([vNew.cacheName], '旧 cache 已删、只剩新 cache');
+    eq('activate 只删了**本前缀**的旧 cache（旧 ID ' + vOld.cacheName + ' 没了，带修订的留下）', await siteCaches(), [vNew.cacheName]);
+    check('接受后没有残留失败状态', !(await evaluate('Boolean(document.querySelector(\'[data-test="view-error"]\'))')));
+    await screenshot('17-same-app-after-update.png');
+
+    // ---- 9e 离线不裂：断网 + 停服务后仍能读新缓存里的 22 首 ----
+    await cdp.send('Network.emulateNetworkConditions', { offline: true, latency: 0, downloadThroughput: 0, uploadThroughput: 0 });
+    await stopServer();
+    check('本地 HTTP 服务确实已经关掉', await isServerDown());
+    await reload();
+    await waitForIndexExpanded();
+    s = await summary();
+    check('离线重载：目录照常渲染、没有失败状态', (await evaluate('Boolean(document.querySelector(\'[data-test="poem-row"]\'))'))
+      && !(await evaluate('Boolean(document.querySelector(\'[data-test="view-error"]\'))')));
+    eq('离线重载：内容版本', s.contentVersion, baseDoc.contentVersion);
+    eq('离线重载：首数', s.poems, baseDoc.poems.length);
+    check('离线重载：仍受 Service Worker 控制（缓存命中）', await evaluate('Boolean(navigator.serviceWorker.controller)'));
+    await screenshot('18-same-app-offline-after-update.png');
+    await startServer(vNew.destDir);
+    await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+    await reload();
+    await waitForIndexExpanded();
+    const errsInSection = pageErrors.slice(pageErrsBefore);
+    console.log('  本节新增页面级报错 ' + errsInSection.length + ' 条'
+      + (errsInSection.length ? '：' + errsInSection.map((e) => String(e).split('\n')[0]).join(' | ') : ''));
+  }
 }
 
 // ------------------------------------------------------------------ 收尾

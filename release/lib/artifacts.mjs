@@ -27,6 +27,12 @@ export const ANDROID_SNAPSHOT_DIR_REL_IN_WEB = 'content';
 /** Web 端内容文件名（IF-26：站点根下 `content.json`）。 */
 export const WEB_CONTENT_NAME = 'content.json';
 
+/** 站点缓存名前缀（与 `web/sw.js` 的 `CACHE_PREFIX`、`web/app/config.js` 的
+ *  `RESOURCE_CACHE_PREFIX` 是同一个字符串）。
+ *  为何在流水线里也钉一份：`sw.js` 的 activate 靠这个前缀认“自己的旧 cache”
+ *  —— 它一旦被改成别的前缀，清旧 cache 就会删错/不删别人的数据。就绪检查对着这个值断言。 */
+export const WEB_CACHE_PREFIX = 'pc-resources-';
+
 /** 规范产物目录（`dist/`）里应当**只有**这些文件（改了产物集必须同步这里）。 */
 export const DIST_EXPECTED_FILES = [WEB_CONTENT_NAME];
 /** 显式传给编译器的排序策略（IF-16 已定：source，流水线必须显式传，不依赖默认值）。 */

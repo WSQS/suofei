@@ -45,6 +45,7 @@ import {
   writeFileEnsured,
 } from './lib/util.mjs';
 import { RELEASE_TAG_HINT, resolvePreviousVersion, resolveVersionRequest } from './lib/version-source.mjs';
+import { SAME_APP_MODE, stampWebShell, assertTagAppVersionMatches } from './lib/content-refresh.mjs';
 import { gradlewCommand, prepareAndroidWorkDir } from './lib/android-work.mjs';
 import { listZipEntries, readZipEntry } from './lib/zip.mjs';
 
@@ -76,6 +77,17 @@ const USAGE = `用法：node release/build-release.mjs [选项]
                           ⚠ 本次（0.1.3）内容仍是 formatVersion: 2，而 0.1.2（vc3）就支持 2 ⇒ 可传 3：
                           不让 vc3 设备白白拒掉一次它本来能采用的更新（bug 修复在 APK，与内容更新是两条道）。
   --online                不用 Gradle --offline（默认 offline，避免发布构建偷偷依赖网络）
+  --content-only          【已作废：被 --same-app-content-refresh 取代（用户 2026-10-16 纠正：
+                          「应该更新 Release 和 apk，这样下载新的 apk 不用联网」）】传它会直接报错。
+  --same-app-content-refresh  **同 app 版本的内容刷新**（用户 2026-10-16 拍板）：
+                          · **照常构建 APK**（内置新内容；versionName / versionCode **不变** ⇒ 同版本号重打包）
+                          · APP_VERSION / versionName / versionCode / formatVersion 全部**不变**，只递增 contentVersion
+                          · 把 contentVersion **盖章**成站点缓存名里的内容修订 ⇒ sw.js 字节随内容变
+                            （否则同 app 版本重发时浏览器不会装新 SW、老缓存继续服务，用户永远看不到新内容）
+                          · --min-app-version-code 在本模式下**必须显式给**：默认值＝本次 APK 的 versionCode，
+                            而本次要故意写成 3（0.1.2/vc3 也能读 format 2，不让它白白拒掉一次能采用的更新）
+                          · tag 仍是 v<应用版本>+content-<内容版本>，且 tag 里的应用版本必须**等于**代码里的 APP_VERSION
+                          门在两种模式下的对照见 docs/design/same-app-content-refresh.md
   -h, --help              显示本帮助
 
 没给 contentVersion 来源时**直接失败**：「发布时这个号由谁产生」是待用户拍板的接口
@@ -97,6 +109,7 @@ function parseArgs(argv) {
     androidFeed: 'manifest',
     minAppVersionCode: null,
     offline: true,
+    sameAppRefresh: false,
     help: false,
   };
   const need = (name, i) => {
@@ -145,6 +158,13 @@ function parseArgs(argv) {
         break;
       }
       case '--online': opts.offline = false; break;
+      case '--content-only':
+        throw new ReleaseError(
+          '--content-only 已作废（用户 2026-10-16 纠正：「应该更新 Release 和 apk，这样下载新的 apk 不用联网」）：\n'
+            + '  改用 --same-app-content-refresh —— 它**照常产 APK**，只把对外版本号保持不变。',
+          { code: 'USAGE' },
+        );
+      case '--same-app-content-refresh': opts.sameAppRefresh = true; break;
       case '-h': case '--help': opts.help = true; break;
       default:
         throw new ReleaseError(`未知选项：${a}（用 --help 看用法）`, { code: 'USAGE' });
@@ -263,7 +283,26 @@ function main() {
   const startedAt = new Date();
   const steps = [];
 
+  // ── 同 app 版本的内容刷新：硬前置（不靠调用方记得）──────────────────────────
+  //  · 对外版本号不变是这条路径的定义 ⇒ 应用版本以 tag 兼作锚点，必须与代码里的 APP_VERSION 一致
+  //    （差一个号就是「忘了升版」或「忘了删模式开关」，两种都该在建之前拦住）；
+  //  · min-app-version-code 的默认值（＝本次 APK 的 versionCode）在这里是**陷阱**：
+  //    本次要故意写成 3（0.1.2/vc3 也能读 format 2），忘了写就退化成 4、白白拒掉一批能采用的更新。
+  if (opts.sameAppRefresh && opts.minAppVersionCode === null) {
+    throw new ReleaseError(
+      [
+        '--same-app-content-refresh 必须显式给 --min-app-version-code：',
+        '  它的含义是“**能读这份内容的最小 app versionCode**”。当前内容仍是 formatVersion 2',
+        '  ⇒ 0.1.2（vc3）就能读 ⇒ 应该写 3，而不是默认的本次 APK 的 4。',
+      ].join('\n'),
+      { code: 'USAGE' },
+    );
+  }
+
   console.log('索斐发布流水线 F（本地演练）—— 产物目录：' + display(outDir));
+  if (opts.sameAppRefresh) {
+    console.log('本次模式：**同 app 版本的内容刷新（--same-app-content-refresh）** —— 照常产 APK，对外版本号不变，只换内容。');
+  }
   console.log('本次**不做**：推远端仓库、启用 Pages/Release、生成或上传密钥、装设备。');
   console.log('（release 变体的签名由**外部注入**的四项环境变量提供：本流水线只判断是否齐全、从不读取或打印密钥取值。）');
 
@@ -326,6 +365,18 @@ function main() {
   const webAppVersion = readAppVersionConstant('web/app/config.js');
   const webSwAppVersion = readAppVersionConstant('web/sw.js');
   info('Web 站点版本 APP_VERSION', `config.js=${webAppVersion ?? '读不到'} / sw.js=${webSwAppVersion ?? '读不到'}`);
+  // 仓库里的内容修订应当是 `dev`（发布值只存在于**产物**里，不回流到仓库）。
+  const repoRevision = (() => {
+    try {
+      return /CONTENT_REVISION\s*=\s*'([^']*)'/.exec(fs.readFileSync(path.join(REPO_ROOT, 'web/app/config.js'), 'utf8'))?.[1] ?? null;
+    } catch {
+      return null;
+    }
+  })();
+  info('仓库里的内容修订 CONTENT_REVISION', `${repoRevision ?? '读不到'}（产物里会被盖章为本次 contentVersion，见第 4 步）`);
+  if (repoRevision && repoRevision !== 'dev') {
+    warn(`仓库里的 CONTENT_REVISION=${repoRevision} 不是 dev —— 它应当只出现在产物里（某次发布的盖章被提交回仓库了？）`);
+  }
   const previousManifest = (() => {
     try {
       return JSON.parse(fs.readFileSync(A.manifestPath(outDir), 'utf8'));
@@ -352,11 +403,18 @@ function main() {
 
   // ── 2. contentVersion 的来源与单调性基线 ───────────────────────
   step(2, TOTAL_STEPS, 'contentVersion 的来源（可配置点）与单调性基线');
+  // 两种模式的 tag 形状不同（全量：v<应用>+content-<内容>；内容专用：content-<内容>），
+  // 所以这里**分形状解析**，而不是把两种形状搅成一个宽松正则（那会把「忘了改应用版本」放过去）。
+  // 两种模式都走**同一个** tag 形状（v<应用版本>+content-<内容版本>）——
+  // 差别不在怎么解析，而在于「应用版本这一侧该怎么变」：升版要递增，内容刷新要求**不变**。
   const versionReq = resolveVersionRequest({
     explicit: opts.contentVersion,
     tag: opts.tag,
     source: opts.versionSource,
   });
+  if (opts.sameAppRefresh) {
+    info('应用版本锚点', assertTagAppVersionMatches({ tagAppVersion: versionReq.appVersion, appVersion: webAppVersion }));
+  }
   info('本次 contentVersion', `${versionReq.contentVersion}    ← 来源：${versionReq.source}`);
   const prev = resolvePreviousVersion({
     explicit: opts.previousVersion,
@@ -443,6 +501,19 @@ function main() {
   const leaked = (listTop(webOut) ?? []).filter((n) => A.DEPLOY_DENYLIST.includes(n));
   if (leaked.length) throw new ReleaseError(`Web 部署目录里出现了不该发布的条目：${leaked.join(', ')}`, { code: 'DEPLOY_LEAK' });
   info('部署目录顶层', (listTop(webOut) ?? []).join(', '));
+
+  // **内容修订盖章**（2026-10-16）：把产物站点里的 CONTENT_REVISION 写成本次 contentVersion。
+  // 为何两种模式都盖章：① 内容专用发布时它是**唯一**能让 sw.js 字节变、缓存名变的东西；
+  // ② 全量发布时它也不能停在 `dev`（缓存名里会写着一个没人认得的修订，排查时误导）。
+  const stamp = stampWebShell({ dir: webOut, revision: versionReq.contentVersion });
+  for (const f of stamp.files) {
+    info(
+      `盖章 ${f.rel}`,
+      `CONTENT_REVISION ${f.previousRevision ?? '读不到'} → ${f.revision}（APP_VERSION ${f.appVersion} 未动；${f.bytesBefore} → ${f.bytesAfter} 字节）`,
+    );
+  }
+  info('站点缓存名形状', stamp.swCacheNameShape.detail);
+  note('前缀 pc-resources- **未动** ⇒ sw.js 的 activate 仍只删本前缀的旧 cache（不碰别人的数据）');
 
   // ── 5. 远端更新清单（**接口待定：决策点 2**，因此是一个可开可关的步骤）─────────────────────────────
   step(5, TOTAL_STEPS, '准备远端更新清单（决策点 2 未定 → 本步可关）');
@@ -573,11 +644,15 @@ function main() {
     finishedAt: new Date().toISOString(),
     contentVersion: versionReq.contentVersion,
     versionSource: versionReq.source,
+    // 'same-app-content-refresh' = 2026-10-16 新增的「应用版本不变、只换内容」路径（**仍产 APK**）。
+    // 就绪检查据它切门（正面断言 app 版本/versionCode 未变 + 源码与基线 tag 逐字节相同），
+    // 见 docs/design/same-app-content-refresh.md
+    mode: opts.sameAppRefresh ? SAME_APP_MODE : 'full',
     releaseTag: {
       name: opts.tag ?? null,
       appVersion: versionReq.appVersion ?? null,
       // tag 是**正式发布**的版本锚点；显式传 --content-version 只用于本地演练。
-      isReleaseAnchor: Boolean(versionReq.appVersion),
+      isReleaseAnchor: Boolean(opts.tag),
       expectedFormat: RELEASE_TAG_HINT,
     },
     previousVersion: prev.version,
@@ -606,10 +681,15 @@ function main() {
           : 'debug 变体：debug 签名，**不能用于正式发布**',
       webAppVersion,
       webSwAppVersion,
+      // 盖章后的内容修订（＝本次 contentVersion）：站点缓存名里的第二根轴。
+      // 内容专用发布时它就是“本次发布到底改了什么”的全部。
+      webContentRevision: stamp.files.find((f) => f.rel === 'app/config.js')?.revision ?? null,
+      webSwContentRevision: stamp.files.find((f) => f.rel === 'sw.js')?.revision ?? null,
       tagAppVersion: versionReq.appVersion ?? null,
       previousWebAppVersion,
     },
     steps,
+    contentRevisionStamp: stamp.files,
     artifacts: [
       { role: 'content-json', path: A.DIST_REL, bytes: distBuf.length, sha256: distSha },
       { role: 'web-deploy-dir', path: A.WEB_DIR_REL, ...dirBytes(webOut) },
@@ -663,9 +743,19 @@ function main() {
   console.log('');
   console.log(`  contentVersion = ${versionReq.contentVersion}（来源：${versionReq.source}）`);
   console.log(`  sha256(dist/content.json) = ${distSha}`);
+  if (opts.sameAppRefresh) {
+    console.log(
+      `  模式 = ${SAME_APP_MODE}：APP_VERSION ${webAppVersion} / versionCode ${app.versionCode} **不变**（同版本号重打包）；` +
+        `站点缓存名 = pc-resources-${webAppVersion}+${versionReq.contentVersion}；minAppVersionCode=${opts.minAppVersionCode}`,
+    );
+  }
   console.log('');
   if (!apk) warn('本次没有 APK ⇒ 就绪检查必然报红 ⇒ 不得推进最新版。');
-  console.log(`下一步：node release/check-ready.mjs --out ${display(outDir)}`);
+  console.log(
+    opts.sameAppRefresh
+      ? `下一步：node release/check-ready.mjs --same-app-content-refresh --out ${display(outDir)}`
+      : `下一步：node release/check-ready.mjs --out ${display(outDir)}`,
+  );
 }
 
 function findBuiltApk(projectDir, variant) {

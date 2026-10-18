@@ -53,18 +53,37 @@ export const ABOUT = {
  * Service Worker 只在 https 或 localhost 下可用（file:// 打开无法离线）。
  */
 
-/** 站点（应用资源）版本：唯一的版本键，站点缓存与更新生命周期都跟着它走。
- *  发布新站点（含新内容）时递增它。 */
+/** 站点（应用资源）版本：**应用代码/壳**的版本键。发布新站点（含新内容）时递增它。
+ *  对外显示的就是它（「关于」页的应用版本）。 */
 export const APP_VERSION = '0.1.3';
+
+/** 内容/部署修订：**同一个 APP_VERSION 下**再发布一次内容时用来区分站点缓存的第二根轴。
+ *
+ * 为什么需要它（2026-10-16，用户拍板「版本号不变只更新内容」）：
+ *   发布构建只换了 content.json 时，如果缓存名只跟 APP_VERSION 走，那么
+ *   ① `sw.js` 的字节没有变化 ⇒ 浏览器不会装新 SW ⇒ 老缓存继续服务、用户永远看不到新内容；
+ *   ② 就算硬塞一个新 SW，缓存名相同 ⇒ 新旧内容挤进同一个 cache，成对生效就破了。
+ *   所以缓存名改为 `<前缀><APP_VERSION>+<CONTENT_REVISION>`：**前缀不变**（activate 仍只删本前缀的旧 cache），
+ *   而修订一变，`sw.js` 字节就变、缓存名就变 ⇒ 浏览器装新 SW → 新 cache（壳+内容同批）→ 停在 waiting。
+ *
+ * 谁写它：**发布构建**（`release/build-release.mjs`）把这里盖章为本次 `contentVersion`。
+ * 仓库里默认是 `dev`（开发服务器 / 本地预览用），它**永远不是一次发布的值**。
+ * ⚠ 本常量与 `web/sw.js` 各写一遍（经典 worker 不能 import ES 模块），由 e2e 交叉断言保持一致。 */
+export const CONTENT_REVISION = 'dev';
+
+/** 内容修订的形状：发布构建盖章进去的值就是 `contentVersion`（契约 §4.1）。 */
+export const CONTENT_REVISION_RE = /^(?:dev|\d{4}\.\d{2}\.\d{2}\.\d+)$/;
 
 /** 内容文档地址：**单独取**（不内联进 HTML/JS）——
  *  这样外壳一到就能先渲染框架并如实显示「正在取内容／失败原因」，
  *  内联则坏网时没有可显示的中间状态、失败即白屏。 */
 export const CONTENT_URL = 'content.json';
 
-/** 站点缓存：Cache Storage 名字前缀 + 站点版本。 */
+/** 站点缓存：Cache Storage 名字 = 前缀 + 站点版本 + `+` + 内容修订。
+ *  前缀**必须**保持不变：`sw.js` 的 activate 靠它认出「本前缀的旧 cache 才删」。 */
 export const RESOURCE_CACHE_PREFIX = 'pc-resources-';
-export const resourceCacheName = (appVersion = APP_VERSION) => `${RESOURCE_CACHE_PREFIX}${appVersion}`;
+export const resourceCacheName = (appVersion = APP_VERSION, contentRevision = CONTENT_REVISION) =>
+  `${RESOURCE_CACHE_PREFIX}${appVersion}+${contentRevision}`;
 
 /** 本客户端能解析的内容 JSON 结构版本。内容与壳一起发布，所以不匹配属于**部署问题**：
  *  仍然如实报错、不渲染，并说明原因。
