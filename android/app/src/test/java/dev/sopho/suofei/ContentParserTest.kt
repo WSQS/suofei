@@ -116,24 +116,75 @@ class ContentParserTest {
         assertEquals(null, modern.poems.single().orderInSource)
 
         // v3：内置产物必须带标签，而且**标签内次序照产物**（客户端不重排）。
-        // 真实事实（内容线 2026-10-18）：《古诗十九首》19 首各有一条真实归属，1…19。
+        // ⚠ 不写死「1 个标签 / 古诗十九首 19 首 / 其余 3 首空」：
+        //   期望值从**唯一来源** `content/poems/**` 派生（见 `ContentSources.tagsBySource`）。
+        //   源文补了归属而内置产物忘了重编 ⇒ 这里真报红（与 `check-bundled-content` 同一道门的不同侧面）。
         if (content.formatVersion >= 3) {
-            val tag = content.tags.firstOrNull { it.id == "古诗十九首" }
-            assertNotNull("v3 内置产物应有「古诗十九首」标签", tag)
-            assertEquals(
-                "标签内的成员次序必须与朝代组内次序（底本原次序 1…19）一致",
-                han.poems.map { it.id },
-                tag!!.memberIds,
+            val expectedByTag = ContentSources.tagsBySource
+            assertTrue(
+                "本次真实内容里应当有人声明标签（否则下面每一条都是空的）：${expectedByTag.keys}",
+                expectedByTag.isNotEmpty(),
             )
             assertEquals(
-                "标签视图的组数 = 至少一个成员的标签数（零成员不渲染）",
-                content.tags.count { it.memberIds.isNotEmpty() },
-                content.tagGroups.size,
+                "产物顶层 tags 的 id 集合 == 源文里声明过的 id 集合（多一个＝凭空编的，少一个＝丢了归属）",
+                expectedByTag.keys, content.tags.map { it.id }.toSet(),
             )
-            // 没有标签的诗仍在朝代页（标签是附加轴，不把人从目录里抽走）
-            val tagged = content.tags.flatMap { it.memberIds }.toSet()
-            assertTrue("应有没打标签的诗（梦李白二首、毛诗）", content.poems.any { it.id !in tagged })
+            for ((tagId, expectedMembers) in expectedByTag) {
+                val tag = content.tags.firstOrNull { it.id == tagId }
+                assertNotNull("源文声明了「$tagId」，产物顶层 tags 里却没有", tag)
+                assertEquals(
+                    "「$tagId」的成员次序必须就是源文 orderInTag 升序（客户端与产物都不得重排）",
+                    expectedMembers, tag!!.memberIds,
+                )
+                val group = content.tagGroups.firstOrNull { it.name == tagId }
+                assertNotNull("标签视图应渲染「$tagId」组", group)
+                assertEquals(
+                    "标签视图「$tagId」的行 + 行序 == 产物 members（客户端不重排）",
+                    tag.memberIds, group!!.poems.map { it.id },
+                )
+                assertEquals("「$tagId」每组行数 == 源文里的归属条数", expectedMembers.size, group.poems.size)
+            }
+            assertEquals(
+                "标签视图的组顺序 == 产物顶层 tags 里**非空**标签的顺序（一处都不重排）",
+                content.tags.filter { it.memberIds.isNotEmpty() }.map { it.id },
+                content.tagGroups.map { it.name },
+            )
+
+            // 没有标签的诗仍在朝代页（标签是附加轴，不把人从目录里抽走）；
+            // 「哪些诗没标签」也从源文派生，不从「其余 N 首」倒推。
+            val tagged = expectedByTag.values.flatten().toSet()
+            val expectedUntagged = ContentSources.byId.keys - tagged
+            assertEquals(
+                "源文里没有声明标签的诗 ⇒ 产物 tags 必须是 []（逐首比，不看首数）",
+                expectedUntagged, content.poems.filter { it.tags.isEmpty() }.map { it.id }.toSet(),
+            )
+            assertEquals("没标签的诗仍在朝代页的分组里", ContentSources.poemCount, content.poems.size)
         }
+    }
+
+    /** 本次真实数据长这样（实况层）：**两个**标签、古诗十九首在前。不是「永远只能两个」的契约。 */
+    @Test
+    fun embeddedContent_thisRoundHasTwoTags_guShiBeforeTang() {
+        val content = ContentParser.parse(assetText)
+        assertEquals(
+            "本次实况：顶层恰好 2 个标签，拼音序「古诗十九首」在「唐诗三百首」前",
+            listOf("古诗十九首", "唐诗三百首"), content.tags.map { it.id },
+        )
+        val guShi = content.tags[0]
+        val tang = content.tags[1]
+        assertEquals("古诗十九首 19 首", 19, guShi.memberIds.size)
+        assertEquals("唐诗三百首 2 首", 2, tang.memberIds.size)
+        // 唐300 两行且顺序为 其一 → 其二（orderInTag 1、2）
+        val tangGroup = content.tagGroups.first { it.name == "唐诗三百首" }
+        assertEquals(
+            "唐诗三百首展开后两行、顺序为 其一 → 其二",
+            listOf("梦李白二首·其一", "梦李白二首·其二"), tangGroup.poems.map { it.title },
+        )
+        assertEquals("标签页的组数 == 2（两个组头）", 2, content.tagGroups.size)
+        // 毛诗仍没有标签
+        val mao = content.poems.filter { it.author == "毛泽东" }
+        assertEquals("应能按作者认出毛诗这一首", 1, mao.size)
+        assertTrue("毛诗本轮仍无标签", mao.single().tags.isEmpty())
     }
 
     @Test

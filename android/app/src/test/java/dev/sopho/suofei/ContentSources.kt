@@ -87,6 +87,74 @@ object ContentSources {
     }
 
     /**
+     * 源文 front matter 里声明的**一条**标签归属（`- id: X` + 紧随的 `orderInTag: N`）。
+     * `tags: []` 与根本不写 `tags` 都读成「没有归属」。
+     */
+    data class DeclaredTag(val id: String, val orderInTag: Int)
+
+    /**
+     * 读一首源文里声明的标签（按**书写次序**，不重排）。
+     *
+     * ⚠ 这是「期望值」的来源：若产物与源文不一致（例如源文补了归属而内置产物忘了重编），
+     * 用到本方法的断言就会**真报红**。读法认不出来时**直接失败**（不静默当成没标签）。
+     */
+    fun declaredTagsOf(file: File): List<DeclaredTag> {
+        val lines = file.readText(Charsets.UTF_8).lines()
+        val start = lines.indexOfFirst { it.trim() == "---" }
+        val end = if (start < 0) -1 else lines.withIndex().firstOrNull { it.index > start && it.value.trim() == "---" }?.index ?: -1
+        if (start < 0 || end < 0) throw AssertionError("源文读不出 front matter：${file.absolutePath}")
+        val out = ArrayList<DeclaredTag>()
+        var inTags = false
+        for (raw in lines.subList(start + 1, end)) {
+            if (raw.isNotEmpty() && !raw[0].isWhitespace()) {
+                // 顶格的都是新的顶层键：`tags:` 起一个块，`tags: []` 当场就是空块。
+                inTags = raw.startsWith("tags:") && !Regex("""^tags:\s*\[\s*]\s*$""").matches(raw.trim())
+                continue
+            }
+            if (!inTags) continue
+            val item = Regex("""^\s*-\s*id:\s*(.+)$""").find(raw)
+            if (item != null) {
+                val id = item.groupValues[1].trim().removeSurrounding("\"")
+                out.add(DeclaredTag(id, Int.MIN_VALUE))
+                continue
+            }
+            val order = Regex("""^\s*orderInTag:\s*(-?\d+)\s*$""").find(raw)
+                ?: throw AssertionError("源文 tags 块里出现读不懂的行：${file.absolutePath}\n  $raw")
+            if (out.isEmpty()) throw AssertionError("orderInTag 出现在任何 - id 之前：${file.absolutePath}")
+            out[out.lastIndex] = out.last().copy(orderInTag = order.groupValues[1].toInt())
+        }
+        return out
+    }
+
+    /**
+     * **标签 → 成员 id（按 orderInTag 升序）**，完全从源文派生。
+     * 同标签同序 ⇒ 直接失败（编译器会报 `TAG_ORDER_DUP`，这里也不默默按 id 兜底）。
+     */
+    val tagsBySource: Map<String, List<String>> by lazy {
+        val byTag = LinkedHashMap<String, MutableList<Pair<Int, String>>>()
+        for (f in poemSources) {
+            val poemId = idOf(f)
+            for (t in declaredTagsOf(f)) {
+                if (t.orderInTag == Int.MIN_VALUE) {
+                    throw AssertionError("源文里标签「${t.id}」缺少 orderInTag：${f.absolutePath}")
+                }
+                byTag.getOrPut(t.id) { ArrayList() }.add(t.orderInTag to poemId)
+            }
+        }
+        val out = LinkedHashMap<String, List<String>>()
+        for ((tagId, list) in byTag) {
+            val seen = HashSet<Int>()
+            for ((order, _) in list) {
+                if (!seen.add(order)) {
+                    throw AssertionError("源文里「$tagId」有两条 orderInTag=$order（编译器会报 TAG_ORDER_DUP，这里不默默兜底）")
+                }
+            }
+            out[tagId] = list.sortedBy { it.first }.map { it.second }
+        }
+        out
+    }
+
+    /**
      * 朝代注册表 **`tools/lib/dynasties.mjs`**（组名与组序的唯一权威）解析出的 `label → order`。
      *
      * 本端**不持副本**（不在这里写死组名或 order 表）：注册表加了新朝代，这里自动跟上；
