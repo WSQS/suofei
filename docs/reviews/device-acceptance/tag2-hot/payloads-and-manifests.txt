@@ -1,0 +1,53 @@
+载荷、清单与设备侧落盘（2026-10-18 实测原文；只摘与本轮判定有关的行）
+==============================================================================
+
+§1 派生方式（在临时目录 C:/Users/wsqsy/AppData/Local/Temp/tag2-hot/make-payloads.mjs 里做）
+  - 一律**文本级两处替换**（contentVersion / generatedAt），不重新序列化 ⇒ 除这两个字段外与基准字节逐字节相同。
+  - 每个载荷的 sha256 与字节数由该脚本自己算（createHash），清单里的 sha256/size 取自同一处，不手抄。
+  - 载荷只写临时目录 + 本机测试服务的站点根（site/suofei/content/<版本>/content.json），**没有进仓库、没有进主树**。
+
+§2 哈希与字节（sha256sum / stat 原文）
+  30e86693ea60fa97492c85de97e80853308bad5ec173d2d165e83b3a96de2856  2026.10.17.1/content.json  26081 B   (format 2, 旧代)
+  624a2405cc209ee2869606f1bc7a9cb7cbd943d11a000d4a324cfcb6157eb781  2026.10.18.2/content.json  27926 B   (format 3, 本轮新载荷)
+  cef50d4af14fe9ed039f93d1f1a5f82af13697ee3f1a68917f72db859e56a037  2026.10.18.3/content.json  27926 B   (坏①: 清单 sha 故意写错)
+  8783de9e13ef3bc7411ea020f04aaadd3988a4e3dd501fc41edbdae52995c332  2026.10.18.4/content.json  20000 B   (坏②: 截断, 清单 sha/size 与截断字节一致)
+  基准（未改动）:
+  2c4f84e9dac450d695eb9fa587548eea17e95703168526cdce15180849cebfdd  android/app/src/main/assets/content/content.json (format 3 / 2026.10.18.1 / 22 首)
+  eb4f28b91b91cb9d190187d7d703bea8adabf25ea393df54297ff90f2dc26d8a  git show c6af69c:...assets/content/content.json (format 2 / 2026.10.16.26 / 22 首)
+
+§2b 2026.10.18.2 与 2c4f84e9 的差异核对（脚本输出原文）
+  top-level differing keys: [ 'contentVersion', 'generatedAt' ]
+  base: 2026.10.18.1 2026-10-18T10:30:12Z | new: 2026.10.18.2 2026-10-18T12:00:00Z
+  same poem count/tags: true true
+  文本级：first diff at 48, common suffix 6838 ⇒ 只在这两处字段上不同（48 + 6838 + 差异段 = 全长）
+  ⇒ 报告口径：同一真实 22 首/两标签语义；仅版本与时间戳不同，这是用于热更的新载荷身份。不声称与 2c4f84e9 字节相同。
+
+§3 设备侧 files/content 落盘（run-as dev.sopho.suofei 原文摘录）
+  (a) 旧 APK 激活 2026.10.17.1 后:
+      files/content/{current,staging,versions}
+      files/content/versions/2026.10.17.1/{content.json,meta.json}
+      files/content/staging/            ← 空
+      current = 2026.10.17.1
+  (b) 旧 APK 拒绝 format 3 后（清单 B）:
+      与 (a) 完全相同（versions/ 仍只有 2026.10.17.1；staging/ 空；current 未变）
+  (c) 覆盖安装新 APK 后（数据保留）:
+      current = 2026.10.17.1
+  (d) 热更到 2026.10.18.2 后:
+      files/content/versions/2026.10.18.2/{content.json,meta.json}   ← 只剩这一个
+      files/content/staging/            ← 空
+      current = 2026.10.18.2
+      meta.json:
+        {
+          "contentVersion": "2026.10.18.2",
+          "sha256": "624a2405cc209ee2869606f1bc7a9cb7cbd943d11a000d4a324cfcb6157eb781",
+          "sourceUrl": "http://10.0.2.2:18765/suofei/content/2026.10.18.2/content.json",
+          "installedAtMillis": 1792322309090
+        }
+  (e) sha 不符（2026.10.18.3）后:   versions/ 仍只有 2026.10.18.2；staging/ 空；current = 2026.10.18.2
+  (f) 截断（2026.10.18.4）后:      versions/ 仍只有 2026.10.18.2；staging/ 空；current = 2026.10.18.2
+
+§4 本轮用过的四份清单（与站点真产物同形状；`url` 相对清单所在目录）
+  latest-A-old-format2.json : formatVersion 2, 2026.10.17.1, url 2026.10.17.1/content.json, sha 30e86693…, size 26081, minAppVersionCode 3
+  latest-B-new-format3.json : formatVersion 3, 2026.10.18.2, url 2026.10.18.2/content.json, sha 624a2405…, size 27926, minAppVersionCode 4
+  latest-C-badsha.json      : formatVersion 3, 2026.10.18.3, sha = 64 个 0（故意不符）, size 27926
+  latest-D-truncated.json   : formatVersion 3, 2026.10.18.4, sha 8783de9e…（= 截断后字节）, size 20000

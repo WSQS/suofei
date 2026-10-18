@@ -1,0 +1,37 @@
+两个 APK 的身份与构建方式（2026-10-18；都只用在这台模拟器上）
+==============================================================================
+
+§1 旧 APK（format 2 代码 = 已发布 0.1.3 那一代 Android 代码）
+  来源      : git archive c6af69c | tar -x -C <临时目录>/build-old
+  构建      : ./gradlew.bat --offline :app:assembleDebug（本机 JAVA_HOME=ms-17.0.17，SDK = C:/Users/wsqsy/AppData/Local/Android/Sdk）
+  APK       : app/build/outputs/apk/debug/app-debug.apk → old-format2-test.apk
+  sha256    : d5b2d2a35ddb0eae89adbb01487685d0ee1f83cb23795e3e6bd3a90c7954e439
+  badging   : package='dev.sopho.suofei' versionCode='4' versionName='0.1.3'，minSdk 26 / targetSdk 36
+  签名      : CN=Android Debug, O=Android, C=US
+              certificate SHA-256 = faff248f15977835c25c25ec8c0b865fa6c4207bada8cfc8e5785ea8aa94e956
+              ⚠ 这是 **debug 签名**；正式发布是 CN=Suofei（指纹 1346444c…）。两者分开写，不能混。
+
+§2 新 APK（format 3 代码 = 本工作树 wt/2-12-dist-web-content-json-a-234f4711）
+  构建      : ./gradlew.bat --offline :app:assembleDebug（同上环境）
+  sha256    : 7b11368bfc0f222453e3fe5e052ab5be242c13e3e413699ec3bcbe46ce21e59e
+  badging   : 同名同号（versionCode 4 / versionName 0.1.3）
+  签名      : 同一张 debug 证书（faff248f…，实测 signatures=[a6bc0efa] 覆盖安装成功、数据保留）
+  内置内容  : android/app/src/main/assets/content/content.json = 2c4f84e9dac450d695eb9fa587548eea17e95703168526cdce15180849cebfdd
+              （format 3 / 2026.10.18.1 / 22 首 / 古诗十九首 19 条 + 唐诗三百首 2 条）
+
+§3 两个包共同的**测试专用**补丁（构建后已 `git checkout --` 复原，未提交）
+  a) android/app/src/main/java/dev/sopho/suofei/update/UpdateProtocol.kt
+     -    const val BASE_URL: String = "https://wsqs.github.io/suofei"
+     +    const val BASE_URL: String = "http://10.0.2.2:18765/suofei"
+  b) android/app/src/main/AndroidManifest.xml
+     -    <application
+     +    <application android:usesCleartextTraffic="true"
+     （Android 9+ 默认禁明文 HTTP；真实站点是 https，不需要这条豁免。）
+  两处只决定「从哪取」，不参与版本门 / sha 校验 / 落盘 / UI 文本的任何判定。
+
+§4 装/卸命令（全程 -s emulator-5556 串行）
+  adb -s emulator-5556 uninstall dev.sopho.suofei        # 起始先清干净（原本装着上一轮的包）
+  adb -s emulator-5556 install -r old-format2-test.apk   # → versionCode 4 / 0.1.3
+  adb -s emulator-5556 install -r new-format3-test.apk   # 覆盖安装（同版本号、同证书）→ 数据保留
+  …验收…
+  adb -s emulator-5556 uninstall dev.sopho.suofei        # 收尾卸载（已复核 pm list 里 0 个）
