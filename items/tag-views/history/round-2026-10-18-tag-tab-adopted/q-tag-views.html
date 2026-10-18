@@ -1,0 +1,728 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="tech">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>标签 tab 可操作原型（朝代 ｜ 标签）· 夹具数据</title>
+<style>
+/* 令牌快照（内嵌副本，不是新权威）
+ *   来源：items/app-ui/history/round-2026-10-16-width-pct/q-width-pct.html 内嵌的 tech 快照
+ *         （其上游为 prototype/css/theme-tech.css）；权威仍是 docs/design/visual-tokens.md。
+ *   只列本页实际用到的令牌，值逐字照抄。
+ */
+/* == TOKEN-SNAPSHOT-BEGIN == */
+:root {
+  --bg: #0e1315;
+  --bg-pattern: linear-gradient(to right, rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+  --surface: #141b1e;
+  --surface-hover: #182124;
+  --text: #dde5e4;
+  --text-dim: #98a8a6;
+  --text-faint: #788a88;
+  --line: #233034;
+  --accent-line: rgba(79, 179, 165, 0.38);
+  --accent-text: #7fd4c6;
+  --radius-s: 3px;
+  --row-transition: border-color 0.15s ease, background 0.15s ease;
+  --test-line: rgba(79, 179, 165, 0.36);
+  --test-soft: rgba(79, 179, 165, 0.07);
+  --test-text: #7fd4c6;
+  --warn-soft: rgba(201, 162, 74, 0.08);
+  --warn-text: #dcc078;
+  --line-warn: rgba(201, 162, 74, 0.34);
+  --font-body: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-poem: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-title: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-ui: 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-mono: 'Consolas', 'SFMono-Regular', ui-monospace, monospace;
+  --font-size: 15px;
+  --lh: 1.75;
+  --ls: 0.005em;
+  --poem-size: 17px;
+  --poem-lh: 2;
+  --poem-ls: 0.045em;
+  --note-size: 13.5px;
+  --title-size: 1.5rem;
+  --title-weight: 500;
+  --title-ls: 0.1em;
+  --gname-ls: 0.16em;
+  --ptitle-ls: 0.06em;
+  --stanza-gap: 1.2em;
+  --group-gap: 0.6rem;
+}
+/* == TOKEN-SNAPSHOT-END == */
+
+/* 草案值 / 已定值 / 脚本写回值（**都不在** docs/design/visual-tokens.md 里）
+ *   [已定]  用户已定的表达（本页照做，不重新提问）
+ *   [草案]  本页为了把结构表达出来临时取的数，**不是**规范值、也未被采纳
+ *   [写回]  页面脚本量完后写回的运行时值
+ */
+/* == DRAFT-VALUES-BEGIN == */
+:root {
+  /* [已定] 宽度口径：C = min(V, max(320, 0.88 × (V − 24))) */
+  --cw: 100%;                    /* [写回] 本视口下的内容宽 C */
+  --edge-x: 1.05rem;             /* [草案] 行内沿 16.8px（内容列**内**的一层，不是列外余白） */
+  /* [已定] 目录页水平关系（对齐轮）：记号悬挂在组名左沿之外，槽宽 27.52、固定缝 0.4rem；
+   *        诗目与组名首字同一竖线（缩进 0）。标签 tab 的组头与子诗目**沿用同一条左沿**。 */
+  --slot: 27.52px;
+  --seam: 0.4rem;
+  --mark-size: 0.8rem;
+  --gname-size: 1.05rem;
+  --ghead-pt: 0.85rem;           /* [草案] 组头上下内边距（对齐轮） */
+  --ghead-pb: 0.7rem;
+  --count-size: 0.82rem;         /* [草案] 计数（**只在朝代 tab 出现**） */
+  --author-size: 0.8rem;         /* [草案] 诗目作者 */
+  --author-gap: 0.45em;          /* [草案] 题名 → 作者 */
+  --row-pad: 0.9rem 1.05rem;     /* [草案] 诗目行内边距 */
+  --about-size: 0.86rem;         /* [草案] 顶部「关于」 */
+  --ctl-size: 0.82rem;           /* [草案] 控件（返回／详情／tab） */
+  --ctl-ls: 0.06em;
+  --meta-size: 0.78rem;          /* [草案] 诗页身份行 */
+  --empty-top: 1.9rem;           /* [草案] 兜底一句（如「这首诗不在夹具里」）的上方留白 */
+  --head-pad-top: 1.5rem;        /* [已定] 诗页题头上方留白 */
+  --title-gap: 0.7rem;           /* [已定] 题名 → 身份行 */
+  --body-gap: 2.1rem;            /* [已定] 身份行 → 原文 */
+  --body-pad-b: 0.6rem;
+  --ctl-top-pad: 0.7rem;
+  --d-head-top: 1.5rem;          /* [草案] 详情页：顶部行 → 诗题（沿用诗页） */
+  --src-gap-top: 1.6rem;         /* [草案] 诗题 → 来源块 */
+  --src-gap-in: 0.35rem;         /* [草案] 来源标签 → 来源文本 */
+  --sec-gap-top: 1.6rem;         /* [草案] 来源块 → 详情正文 */
+  --sub-gap-top: 1.6rem;         /* [草案] 小标题上间距 */
+  --sub-gap-bottom: 0.5rem;      /* [草案] 小标题下间距 */
+  --li-gap: 0.6rem;              /* [草案] 列表项间距 */
+  --para-gap: 0.9rem;            /* [草案] 段落间距 */
+  --strip-pad: 0.4rem 0.7rem;    /* [草案] 原型条内边距（**不是**应用页面的值） */
+}
+/* == DRAFT-VALUES-END == */
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  min-height: 100vh;   /* 让极淡的网格铺满整屏（页面很短时下方不留一条没图案的带） */
+  background-color: var(--bg);
+  background-image: var(--bg-pattern);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--font-size);
+  line-height: var(--lh);
+  letter-spacing: var(--ls);
+}
+a { color: inherit; }
+:focus-visible { outline: 1px solid var(--test-line); outline-offset: 2px; }
+
+/* ── 原型条（**不是**应用页面）─────────────────────────────────────
+ * 它固定在顶部，是为了让每一张截图里都能看见「这是夹具」。
+ * 应用页面从 .pg 开始，.pg 里的东西才属于被评审的那一层。
+ */
+.strip {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.15rem 0.55rem;
+  padding: var(--strip-pad);
+  background: #0a0e10;
+  border-bottom: 1px dashed var(--test-line);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+  color: var(--text-dim);
+}
+.strip .stag { color: var(--warn-text); }
+.strip .ssep { color: var(--line); }
+.strip .snum { color: var(--test-text); }
+
+/* ── 应用页面（被评审的那一层）──────────────────────────────────────
+ * 结构：.pg（满视口宽）> .col（内容列，宽 C，居中）
+ * 约定：列外余白 = (V − C)/2，只由公式决定；行内沿 --edge-x 是列**内**另一层。
+ */
+.pg { position: relative; }
+.col { width: var(--cw); margin-inline: auto; padding-bottom: 2.4rem; }
+
+/* 顶部行：左＝「朝代 ｜ 标签」两个 tab，右＝关于（关于页不在本项范围） */
+.topline {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.7rem var(--edge-x);
+  border-bottom: 1px solid var(--line);
+}
+.aboutlink {
+  color: var(--text-dim);
+  text-decoration: none;
+  font-size: var(--about-size);
+  letter-spacing: var(--ctl-ls);
+  white-space: nowrap;
+  transition: var(--row-transition);
+}
+.aboutlink:hover { color: var(--text); }
+.ctl {
+  font-family: var(--font-ui);
+  font-size: var(--ctl-size);
+  letter-spacing: var(--ctl-ls);
+  color: var(--text-dim);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: var(--row-transition);
+}
+.ctl:hover { color: var(--text); }
+a.ctl, button.ctl { background: none; border: 0; padding: 0; cursor: pointer; }
+.topbar { display: flex; justify-content: space-between; align-items: baseline; padding: var(--ctl-top-pad) var(--edge-x) 0; }
+.topbar > * { flex: 0 0 auto; white-space: nowrap; }
+
+/* ── 顶部 tab（朝代 ｜ 标签）── */
+.tabs { display: flex; gap: 1.05rem; min-width: 0; }
+.tab {
+  font: inherit;
+  font-size: var(--about-size);
+  letter-spacing: var(--ctl-ls);
+  color: var(--text-dim);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  padding: 0 0 0.18rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: var(--row-transition);
+}
+.tab:hover { color: var(--text); }
+.tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent-line); }
+
+/* ── 分组（朝代 tab 与标签 tab **共用同一套**：组头＝悬挂记号＋组名，整行可点）── */
+.grp { margin-top: var(--group-gap); }
+.ghead {
+  display: flex;
+  align-items: center;          /* 记号与组名**竖直居中** */
+  width: 100%;
+  margin: 0;
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  padding: var(--ghead-pt) 0 var(--ghead-pb);
+  padding-right: var(--edge-x);
+  cursor: pointer;
+  transition: var(--row-transition);
+}
+.gmark { flex: 0 0 auto; font-family: var(--font-mono); font-size: var(--mark-size); letter-spacing: 0; color: var(--text-faint); margin-right: var(--seam); }
+.gname { font-size: var(--gname-size); letter-spacing: var(--gname-ls); }
+/* 计数只属于**朝代** tab（[19] 首）；标签 tab 的组头**没有**这一段 */
+.gcount { margin-left: auto; font-family: var(--font-mono); font-size: var(--count-size); color: var(--text-faint); }
+.gcount b::before { content: '['; color: var(--text-faint); font-size: 0.85em; margin-right: 1px; }
+.gcount b::after { content: ']'; color: var(--text-faint); font-size: 0.85em; margin-left: 1px; }
+.ghead:hover .gmark, .ghead:hover .gcount { color: var(--text-dim); }
+.glist { list-style: none; margin: 0; padding: 0; }
+.glist .poemrow { border-bottom: 1px solid var(--line); }
+/* 子诗目：题名左沿 = 内容列 + --slot（与组名首字同一竖线、缩进 0），作者紧随题名；**无序号** */
+.plink {
+  display: block;
+  padding: var(--row-pad);
+  padding-left: var(--slot);
+  padding-right: var(--edge-x);
+  text-decoration: none;
+  transition: var(--row-transition);
+}
+.plink:hover { background: var(--surface-hover); }
+.ptitle { letter-spacing: var(--ptitle-ls); overflow-wrap: anywhere; }
+.pauthor { font-size: var(--author-size); color: var(--text-faint); margin-left: var(--author-gap); }
+/* 兜底一句。⚠ 零成员的标签**不再渲染**（本轮返修），所以「这个标签下还没有诗」那句已随分支删除；
+ *   .gempty 现在只剩「这首诗不在夹具里」这类兜底用途。 */
+.gempty {
+  margin: 0;
+  padding: var(--empty-top) 0 0 var(--slot);
+  padding-right: var(--edge-x);
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+/* ── 诗页（继承已选；全部居中）── */
+.poem-head { padding: var(--head-pad-top) var(--edge-x) 0; border-bottom: 0; text-align: center; }
+.p-title { margin: 0; font-family: var(--font-title); font-size: var(--title-size); font-weight: var(--title-weight); letter-spacing: var(--title-ls); line-height: 1.4; }
+.p-id { margin: var(--title-gap) 0 0; font-family: var(--font-ui); font-size: var(--meta-size); letter-spacing: var(--ctl-ls); color: var(--text-faint); }
+.poem-body {
+  padding: var(--body-gap) var(--edge-x) var(--body-pad-b);
+  font-family: var(--font-poem);
+  font-size: var(--poem-size);
+  line-height: var(--poem-lh);
+  letter-spacing: var(--poem-ls);
+  text-align: center;
+}
+.stanza { margin: 0; }
+.stanza + .stanza { margin-top: var(--stanza-gap); }
+.line { display: block; white-space: pre-wrap; }
+
+/* ── 详情页（继承 D0：诗题左对齐／来源在正文前带标签／小标题为 eyebrow，无竖线）── */
+.d-head { padding: var(--d-head-top) var(--edge-x) 0; }
+.d-title { margin: 0; font-family: var(--font-title); font-size: var(--title-size); font-weight: var(--title-weight); letter-spacing: var(--title-ls); line-height: 1.4; }
+.prov { margin: var(--src-gap-top) 0 0; padding: 0 var(--edge-x); }
+.prov-label { margin: 0; padding: 0 0 var(--src-gap-in); font-family: var(--font-ui); font-size: var(--note-size); font-weight: 500; letter-spacing: var(--gname-ls); color: var(--text-faint); line-height: 1.6; }
+.prov-text { margin: 0; font-size: var(--note-size); line-height: var(--lh); color: var(--text-dim); letter-spacing: var(--ls); overflow-wrap: anywhere; }
+.detail { margin: var(--sec-gap-top) 0 0; padding: 0 var(--edge-x) 0.5rem; font-family: var(--font-poem); font-size: var(--poem-size); line-height: var(--poem-lh); letter-spacing: var(--poem-ls); color: var(--text); overflow-wrap: anywhere; }
+.d-sub { margin: 0; padding: var(--sub-gap-top) 0 var(--sub-gap-bottom); font-family: var(--font-ui); font-size: var(--note-size); font-weight: 500; letter-spacing: var(--gname-ls); color: var(--accent-text); line-height: 1.6; }
+.detail > .d-sub:first-child { padding-top: 0; }
+.d-list { margin: 0; padding: 0; list-style: none; }
+.d-li { margin: 0; padding: 0 0 var(--li-gap); }
+.d-list > .d-li:last-child { padding-bottom: 0; }
+.d-p { margin: 0; padding: 0 0 var(--para-gap); }
+.detail strong { font-weight: 500; color: var(--text); }
+</style>
+</head>
+<body>
+
+<!-- 原型条：不属于应用页面（每一张截图里都在，提醒「这是夹具」） -->
+<div class="strip" data-test="strip">
+  <span class="stag">讨论原型 · 非产品实施 · 夹具数据</span>
+  <span class="ssep">|</span>
+  <span>标签名与诗 ↔ 标签的归属全部是夹具（含一个主题类标签「咏怀」，用来说明标签不限选本）</span>
+  <span class="ssep">|</span>
+  <span>视口 <span class="snum" data-test="vw">—</span> · 内容宽 C <span class="snum" data-test="cw">—</span> · scroll <span class="snum" data-test="sy">0</span></span>
+</div>
+
+<div class="pg" data-test="pg">
+  <div class="col" data-test="col"></div>
+</div>
+
+<script type="application/json" data-test="poems-json">[{"id":"古诗十九首/行行重行行","title":"行行重行行","author":"佚名","dynasty":"汉","genre":"五言古诗","orderInSource":1,"source":"《文选》卷二十九·杂诗上「古诗一十九首」（李善注本）。电子文本：汉典古籍 gj.zdic.net/jibu/1224/34173.html，2026-10-14 访问；以四库全书本《六臣注文选》卷二十九对校。异文校记见 docs/sources/gushi-shijiu-shou.md。","stanzas":[["行行重行行，与君生别离。","相去万余里，各在天一涯。","道路阻且长，会面安可知？","胡马依北风，越鸟巢南枝。","相去日已远，衣带日已缓。","浮云蔽白日，游子不顾反。","思君令人老，岁月忽已晚。","弃捐勿复道，努力加餐饭。"]],"detail":"### 异文\n\n- **游子不顾返** —— 四库全书本《六臣注文选》卷二十九、《玉台新咏》卷一「枚乘杂诗」其三，此句均作「返」；底本（李善注本）作「反」。反、返古通用。\n- **胡马嘶北风** —— 《玉台新咏》宋刻本作「嘶」，见清·纪容舒《玉台新咏考异》卷一（四库全书本）校语：「依，宋刻作嘶。按：此二句乃以一南一北申足『各天一涯』之意，以起下『相去日远』，作依为是。今从文选。」纪昀校正本《玉台新咏》卷一影印本同此校语；二手转录站古文岛亦作「嘶」。底本《文选》李善注本、四库全书本《六臣注文选》、明《诗纪》两刻本均作「依」；宋本影像本工作线未目验。\n- **会面安可期** —— 明·冯惟讷《诗纪》卷二十（汉第十·古诗十九首）于「会面安可知」下出校语「一作期」，另一明刻本《诗纪》卷之十同；底本作「知」。"},{"id":"古诗十九首/青青河畔草","title":"青青河畔草","author":"佚名","dynasty":"汉","genre":"五言古诗","orderInSource":2,"source":"《文选》卷二十九·杂诗上「古诗一十九首」（李善注本）。电子文本：汉典古籍 gj.zdic.net/jibu/1224/34173.html，2026-10-14 访问；以四库全书本《六臣注文选》卷二十九对校。异文校记见 docs/sources/gushi-shijiu-shou.md。","stanzas":[["青青河畔草，郁郁园中柳。","盈盈楼上女，皎皎当窗牖。","娥娥红粉妆，纤纤出素手。","昔为倡家女，今为荡子妇。","荡子行不归，空床难独守。"]]},{"id":"古诗十九首/青青陵上柏","title":"青青陵上柏","author":"佚名","dynasty":"汉","genre":"五言古诗","orderInSource":3,"source":"《文选》卷二十九·杂诗上「古诗一十九首」（李善注本）。电子文本：汉典古籍 gj.zdic.net/jibu/1224/34173.html，2026-10-14 访问；以四库全书本《六臣注文选》卷二十九对校。异文校记见 docs/sources/gushi-shijiu-shou.md。","stanzas":[["青青陵上柏，磊磊涧中石。","人生天地间，忽如远行客。","斗酒相娱乐，聊厚不为薄。","驱车策驽马，游戏宛与洛。","洛中何郁郁，冠带自相索。","长衢罗夹巷，王侯多第宅。","两宫遥相望，双阙百余尺。","极宴娱心意，戚戚何所迫？"]]},{"id":"古诗十九首/今日良宴会","title":"今日良宴会","author":"佚名","dynasty":"汉","genre":"五言古诗","orderInSource":4,"source":"《文选》卷二十九·杂诗上「古诗一十九首」（李善注本）。电子文本：汉典古籍 gj.zdic.net/jibu/1224/34173.html，2026-10-14 访问；以四库全书本《六臣注文选》卷二十九对校。异文校记见 docs/sources/gushi-shijiu-shou.md。","stanzas":[["今日良宴会，欢乐难具陈。","弹筝奋逸响，新声妙入神。","令德唱高言，识曲听其真。","齐心同所愿，含意俱未申。","人生寄一世，奄忽若飙尘。","何不策高足，先据要路津？","无为守穷贱，轗轲长苦辛。"]]},{"id":"古诗十九首/西北有高楼","title":"西北有高楼","author":"佚名","dynasty":"汉","genre":"五言古诗","orderInSource":5,"source":"《文选》卷二十九·杂诗上「古诗一十九首」（李善注本）。电子文本：汉典古籍 gj.zdic.net/jibu/1224/34173.html，2026-10-14 访问；以四库全书本《六臣注文选》卷二十九对校。异文校记见 docs/sources/gushi-shijiu-shou.md。","stanzas":[["西北有高楼，上与浮云齐。","交疏结绮窗，阿阁三重阶。","上有弦歌声，音响一何悲。","谁能为此曲？无乃杞梁妻。","清商随风发，中曲正徘徊。","一弹再三叹，慷慨有余哀。","不惜歌者苦，但伤知音稀。","愿为双鸣鹤，奋翅起高飞。"]],"detail":"### 异文\n\n- **愿为双鸿鹄** —— 《玉台新咏》卷一「枚乘杂诗」其一作「鸿鹄」；清胡绍煐《文选笺证》：「旁证云：六臣本鸣鹤作鸿鹄。玉台新咏同。绍煐按：当作鸿鹄。」底本与四库全书本《六臣注文选》正文均作「鸣鹤」。鹄、鹤古通。"},{"id":"古诗十九首/涉江采芙蓉","title":"涉江采芙蓉","author":"佚名","dynasty":"汉","genre":"五言古诗","orderInSource":6,"source":"《文选》卷二十九·杂诗上「古诗一十九首」（李善注本）。电子文本：汉典古籍 gj.zdic.net/jibu/1224/34173.html，2026-10-14 访问；以四库全书本《六臣注文选》卷二十九对校。异文校记见 docs/sources/gushi-shijiu-shou.md。","stanzas":[["涉江采芙蓉，兰泽多芳草。","采之欲遗谁？所思在远道。","还顾望旧乡，长路漫浩浩。","同心而离居，忧伤以终老。"]],"detail":"### 异文\n\n- **伤忧以终老** —— 《玉台新咏》宋刻本作「伤忧」，见清·纪容舒《玉台新咏考异》卷一（四库全书本）校语：「忧伤，宋刻作伤忧，误。今从文选。」纪昀校正本《玉台新咏》卷一影印本同此校语。底本《文选》李善注本作「忧伤以终老」。"},{"id":"古诗十九首/明月皎夜光","title":"明月皎夜光","author":"佚名","dynasty":"汉","genre":"五言古诗","orderInSource":7,"source":"《文选》卷二十九·杂诗上「古诗一十九首」（李善注本）。电子文本：汉典古籍 gj.zdic.net/jibu/1224/34173.html，2026-10-14 访问；以四库全书本《六臣注文选》卷二十九对校。异文校记见 docs/sources/gushi-shijiu-shou.md。","stanzas":[["明月皎夜光，促织鸣东壁。","玉衡指孟冬，众星何历历。","白露沾野草，时节忽复易。","秋蝉鸣树间，玄鸟逝安适？","昔我同门友，高举振六翮。","不念携手好，弃我如遗迹。","南箕北有斗，牵牛不负轭。","良无盘石固，虚名复何益？"]]},{"id":"古诗十九首/冉冉孤生竹","title":"冉冉孤生竹","author":"佚名","dynasty":"汉","genre":"五言古诗","orderInSource":8,"source":"《文选》卷二十九·杂诗上「古诗一十九首」（李善注本）。电子文本：汉典古籍 gj.zdic.net/jibu/1224/34173.html，2026-10-14 访问；以四库全书本《六臣注文选》卷二十九对校。异文校记见 docs/sources/gushi-shijiu-shou.md。","stanzas":[["冉冉孤生竹，结根泰山阿。","与君为新婚，兔丝附女萝。","兔丝生有时，夫妇会有宜。","千里远结婚，悠悠隔山陂。","思君令人老，轩车来何迟？","伤彼蕙兰花，含英扬光辉。","过时而不采，将随秋草萎。","君亮执高节，贱妾亦何为？"]],"detail":"### 异文\n\n- **结根太山阿** —— 《玉台新咏》卷一「古诗八首」其三作「太山」；底本与四库全书本《六臣注文选》作「泰山」。大、太、泰古通。"},{"id":"古诗十九首/庭中有奇树","title":"庭中有奇树","author":"佚名","dynasty":"汉","genre":"五言古诗","orderInSource":9,"source":"《文选》卷二十九·杂诗上「古诗一十九首」（李善注本）。电子文本：汉典古籍 gj.zdic.net/jibu/1224/34173.html，2026-10-14 访问；以四库全书本《六臣注文选》卷二十九对校。异文校记见 docs/sources/gushi-shijiu-shou.md。","stanzas":[["庭中有奇树，绿叶发华滋。","攀条折其荣，将以遗所思。","馨香盈怀袖，路远莫致之。","此物何足贡，但感别经时。"]],"detail":"### 异文\n\n- **此物何足贵** —— 四库全书本《六臣注文选》卷二十九、《玉台新咏》卷一「枚乘杂诗」其七、明《古诗类苑》均作「贵」；底本（李善注本）作「贡」。李善注已自记此异文：「贾逵国语注曰：贡，献也。物或为荣，贡或作贵。」\n- **庭前有奇树** —— 五臣注本作「前」，见四库全书本《六臣注文选》卷二十九校语：「庭中……五臣作前。」二手转录站古文岛亦作「庭前」。底本（李善注本）、《玉台新咏》卷一、明《诗纪》两刻本、明《文选瀹注》均作「中」。"},{"id":"古诗十九首/迢迢牵牛星","title":"迢迢牵牛星","author":"佚名","dynasty":"汉","genre":"五言古诗","orderInSource":10,"source":"《文选》卷二十九·杂诗上「古诗一十九首」（李善注本）。电子文本：汉典古籍 gj.zdic.net/jibu/1224/34173.html，2026-10-14 访问；以四库全书本《六臣注文选》卷二十九对校。异文校记见 docs/sources/gushi-shijiu-shou.md。","stanzas":[["迢迢牵牛星，皎皎河汉女。","纤纤擢素手，札札弄机杼。","终日不成章，泣涕零如雨。","河汉清且浅，相去复几许？","盈盈一水间，脉脉不得语。"]],"detail":"### 异文\n\n- **眽眽不得语** —— 清胡绍煐《文选笺证》校此句：「此当作眽，传写误为脉……广韵二十陌嗼字注云：诗嗼嗼不得语，古本作嗼嗼……苕溪渔隐丛话引复斋漫录作默默不得语。」即「脉脉／眽眽／覛覛／嗼嗼／默默」皆曾见。底本正文作「脉脉」，今通行同。"},{"id":"古诗十九首/回车驾言迈","title":"回车驾言迈","author":"佚名","dynasty":"汉","genre":"五言古诗","orderInSource":11,"source":"《文选》卷二十九·杂诗上「古诗一十九首」（李善注本）。电子文本：汉典古籍 gj.zdic.net/jibu/1224/34173.html，2026-10-14 访问；以四库全书本《六臣注文选》卷二十九对校。异文校记见 docs/sources/gushi-shijiu-shou.md。","stanzas":[["回车驾言迈，悠悠涉长道。","四顾何茫茫，东风摇百草。","所遇无故物，焉得不速老？","盛衰各有时，立身苦不早。","人生非金石，岂能长寿考？","奄忽随物化，荣名以为宝。"]]},{"id":"古诗十九首/东城高且长","title":"东城高且长","author":"佚名","dynasty":"汉","genre":"五言古诗","orderInSource":12,"source":"《文选》卷二十九·杂诗上「古诗一十九首」（李善注本）。电子文本：汉典古籍 gj.zdic.net/jibu/1224/34173.html，2026-10-14 访问；以四库全书本《六臣注文选》卷二十九对校。异文校记见 docs/sources/gushi-shijiu-shou.md。","stanzas":[["东城高且长，逶迤自相属。","回风动地起，秋草萋已绿。","四时更变化，岁暮一何速？","晨风怀苦心，蟋蟀伤局促。","荡涤放情志，何为自结束？","燕赵多佳人，美者颜如玉。","被服罗裳衣，当户理清曲。","音响一何悲，弦急知柱促。","驰情整中带，沉吟聊踯躅。","思为双飞燕，衔泥巢君屋。"]],"detail":"### 异文\n\n- **驰情整巾带** —— 四库全书本《六臣注文选》卷二十九作「巾带」；底本与《玉台新咏》卷一「枚乘杂诗」其二均作「中带」。李善注「中带，中衣带」可证李善本正文作「中」。\n- **秋草萋以绿** —— 《玉台新咏》卷一作「以」；底本与四库全书本《六臣注文选》作「已」。以、已古通用。\n- **被服罗衣裳** —— 《玉台新咏》卷一作「罗衣裳」；底本作「罗裳衣」。词序之异，非改字。"},{"id":"古诗十九首/驱车上东门","title":"驱车上东门","author":"佚名","dynasty":"汉","genre":"五言古诗","orderInSource":13,"source":"《文选》卷二十九·杂诗上「古诗一十九首」（李善注本）。电子文本：汉典古籍 gj.zdic.net/jibu/1224/34173.html，2026-10-14 访问；以四库全书本《六臣注文选》卷二十九对校。异文校记见 docs/sources/gushi-shijiu-shou.md。","stanzas":[["驱车上东门，遥望郭北墓。","白杨何萧萧，松柏夹广路。","下有陈死人，杳杳即长暮。","潜寐黄泉下，千载永不寤。","浩浩阴阳移，年命如朝露。","人生忽如寄，寿无金石固。","万岁更相送，圣贤莫能度。","服食求神仙，多为药所误。","不如饮美酒，被服纨与素。"]],"detail":"### 异文\n\n- **贤圣莫能度** —— 《乐府诗集》卷六十一「杂曲歌辞」《驱车上东门行》（四部丛刊本影印 OCR，四库全书本同）与宋《新编古今事文类聚》「古乐府」条均作「贤圣」；底本《文选》李善注本、四库全书本《六臣注文选》作「圣贤」。\n- **遥望北郭墓** —— 《乐府诗集》四库全书本卷六十一作「北郭」；同书四部丛刊本作「郭北」，与底本《文选》李善注本一致。同一部《乐府诗集》的两个本子在此互异，故只作存档，不作正文依据。\n- **万岁更相迭** —— 今天通行的现代转录站多作「迭」（H 线全量逐字对校的 5 家中 4 家作「迭」：墨书院、国学荟萃、每日诗词、古文岛，古文岛并出校注「迭 一作：送」；语文迷作「送」）——见 docs/sources/modern-readings.md 4.1 第 3 项、3.1 其 13。⚠ 见证方只有现代转录站：本工作线反查《乐府诗集》卷六十一（四部丛刊本影印 OCR、四库全书本影印 OCR）与南宋祝穆《新编古今事文类聚》「古乐府」条，三处一律作「送」，与底本一致，未核到任何古本作「迭」。"},{"id":"古诗十九首/去者日以疏","title":"去者日以疏","author":"佚名","dynasty":"汉","genre":"五言古诗","orderInSource":14,"source":"《文选》卷二十九·杂诗上「古诗一十九首」（李善注本）。电子文本：汉典古籍 gj.zdic.net/jibu/1224/34173.html，2026-10-14 访问；以四库全书本《六臣注文选》卷二十九对校。异文校记见 docs/sources/gushi-shijiu-shou.md。","stanzas":[["去者日以疏，生者日以亲。","出郭门直视，但见丘与坟。","古墓犁为田，松柏摧为薪。","白杨多悲风，萧萧愁杀人。","思还故里闾，欲归道无因。"]],"detail":"### 异文\n\n- **来者日以亲** —— 底本（李善注本）作「生者」，李善注引《吕氏春秋》「死者弥久，生者弥疏」为证，与「生」字合；四库全书本《六臣注文选》亦作「生」。明张之象《古诗类苑》等后世选本作「来者」（五臣注本系统；李周翰注「去者谓死也……来者谓生也」，正因正文作「来」而训「来」为「生」）。今通行本多从五臣作「来者」。\n- **日已亲** —— 五臣注本与《艺文类聚》此句作「已」。四库全书本《六臣注文选》卷二十九校语：「以，五臣作已。生，五臣作来。」明《诗纪》两刻本于「去者日以疏」下亦出校语「五臣作巳（＝已）」；《艺文类聚》卷四十（明嘉靖胡缵宗、陆采刻本，影印 OCR）录此诗作「去者日已疏，生者日已亲」。底本《文选》李善注本两「以」字作「以」。\n- **思归故里闾** —— 今天通行的现代转录站分裂：H 线所校 5 家中墨书院、国学荟萃作「归」，古文岛、语文迷、每日诗词作「还」——见 docs/sources/modern-readings.md 4.3 第 9 项、3.1 其 14。⚠ 见证方只有现代转录站：本工作线反查明嘉靖胡缵宗陆采刻本《艺文类聚》卷四十「古墟墓诗」条（影印 OCR）作「思还故里闾」，与底本一致，未核到任何古本作「归」。"},{"id":"古诗十九首/生年不满百","title":"生年不满百","author":"佚名","dynasty":"汉","genre":"五言古诗","orderInSource":15,"source":"《文选》卷二十九·杂诗上「古诗一十九首」（李善注本）。电子文本：汉典古籍 gj.zdic.net/jibu/1224/34173.html，2026-10-14 访问；以四库全书本《六臣注文选》卷二十九对校。异文校记见 docs/sources/gushi-shijiu-shou.md。","stanzas":[["生年不满百，常怀千岁忧。","昼短苦夜长，何不秉烛游？","为乐当及时，何能待来兹？","愚者爱惜费，但为后世嗤。","仙人王子乔，难可与等期。"]]},{"id":"古诗十九首/凛凛岁云暮","title":"凛凛岁云暮","author":"佚名","dynasty":"汉","genre":"五言古诗","orderInSource":16,"source":"《文选》卷二十九·杂诗上「古诗一十九首」（李善注本）。电子文本：汉典古籍 gj.zdic.net/jibu/1224/34173.html，2026-10-14 访问；以四库全书本《六臣注文选》卷二十九对校。异文校记见 docs/sources/gushi-shijiu-shou.md。","stanzas":[["凛凛岁云暮，蝼蛄夕鸣悲。","凉风率已厉，游子寒无衣。","锦衾遗洛浦，同袍与我违。","独宿累长夜，梦想见容辉。","良人惟古欢，枉驾惠前绥。","愿得常巧笑，携手同车归。","既来不须臾，又不处重闱。","亮无晨风翼，焉能凌风飞？","眄睐以适意，引领遥相睎。","徙倚怀感伤，垂涕沾双扉。"]],"detail":"### 异文\n\n- **蝼蛄多鸣悲** —— 《玉台新咏》卷一「古诗八首」其二作「多」；底本与四库全书本《六臣注文选》作「夕」。\n- **谅无晨风翼** —— 《玉台新咏》卷一作「谅」；底本与四库全书本《六臣注文选》作「亮」。亮、谅古通。\n- **蝼蛄夜鸣悲** —— 五臣注本作「夜」，见四库全书本《六臣注文选》卷二十九校语：「夕，五臣作夜。」底本、《玉台新咏》卷一（作「多」）、明《诗纪》均不作「夜」。"},{"id":"古诗十九首/孟冬寒气至","title":"孟冬寒气至","author":"佚名","dynasty":"汉","genre":"五言古诗","orderInSource":17,"source":"《文选》卷二十九·杂诗上「古诗一十九首」（李善注本）。电子文本：汉典古籍 gj.zdic.net/jibu/1224/34173.html，2026-10-14 访问；以四库全书本《六臣注文选》卷二十九对校。异文校记见 docs/sources/gushi-shijiu-shou.md。","stanzas":[["孟冬寒气至，北风何惨栗？","愁多知夜长，仰观众星列。","三五明月满，四五詹兔缺。","客从远方来，遗我一书札。","上言长相思，下言久离别。","置书怀袖中，三岁字不灭。","一心抱区区，惧君不识察。"]],"detail":"### 异文\n\n- **四五蟾兔缺** —— 四库全书本《六臣注文选》卷二十九、《玉台新咏》卷一「古诗八首」其四、明张之象《古诗类苑》均作「蟾兔」；底本（李善注本）作「詹兔」。李善注「两说以詹诸与兔。然詹与占同，古字通」，可证李善本正文作「詹」。"},{"id":"古诗十九首/客从远方来","title":"客从远方来","author":"佚名","dynasty":"汉","genre":"五言古诗","orderInSource":18,"source":"《文选》卷二十九·杂诗上「古诗一十九首」（李善注本）。电子文本：汉典古籍 gj.zdic.net/jibu/1224/34173.html，2026-10-14 访问；以四库全书本《六臣注文选》卷二十九对校。异文校记见 docs/sources/gushi-shijiu-shou.md。","stanzas":[["客从远方来，遗我一端绮。","相去万余里，故人心尚尔。","文彩双鸳鸯，裁为合欢被。","著以长相思，缘以结不解。","以胶投漆中，谁能别离此？"]],"detail":"### 异文\n\n- **文采双鸳鸯** —— 今天通行的现代转录站分裂：H 线所校 5 家中墨书院、语文迷、国学荟萃作「彩」，古文岛、每日诗词作「采」——见 docs/sources/modern-readings.md 4.3 第 12 项、3.1 其 18。⚠ 本条与上面两条（「迭」「归」）**性质不同**：「采」另有古籍一侧的见证——《玉台新咏》卷一此处作「采」（清·纪容舒《玉台新咏考异》卷一正文、纪昀校正本《玉台新咏》卷一影印 OCR），汉典古籍《文选》李善注本电子文本亦作「采」；底本一侧（四库全书本《六臣注文选》、识典古籍影印《文选注》李善注本）作「綵」，简体即「彩」。诚实标注：两处《玉台》见证都是影印本 OCR，「綵」漏糸旁而误认为「采」的可能不能排除，本工作线未目验原刻，故只能说「《玉台》系统或作采，待目验」。"},{"id":"古诗十九首/明月何皎皎","title":"明月何皎皎","author":"佚名","dynasty":"汉","genre":"五言古诗","orderInSource":19,"source":"《文选》卷二十九·杂诗上「古诗一十九首」（李善注本）。电子文本：汉典古籍 gj.zdic.net/jibu/1224/34173.html，2026-10-14 访问；以四库全书本《六臣注文选》卷二十九对校。异文校记见 docs/sources/gushi-shijiu-shou.md。","stanzas":[["明月何皎皎，照我罗床帏。","忧愁不能寐，揽衣起徘徊。","客行虽云乐，不如早旋归。","出户独彷徨，愁思当告谁？","引领还入房，泪下沾裳衣。"]],"detail":"### 异文\n\n- **照我罗床帷** —— 四库全书本《六臣注文选》作「床帷」；底本作「床帏」。帏、帷形义相近，疑形近之异。"},{"id":"杜甫/梦李白二首·其一","title":"梦李白二首·其一","author":"杜甫","dynasty":"唐","genre":"五言古诗","orderInSource":1,"source":"《全唐诗》卷二百一十八·杜甫（站点题署：扬州诗局本）。**电子转录**：汉典古籍 gj.zdic.net/jibu/1230/34640.html，2026-10-16 访问；校勘参照识典古籍所署「四库全书本《杜诗详注》卷七」（清·仇兆鳌撰）与「四部丛刊景宋刊本《分门集注杜工部诗》卷三」的**电子转录/OCR**——**均为电子转录，未目验任何影像**。异文与未核项见 docs/sources/dream-li-bai-intake.md。","stanzas":[["死别已吞声，生别常恻恻。","江南瘴疠地，逐客无消息。","故人入我梦，明我长相忆。","恐非平生魂，路远不可测。","魂来枫叶青，魂返关塞黑。","君今在罗网，何以有羽翼？","落月满屋梁，犹疑照颜色。","水深波浪阔，无使蛟龙得。"]],"detail":"### 异文\n\n- **魂来枫叶青** —— 底本《全唐诗》作「枫叶」；另据**电子转录/OCR**（识典古籍所署「四库全书本《杜诗详注》卷七」、四部丛刊景宋刊本《分门集注杜工部诗》卷三、明刻本《杜工部集》，以及署「四库全书本《御定全唐诗》」的那一份，后者于「叶」下出小注「一作林」）作「枫林」。⚠ **这些都是电子转录，未目验任何影像** ⇒ 不能排除 OCR/转录讹字，只能说「**两读在电子转录层面并存**」。本仓从底本作「叶」。\n- **「君今在罗网，何以有羽翼」二句的位置** —— 底本《全唐诗》与另两个电子转录（宋、明系统）此二句均在「魂返关塞黑」之后；署「四库全书本《杜诗详注》卷七」的那份电子转录依黄生本移置「恐非平生魂」之前，并自记其改动：「君今二句，旧在关塞黑之下，今从黄生本移在此处，于两段语气方顺」。本仓从底本，不移置。"},{"id":"杜甫/梦李白二首·其二","title":"梦李白二首·其二","author":"杜甫","dynasty":"唐","genre":"五言古诗","orderInSource":2,"source":"《全唐诗》卷二百一十八·杜甫（站点题署：扬州诗局本）。**电子转录**：汉典古籍 gj.zdic.net/jibu/1230/34640.html，2026-10-16 访问；校勘参照识典古籍所署「四库全书本《杜诗详注》卷七」（清·仇兆鳌撰）与清刻本《杜诗论文》卷十二（清·吴见思撰）的**电子转录/OCR**——**均为电子转录，未目验任何影像**。异文与未核项见 docs/sources/dream-li-bai-intake.md。","stanzas":[["浮云终日行，游子久不至。","三夜频梦君，情亲见君意。","告归常局促，苦道来不易。","江湖多风波，舟楫恐失坠。","出门搔白首，若负平生志。","冠盖满京华，斯人独憔悴。","孰云网恢恢？将老身反累。","千秋万岁名，寂寞身后事。"]],"detail":"### 异文\n\n- **出门搔白首，若负平生志** —— 底本《全唐诗》作「若」；另据**电子转录/OCR**（清刻本《杜诗论文》卷十二）作「苦」，署「四库全书本《杜诗详注》卷七」的那份电子转录于「若」下出校语「一作苦」。⚠ **均为电子转录，未目验影像** ⇒ 不能排除讹字。本仓从底本作「若」。\n- **江湖多风波** —— 底本《全唐诗》作「多风波」；署「四库全书本《杜诗详注》卷七」的电子转录出校语「一云秋多风」。本仓从底本，不取「秋多风」。"},{"id":"毛泽东/七律·和郭沫若同志","title":"七律·和郭沫若同志","author":"毛泽东","dynasty":"近现代","genre":"七言律诗","orderInSource":null,"source":"毛泽东诗词全集","stanzas":[["一从大地起风雷，便有精生白骨堆。","僧是愚氓犹可训，妖为鬼蜮必成灾。","金猴奋起千钧棒，玉宇澄清万里埃。","今日欢呼孙大圣，只缘妖雾又重来。"]]}]</script>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ══════════════════════════════════════════════════════════════
+   * 0 · 数据：诗的正文／作者／朝代／体裁／底本与详情 = **真实内容**（只读抄自 content/poems，未改）
+   *     标签（tag）名与「诗 ↔ 标签」的归属 = **夹具**（临时编造，只为把界面表达出来）
+   *     ⚠ 本文件不写 content/、**不给真诗打标签**；这里的一切都只活在浏览器内存里。
+   * ══════════════════════════════════════════════════════════════ */
+  var POEMS = JSON.parse(document.querySelector('[data-test="poems-json"]').textContent);
+  /* 诗的 ID：按已选口径由**路径派生**（`杜甫/梦李白二首·其一.md` ⇒ `杜甫-梦李白二首·其一`），
+   * 这里把夹具 JSON 里的路径分隔符换成 '-'，与真实产物一致。 */
+  POEMS.forEach(function (p) { p.id = p.id.replace(/\//g, '-'); });
+  var BY_ID = {};
+  POEMS.forEach(function (p) { BY_ID[p.id] = p; });
+  var DYN = ['汉', '唐', '近现代'];
+
+  /* ---- 夹具：标签（名字与归属全部编造；「咏怀」是主题类，用来证明界面不假设"标签＝选本"）---- */
+  var TAGS = [
+    { id: 'gushi-shijiu-shou', name: '古诗十九首' },
+    { id: 'tangshi-sanbai-shou', name: '唐诗三百首' },
+    { id: 'hanwei-liuchao', name: '汉魏六朝诗选' },
+    { id: 'yonghuai', name: '咏怀' },
+    { id: 'yutai-xinyong', name: '玉台新咏' }       /* 夹具：空标签（本库还没收录任何诗） */
+  ];
+  /* 夹具：诗 ↔ 标签的归属。orderInTag＝**标签内次序**（夹具值），
+   * ⚠ 本轮 UI **不渲染**它（不显示任何序号），但数据里**保留**它——不显示序号 ≠ 删除数据。
+   *   · 古诗十九首：夹具里 orderInTag 恰好＝orderInSource（1…19）——纯巧合，不是同一字段；
+   *   · 唐诗三百首：夹具给 172，而该诗 orderInSource＝1 ⇒ 两个数明显不同；
+   *   · 玉台新咏：空标签。 */
+  var TAGGING = {
+    'gushi-shijiu-shou': POEMS.filter(function (p) { return p.dynasty === '汉'; })
+      .map(function (p) { return { id: p.id, orderInTag: p.orderInSource }; })
+      .sort(function (a, b) { return a.orderInTag - b.orderInTag; }),
+    'tangshi-sanbai-shou': [{ id: '杜甫-梦李白二首·其一', orderInTag: 172 }],
+    'hanwei-liuchao': [
+      { id: '古诗十九首-行行重行行', orderInTag: 1 },
+      { id: '古诗十九首-涉江采芙蓉', orderInTag: 4 }
+    ],
+    'yonghuai': [
+      { id: '古诗十九首-生年不满百', orderInTag: 1 },
+      { id: '古诗十九首-驱车上东门', orderInTag: 2 },
+      { id: '古诗十九首-去者日以疏', orderInTag: 3 }
+    ],
+    'yutai-xinyong': []
+  };
+  function tagById(id) { for (var i = 0; i < TAGS.length; i++) if (TAGS[i].id === id) return TAGS[i]; return null; }
+  /* 只给自检脚本（check-tag-views.mjs）读的夹具出口：让脚本能**在运行的页面里**核对
+   * 「零成员标签确实还在数据里」（而不是只看页面文本）。原型专用，产品无此物。 */
+  window.__TAGFIX = { tags: TAGS, tagging: TAGGING, members: tagPoems };
+  /* 标签下的诗：**按夹具的标签内次序排**（这个次序值本身不显示在界面上） */
+  function tagPoems(id) {
+    return (TAGGING[id] || []).map(function (x) { return BY_ID[x.id]; }).filter(function (p) { return !!p; });
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+   * 1 · 宽度口径（[已定] 用户 2026-10-15）：C = min(V, max(320, 0.88 × (V − 24)))
+   *     24 是**一次性从视口宽扣掉的总量**（不是左右各 12 的外层页边）；上界＝视口宽 V。
+   * ══════════════════════════════════════════════════════════════ */
+  /* == WIDTH-PARAMS-BEGIN ==
+   * deduct_total : 24
+   * pct          : 88
+   * floor        : 320
+   * cap          : viewport
+   * == WIDTH-PARAMS-END == */
+  var DEDUCT = 24, PCT = 88, FLOOR = 320;
+  function contentW(V) { return Math.min(V, Math.max(FLOOR, (PCT / 100) * (V - DEDUCT))); }
+  function applyW() {
+    var V = window.innerWidth;
+    var C = contentW(V);
+    document.documentElement.style.setProperty('--cw', C + 'px');
+    var a = document.querySelector('[data-test="vw"]');
+    var b = document.querySelector('[data-test="cw"]');
+    if (a) a.textContent = String(V);
+    if (b) b.textContent = (Math.round(C * 100) / 100) + 'px';
+    applyScrollY();
+  }
+  /* 原型条上的 scroll 读数：让「返回后滚动位置保留」这件事在**图里**也能看见（不是应用页面的元素） */
+  var syPending = false;
+  function applyScrollY() {
+    var s = document.querySelector('[data-test="sy"]');
+    if (s) s.textContent = String(Math.round(window.scrollY * 10) / 10);
+  }
+  function onScroll() {
+    if (syPending) return;
+    syPending = true;
+    requestAnimationFrame(function () { syPending = false; applyScrollY(); });
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+   * 2 · 路由与「返回」栈（只有一种入口形态：顶部两个 tab）
+   *     route 形如 '/hub'（朝代）、'/tags'（标签）、'/p/<id>'、'/p/<id>/detail'
+   *     - 向前导航 = 改 location.hash（file:// 下也可用；pushState 在 file:// 会被拒）
+   *     - 「返回」= 回到**我们自己记下的上一视图**（浏览器后退也对同一层级生效）
+   *     - 每个 route 记住自己的 scrollY；回到该 route 时还原
+   *     - 展开状态分两套（朝代组 / 标签组），都活在内存里 ⇒ 返回与来回切 tab 都保持
+   * ══════════════════════════════════════════════════════════════ */
+  var cur = null;            /* 当前 route */
+  var backStack = [];        /* 进入当前 route 之前的 route 串 */
+  var pendingBack = false;   /* 下一次 hashchange 是「返回」触发的 */
+  var scrollMem = {};        /* route → scrollY */
+  var exp = { dyn: {}, tag: {} };   /* 朝代组 / 标签组的展开状态（键＝组名 / 标签 id） */
+
+  function normHash() {
+    var h = location.hash.replace(/^#/, '');
+    /* Chrome 对 hash 里的非 ASCII 会百分号转义（路由里含中文诗题/诗 id）⇒ 读回来先解码 */
+    try { h = decodeURIComponent(h); } catch (e) { /* 保留原串 */ }
+    if (!h) return '/hub';
+    if (h.charAt(0) !== '/') h = '/' + h;
+    return h;
+  }
+  function parts(r) { return r.split('/').filter(Boolean); }
+  function go(r) {
+    saveScroll();
+    pendingBack = false;
+    if (normHash() === r) { render(); return; }
+    location.hash = '#' + r;
+  }
+  function goBack() {
+    saveScroll();
+    var r = backStack.pop();
+    if (r === undefined) { go('/hub'); return; }
+    pendingBack = true;
+    if (normHash() === r) { pendingBack = false; render(); return; }
+    location.hash = '#' + r;
+  }
+  function saveScroll() { if (cur) scrollMem[cur] = window.scrollY; }
+  function restoreScroll(r) {
+    var y = scrollMem[r] || 0;
+    window.scrollTo(0, y);
+    applyScrollY();
+    requestAnimationFrame(function () { window.scrollTo(0, y); applyScrollY(); });
+  }
+  function onHash() {
+    var r = normHash();
+    if (cur === r) { render(); restoreScroll(r); return; }
+    if (pendingBack) { pendingBack = false; }
+    else if (backStack.length && backStack[backStack.length - 1] === r) { backStack.pop(); }  /* 浏览器后退 */
+    else if (cur !== null) { backStack.push(cur); }
+    cur = r;
+    render();
+    restoreScroll(r);
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+   * 3 · 小工具
+   * ══════════════════════════════════════════════════════════════ */
+  var colEl = document.querySelector('[data-test="col"]');
+  var pgEl = document.querySelector('[data-test="pg"]');
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined && text !== null) e.textContent = text;
+    return e;
+  }
+  function clear(n) { while (n.firstChild) n.removeChild(n.firstChild); }
+  function link(cls, route, text) {
+    var a = el('a', cls, text);
+    a.href = '#' + route;
+    a.setAttribute('data-go', route);
+    return a;
+  }
+  function escapeHtml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  function inlineMd(s) {
+    return escapeHtml(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+   * 4 · 顶部行
+   *     浏览页：左＝「朝代 ｜ 标签」两个 tab，右＝关于（关于页不在本项范围，本原型不实现）
+   *     下钻页：左＝返回（诗页右端另有「详情」，**始终显示**）
+   * ══════════════════════════════════════════════════════════════ */
+  function aboutSpan() {
+    var s = el('span', 'aboutlink', '关于');
+    s.setAttribute('data-test', 'about');
+    s.title = '本原型不实现关于页（不在本项范围）';
+    return s;
+  }
+  function hubTopline(view) {
+    var bar = el('div', 'topline');
+    bar.setAttribute('data-test', 'topline');
+    var tabs = el('div', 'tabs');
+    tabs.setAttribute('role', 'tablist');
+    tabs.setAttribute('data-test', 'tabs');
+    [['dynasty', '朝代', '/hub'], ['tags', '标签', '/tags']].forEach(function (t) {
+      var b = el('button', 'tab', t[1]);
+      b.type = 'button';
+      b.setAttribute('role', 'tab');
+      b.setAttribute('data-tab', t[0]);
+      b.setAttribute('data-go', t[2]);
+      b.setAttribute('aria-selected', view === t[0] ? 'true' : 'false');
+      tabs.appendChild(b);
+    });
+    bar.appendChild(tabs);
+    bar.appendChild(aboutSpan());
+    return bar;
+  }
+  function barTopline(items) {
+    var bar = el('div', 'topbar');
+    bar.setAttribute('data-test', 'topbar');
+    items.forEach(function (it) {
+      if (it.back) {
+        var b = el('button', 'ctl', '返回');
+        b.type = 'button';
+        b.setAttribute('data-back', '1');
+        b.setAttribute('data-test', 'back');
+        bar.appendChild(b);
+      } else {
+        var a = link('ctl', it.route, it.text);
+        a.setAttribute('data-test', it.test || null);
+        bar.appendChild(a);
+      }
+    });
+    return bar;
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+   * 5 · 一个组（朝代 tab 与标签 tab **同一套结构**）
+   *     key  ：'dyn:汉' / 'tag:gushi-shijiu-shou'（展开状态按它记）
+   *     opts ：{ count } —— 只有朝代 tab 传 count；标签 tab **不传**（组头不出现任何数量）
+   *     组头＝悬挂记号 [−]/[+] ＋ 组名，**整行可点**；初态收起由调用方决定
+   *     展开后：子诗目＝题名左沿与组名首字同一竖线（缩进 0）＋ 作者紧随；**无序号**
+   *     ⚠ 没有「零成员的组」这一种输入：朝代 tab 跳过空朝代，标签 tab 在渲染前就
+   *        把「本库没有关联任何诗」的标签滤掉（见 renderTags）⇒ 这里不再有空态分支。
+   * ══════════════════════════════════════════════════════════════ */
+  function groupBlock(key, name, poems, open, opts) {
+    opts = opts || {};
+    var grp = el('div', 'grp');
+    var head = el('button', 'ghead');
+    head.type = 'button';
+    head.setAttribute('data-ghead', key);
+    head.setAttribute('data-test', 'ghead');
+    head.setAttribute('aria-expanded', open ? 'true' : 'false');
+    var mark = el('span', 'gmark', open ? '[−]' : '[+]');
+    mark.setAttribute('data-test', 'gmark');
+    mark.setAttribute('aria-hidden', 'true');
+    head.appendChild(mark);
+    var nm = el('span', 'gname', name);
+    nm.setAttribute('data-test', 'gname');
+    head.appendChild(nm);
+    if (opts.count != null) {
+      var cnt = el('span', 'gcount');
+      cnt.setAttribute('data-test', 'gcount');
+      cnt.appendChild(el('b', null, String(opts.count)));
+      cnt.appendChild(document.createTextNode(' 首'));
+      head.appendChild(cnt);
+    }
+    grp.appendChild(head);
+    if (!open) return grp;
+    var ul = el('ul', 'glist');
+    ul.setAttribute('data-test', 'glist');
+    poems.forEach(function (p) {
+      var li = el('li', 'poemrow');
+      var a = link('plink', '/p/' + p.id);
+      a.setAttribute('data-poem', p.id);
+      a.appendChild(el('span', 'ptitle', p.title));
+      a.appendChild(el('span', 'pauthor', p.author));
+      li.appendChild(a);
+      ul.appendChild(li);
+    });
+    grp.appendChild(ul);
+    return grp;
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+   * 6 · 各页
+   * ══════════════════════════════════════════════════════════════ */
+  function renderDynasty() {
+    clear(colEl);
+    colEl.appendChild(hubTopline('dynasty'));
+    DYN.forEach(function (name) {
+      var poems = POEMS.filter(function (p) { return p.dynasty === name; });
+      if (!poems.length) return;
+      /* 朝代 tab 保留原有计数（[19] 首）——用户说的「不用显示数量」本轮按**标签页**范围理解 */
+      colEl.appendChild(groupBlock('dyn:' + name, name, poems, !!exp.dyn[name], { count: poems.length }));
+    });
+  }
+
+  function renderTags() {
+    clear(colEl);
+    colEl.appendChild(hubTopline('tags'));
+    /* 与朝代页同构：每个标签就是一个组头；**组头不带数量**、页面不出现任何数量。
+     * [本轮返修 · 用户 2026-10-18] 「标签下面没有诗就该没有标签，而不是显示『这个标签下还没有诗。』」
+     *   判据＝**成员数 ≥ 1**（该标签在本库至少关联 1 首诗）。零成员的标签**不渲染**：
+     *   不出现组头、不出现展开按钮、不出现任何空态说明文字。
+     *   ⚠ 只是不出界面：标签定义与（空的）归属仍留在夹具里（见 TAGS/TAGGING 的 yutai-xinyong），
+     *     不是删除标签、也不是给它造作品。无标签的诗**照旧留在朝代页**。 */
+    TAGS.forEach(function (t) {
+      var poems = tagPoems(t.id);
+      if (poems.length < 1) return;
+      colEl.appendChild(groupBlock('tag:' + t.id, t.name, poems, !!exp.tag[t.id], {}));
+    });
+  }
+
+  function renderPoem(poemId) {
+    var p = BY_ID[poemId];
+    clear(colEl);
+    /* 已选：诗页顶部的「详情」入口**始终显示**——没有 `## 详情` 但有底本的诗，详情页仍然存在（页上只有「底本与来源」） */
+    var right = p ? { route: '/p/' + p.id + '/detail', text: '详情', test: 'detail-entry' } : null;
+    colEl.appendChild(barTopline(right ? [{ back: true }, right] : [{ back: true }]));
+    if (!p) { colEl.appendChild(el('p', 'gempty', '这首诗不在夹具里。')); return; }
+    var head = el('div', 'poem-head');
+    head.appendChild(el('h1', 'p-title', p.title));
+    head.appendChild(el('p', 'p-id', p.author + ' · ' + p.dynasty + ' · ' + p.genre));
+    colEl.appendChild(head);
+    var body = el('div', 'poem-body');
+    body.setAttribute('data-test', 'poem-body');
+    p.stanzas.forEach(function (st) {
+      var sp = el('p', 'stanza');
+      st.forEach(function (line) { sp.appendChild(el('span', 'line', line)); });
+      body.appendChild(sp);
+    });
+    colEl.appendChild(body);
+  }
+
+  function renderDetail(poemId) {
+    var p = BY_ID[poemId];
+    clear(colEl);
+    colEl.appendChild(barTopline([{ back: true }]));
+    if (!p) { colEl.appendChild(el('p', 'gempty', '这首诗不在夹具里。')); return; }
+    var head = el('div', 'd-head');
+    head.appendChild(el('h1', 'd-title', p.title));
+    colEl.appendChild(head);
+    if (p.source) {
+      var prov = el('div', 'prov');
+      prov.appendChild(el('p', 'prov-label', '底本与来源'));
+      prov.appendChild(el('p', 'prov-text', p.source));
+      colEl.appendChild(prov);
+    }
+    if (p.detail) colEl.appendChild(renderDetailMd(p.detail));
+  }
+
+  /* 最小 Markdown 渲染（只覆盖真实 detail 里出现的：### 小标题 / - 列表 / 段落 / **粗体**）
+   * 小标题＝eyebrow（无左侧竖线、无额外缩进）——继承详情页已选 */
+  function renderDetailMd(md) {
+    var box = el('div', 'detail');
+    box.setAttribute('data-test', 'detail');
+    var lines = md.split(/\r?\n/);
+    var i = 0;
+    while (i < lines.length) {
+      var l = lines[i];
+      if (!l.trim()) { i++; continue; }
+      if (/^###\s+/.test(l)) { box.appendChild(el('h2', 'd-sub', l.replace(/^###\s+/, '').trim())); i++; continue; }
+      if (/^-\s+/.test(l)) {
+        var ul = el('ul', 'd-list');
+        while (i < lines.length && /^-\s+/.test(lines[i])) {
+          var li = el('li', 'd-li');
+          li.innerHTML = inlineMd(lines[i].replace(/^-\s+/, '').trim());
+          ul.appendChild(li);
+          i++;
+        }
+        box.appendChild(ul);
+        continue;
+      }
+      var buf = [];
+      while (i < lines.length && lines[i].trim() && !/^###\s+/.test(lines[i]) && !/^-\s+/.test(lines[i])) {
+        buf.push(lines[i].trim());
+        i++;
+      }
+      var para = el('p', 'd-p');
+      para.innerHTML = inlineMd(buf.join(''));
+      box.appendChild(para);
+    }
+    return box;
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+   * 7 · 派发
+   * ══════════════════════════════════════════════════════════════ */
+  function render() {
+    applyW();
+    var r = cur || normHash();
+    var ps = parts(r);
+    pgEl.setAttribute('data-route', r);
+    if (!ps.length || ps[0] === 'hub') { pgEl.setAttribute('data-view', 'dynasty'); renderDynasty(); return; }
+    if (ps[0] === 'tags') { pgEl.setAttribute('data-view', 'tags'); renderTags(); return; }
+    if (ps[0] === 'p' && ps[1]) {
+      pgEl.setAttribute('data-view', ps[2] === 'detail' ? 'detail' : 'poem');
+      if (ps[2] === 'detail') renderDetail(ps[1]); else renderPoem(ps[1]);
+      return;
+    }
+    pgEl.setAttribute('data-view', 'dynasty');
+    renderDynasty();
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+   * 8 · 事件（一个委托处理器，避免重渲染后丢监听）
+   * ══════════════════════════════════════════════════════════════ */
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    if (!t || !t.closest) return;
+    var back = t.closest('[data-back]');
+    if (back) { e.preventDefault(); goBack(); return; }
+    var g = t.closest('[data-go]');
+    if (g) { e.preventDefault(); go(g.getAttribute('data-go')); return; }
+    var gh = t.closest('[data-ghead]');
+    if (gh) {
+      e.preventDefault();
+      var key = gh.getAttribute('data-ghead');
+      if (key.indexOf('dyn:') === 0) { var n = key.slice(4); exp.dyn[n] = !exp.dyn[n]; }
+      else if (key.indexOf('tag:') === 0) { var id = key.slice(4); exp.tag[id] = !exp.tag[id]; }
+      /* 展开/收起会改页面高度 ⇒ 展开时把刚才点的组头保持在原位置，避免视图跳动 */
+      var y0 = window.scrollY;
+      var top0 = gh.getBoundingClientRect().top;
+      render();
+      var gh2 = document.querySelector('[data-ghead="' + key.replace(/"/g, '\\"') + '"]');
+      if (gh2) {
+        var dy = gh2.getBoundingClientRect().top - top0;
+        if (dy) window.scrollTo(0, Math.max(0, y0 + dy));
+      }
+      saveScroll();
+      applyScrollY();
+      return;
+    }
+  });
+  window.addEventListener('hashchange', onHash);
+  window.addEventListener('resize', applyW);
+  window.addEventListener('scroll', onScroll, { passive: true });
+
+  /* 启动 */
+  applyW();
+  cur = normHash();
+  render();
+  /* 深链（例如直接打开 #/tags）也照上面渲染；不额外压返回栈 */
+  window.addEventListener('load', function () { applyW(); });
+})();
+</script>
+</body>
+</html>
