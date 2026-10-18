@@ -23,8 +23,8 @@
 | [`ui-responsive`](ui-responsive/item.md) | 各页宽度自适应（父项 `app-ui`） | **已选口径**：基准＝可用宽 `A=V−24`·88%·下限 320px（最小内容宽）⇒ `C=min(V,max(320,0.88×(V−24)))`；上界＝视口 V、不夹 660/860；**24 是一次性扣除总量，非左右各 12**。**该口径在 `items/app-ui/history/round-2026-10-16-width-pct/q-width-pct.html` 里的呈现已由用户复核通过**（**采纳锚＝该文件**）。材料已整轮归档（`items/app-ui/history/round-2026-10-16-width-pct/`）。⚠ **未覆盖**：**关于页／详情页的宽度表现**、长行折行、有笔记入口 |
 | [`content-tags`](content-tags/item.md) | **能力总项**：内容标签（选本/作品集合归属）＋「默认视图之外」的多浏览视图 | **方向已确认（2026-10-18）、字段与视觉未定**；**三个子项均已在制**，本阶段只出原型/契约候选 |
 | [`tag-semantics`](tag-semantics/item.md) | 标签的**域场景与语义**（父项 `content-tags`）：标签≠朝代/体裁/目录/source；10 例为**待审检验场景/建议**（非已批功能） | 首稿在制（调度侧） |
-| [`tag-format`](tag-format/item.md) | **MD 标注写法 ＋ JSON 数据稿**（父项 `content-tags`）：真实诗→候选 frontmatter→完整 JSON 三层对照 | **在制**（worker `a6690a92…`） |
-| [`tag-views`](tag-views/item.md) | **多视图 UI 原型**（父项 `content-tags`）：朝代浏览＋标签视图候选、入口/切换/列表/空与未收全/返回原视图与状态 | **在制**（worker `cc842c3f…`） |
+| [`tag-format`](tag-format/item.md) | **MD 标注写法 ＋ JSON 数据稿**（父项 `content-tags`）：真实诗→候选 frontmatter→完整 JSON 三层对照 | **交付待审**（`19e649c`；已按七条纠正修准 `d0cc63c`） |
+| [`tag-views`](tag-views/item.md) | **多视图 UI 原型**（父项 `content-tags`）：朝代浏览＋标签视图候选、入口/切换/列表/空与未收全/返回原视图与状态 | **交付待审**（`ec28041` 合入；48/0 自检、13 图、README 13 条未表达） |
 
 ## Edges（**硬边**＝从「缺的那个结果」指向「被它挡住的范围」）
 
