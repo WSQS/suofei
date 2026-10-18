@@ -84,15 +84,15 @@ export function makeTagTabFixtureDoc() {
       // orderInSource 刻意让「朝代 tab 的数组次序」＝1,2,3,4，便于另一条断言。
       testPoem({
         id: poemYi, title: '测试诗乙', dynasty: '测试朝代甲', orderInSource: 1,
-        tags: [{ tagId: '测试标签乙', orderInTag: 3 }, { tagId: '测试标签丙', orderInTag: 1 }],
+        tags: [{ id: '测试标签乙', orderInTag: 3 }, { id: '测试标签丙', orderInTag: 1 }],
       }),
       testPoem({
         id: poemJia, title: '测试诗甲', dynasty: '测试朝代甲', orderInSource: 2,
-        tags: [{ tagId: '测试标签乙', orderInTag: 1 }, { tagId: '测试标签甲', orderInTag: 1 }],
+        tags: [{ id: '测试标签乙', orderInTag: 1 }, { id: '测试标签甲', orderInTag: 1 }],
       }),
       testPoem({
         id: poemBing, title: '测试诗丙', dynasty: '测试朝代乙', orderInSource: 3,
-        tags: [{ tagId: '测试标签乙', orderInTag: 2 }, { tagId: '测试标签丙', orderInTag: 2 }],
+        tags: [{ id: '测试标签乙', orderInTag: 2 }, { id: '测试标签丙', orderInTag: 2 }],
       }),
       // 无标签的诗：**照旧留在朝代页**（标签 tab 里当然没有它）。
       testPoem({ id: poemLoose, title: '测试诗丁', dynasty: '测试朝代甲', orderInSource: 4, tags: [] }),

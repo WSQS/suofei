@@ -7,7 +7,7 @@
 //      由 tests/lib/deploy.mjs 组装（壳 + 内容一起换）。
 //
 // ⚠ 这里的形状是 **formatVersion 3**（顶层 `dynasties` ＝有序中文值数组；顶层 `tags` ＝有序数组；
-//   每首 11 键，`tags` 为 `[{ tagId, orderInTag }]` 可为 `[]`）。从 v2 基座派生时，调用处先把它
+//   每首 11 键，`tags` 为 `[{ id, orderInTag }]` 可为 `[]`）。从 v2 基座派生时，调用处先把它
 //   转成 v3 测试夹具（`tests/lib/v3-fixture.mjs` 的 `toV3TestDoc`）。
 
 /** 加进来的那首测试诗：自带笔记（含空行分段、`- ` 列表、`**粗体**` 与转义样本）；

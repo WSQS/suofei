@@ -36,9 +36,11 @@ const isInt = (v) => typeof v === 'number' && Number.isInteger(v);
  *  - 顶层 `tags` ＝**有序数组** `[{ id, members: [poemId…] }]`（`id` 即中文显示名，编译期已按拼音排好；
  *    `members` 已按 `orderInTag` 升序）⇒ 客户端照这个顺序渲染，不重排；
  *  - 每首 11 键：`id,title,author,dynasty,genre,source,orderInSource,detail,stanzas,notes,tags`
- *    （缺值以 `null` 保键；`tags` 是 `[{ tagId, orderInTag }]`，可为 `[]`）。
+ *    （缺值以 `null` 保键；`tags` 是 `[{ id, orderInTag }]`，可为 `[]`）。
+ *  ⚠ 字段名是 `id`（与 `schema/content.schema.json` 的 `poems[].tags[].id` 逐项一致），**不是** `tagId`
+ *    ——这层名字对不上就会把整份内容判成坏内容；两端同名同义。
  *
- * 附加的**相容性**判据（不是「形状」而是「指得上吗」）：诗的 `tags[].tagId` 必须在顶层 `tags` 里声明；
+ * 附加的**相容性**判据（不是「形状」而是「指得上吗」）：诗的 `tags[].id` 必须在顶层 `tags` 里声明；
  * `members` 里的 id 必须指向真实存在的诗。两向都查，因为两种引用都能让界面画出一组**指不上的东西**。
  * **不拒绝未知键**（多出来的字段不影响渲染，拒绝它们只会让同一次部署因为无关理由变砖）。
  * @returns {{ok: boolean, errors: string[]}}
@@ -128,7 +130,8 @@ export function validateContent(doc) {
         });
       });
     }
-    // 每首的 tags：`[{ tagId, orderInTag }]`，可为 `[]`；`orderInTag` **必填整数**（数据侧口径）。
+    // 每首的 tags：`[{ id, orderInTag }]`（与 `schema/content.schema.json` v3 逐项一致：字段名是 `id`，
+    // 不是 `tagId`），可为 `[]`；`orderInTag` 是 **≥1 的整数**（数据侧口径，缺失/非整数是编译错误）。
     if (!Array.isArray(p.tags)) {
       errors.push(`${at}.tags 不是数组（formatVersion 3 的必填键，可为 []）`);
     } else {
@@ -136,22 +139,22 @@ export function validateContent(doc) {
       p.tags.forEach((t, ti) => {
         const tat = `${at}.tags[${ti}]`;
         if (!isPlainObject(t)) { errors.push(`${tat} 不是对象`); return; }
-        if (typeof t.tagId !== 'string' || t.tagId === '') { errors.push(`${tat}.tagId 缺失或为空`); }
-        else if (seenTags.has(t.tagId)) { errors.push(`${tat}.tagId 重复：${t.tagId}`); }
-        else { seenTags.add(t.tagId); }
+        if (typeof t.id !== 'string' || t.id === '') { errors.push(`${tat}.id 缺失或为空`); }
+        else if (seenTags.has(t.id)) { errors.push(`${tat}.id 重复：${t.id}`); }
+        else { seenTags.add(t.id); }
         if (!isInt(t.orderInTag)) errors.push(`${tat}.orderInTag 不是整数（必填，不可为 null）`);
       });
     }
   });
 
   // 引用闭合（两个方向都查）：
-  //   ① 诗的 tagId 必须在顶层 tags 里声明 —— 否则那条归属无处可显示，等于悄悄丢数据；
+  //   ① 诗的 tags[].id 必须在顶层 tags 里声明 —— 否则那条归属无处可显示，等于悄悄丢数据；
   //   ② members 里的 id 必须指向真实存在的诗 —— 否则标签页会少一行，而且没人知道为什么。
-  const tagIdSet = new Set(declaredTagIds);
+  const declaredTagIdSet = new Set(declaredTagIds);
   doc.poems.forEach((p, i) => {
     for (const t of Array.isArray(p?.tags) ? p.tags : []) {
-      if (isPlainObject(t) && typeof t.tagId === 'string' && t.tagId !== '' && !tagIdSet.has(t.tagId)) {
-        errors.push(`poems[${i}].tags.tagId 未在顶层 tags 中声明：${t.tagId}`);
+      if (isPlainObject(t) && typeof t.id === 'string' && t.id !== '' && !declaredTagIdSet.has(t.id)) {
+        errors.push(`poems[${i}].tags.id 未在顶层 tags 中声明：${t.id}`);
       }
     }
   });

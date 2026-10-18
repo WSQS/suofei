@@ -93,7 +93,7 @@ export const resourceCacheName = (appVersion = APP_VERSION, contentRevision = CO
  *      （`dynasty` 单值；`detail`＝一段最小 Markdown 文本；`variants`/`era` 不再发布）。
  *  ⇒ 本壳**只认 2**：低版本内容（老产物）会被如实拒绝（老客户端也会拒绝新内容——这正是升版的代价）。
  *  **2 → 3（用户 2026-10-18 拍板标签数据规则；字段集一变就升，同 1 → 2 的理由）**：
- *    - 每首多一个必填键 `tags: [{ tagId, orderInTag }]`（可为 `[]`；`orderInTag` 是**标签内位置**，必填整数）；
+ *    - 每首多一个必填键 `tags: [{ id, orderInTag }]`（可为 `[]`；`orderInTag` 是**标签内位置**，必填整数）；
  *    - 顶层多一个必填键 `tags: [{ id, members: [poemId…] }]`（`id` 即中文显示名，编译期已按拼音排好；
  *      `members` 已按 `orderInTag` 升序）。⇒ 客户端**一律照产物数组顺序渲染**，标签之间与标签内都不重排。
  *    - 没有 `SortKey` 之类的排序键（客户端不得自己造一个）。

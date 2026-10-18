@@ -439,7 +439,7 @@ function unitTests(baseDoc, variants) {
 
   // 字段集（formatVersion 3）：顶层 dynasties ＝有序中文值数组、顶层 tags ＝有序数组；每首 11 键。
   //    诗页**不得**出现详情文本（反向断言在 §1c）；**详情页必须渲染**（正断言在 §1c-2）。
-  //    `tags` 是 v3 新加的键（`[{ tagId, orderInTag }]`，可为 `[]`——几何诗都没标签也不该编）。
+  //    `tags` 是 v3 新加的键（`[{ id, orderInTag }]`，可为 `[]`——几何诗都没标签也不该编）。
   const KEY_SET = ['id', 'title', 'author', 'dynasty', 'genre', 'source', 'orderInSource', 'detail', 'stanzas', 'notes', 'tags'];
   const keySetOk = baseDoc.poems.every((p) => Object.keys(p).length === KEY_SET.length && KEY_SET.every((k) => k in p));
   check('每首恰好 11 键（id/title/author/dynasty/genre/source/orderInSource/detail/stanzas/notes/tags）', keySetOk,
@@ -592,6 +592,18 @@ function unitTests(baseDoc, variants) {
   const tagFix = makeTagTabFixtureDoc();
   const tagFixValid = validateContent(tagFix);
   check('标签夹具自身通过结构校验（夹具先得是干净的）', tagFixValid.ok, tagFixValid.errors.join(' / ') || 'ok');
+  // 回退路径（若某条支线里 C 线产物还是 v2）：派生出来的 v3 也必须自己合法、且**不编造标签**。
+  const v2Shaped = structuredClone(baseDoc);
+  v2Shaped.formatVersion = 2;
+  delete v2Shaped.tags;
+  for (const p of v2Shaped.poems) delete p.tags;
+  const derivedV3 = toV3TestDoc(v2Shaped);
+  eq('v2 → v3 派生：formatVersion 变 3、TOP tags 是空数组', [derivedV3.formatVersion, derivedV3.tags], [3, []]);
+  eq('v2 → v3 派生：不给任何诗编造标签（每首 tags 都是 []）',
+    derivedV3.poems.every((p) => Array.isArray(p.tags) && p.tags.length === 0), true);
+  check('v2 → v3 派生：派生内容通过结构校验', validateContent(derivedV3).ok, validateContent(derivedV3).errors.join(' / '));
+  check('v2 → v3 派生：明确标成夹具（fixture: true ＋ 可读说明），不会被当成发布内容',
+    derivedV3.fixture === true && /夹具/.test(derivedV3.fixtureNotice ?? ''), dump(derivedV3.fixtureNotice));
   // 独立 oracle：拼音序用 Intl.Collator 现算，**不引用 app 的任何排序函数**。
   const tagCollator = new Intl.Collator(['zh-Hans-CN-u-co-pinyin', 'zh-Hans-CN', 'zh'], {
     numeric: true, sensitivity: 'variant',
@@ -622,12 +634,12 @@ function unitTests(baseDoc, variants) {
   check('缺顶层 tags → 结构校验失败（v3 必填键）', validateContent(noTopTags).ok === false,
     validateContent(noTopTags).errors.join(' / '));
   const nullOrderInTag = structuredClone(tagFix);
-  nullOrderInTag.poems[0].tags = [{ tagId: '测试标签乙', orderInTag: null }];
+  nullOrderInTag.poems[0].tags = [{ id: '测试标签乙', orderInTag: null }];
   check('orderInTag 为 null → 结构校验失败（数据侧口径：必填整数，不可为 null）',
     validateContent(nullOrderInTag).ok === false, validateContent(nullOrderInTag).errors.join(' / '));
   const undeclaredTag = structuredClone(tagFix);
-  undeclaredTag.poems[0].tags = [{ tagId: '没有这个标签', orderInTag: 1 }];
-  check('诗的 tagId 未在顶层 tags 声明 → 结构校验失败（引用闭合①）',
+  undeclaredTag.poems[0].tags = [{ id: '没有这个标签', orderInTag: 1 }];
+  check('诗的 tags[].id 未在顶层 tags 声明 → 结构校验失败（引用闭合①）',
     validateContent(undeclaredTag).ok === false, validateContent(undeclaredTag).errors.join(' / '));
   const danglingMember = structuredClone(tagFix);
   danglingMember.tags[0].members = [...danglingMember.tags[0].members, 'no-such-poem'];
@@ -2313,21 +2325,50 @@ async function main() {
   //   两端一律**照产物排序**。
   section('10 标签 tab：同构 / 无任何数量 / 零成员不渲染 / 逐层返回 / 各 tab 各自状态 / 照产物排序');
 
-  // ---- 10a 真实基座（派生 v3、没有标签）上的标签视图：能深链接、没有组、也没有空态文字 ----
+  // ---- 10a 真实产物上的标签视图（真标签，照产物顺序、无数量） ----
   await hashTo(ROUTES.tags);
   await waitForTagsView();
   eq('标签 tab 有独立路由（可深链接、刷新不丢）', await evaluate('location.hash'), '#/tags');
+  // 真实产物的顶层标签表（编译期已按拼音排好；members 已按 orderInTag 升序）——预期值只取一份。
+  const realTags = (baseDoc.tags ?? []).filter((t) => t.members.length > 0);
+  const realTagOrder = realTags.map((t) => t.id);
   const bareTagsView = await evaluate(`(() => {
     const v = document.querySelector('[data-test="view-index"]');
-    return { groups: v.querySelectorAll('[data-test="tag-group"]').length, counts: v.querySelectorAll('.dynasty-count').length, text: v.innerText };
+    const heads = [...v.querySelectorAll('[data-test="tag-group-title"]')];
+    return {
+      keys: [...v.querySelectorAll('[data-test="tag-group"]')].map((g) => g.dataset.tagId),
+      labels: heads.map((h) => h.querySelector('[data-test="tag-label"]').textContent),
+      expanded: heads.map((h) => h.getAttribute('aria-expanded')),
+      marks: heads.map((h) => h.querySelector('[data-test="group-mark"]').textContent),
+      visibleRows: [...v.querySelectorAll('[data-test="poem-row"]')].filter((r) => r.offsetParent !== null).length,
+      counts: v.querySelectorAll('.dynasty-count').length,
+      text: v.innerText,
+    };
   })()`);
-  eq('基座内容没有任何标签 ⇒ 标签视图一组都没有（不画空组）', bareTagsView.groups, 0);
-  eq('基座标签视图也没有任何数量元素', bareTagsView.counts, 0);
-  check('没有标签时也不出现「还没有标签」这类空态文字',
-    !/还没有|暂无|空态|无标签/.test(bareTagsView.text), dump(bareTagsView.text));
+  check('真实产物里确实有标签（否则下面几条是空的）', realTagOrder.length > 0, dump(realTagOrder));
+  eq('真实内容的标签组顺序 == 产物顶层 tags 数组顺序（页面不重排）', bareTagsView.keys, realTagOrder);
+  eq('组名 = 标签 id 本身（中文 id 即显示名）', bareTagsView.labels, realTagOrder);
+  eq('标签 tab 初态：全部收起、记号都是 [+]、可见诗目 0 行',
+    [bareTagsView.expanded, bareTagsView.marks, bareTagsView.visibleRows],
+    [realTagOrder.map(() => 'false'), realTagOrder.map(() => '[+]'), 0]);
+  eq('标签页没有任何计数元素（组头里没有那一段）', bareTagsView.counts, 0);
+  eq('标签页不出现阿拉伯数字（没有编号/计数）', /\d/.test(bareTagsView.text), false);
+  check('标签页没有「已收录 / 共 N 首」这类计数文字',
+    !/已收录|收录了|共\s*\d|共\s*二十/.test(bareTagsView.text), dump(bareTagsView.text));
   eq('标签 tab 里顶部仍是那两个 tab ＋关于（不是另一套外壳）',
     await evaluate(`[...document.querySelectorAll('[data-test="index-bar"] [role="tab"]')].map(t => t.textContent)`),
     ['朝代', '标签']);
+  await screenshot('18a-tags-tab-real-collapsed.png');
+  // 展开真实标签：行数 == members 数，行序 == members 顺序（产物已排好，客户端不重排）
+  await evaluate(`document.querySelector('[data-test="tag-group-title"]').click(); true`);
+  const realTagRows = await evaluate(`[...document.querySelectorAll('[data-test="tag-group"] [data-test="poem-row"]')].map((r) => r.dataset.poemId)`);
+  eq('真实标签展开后的行顺序 == 产物 members 顺序', realTagRows, realTags[0].members);
+  eq('真实标签展开后行数 == members 数', realTagRows.length, realTags[0].members.length);
+  await screenshot('18b-tags-tab-real-one-open.png');
+  const untaggedPoems = baseDoc.poems.filter((p) => (p.tags ?? []).length === 0).map((p) => p.id);
+  check('真实产物里确实有无标签的诗（否则下一条是空的）', untaggedPoems.length > 0, dump(untaggedPoems));
+  eq('无标签的诗不会出现在标签页里（它们照旧留在朝代页）',
+    untaggedPoems.filter((id) => realTagRows.includes(id)), []);
 
   // ---- 10b 真发一版**带标签的测试夹具**（并切到它） ----
   const tagDoc = makeTagTabFixtureDoc();
