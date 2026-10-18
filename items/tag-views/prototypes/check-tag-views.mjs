@@ -337,6 +337,22 @@ try {
   await sleep(220);
   check('浏览器后退也回到选本视图（同一层级）', (await routeOf()) === '/A/t/gushi-shijiu-shou', await routeOf());
 
+  /* ── 已选：诗页顶部「详情」入口**始终显示**（本条是对原型一处偏离已选之处的更正，防回退）──
+   * 真实库 22 首里 7 首没有 `## 详情`（夹具同样）：它们**仍有详情页**，页上只有「底本与来源」。
+   * 早前原型按「有 detail 才显示入口」实现 = 偷改已选；现已按已选改正。 */
+  await clickSel('.plist .pitem:nth-child(2) .prow');
+  const titleNoDetail = await txt('.p-title');
+  const ctlJoin = await js('Array.prototype.map.call(document.querySelectorAll(".topbar .ctl"),function(e){return e.textContent;}).join("|")');
+  check('无 `## 详情` 的诗，诗页顶部仍有「详情」入口（已选：入口始终显示）', /详情/.test(ctlJoin), titleNoDetail + ' | ' + ctlJoin);
+  const nullInFixture = await js('(function(){var j=JSON.parse(document.querySelector("[data-test=poems-json]").textContent);var t=' + JSON.stringify(titleNoDetail) + ';var p=j.filter(function(x){return x.title===t;})[0];return !!p&&p.detail==null;})()');
+  check('这首诗在夹具里确实没有 detail（7 首之一）', nullInFixture === true, titleNoDetail);
+  await js('Array.prototype.filter.call(document.querySelectorAll(".topbar .ctl"),function(e){return e.textContent==="详情";})[0].click()');
+  await sleep(150);
+  const provText = await js('(document.querySelector(".prov")||{textContent:""}).textContent');
+  check('其详情页可打开：有「底本与来源」，且没有详情正文块（.detail 不存在）',
+    /\/detail$/.test(await routeOf()) && /底本与来源/.test(provText) && !(await js('!!document.querySelector(".detail")')),
+    (await routeOf()) + ' | ' + provText.slice(0, 18));
+
   /* ══ 6 · 候选 B：顶部下拉 ══ */
   section('6 · 候选 B（顶部下拉）：入口与切换');
   await open('B', 'b1');

@@ -808,7 +808,8 @@ a.ctl, button.ctl { background: none; border: 0; padding: 0; cursor: pointer; }
   function renderPoem(mode, poemId) {
     var p = BY_ID[poemId];
     clear(colEl);
-    var right = p && p.detail ? { route: '/' + mode + '/p/' + p.id + '/detail', text: '详情' } : null;
+    /* 已选：诗页顶部的「详情」入口**始终显示**——没有 `## 详情` 但有底本的诗，详情页仍然存在（页上只有「底本与来源」） */
+    var right = p ? { route: '/' + mode + '/p/' + p.id + '/detail', text: '详情' } : null;
     colEl.appendChild(barTopline(right ? [{ back: true }, right] : [{ back: true }]));
     if (!p) { colEl.appendChild(el('p', 'empty', '这首诗不在夹具里。')); return; }
     var head = el('div', 'poem-head');
