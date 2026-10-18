@@ -9,6 +9,11 @@
 - **2026-10-16 第四轮（S1＋S2.1 落地，`formatVersion` 1 → 2，不可逆）**：源格式改成——每首 **10 键**（`id,title,author,dynasty,genre,source,orderInSource,detail,stanzas,notes`）；**`id` 不再写在源里**（由相对路径派生，§1.4）；顶层 `dynasties` 改为**有序中文值数组**；`## 详情`／`## 笔记` 两个节分别承载 `detail`／`notes`；**最小 Markdown 闭集**与四条细则（未知节/重复节报错、空节 `⇒ null` 保键、围栏先跟踪）落地；朝代组名**精确匹配（去掉实现里的 `trim()`）**；码表见 §3.1。
   - ⚠ **本次只到编译/校验/字段**：**两端渲染（S2.2）与 19 首迁移（S3）不在本次范围内**。全文里凡写「两端要改」的都是**代价陈述，不是已完成的工作**；`content/poems/` 里的 19 首在 S3 之前仍是 v1 源，**用新编译器编不过**（过渡期的真实状态，不是缺陷）。
   - ⚠ 被取代的旧写法（`id`／`dynastyOrder`／`era`／`variants`／源里的 `notes`／旧 ASCII `id` 形状）**就地标注**，不再当作可实现路径；旧文保留只为可回溯。
+- **2026-10-18 第五轮（`formatVersion` 2 → 3，不可逆；用户 2026-10-18 定标签数据规则）**：每首新增 `tags[]`（每项 `{id, orderInTag}`），顶层新增**编译期从诗归属汇总**的 `tags[]`（每项 `{id, members}`）。规则见 §2.2：源里**可以不写** `tags` ⇒ 产物 `tags: []`（不是 null）；`orderInTag` **必填、不可省略、不可 null**；标签集合**不手写标签表**（从诗归属自动汇总）；**标签之间**按拼音排、**标签内**按 `orderInTag` 升序；**产物不发布任何 `SortKey`**（拼音名次只在编译期内部）。
+  - **本轮的真实数据范围只有《古诗十九首》19 首**（`orderInTag: 1…19`，依 `docs/sources/gushi-shijiu-shou.md` §5.1 的《文选》卷二十九原次序）。
+  - 《唐诗三百首》里的两首（杜甫《梦李白二首》）**归属有证**（S11＝汉典古籍「蘅塘退士选编《唐诗三百首》」，两首的诗页已取到），但**该版本编次未核**（S11 只取到诗页，没有目录次序证据）；本轮**暂未选「人工编排」**，因此**暂缓**给这两首打真实标签（产物 `tags: []`）。该版本**编次核查在进行中，有据再补**。
+  - 多标签／多组的功能验证用**明确标注的测试夹具**（`tests/fixtures/tags-ok` 等），**不把夹具里的示例次序写进真库**，也不为凑必填而编造事实。
+  - ⚠ **本次只到契约/编译/schema/字段集与 19 首的真实归属**：`web/**`、`android/**` 的内置产物与版本门**不在本次范围内**（它们必须先认 `formatVersion=3` 才能读新产物；`node tools/check-bundled-content.mjs` 此刻会红，这是过渡期的真实状态，不是缺陷）。
 
 ## 1. 源文件：一诗一 Markdown
 
@@ -18,7 +23,7 @@
 
 `id`：**不写在源里**，由「相对 `content/poems/` 的完整相对路径、去 `.md`、`/` 统一写成 `-`」派生（用户 2026-10-16 已定 **C2**）。例：`古诗十九首/行行重行行.md` ⇒ `古诗十九首-行行重行行`。**全局唯一**（判重见 §3.1 `ID_DUPLICATE`）。**直接换、不做兼容**：不做 `legacyId`、不做映射表、不做重定向；旧 ASCII 链接失效是**已接受的代价**。
 
-YAML front matter（`---` 包围）字段（`formatVersion=2`）：
+YAML front matter（`---` 包围）字段（`formatVersion=3`；`tags` 为 2026-10-18 新增）：
 
 | 键 | 必填 | 含义 | 约定 |
 |---|---|---|---|
@@ -28,6 +33,7 @@ YAML front matter（`---` 包围）字段（`formatVersion=2`）：
 | `source` | 是 | 文本所据底本/校录来源 | 必须可核，如 `《文选》卷二十九（维基文库校录，2026-10-14 访问）` |
 | `genre` | 否 | 体裁 | 如 `五言古诗`；可空 |
 | `orderInSource` | 否 | 该诗在底本中的**原次序**（整数，1 起） | 缺失 = 未提供（不是错误）。用途见第 2 节「组内排序策略」 |
+| `tags` | 否 | 所属标签（**归属**） | 缩进列表，每项 `{ id, orderInTag }`：`id` 是**标签的中文 id（就是显示名）**；`orderInTag` 是**该标签内的位置**（≥ 1 的整数，**必填、不可 null**）。**不写或写 `[]` ⇒ 产物 `tags: []`**。规则与诊断见 §2.2 |
 
 **已从源格式去掉的键**（就地替代，出现即报错、**不静默转换**）：
 
@@ -123,10 +129,13 @@ v0 定了产物里有 `dynastyKey`，但没定它从哪来。定死如下（实�
 
 ```json
 {
-  "formatVersion": 2,
+  "formatVersion": 3,
   "contentVersion": "2026.10.14.1",
   "generatedAt": "2026-10-14T12:00:00Z",
   "dynasties": ["汉"],
+  "tags": [
+    { "id": "古诗十九首", "members": ["古诗十九首-行行重行行"] }
+  ],
   "poems": [
     {
       "id": "古诗十九首-行行重行行",
@@ -138,15 +147,17 @@ v0 定了产物里有 `dynastyKey`，但没定它从哪来。定死如下（实�
       "orderInSource": 1,
       "detail": "### 异文\n\n- **游子不顾返** —— …",
       "stanzas": [["行行重行行，与君生别离。", "…"], ["…"]],
-      "notes": null
+      "notes": null,
+      "tags": [{ "id": "古诗十九首", "orderInTag": 1 }]
     }
   ]
 }
 ```
 
-> ⚠ 上面是 **`formatVersion=2`** 的形状（2026-10-16）。v1 的旧形状（`dynastyKey`/`dynastyLabel`/`dynastyOrder`/`era`/`variants`、顶层 `dynasties: [{key,label,order}]`）**已作废**；旧文见 `items/content-format/history/` 与 `schema/format-version.json` 的 v1 记录（**旧条保留**：它记录着老客户端认得的形状）。
+> ⚠ 上面是 **`formatVersion=3`** 的形状（2026-10-18）。v2 的形状（无 `tags`）与 v1 的旧形状（`dynastyKey`/`dynastyLabel`/`dynastyOrder`/`era`/`variants`、顶层 `dynasties: [{key,label,order}]`）**已作废**；旧文见 `items/content-format/history/` 与 `schema/format-version.json` 的 v1／v2 记录（**旧条保留**：它们记录着老客户端认得的形状）。
 
 - `dynasties`：**有序中文值数组**（用户 2026-10-15 已定 ①）。**只列实际有内容的组**，次序即显示次序（注册表 order 升序）；每首诗的 `dynasty` 必须逐字等于其中一个值。**分组权威就是它**（不再有每首自带的 key/label/order）。
+- `tags`：**有序标签表**，由编译期从诗的 `tags` 归属**自动汇总**（用户 2026-10-18 定，**不手写标签表**）。每项 `{ id, members }`：`id` 是标签的中文 id（即显示名），`members` 是该标签下 `poemId` 的数组、**按诗的 `orderInTag` 升序**。**标签之间的次序**是拼音序，由编译期算好（**不发布 SortKey**）。规则见 §2.2。
 - `stanzas`：分段数组，内层为行数组；空行→段边界。原文空行信息不得丢失。**正文不走 Markdown**。
 - `detail` / `notes`：`null` 或**最小 Markdown 文本**（§1.0）；`notes` 客户端按需展开、默认折叠；`null` 时整块不出现。
 - 排序：组内先按作者、再按诗名。排序键由编译期算好写入（`authorSortKey`/`titleSortKey` 用拼音排序：`Intl.Collator('zh-Hans-CN-u-co-pinyin')`）。**佚名/未知作者在该组内排最后**，这是显式规则，不靠字符串碰巧。
@@ -157,9 +168,11 @@ v0 定了产物里有 `dynastyKey`，但没定它从哪来。定死如下（实�
 
 上面那段 JSON 是**示意图**（省略了 `orderInSource`）。规范的键与键序如下，编译产物按此固定插入顺序输出（字节可复现、diff 稳定）：
 
-- 顶层：`formatVersion`、`contentVersion`、`generatedAt`、`dynasties`、`poems`；
+- 顶层：`formatVersion`、`contentVersion`、`generatedAt`、`dynasties`、`tags`、`poems`；
 - ~~分组：`key`、`label`、`order`；~~ ⚠ **2026-10-16 作废**：顶层 `dynasties` 现在是**字符串数组**（每项一个中文组名），没有对象键；
-- 每首诗：`id`、`title`、`author`、`dynasty`、`genre`、`source`、`orderInSource`、`detail`、`stanzas`、`notes`（**10 键**；~~`id`、`title`、`author`、`dynastyKey`、`dynastyLabel`、`dynastyOrder`、`era`、`genre`、`source`、`orderInSource`、`variants`、`stanzas`、`notes` 十三个键~~ 已作废）；
+- 每首诗：`id`、`title`、`author`、`dynasty`、`genre`、`source`、`orderInSource`、`detail`、`stanzas`、`notes`、`tags`（**11 键**；`tags` 2026-10-18 追加在末尾，其余 10 键的相对次序不变；~~`id`、`title`、`author`、`dynastyKey`、`dynastyLabel`、`dynastyOrder`、`era`、`genre`、`source`、`orderInSource`、`variants`、`stanzas`、`notes` 十三个键~~ 已作废）；
+- 标签索引：`id`、`members`（顶层 `tags[]` 每项两键；`members` 是 `poemId` 的**有序**数组）；
+- 诗侧标签：`id`、`orderInTag`（每项两键，**没有第三个键**；不发布任何排序键）；
 - ~~异文：`text`、`note`。~~ ⚠ **2026-10-16 作废**：`variants` 已删，考据文本整段进 `detail`。
 
 **每首诗没有也不应有任何排序字段**：含 `orderInSource` 的产物**不必**再提供排序字段——排序是编译期算出来的**数组性质**，不是每首诗的数据属性。后人看到诗对象里没有排序字段，不要以为漏了。
@@ -199,6 +212,34 @@ v0 定了产物里有 `dynastyKey`，但没定它从哪来。定死如下（实�
 - 编译器侧的做法：**直接读该文件**（`tools/lib/interface.mjs` 不再内置第二份常量），文件缺失/形状非法时**直接报错、不静默回退**——回退到内置列表恰好就是当初的问题本身。这样编译器侧的漂移在结构上不可能发生。
 - `阙名` 已并入（用户 2026-10-14 拍板）：现有《古诗十九首》19 首作者都是「佚名」，因此这次并入**对当前内容无可见影响**（已实跑验证：产物除 `contentVersion`/`generatedAt` 外逐字不变）。
 
+### 2.2 标签：归属写在诗上，标签表由编译期汇总（`formatVersion=3`，用户 2026-10-18 定）
+
+**源侧（诗上写归属）**：
+
+```yaml
+tags:
+  - id: 古诗十九首       # 标签的中文 id ＝ 显示名（不另存 name/qualifier/aliases）
+    orderInTag: 1        # 该标签内的位置：≥ 1 的整数，**必填、不可省略、不可 null**
+```
+
+- **不写 `tags`（或写 `tags: []`）⇒ 产物 `tags: []`**，不是 `null`。客户端不用判 undefined。
+- 一首诗可以在多个标签里（多个列表项）；标签在诗上的先后＝源里书写次序，**产物照抄、不重排**。
+- 同一首诗同一个标签 `id` 只能出现一次（`TAG_DUPLICATE_ID`）——留两项互相矛盾的 `orderInTag` 是最坏的形状。
+- 源里**没有**「标签定义表」：标签集合、成员与次序都由编译期从归属汇总。
+
+**产物侧（两件事必须分开）**：
+
+| | 排序依据 | 谁算 |
+|---|---|---|
+| **标签之间**（顶层 `tags[]` 的数组次序） | 中文拼音 `Intl.Collator('zh-Hans-CN-u-co-pinyin')`；collator 判等（如同一个字的 NFC/NFD 两种编码）时按 **id 的码点序**稳定兜底 | 编译期一次算好，**写进数组次序** |
+| **标签内**（`tags[].members` 的数组次序） | 诗的 `orderInTag` **升序** | 编译期一次算好，**写进数组次序** |
+
+- **`orderInTag` 的语义＝该标签内的位置**，**不是**「必须等于某个选本的编次」，也不是 `orderInSource`（后者是底本原次序）。只有当某标签**声称**「按某选本的编次」时，那个次序才必须核到真实值；拿不到就不打真实标签（本轮《唐诗三百首》即如此：**归属有证（S11）、该版本编次未核**，编次核查在进行中），**不得用人工序号假装成选本编次**。
+- 主题类／人工整理的标签将来**可以只有人工排序**（本期不扩未选专题）。
+- **同一标签内同序 ⇒ `TAG_ORDER_DUP` 报错**（不默默用 id 排序次）。不同标签之间相同的 `orderInTag` 互不相干。
+- **不发布任何 `SortKey`**：与「客户端不得重排」同一条口径 —— 两端**照产物数组次序渲染标签组与成员**，不得自行用 collator 或 `orderInTag` 重排（两端各自重排会导致两端次序不一致）。
+- 顶层 `tags[]` 与诗侧 `tags[]` 必须描述**同一组归属**：编译期生成后做**双向互查**（这不是 JSON 本身能保证的）。
+
 ## 3. 校验（编译必须失败的情形）
 
 > ⚠ **2026-10-16（`formatVersion=2`）就地取代**：下面旧五条已重写（旧文保留为可回溯）：
@@ -209,7 +250,7 @@ v0 定了产物里有 `dynastyKey`，但没定它从哪来。定死如下（实�
 > ~~4. `dynastyKey` 未在 `dynasties` 中声明；~~ → `dynasty` 不等于注册表任何中文组名 ⇒ `DYNASTY_UNDECLARED`；
 > ~~5. 同一诗内 `stanzas` 全空。~~ → 已并入 `BODY_EMPTY`（`STANZAS_ALL_EMPTY` 作废）。
 
-`formatVersion=2` 的校验清单：
+`formatVersion=3` 的校验清单：
 
 1. front matter 缺必填键、类型不对、或出现未声明/已删键；
 2. `dynasty` 不是注册表里的中文组名（精确匹配）；
@@ -217,11 +258,12 @@ v0 定了产物里有 `dynastyKey`，但没定它从哪来。定死如下（实�
 4. `orderInSource` 写了但不是 ≥ 1 的整数；
 5. 节层面的错误（未知节／重复节）与 Markdown 越界（§1.0）；
 6. 按相对路径派生的 `id` 撞车；
-7. 内容根里的非 `.md` 文件／符号链接（扫描阶段）。
+7. 内容根里的非 `.md` 文件／符号链接（扫描阶段）；
+8. 标签：`tags` 形状不合契约、缺 `orderInTag`（`TAG_ORDER_REQUIRED`）、同一标签内同序（`TAG_ORDER_DUP`）、同一首诗重复同一标签（`TAG_DUPLICATE_ID`）——**均为非零退出**，不静默修补。
 
 校验失败时编译以非零退出码失败，不产出半成品 `content.json`。
 
-### 3.1 错误码与判定细节（契约线 C；下表已在 2026-10-16 披成 `formatVersion=2`）
+### 3.1 错误码与判定细节（契约线 C；下表已在 2026-10-16 披成 `formatVersion=2`，2026-10-18 补上标签四码）
 
 每条校验对应一个稳定错误码（测试与流水线按它断言）。编译**一次报出全部错误**，不是只报第一条。诊断格式：`<file>:<line>: [CODE] message`（无文件位置的用 `<cli>`），且 message 里必须能看出**原因与建议动作**（不可见字符要写成 `\uXXXX` 转义）。
 
@@ -238,6 +280,10 @@ v0 定了产物里有 `dynastyKey`，但没定它从哪来。定死如下（实�
 | `FIELD_TYPE` | `title`/`author`/`dynasty`/`source` 非字符串，或 `genre` 不是字符串/空 |
 | `DYNASTY_UNDECLARED` | `dynasty` 不等于注册表任何中文 label（列出全部可用组名；不做别名/繁简折叠；只差首尾空白或 NFC 时给出归一后的写法） |
 | `ORDER_IN_SOURCE_NOT_INTEGER` | `orderInSource` 写了但不是 ≥ 1 的整数（不写不报错） |
+| `TAG_SHAPE` | `tags` 不是缩进列表，或项不是 `{id, orderInTag}` 对象，或项里出现声明外的键（`name`/`qualifier`/`aliases`…），或 `id` 不是非空且首尾无空白的字符串（**不 trim、不折叠别名**） |
+| `TAG_ORDER_REQUIRED` | `tags` 某项的 `orderInTag` **缺失／为 null／不是 ≥ 1 的整数**（用户 2026-10-18 定：必填，不再“缺序后置”） |
+| `TAG_ORDER_DUP` | **同一标签内**两首及以上的诗用了同一个 `orderInTag`（不同标签之间不算），诊断里列出冲突的 `poemId` |
+| `TAG_DUPLICATE_ID` | **同一首诗**里同一个标签 `id` 出现 ≥ 2 次 |
 | `BODY_EMPTY` | 正文区（front matter 之后、第一个 `## ` 之前）没有任何非空行 |
 | `UNKNOWN_SECTION` | `## <名字>` 不在 `{详情, 笔记}` 里（列出本文件已出现的已知节与行号） |
 | `DUPLICATE_SECTION` | 同一节名出现 ≥ 2 次（诊断落在**第二次**出现的那一行，并列出全部行号） |
@@ -305,6 +351,9 @@ v0 默认的「字典序比较」换成两条明确路径（字典序在 `2026.1
   - ⚠️ **仍未定：发布之后的判据**。等真正发布过第一个版本之后，再改字段集时用哪种口径？候选：① **只在「旧客户端会读错」时才升**（推荐：对应用户实际受到的影响）；② **字段集一变就升**（严格，但每次删字段都会冻结已发布的旧客户端——旧 APK 将拒绝新内容，用户需装新 APK 才能拿到）。**该口径在进入发布阶段前必须定，已在 `docs/status.md` 待决清单里登记。**
   - 升版的真实代价（供上一条参考）：一次 `formatVersion` 递增 + 旧客户端拒绝解析新内容 ⇒ **旧 APK 停止拿到内容更新**（Android 需发新 APK）。
   - ⚠️ **上面那个「仍未定」已在 2026-10-15 定了＝B「字段集一变就升」**（用户拍板，代价不可逆、用户明确接受）⇒ **不要再列为待定**。
+- **`2 → 3`（2026-10-18，标签落地）**：新增 `poems[].tags[]`（`{id, orderInTag}`）与顶层 `tags[]`（`{id, members}`）⇒ 字段路径 **19 → 28** 条（**只增不删**，与 v2 相比多出 9 条：`poems[].tags`、`poems[].tags[]`、`poems[].tags[].id`、`poems[].tags[].orderInTag`、`tags`、`tags[]`、`tags[].id`、`tags[].members`、`tags[].members[]`）。
+  - 口径与门不变（`tools/lib/field-set.mjs` / `tools/check-fieldset.mjs` / `schema/format-version.json`，**旧条保留**）。形状夹具从 `tests/fixtures/shape-v2/content` 换成 **`tests/fixtures/shape-v3/content`**（列全 11 键，且至少一首带标签——否则 `tags[].id`/`tags[].members` 这几条路径会因空数组而不出现，形状就漏了）。
+  - 代价（不可逆）：认 `formatVersion=2` 的旧 APK 会拒收 v3 内容并保留现有快照，需装新 APK 才能拿到新内容。
 - **`1 → 2`（2026-10-16，S1＋S2.1 落地）**：每首从 13 键变 **10 键**（`dynastyKey`/`dynastyLabel`/`dynastyOrder`/`era`/`variants` 消失，新增 `dynasty`/`detail`），顶层 `dynasties` 从对象数组变**字符串数组**（`dynasties[].key/label/order` 三条路径消失，变成 `dynasties[]`）⇒ 字段路径 **28 → 19** 条。
   - 口径与实现：**产物 JSON 的键路径**（`tools/lib/field-set.mjs`）；门＝`tools/check-fieldset.mjs` ＋ 冻结记录 `schema/format-version.json`（**旧条保留**：它记录着老客户端认得的形状）；断言在 `tests/format-version.test.mjs`。
   - ⚠ **过渡期**：S2 落地时 `content/poems/` 还是 v1 源、编不过 ⇒ 字段集门默认编译 `tests/fixtures/shape-v2/content`（形状夹具）；S3 迁移后可 `--content content` 回到真实内容。
@@ -319,8 +368,8 @@ v0 默认的「字典序比较」换成两条明确路径（字典序在 `2026.1
 | 文件 | 作用 |
 |---|---|
 | `schema/unknown-authors.json` | **匿名作者清单的唯一机器可读来源**（编译器直接读它；Android/Web 必须与它一致，见 §2.1.1） |
-| `schema/content.schema.json` | `dist/content.json` 的 JSON Schema（第 2 节结构的机器可校验形式，随 `formatVersion=2`） |
-| `schema/format-version.json` | `formatVersion` 的字段集冻结记录（v1 与 v2 两条） |
+| `schema/content.schema.json` | `dist/content.json` 的 JSON Schema（第 2 节结构的机器可校验形式，随 `formatVersion=3`） |
+| `schema/format-version.json` | `formatVersion` 的字段集冻结记录（v1 与 v2 与 v3 三条；**旧条保留**） |
 | `tools/build-content.mjs` | 编译器 CLI |
 | `tools/lib/interface.mjs` | **接口唯一定义处**：产物键序/字段集、front matter 字段集、节名、id 正面约束、路径与 CLI 默认值、退出码、排序策略 |
 | `tools/lib/scan.mjs` | 内容根扫描：递归、排除并计数、按相对路径派生 id、符号链接报错 |
