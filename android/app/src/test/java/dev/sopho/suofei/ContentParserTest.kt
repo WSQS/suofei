@@ -187,6 +187,18 @@ class ContentParserTest {
             "唐诗三百首展开后顺序为 望岳 → 其一 → 其二",
             listOf("望岳", "梦李白二首·其一", "梦李白二首·其二"), tangGroup.poems.map { it.title },
         )
+        // ⚠ 2026-10-19（用户决定：三首 `orderInSource` 改为 1/2/3）：**两个视图必须表达同一相对次序**。
+        //   改前望岳不写该键（产物 `null`）⇒ 朝代页把它排到两首《梦李白》之后，同一批诗在两视图里**次序相反**。
+        //   期望值**从标签组反推**（不写一个标题字），所以它钉的是「两视图一致」这件事本身。
+        val tangDynasty = content.groups.first { it.name == "唐" }
+        assertEquals(
+            "朝代页「唐」组次序 == 标签页「唐诗三百首」标签内次序（2026-10-19 起的口径）",
+            tangGroup.poems.map { it.title }, tangDynasty.poems.map { it.title },
+        )
+        assertEquals(
+            "「唐」组三首的 orderInSource = 1..N（本库按已核底本相对先后，不称《全唐诗》全书编号）",
+            (1..tangDynasty.poems.size).toList(), tangDynasty.poems.map { it.orderInSource },
+        )
         assertEquals("标签页的组数 == 2（两个组头）", 2, content.tagGroups.size)
         // 毛诗仍没有标签
         val mao = content.poems.filter { it.author == "毛泽东" }
