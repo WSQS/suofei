@@ -1,0 +1,24 @@
+{
+  "old": {
+    "version": "2026.10.17.1",
+    "bytes": 26081,
+    "sha256": "30e86693ea60fa97492c85de97e80853308bad5ec173d2d165e83b3a96de2856"
+  },
+  "new": {
+    "version": "2026.10.18.2",
+    "bytes": 27926,
+    "sha256": "624a2405cc209ee2869606f1bc7a9cb7cbd943d11a000d4a324cfcb6157eb781"
+  },
+  "badSha": {
+    "version": "2026.10.18.3",
+    "bytes": 27926,
+    "sha256": "cef50d4af14fe9ed039f93d1f1a5f82af13697ee3f1a68917f72db859e56a037"
+  },
+  "truncated": {
+    "version": "2026.10.18.4",
+    "bytes": 20000,
+    "sha256": "8783de9e13ef3bc7411ea020f04aaadd3988a4e3dd501fc41edbdae52995c332"
+  },
+  "baseNewSha": "2c4f84e9dac450d695eb9fa587548eea17e95703168526cdce15180849cebfdd",
+  "baseOldSha": "eb4f28b91b91cb9d190187d7d703bea8adabf25ea393df54297ff90f2dc26d8a"
+}

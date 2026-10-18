@@ -1,0 +1,59 @@
+环境观察与收尾复原（2026-10-18；本文件是注记，不进入验收判定）
+==============================================================================
+
+§1 模拟器负载与首启动耗时（环境观察）
+  · 判定不看它：本轮通过/不通过只由「服务端日志的真实请求 + versions/current + 关于页 contentVersion + 断网冷启可读」决定。
+  · 旧 APK 首启动（装包后第一次冷启）：logcat
+      `ActivityTaskManager: Displayed dev.sopho.suofei/.MainActivity for user 0: +28s905ms`
+    同时刻 `dumpsys cpuinfo` 里 composer3 96% kernel / surfaceflinger 75% kernel，`cat /proc/loadavg` = 11.48；
+    首启期间出现过一次系统 ANR 对话框：
+      `ANR in dev.sopho.suofei (dev.sopho.suofei/.MainActivity) Reason: Input dispatching timed out
+       (... Waited 5010ms for FocusEvent(hasFocus=false))`
+    点「等待」后目录页/关于页均正常，之后各步交互正常 ⇒ 记为**模拟器负载/首启 JIT 造成的环境事件**，未改任何 app 代码。
+  · 新 APK 首启动（覆盖安装后第一次冷启）：`Displayed dev.sopho.suofei/.MainActivity for user 0: +40s965ms`（同样只记录）。
+  · 全程多次量到 load average 5–33（宿主 CPU 仅 ~27%），内核态占比高（composer/surfaceflinger），
+    属**该模拟器实例自身**的状态，不是被测 app 的渲染指标。
+
+§2 一次失败的「降载」尝试与恢复手段（如实记）
+  1. `adb -s emulator-5556 reboot`（19:04 发起，19:08 `sys.boot_completed=1`，启动约 4 分钟）。
+  2. 重启后出现**异常状态**：`screencap` 连续 9 次返回**全黑**（PNG 恒为 15580 字节）、
+     app 窗口报告 `关于` 在 `[843,0][969,118]`（状态栏 insets 未生效），点 tab 不生效；
+     logcat 显示 SystemUI 直到 19:13:07 才起。
+  3. 处置：`adb -s emulator-5556 emu kill` 关掉该实例，再用**同一个 AVD** 冷启
+     `emulator.exe -avd Pixel_6 -no-boot-anim -no-snapshot`（`ANDROID_AVD_HOME=C:/Users/wsqsy/.android/avd`）。
+     重启后 `sys.boot_completed=1` 约 40 秒达成，load average 立刻降到 2.23，`screencap` 恢复正常 ⇒ 之后全部证据在此状态取得。
+  · 只碰 `emulator-5556`；`emulator-5554`（PD2364/V2364A）、`YOCTO`、`127.0.0.1:7776` 全程未动。
+  · 全黑帧与读取失败的 dump **没有**混进证据目录（`shots/` 里那几张已淘汰，未复制）。
+
+§3 为验收临时改过的设备设置（**已全部复原**）
+  | 改动 | 值 | 复原 |
+  |---|---|---|
+  | `settings put global hide_error_dialogs` | 1（避免 ANR 对话框挡住取证） | 已 `settings delete` ⇒ 现值 **null**（原本就是 null） |
+  | `window_animation_scale` / `transition_animation_scale` | 0 | 已写回 **1.0 / 1.0**（原值） |
+  | `animator_duration_scale` | 未改 | 现值 **null**（原值） |
+  | `/sdcard/w.xml`（uiautomator dump） | 临时文件 | 已 `rm -f` |
+
+§4 收尾实测（本文件写作前刚查）
+  app-packages=0                       ← 测试包已卸载（`adb -s emulator-5556 uninstall dev.sopho.suofei` → Success）
+  airplane=0                           ← 飞行模式已关
+  Wi-Fi is enabled                     ← 无线已恢复
+  ping 10.0.2.2 → 1 packets transmitted, 1 received, 0% packet loss
+  hide_error_dialogs=null / window_anim=1.0 / transition_anim=1.0 / animator_scale=null
+  ls /sdcard/w.xml → No such file or directory
+  load average = 0.18 1.41 1.17        ← 设备已空闲
+
+§5 本机测试服务已停
+  进程按**精确 pid** 杀掉（先 `Get-CimInstance Win32_Process -Filter "ProcessId=60880"` 核对
+  `CommandLine = "…node.exe" server.mjs 18765 127.0.0.1`，再 `taskkill /F /PID 60880`）
+  → `SUCCESS: The process with PID 60880 has been terminated.`
+  → `netstat -ano | grep 18765` 命中 **0** 条；`curl http://127.0.0.1:18765/…` 无响应（000）。
+
+§6 主树三份产物未被本轮改动（只读核过，没写过）
+  2c4f84e9dac450d695eb9fa587548eea17e95703168526cdce15180849cebfdd *dist/content.json
+  2c4f84e9dac450d695eb9fa587548eea17e95703168526cdce15180849cebfdd *web/content.json
+  2c4f84e9dac450d695eb9fa587548eea17e95703168526cdce15180849cebfdd *android/app/src/main/assets/content/content.json
+  （主树 `git status` 里只有别人原有的 `M CONTEXT.md` / `M items/*.md` 与未跟踪的 `docs/reviews/content-drafts/`，我没有触碰。）
+
+§7 本工作树（wt/2-12-dist-web-content-json-a-234f4711）的改动面
+  `git status --short` 只有一项：`?? docs/reviews/device-acceptance/tag2-hot/`
+  ⇒ **零代码提交**；两个 APK 构建时的两处测试补丁（BASE_URL / usesCleartextTraffic）构建后已 `git checkout --` 复原。
