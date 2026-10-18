@@ -161,15 +161,41 @@ function afterViewChange() {
     const mem = listScroll[kind];
     if (!mem.restore) { window.scrollTo(0, 0); return; }
     mem.restore = false;
-    const y = mem.y;
-    // 等新目录完成布局再滚，否则位置会被上一次的布局带偏。
-    // ⚠ 2026-10-16 修：原来只等**一帧**；当时页脚诊断面板的 DOM 写入恰好把布局顶完，所以看起来是对的。
-    //   面板移除后，短目录在第一个 rAF 里**还没完成布局** ⇒ `scrollTo(0, y)` 被夹到 0，
-    //   表现为「从诗页返回目录不恢复位置」（e2e 实测：捕获 373、回来却 0）。⇒ 等**两帧**，第二帧布局已定。
-    requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, y)));
+    restoreScrollPosition(mem.y);
     return;
   }
   window.scrollTo(0, 0);
+}
+
+/** 把目录滚回 y。
+ *  为什么要重试：`hashchange` 里 DOM 已经换好，但**布局高度未必已经定**（短目录/字体度量变化会让
+ *  `scrollTo` 被夹到更小的值）。2026-10-16 的做法是「等两帧 rAF 再滚」，原因是当时页脚诊断面板
+ *  的 DOM 写入恰好把布局顶完。
+ *
+ *  ⚠ 2026-10-18（IF-45 复查）：只等 rAF **有第二种失败模式** —— rAF 在页面不可见/被渲染节流时
+ *  **可以一整帧都不投递**，那时「返回目录」就**静默不恢复**（实测：把 rAF 冻掉后 3/3 次回来都是
+ *  scrollY=0，且没有任何报错）。所以改成三件事，全部封顶：
+ *    ① 先**同步**试一次（`scrollTo` 会强制布局，通常这一下就成了）；
+ *    ② 没成就跟几帧 rAF（最多 8 帧）——布局还在长的时候靠它；
+ *    ③ 再加**一个短定时器兜底**（150ms）——rAF 一帧不来时靠它，用户不会永远停错位置。
+ */
+function restoreScrollPosition(y) {
+  const kind = state.view.kind;
+  const apply = () => {
+    // 已经切走了（用户又点了别的）就不要再滚 —— 别把诗页/详情页拽回目录的高度。
+    if (state.view.kind !== kind) return true;
+    window.scrollTo(0, y);
+    return Math.abs((window.scrollY || 0) - y) <= 1;
+  };
+  if (apply()) return;
+  let frames = 0;
+  const tick = () => {
+    frames += 1;
+    if (apply() || frames >= 8) return;
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+  setTimeout(apply, 150);
 }
 
 function navigate(hash) {
@@ -600,6 +626,8 @@ window.__app = {
       /** 进入下锼页之前的目录视图（'index' 朝代 / 'tags' 标签）—— 诗页「返回」回它。 */
       lastListKind,
       expanded: { index: [...expandedByKind.index], tags: [...expandedByKind.tags] },
+      /** 目录滚动位置的记忆（诊断用）：能区分「离开时没记住」与「回来时没恢复」。 */
+      listScroll: { index: { ...listScroll.index }, tags: { ...listScroll.tags } },
       online: state.online,
       sw: {
         supported: state.sw.supported,
