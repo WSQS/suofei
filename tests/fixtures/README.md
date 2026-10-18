@@ -5,7 +5,8 @@
 正文是占位行。
 
 > ⚠ **2026-10-16 起 fixture 是 `formatVersion=2` 源格式**：`id` 不写（由相对路径派生）、单一中文
-> `dynasty`、考据进 `## 详情`、笔记进 `## 笔记`。旧格式的四个 dir（`fail-id-mismatch`、
+> `dynasty`、考据进 `## 详情`、笔记进 `## 笔记`。**2026-10-18 起（`formatVersion=3`）多一个可选
+> `tags`（`{id, orderInTag}`）**——不写就是 `tags: []`。旧格式的四个 dir（`fail-id-mismatch`、
 > `fail-id-duplicate`、`fail-dynasty-order-not-integer`、`fail-variant-invalid`、
 > `fail-stanzas-all-empty`）已删：它们在 v2 下**不再非法**（`id`/`dynastyOrder`/`variants` 三个键整个
 > 被去掉，`STANZAS_ALL_EMPTY` 并入 `BODY_EMPTY`）。删掉的非法形状改由下面两组覆盖。
@@ -17,7 +18,13 @@
 - `ok-order-source`：`orderInSource`（底本原次序）与 `--order source|pinyin` 两种策略的对比。
 - `ok-notes-variants`：`## 笔记` 进 `notes`（保留换行）、`## 详情` 进 `detail`、缺省键写 `null`。
 - `ok-shi19-order`：19 首真实诗题 ＋《文选》卷二十九原次序（排序策略的固化证据）。
-- `shape-v2`：**字段集形状夹具**（列全 10 键；`tools/check-fieldset.mjs` 默认编译它）。
+- `shape-v2`：旧字段集形状夹具（列全 10 键、无标签）；保留作无标签内容的输入。
+- `shape-v3`：**当前字段集形状夹具**（列全 11 键，且**至少一首带标签**——否则 `tags[].id`／
+  `tags[].members` 这几条路径会因空数组而不出现；`tools/check-fieldset.mjs` 默认编译它）。
+- `tags-ok`：**多标签/多组**合法夹具（一首诗两个标签、同一标签多首诗、标签之间按拼音古<宋<唐、
+  members 按 `orderInTag`）。⚠ 里面的 `orderInTag`（2/9 等）全是**测试样例**，**不得**当作任何选本的编次引用。
+- `tags-order-required`：缺 `orderInTag` ⇒ `TAG_ORDER_REQUIRED`（非零退出）。
+- `tags-order-dup`：同一标签内两首诗同一个 `orderInTag` ⇒ `TAG_ORDER_DUP`（非零退出，不用 id 兜底）。
 - `fail-empty-body` / `fail-missing-key` / `fail-unknown-key` / `fail-unknown-dynasty` /
   `fail-order-not-integer`：单条校验失败用例。
 - `fail-non-markdown`：内容根里的非 `.md` 文件 ⇒ `SOURCE_NOT_MARKDOWN`。

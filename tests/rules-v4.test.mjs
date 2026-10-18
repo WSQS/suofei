@@ -46,12 +46,12 @@ test('合法样例：真实进程 --check 全部 EXIT 0', () => {
   }
 });
 
-test('合法样例：每首 10 键、键序固定、详情/笔记按节取；顶层 dynasties 是中文值数组', () => {
+test('合法样例：每首 11 键、键序固定、详情/笔记按节取；顶层 dynasties 是中文值数组', () => {
   for (const name of LEGAL) {
     const { errors, content } = compile(name);
     assert.deepEqual(errors, [], `${name} 不应有诊断`);
-    assert.equal(content.formatVersion, 2);
-    assert.deepEqual(Object.keys(content), ['formatVersion', 'contentVersion', 'generatedAt', 'dynasties', 'poems']);
+    assert.equal(content.formatVersion, 3);
+    assert.deepEqual(Object.keys(content), ['formatVersion', 'contentVersion', 'generatedAt', 'dynasties', 'tags', 'poems']);
     for (const p of content.poems) {
       assert.deepEqual(Object.keys(p), [...POEM_KEYS], `${name}/${p.id} 键序`);
       assert.equal('variants' in p, false);

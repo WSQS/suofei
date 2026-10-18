@@ -21,8 +21,10 @@ import {
   KNOWN_SECTIONS,
   OPTIONAL_FRONT_MATTER_KEYS,
   POEM_KEYS,
+  POEM_TAG_KEYS,
   REMOVED_FRONT_MATTER_KEYS,
   REQUIRED_FRONT_MATTER_KEYS,
+  TAG_INDEX_KEYS,
   UNKNOWN_AUTHOR_MARKERS,
   UNKNOWN_AUTHORS_RELATIVE_PATH,
 } from '../tools/lib/interface.mjs';
@@ -101,6 +103,29 @@ test('front matter 键集：必填 + 可选 = 允许的全部；产物字段可�
   // 旧字段必须**不在**允许集合里（REMOVED 只用于报错，不是允许）
   for (const key of [...REMOVED_FRONT_MATTER_KEYS, 'id']) {
     assert.equal(ALL_FRONT_MATTER_KEYS.includes(key), false, `${key} 旧键不得再被允许`);
+  }
+});
+
+test('schema：标签的两个键集/键序 = interface.mjs（诗侧 {id,orderInTag}；顶层 {id,members}）', () => {
+  const poemTags = schema.properties.poems.items.properties.tags;
+  assert.deepEqual(poemTags.items.required, [...POEM_TAG_KEYS]);
+  assert.deepEqual(Object.keys(poemTags.items.properties), [...POEM_TAG_KEYS]);
+  assert.equal(poemTags.items.additionalProperties, false);
+  // orderInTag 必填、不可 null：JSON Schema 里只能是 integer（不许 ["integer","null"]）
+  assert.equal(poemTags.items.properties.orderInTag.type, 'integer');
+  assert.equal(poemTags.items.properties.orderInTag.minimum, 1);
+  assert.deepEqual(poemTags.items.required.includes('orderInTag'), true);
+
+  const indexTags = schema.properties.tags;
+  assert.deepEqual(indexTags.items.required, [...TAG_INDEX_KEYS]);
+  assert.deepEqual(Object.keys(indexTags.items.properties), [...TAG_INDEX_KEYS]);
+  assert.equal(indexTags.items.additionalProperties, false);
+  assert.equal(indexTags.minItems, undefined, '没有标签时顶层 tags 就是 []（不是缺失）');
+  assert.deepEqual([...POEM_TAG_KEYS], ['id', 'orderInTag']);
+  assert.deepEqual([...TAG_INDEX_KEYS], ['id', 'members']);
+  // 不发布任何「标签排序键」：两个键集里没有 SortKey 类字段
+  for (const keys of [POEM_TAG_KEYS, TAG_INDEX_KEYS]) {
+    assert.equal(keys.some((k) => /sort|key$/i.test(k)), false, `标签条目不应带排序键：${JSON.stringify(keys)}`);
   }
 });
 

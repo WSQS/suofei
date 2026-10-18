@@ -38,9 +38,12 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-/** 参与比对的「内容本身」：分组声明 + 每首诗（含次序、详情、正文分段）。版本/时间戳不参与。 */
+/** 参与比对的「内容本身」：分组声明 + 标签表 + 每首诗（含次序、详情、正文分段、标签归属）。
+ * 顶层 tags 虽由诗归属派生，但它是客户端直接读的一份**次序**（标签之间与 members 次序）⇒ 必须参与比对：
+ * 若只比 poems，一个只改了顶层标签次序的实现不会被这道门抓住。
+ * 版本/时间戳不参与。 */
 export function shapeOf(doc) {
-  return JSON.stringify({ dynasties: doc.dynasties, poems: doc.poems });
+  return JSON.stringify({ dynasties: doc.dynasties, tags: doc.tags ?? [], poems: doc.poems });
 }
 
 /** 「这首诗有没有详情」——给失败消息一个一眼能看懂的量。 */

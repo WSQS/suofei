@@ -14,8 +14,8 @@ import { checkAgainst, compileCurrent } from '../tools/check-fieldset.mjs';
 const RECORD = 'schema/format-version.json';
 const readRecord = () => JSON.parse(readFileSync(RECORD, 'utf8'));
 
-/** 编译一次当前**形状**（默认编译 tests/fixtures/shape-v2/content：S2 落地时真实内容还是 v1 源，
- * 编不过；本门守的是**形状**，而编译器对每首都无条件发出这 10 个键 ⇒ 单首诗就能定形状）。
+/** 编译一次当前**形状**（默认编译 tests/fixtures/shape-v3/content：它列全 11 键、且至少一首带一个标签；
+ * 本门守的是**形状**，而编译器对每首都无条件发出这 11 个键 ⇒ 一首带标签的诗就能定形状）。
  * 见 tools/check-fieldset.mjs 文件头的 ⚠ 说明。 */
 function withCurrentProduct(fn) {
   const tmp = mkdtempSync(join(tmpdir(), 'suofei-fv-'));
@@ -52,6 +52,7 @@ test('记录保留了 formatVersion=1 的旧形状（老客户端认得的键路
   const { versions } = readRecord();
   const v1 = versions.find((v) => v.formatVersion === 1);
   const v2 = versions.find((v) => v.formatVersion === 2);
+  const v3 = versions.find((v) => v.formatVersion === 3);
   assert.ok(v1, 'v1 那条不得删掉：它记录着老客户端认得的形状');
   assert.ok(v1.fieldPaths.includes('poems[].variants[].text'));
   assert.ok(v1.fieldPaths.includes('dynasties[].key'));
@@ -60,6 +61,27 @@ test('记录保留了 formatVersion=1 的旧形状（老客户端认得的键路
   assert.ok(!v2.fieldPaths.includes('poems[].variants'));
   assert.ok(v2.fieldPaths.includes('dynasties[]'));
   assert.equal(v2.fieldPaths.includes('dynasties[].key'), false);
+  // 2 → 3（2026-10-18）：新增标签，v2 账上不得提前出现它们（否则这张账就不是“老客户端认得的形状”了）。
+  assert.ok(v3, 'v3 记录缺失');
+  for (const p of ['poems[].tags', 'poems[].tags[].id', 'poems[].tags[].orderInTag', 'tags', 'tags[].id', 'tags[].members']) {
+    assert.ok(v3.fieldPaths.includes(p), `v3 记录里应有 ${p}`);
+    assert.equal(v2.fieldPaths.includes(p), false, `v2 记录里不该有 ${p}`);
+  }
+  const added = v3.fieldPaths.filter((p) => !v2.fieldPaths.includes(p));
+  const removed = v2.fieldPaths.filter((p) => !v3.fieldPaths.includes(p));
+  // 2 → 3 只加字段、不删字段：删字段会让已发布的老客户端读不到它习惯的键。
+  assert.deepEqual(removed, [], 'v3 不得从 v2 的字段集里删键');
+  assert.deepEqual(added.sort(), [
+    'poems[].tags',
+    'poems[].tags[]',
+    'poems[].tags[].id',
+    'poems[].tags[].orderInTag',
+    'tags',
+    'tags[]',
+    'tags[].id',
+    'tags[].members',
+    'tags[].members[]',
+  ]);
 });
 
 test('口径覆盖客户端真正读的键（顶层键 + 诗对象 + 中文组数组 + 段的二维形状）', () => {
@@ -71,6 +93,11 @@ test('口径覆盖客户端真正读的键（顶层键 + 诗对象 + 中文组�
       'generatedAt',
       'dynasties',
       'dynasties[]',
+      'tags',
+      'tags[]',
+      'tags[].id',
+      'tags[].members',
+      'tags[].members[]',
       'poems',
       'poems[].id',
       'poems[].title',
@@ -84,6 +111,10 @@ test('口径覆盖客户端真正读的键（顶层键 + 诗对象 + 中文组�
       'poems[].stanzas[]',
       'poems[].stanzas[][]', // 段→行：二维，不能被拍平还看不出来
       'poems[].notes',
+      'poems[].tags',
+      'poems[].tags[]',
+      'poems[].tags[].id',
+      'poems[].tags[].orderInTag',
     ]) {
       assert.ok(paths.includes(must), `字段集里应当有 ${must}（口径漏了客户端会读的键）`);
     }
