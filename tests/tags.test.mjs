@@ -265,19 +265,116 @@ test('assertTagIndexConsistent：两边不一致时必须抛（否则它只是�
   assert.throws(() => assertTagIndexConsistent([], [{ id: 'X', members: ['不存在'] }]), /内部不一致/);
 });
 
-// ---------- 真实内容：只有「古诗十九首」19 条 ----------
+// ---------- 真实内容：从源归属派生（不写死标签个数/名单） ----------
 
-test('真实 content/poems：古诗十九首 19 首各 1 条归属，其余 3 首 tags: []', () => {
+/**
+ * 从**源 MD 文本**独立读出一首诗声明的标签（不借编译器的解析结果——
+ * 否则「产物对得上源」就成了自己证明自己）。读法故意只认这两行形状：
+ *
+ *     tags:
+ *       - id: 古诗十九首
+ *         orderInTag: 1
+ *
+ * `tags: []` 与不写 `tags` 都读成「没有标签」。
+ */
+function readDeclaredTags(record) {
+  const lines = record.text.split(/\r?\n/);
+  const start = lines.findIndex((l) => l.trim() === '---');
+  const end = lines.findIndex((l, i) => i > start && l.trim() === '---');
+  assert.ok(start >= 0 && end > start, `${record.id}：读不出 front matter`);
+  const unquote = (v) => v.trim().replace(/^"(.*)"$/s, '$1');
+  let title = null;
+  let inTags = false;
+  const tags = [];
+  for (const raw of lines.slice(start + 1, end)) {
+    if (/^\S/.test(raw)) {
+      // 顶格 ⇒ 新的顶层键
+      inTags = /^tags\s*:/.test(raw) && !/^tags\s*:\s*\[\s*\]\s*$/.test(raw);
+      if (/^title\s*:/.test(raw)) title = unquote(raw.replace(/^title\s*:/, ''));
+      continue;
+    }
+    if (!inTags) continue;
+    const item = raw.match(/^\s*-\s*id\s*:\s*(.+)$/);
+    if (item) {
+      tags.push({ id: unquote(item[1]), orderInTag: null });
+      continue;
+    }
+    const order = raw.match(/^\s*orderInTag\s*:\s*(.+)$/);
+    assert.ok(tags.length, `${record.id}：orderInTag 出现在任何 - id 之前，测试读取器不认识这种写法`);
+    tags[tags.length - 1].orderInTag = Number(order[1].trim());
+  }
+  return { id: record.id, title, tags };
+}
+
+/** 编译真实内容并同时给出「按源派生」的期望值。 */
+function realContentAndDerivation() {
   const { records, errors: scanErrors } = scanPoems(path.join(ROOT, 'content', 'poems'));
   assert.deepEqual(scanErrors, []);
   const { content, errors } = buildContentFromRecords({ records, orderStrategy: 'source' });
   assert.deepEqual(errors, []);
+  const declared = records.map(readDeclaredTags);
+  return { content, declared, titleOf: new Map(declared.map((d) => [d.id, d.title])) };
+}
 
-  // 顶层只有「古诗十九首」一个标签
-  assert.deepEqual(content.tags.map((t) => t.id), ['古诗十九首']);
-  const members = content.tags[0].members;
-  assert.equal(members.length, 19);
-  assert.equal(new Set(members).size, 19, '成员不得重复');
+test('真实 content/poems：顶层 tags 与诗侧归属**按源派生**一致（标签间拼音序、标签内 orderInTag 升序）', () => {
+  const { content, declared } = realContentAndDerivation();
+  const compare = new Intl.Collator(PINYIN_COLLATOR_LOCALE).compare;
+
+  // 期望的标签集合 = 源里出现过的 id（去重）——不写死名单
+  const declaredEntries = declared.flatMap((d) => d.tags.map((t) => ({ poemId: d.id, ...t })));
+  assert.ok(declaredEntries.length > 0, '本次真实内容里应当有人声明标签（否则下面每一条断言都是空的）');
+  const expectedTagIds = [...new Set(declaredEntries.map((e) => e.id))];
+
+  // ① 标签之间：产物顺序 == 编译期拼音序（拿派生集合现算，不用常量）
+  assert.deepEqual(content.tags.map((t) => t.id), expectedTagIds.slice().sort(compare));
+
+  // ② 标签内：members == 声明了该标签的诗按 orderInTag 升序（同序冲突由编译器报错，这里不重排兜底）
+  for (const tagId of expectedTagIds) {
+    const expectedMembers = declaredEntries
+      .filter((e) => e.id === tagId)
+      .sort((a, b) => a.orderInTag - b.orderInTag)
+      .map((e) => e.poemId);
+    const actual = content.tags.find((t) => t.id === tagId);
+    assert.ok(actual, `产物顶层 tags 缺了源里声明过的「${tagId}」`);
+    assert.deepEqual(actual.members, expectedMembers, `「${tagId}」的 members 与源归属/orderInTag 不一致`);
+    assert.equal(new Set(actual.members).size, actual.members.length, `「${tagId}」成员不得重复`);
+  }
+
+  // ③ 诗侧：只保留源里写的那几条声明（次序不重排），orderInTag 原样带出；没声明的就是 []
+  for (const d of declared) {
+    const poem = content.poems.find((p) => p.id === d.id);
+    assert.ok(poem, `产物里没有 ${d.id}`);
+    assert.deepEqual(poem.tags, d.tags, `${d.id} 的诗侧 tags 应与源声明逐条相同`);
+  }
+  const tagged = new Set(declaredEntries.map((e) => e.poemId));
+  for (const p of content.poems) {
+    if (!tagged.has(p.id)) assert.deepEqual(p.tags, [], `${p.id} 源里没有声明标签 ⇒ 产物必须是 []`);
+  }
+
+  // ④ 双向闭合：反向索引里出现的诗，诗侧也必须认这条标签（上面 ③ 逐首比对已覆盖方向一，这里补方向二）
+  for (const t of content.tags) {
+    for (const id of t.members) {
+      const poem = content.poems.find((p) => p.id === id);
+      assert.ok(poem.tags.some((x) => x.id === t.id), `${id} 未在诗侧声明「${t.id}」却被收进它的 members`);
+    }
+  }
+  assertTagIndexConsistent(content.poems, content.tags);
+});
+
+test('真实内容本次的实况：2 个标签（古诗十九首 19 ／ 唐诗三百首 2），毛诗仍无标签', () => {
+  const { content } = realContentAndDerivation();
+
+  // 这一层是「本次真实数据长这样」的实况断言，不是「永远只能有 2 个标签」的契约；
+  // 上面那条按源派生的测试才是契约。内容线再加标签时，改的是这里。
+  assert.deepEqual(content.tags.map((t) => t.id), ['古诗十九首', '唐诗三百首']);
+  const ids = content.tags.map((t) => t.id);
+  // 拼音序：古(gu) 在 唐(tang) 前（单独点一句，失败时不必再去猜 collator 行为）
+  assert.ok(ids.indexOf('古诗十九首') < ids.indexOf('唐诗三百首'), `标签顺序应为「古诗十九首」在「唐诗三百首」之前，实际：${ids}`);
+
+  const gjss = content.tags[0];
+  const tss = content.tags[1];
+  assert.equal(gjss.members.length, 19);
+  assert.equal(tss.members.length, 2);
 
   // members 次序 = orderInTag 升序 = 《文选》卷二十九原次序（docs/sources/gushi-shijiu-shou.md §5.1）
   const expectByOrder = [
@@ -302,20 +399,23 @@ test('真实 content/poems：古诗十九首 19 首各 1 条归属，其余 3 �
     '明月何皎皎',
   ];
   const titleOf = new Map(content.poems.map((p) => [p.id, p.title]));
-  assert.deepEqual(members.map((id) => titleOf.get(id)), expectByOrder);
-  assert.deepEqual(members.map((id) => content.poems.find((p) => p.id === id).tags[0].orderInTag), [
+  assert.deepEqual(gjss.members.map((id) => titleOf.get(id)), expectByOrder);
+  assert.deepEqual(gjss.members.map((id) => content.poems.find((p) => p.id === id).tags[0].orderInTag), [
     1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
   ]);
-  // 每首古诗十九首都只有这一条归属
-  for (const id of members) {
-    const poem = content.poems.find((p) => p.id === id);
-    assert.deepEqual(poem.tags, [{ id: '古诗十九首', orderInTag: poem.tags[0].orderInTag }]);
-  }
 
-  // 其余 3 首：tags 为空数组（梦李白二首／毛诗——《唐诗三百首》归属有证（S11）、该版本编次未核，故本轮不打）
-  const others = content.poems.filter((p) => !members.includes(p.id));
-  assert.deepEqual(others.map((p) => p.title).sort(), ['七律·和郭沫若同志', '梦李白二首·其一', '梦李白二首·其二'].sort());
-  for (const p of others) assert.deepEqual(p.tags, [], `${p.id} 应没有标签`);
+  // 唐诗三百首：两首杜甫，其一 orderInTag 1、其二 2 ⇒ members 就是 1 → 2
+  const tssTitles = tss.members.map((id) => titleOf.get(id));
+  assert.deepEqual(tssTitles, ['梦李白二首·其一', '梦李白二首·其二']);
+  assert.deepEqual(tss.members.map((id) => content.poems.find((p) => p.id === id).tags[0]), [
+    { id: '唐诗三百首', orderInTag: 1 },
+    { id: '唐诗三百首', orderInTag: 2 },
+  ]);
+
+  // 毛诗（毛泽东《七律·和郭沫若同志》）仍无标签——按作者直接看，不从「其余 3 首」倒推
+  const mao = content.poems.filter((p) => p.author === '毛泽东');
+  assert.equal(mao.length, 1, `应能按作者认出毛诗这一首，实际：${mao.map((p) => p.id)}`);
+  assert.deepEqual(mao[0].tags, []);
 });
 
 test('契约夹具 real-01-full.json 仍是当前形状（v3 顶层键序 / 11 键 / 字段集与冻结记录一致）', () => {

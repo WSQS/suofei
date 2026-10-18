@@ -2278,14 +2278,43 @@ async function main() {
     check('新内容每首都带 tags 数组（format 3 的必填键）',
       baseDoc.poems.every((p) => Array.isArray(p.tags)), dump(Object.keys(baseDoc.poems[0])));
     // 新内容的标签身份：唯一来源是本轮产物（客户端一律照产物顺序、不重排）。
+    // ⚠ 不把 `['古诗十九首']` / 19 这些**写死**（上一轮就是那样，加第二个标签就臆断着红）：
+    //   期望值一律从产物 `tags[]` 读；「本次真实数据长什么样」另起一层，并明确它只是实况。
     const baseTagGroups = (baseDoc.tags ?? []).filter((t) => t.members.length > 0);
     const baseTagIds = baseTagGroups.map((t) => t.id);
-    eq('v3 产物顶层 tags 里确实有真实标签（否则下面这一组标签断言是空的）', baseTagIds, ['古诗十九首']);
-    const gjss = baseTagGroups[0];
+    check('v3 产物顶层 tags 里确实有真实标签（否则下面这一组标签断言是空的）',
+      baseTagIds.length > 0, dump((baseDoc.tags ?? []).map((t) => [t.id, t.members.length])));
+    eq('产物顶层 tags 的顺序 == 它自己数组的顺序（读产物，不推算）',
+      baseTagIds, (baseDoc.tags ?? []).filter((t) => t.members.length > 0).map((t) => t.id));
+    check('每个标签的 members 都不重复',
+      baseTagGroups.every((t) => new Set(t.members).size === t.members.length),
+      dump(baseTagGroups.map((t) => [t.id, t.members.length, new Set(t.members).size])));
+    // 本次实况层（真实数据，不是夹具；加/减标签时改的就是这里）
+    eq('本次实况：真实产物就是 2 个标签（古诗十九首 ／ 唐诗三百首）',
+      baseTagIds, ['古诗十九首', '唐诗三百首']);
+    check('本次实况：拼音序「古诗十九首」在「唐诗三百首」之前',
+      baseTagIds.indexOf('古诗十九首') < baseTagIds.indexOf('唐诗三百首'), dump(baseTagIds));
+    const gjss = baseTagGroups.find((t) => t.id === '古诗十九首');
+    const tang300 = baseTagGroups.find((t) => t.id === '唐诗三百首');
+    check('本次实况：古诗十九首与唐诗三百首都真在产物里', Boolean(gjss && tang300), dump(baseTagIds));
     eq('「古诗十九首」的成员数 == 19（第一版验收重点）', gjss.members.length, 19);
     eq('「古诗十九首」成员 id 不重复', new Set(gjss.members).size, gjss.members.length);
+    eq('「唐诗三百首」的成员数 == 2', tang300.members.length, 2);
+    eq('「唐诗三百首」的成员就是那两首（其一 → 其二，产物 members 顺序）',
+      tang300.members.map((id) => baseDoc.poems.find((p) => p.id === id)?.title),
+      ['梦李白二首·其一', '梦李白二首·其二']);
+    eq('「唐诗三百首」两首的 orderInTag 是 1、2（members 次序的唯一依据）',
+      tang300.members.map((id) => (baseDoc.poems.find((p) => p.id === id)?.tags ?? [])
+        .filter((x) => x.id === '唐诗三百首').map((x) => x.orderInTag)),
+      [[1], [2]]);
     check('成员都是产物里真实存在的诗（引用闭合）',
-      gjss.members.every((id) => baseDoc.poems.some((p) => p.id === id)), dump(gjss.members));
+      baseTagGroups.every((t) => t.members.every((id) => baseDoc.poems.some((p) => p.id === id))),
+      dump(baseTagGroups.map((t) => t.members)));
+    check('两端双向闭合：诗侧 tags 里有的标签都在顶层 tags 里，反之亦然',
+      baseDoc.poems.every((p) => (p.tags ?? []).every((t) => (baseDoc.tags ?? []).some((x) => x.id === t.id)))
+        && baseTagGroups.every((t) => t.members.every((id) => (baseDoc.poems.find((p) => p.id === id)?.tags ?? [])
+          .some((x) => x.id === t.id))),
+      dump(baseTagGroups.map((t) => [t.id, t.members])));
     check('新修订与已发布的 `.26` **不同**（相同则缓存名相同 ⇒ 旧 cache 会被 install 覆盖，成对切换失真）',
       baseDoc.contentVersion !== baselineEnv.contentVersion,
       dump({ newRev: baseDoc.contentVersion, oldRev: baselineEnv.contentVersion }));
@@ -2433,16 +2462,167 @@ async function main() {
         keys: [...v.querySelectorAll('[data-test="tag-group"]')].map((g) => g.dataset.tagId),
         labels: [...v.querySelectorAll('[data-test="tag-group-title"] [data-test="tag-label"]')].map((h) => h.textContent),
         counts: v.querySelectorAll('.dynasty-count').length,
+        heads: v.querySelectorAll('[data-test="tag-group-title"]').length,
       };
     })()`);
     eq('v3 标签 tab：组顺序 == 产物顶层 tags 顺序', v3TagsView.keys, baseTagIds);
     eq('v3 标签 tab：组名 == 产物标签 id', v3TagsView.labels, baseTagIds);
     eq('v3 标签 tab：没有任何计数元素（与采纳锚一致）', v3TagsView.counts, 0);
+    eq('标签页的**组头数 == 产物里非空标签数**（两个标签就是两个组头，不是写死的 1 个）',
+      v3TagsView.heads, baseTagGroups.length);
     await evaluate(`document.querySelector('[data-test="tag-group-title"]').click(); true`);
-    const v3TagRows = await evaluate(`[...document.querySelectorAll('[data-test="tag-group"] [data-test="poem-row"]')].map((r) => r.dataset.poemId)`);
+    // ⚠ 按**组**取行（收起组的行还在 DOM 里，只是不可见 —— 只有一个标签时这个细节看不出来）
+    const v3TagRows = await evaluate(`(() => {
+      const g = document.querySelector('[data-test="tag-group"][data-tag-id=' + ${JSON.stringify(JSON.stringify(baseTagGroups[0].id))} + ']');
+      return [...g.querySelectorAll('[data-test="poem-row"]')].filter((r) => r.offsetParent !== null).map((r) => r.dataset.poemId);
+    })()`);
     eq('「古诗十九首」展开后的行顺序 == 产物 members 顺序', v3TagRows, gjss.members);
     eq('「古诗十九首」展开后就是 19 行（不是 22：标签只收带该标签的诗）', v3TagRows.length, 19);
+    eq('别的组收起时，它的行不可见（标签只收带该标签的诗，不是把整库倒出来）',
+      await evaluate(`[...document.querySelectorAll('[data-test="tag-group"]:not([data-tag-id=' + ${JSON.stringify(JSON.stringify(baseTagGroups[0].id))} + ']) [data-test="poem-row"]')].filter((r) => r.offsetParent !== null).length`),
+      0);
     await screenshot('s9-5-format3-tags-19-members.png');
+
+    // ---- 9e-2 真实 dist 上的同一个标签页：「唐诗三百首」也必须能展开（两行其一 → 其二）----
+    // 这一节**不换夹具**：用的就是本轮真实产物（`web/content.json` → 发布出去的那一对字节）。
+    const tangGroupSel = `[data-test="tag-group"][data-tag-id="唐诗三百首"]`;
+    check('真实产物里确实有「唐诗三百首」组（否则下面几条是空的）',
+      v3TagsView.keys.includes('唐诗三百首'), dump(v3TagsView.keys));
+    await evaluate(`document.querySelector('[data-test="tag-group"][data-tag-id="唐诗三百首"] [data-test="tag-group-title"]').click(); true`);
+    const tangRows = await evaluate(`[...document.querySelectorAll('[data-test="tag-group"][data-tag-id="唐诗三百首"] [data-test="poem-row"]')]`
+      + `.map((r) => ({ id: r.dataset.poemId, title: r.querySelector('.poem-row-title').textContent }))`);
+    eq('「唐诗三百首」展开后**两行**，行序 == 产物 members（其一 → 其二）',
+      tangRows.map((r) => r.id), tang300.members);
+    eq('「唐诗三百首」两行的题名确实是 其一 → 其二',
+      tangRows.map((r) => r.title), ['梦李白二首·其一', '梦李白二首·其二']);
+    eq('「唐诗三百首」展开不影响另一组：古诗十九首仍展开、行数仍是它的 members 数',
+      await evaluate(`(() => {
+        const g = document.querySelector('[data-test="tag-group"][data-tag-id="古诗十九首"]');
+        return [g.querySelector('[data-test="tag-group-title"]').getAttribute('aria-expanded'),
+          g.querySelectorAll('[data-test="poem-row"]').length];
+      })()`),
+      ['true', gjss.members.length]);
+    // 出图前把「唐诗三百首」滚进视野：古诗十九首有 19 行，两组都展开时它默认在视口之外
+    //（否则这张图和 s9-5 会是一模一样的帧，等于没出证据）。
+    await evaluate(`document.querySelector('[data-test="tag-group"][data-tag-id="唐诗三百首"]').scrollIntoView({ block: 'start' }); true`);
+    await sleep(150);
+    await screenshot('s9-5b-format3-real-two-tags-tang300-two-rows.png');
+    await evaluate('window.scrollTo(0, 0); true');
+
+    // ---- 9e-3 唐300 两路逐层返回（真实产物、真哈希路由）----
+    // 视口压矮，页面才滚得动——否则「滚动保持」是 0 → 0，等于什么都没验。
+    await cdp.send('Emulation.setDeviceMetricsOverride', { width: 430, height: 360, deviceScaleFactor: 2, mobile: false });
+    const tangFirstId = tang300.members[0];
+    const tangFirstTitle = baseDoc.poems.find((p) => p.id === tangFirstId).title;
+    check('（前置）被跟踪的那首唐诗确实在产物里', Boolean(tangFirstTitle), dump({ tangFirstId, tangFirstTitle }));
+
+    /** 走一条链：当前视图 → 点行入诗 → 入详情 → 逐层返回（用「返回」按钮）→ 回到原视图并恢复展开/滚动。 */
+    const walkAndReturnByButtons = async ({ label, viewHash, expandSelector, rowSelector, viewWait }) => {
+      const headSel = viewHash === '#/tags' ? '[data-test="tag-group-title"]' : '[data-test="dynasty-group-title"]';
+      await hashTo(viewHash);
+      await viewWait();
+      // 展开目标组（若还没展开）
+      await evaluate(`(() => { const h = document.querySelector(${JSON.stringify(expandSelector)}); if (h && h.getAttribute('aria-expanded') !== 'true') h.click(); return true; })()`);
+      await sleep(120);
+      const before = await evaluate(`(() => { const max = document.documentElement.scrollHeight - window.innerHeight; window.scrollTo(0, Math.min(60, Math.max(0, max))); return window.scrollY; })()`);
+      check(`（前置）${label}：视图可滚动（否则“滚动保持”量不出东西）`, before > 0, `scrollY=${before}`);
+      const expandedBefore = await evaluate(`[...document.querySelectorAll(${JSON.stringify(headSel)})].map((h) => h.getAttribute('aria-expanded'))`);
+      check(`（前置）${label}：目标组已展开（否则行根本不在）`,
+        await evaluate(`Boolean(document.querySelector(${JSON.stringify(rowSelector)}))`));
+      await evaluate(`document.querySelector(${JSON.stringify(rowSelector)}).click(); true`);
+      await waitForPoemView(tangFirstId);
+      eq(`${label}：点进去就是那首唐诗`, await evaluate('location.hash'), ROUTES.poem(tangFirstId));
+      await evaluate(`document.querySelector('[data-test="poem-detail-link"]').click(); true`);
+      await waitFor(`Boolean(document.querySelector('[data-test="view-detail"]'))`, { label: `${label}：详情页` });
+      eq(`${label}：诗 → 详情（地址带 /detail）`, await evaluate('location.hash'), ROUTES.detail(tangFirstId));
+      await evaluate(`document.querySelector('[data-test="back-to-poem"]').click(); true`);
+      await waitForPoemView(tangFirstId);
+      eq(`${label}：详情「返回」只退一层（回到这首诗的诗页）`, await evaluate('location.hash'), ROUTES.poem(tangFirstId));
+      await evaluate(`document.querySelector('[data-test="back-to-index"]').click(); true`);
+      await viewWait();
+      eq(`${label}：诗页「返回」回到**原视图**`, await evaluate('location.hash'), viewHash);
+      await waitFor(`Math.abs(window.scrollY - ${before}) <= 2`, { label: `${label}：返回后滚动恢复`, timeout: 5000 });
+      const after = await evaluate(`({ y: window.scrollY, expanded: [...document.querySelectorAll(${JSON.stringify(headSel)})].map((h) => h.getAttribute('aria-expanded')) })`);
+      eq(`${label}：返回后展开状态保持（一处未变）`, after.expanded, expandedBefore);
+      check(`${label}：返回后滚动位置保持（±2px）`, Math.abs(after.y - before) <= 2, `离开 ${before} → 回来 ${after.y}`);
+    };
+
+    /** 同一首诗的另一路：浏览器后退也逐层（详情 → 诗页 → 原视图）。 */
+    const walkBrowserBack = async ({ label, viewHash, expandSelector, rowSelector, viewWait }) => {
+      await hashTo(viewHash);
+      await viewWait();
+      await evaluate(`(() => { const h = document.querySelector(${JSON.stringify(expandSelector)}); if (h && h.getAttribute('aria-expanded') !== 'true') h.click(); return true; })()`);
+      await sleep(120);
+      await evaluate(`document.querySelector(${JSON.stringify(rowSelector)}).click(); true`);
+      await waitForPoemView(tangFirstId);
+      await evaluate(`document.querySelector('[data-test="poem-detail-link"]').click(); true`);
+      await waitFor(`Boolean(document.querySelector('[data-test="view-detail"]'))`, { label: `${label}：详情页（后退链）` });
+      const detailHash = await evaluate('location.hash');
+      await evaluate('history.back(); true');
+      await waitForPoemView(tangFirstId);
+      const onceHash = await evaluate('location.hash');
+      await evaluate('history.back(); true');
+      await viewWait();
+      eq(`${label}：浏览器后退也一次退一层（详情 → 诗页 → 原视图）`,
+        [detailHash.endsWith('/detail'), onceHash, await evaluate('location.hash')],
+        [true, ROUTES.poem(tangFirstId), viewHash]);
+    };
+
+    // 路一：**朝代视图**进的同一首唐300 诗
+    await walkAndReturnByButtons({
+      label: '唐300·朝代路',
+      viewHash: '#/',
+      expandSelector: `[data-test="dynasty-group"][data-dynasty-key="唐"] [data-test="dynasty-group-title"]`,
+      rowSelector: `[data-test="dynasty-group"] [data-test="poem-row"][data-poem-id="${tangFirstId}"]`,
+      viewWait: waitForDynastyView,
+    });
+    // 「从朝代进同一首」不是空话：那首诗确实挂在「唐」组下（返回后就在朝代视图，正好查）
+    const tangOwner = await evaluate(`(() => {
+      const r = document.querySelector('[data-test="poem-row"][data-poem-id=' + ${JSON.stringify(JSON.stringify(tangFirstId))} + ']');
+      const g = r && r.closest('[data-test="dynasty-group"]');
+      return g ? g.dataset.dynastyKey : null;
+    })()`);
+    eq('（前置）那首唐300 诗确实挂在「唐」朝代组下（否则「从朝代进同一首」就是空话）', tangOwner, '唐');
+    await walkBrowserBack({
+      label: '唐300·朝代路',
+      viewHash: '#/',
+      expandSelector: `[data-test="dynasty-group"][data-dynasty-key="唐"] [data-test="dynasty-group-title"]`,
+      rowSelector: `[data-test="dynasty-group"] [data-test="poem-row"][data-poem-id="${tangFirstId}"]`,
+      viewWait: waitForDynastyView,
+    });
+
+    // 路二：**标签视图**进的同一首唐300 诗
+    await walkAndReturnByButtons({
+      label: '唐300·标签路',
+      viewHash: '#/tags',
+      expandSelector: `${tangGroupSel} [data-test="tag-group-title"]`,
+      rowSelector: `${tangGroupSel} [data-test="poem-row"][data-poem-id="${tangFirstId}"]`,
+      viewWait: waitForTagsView,
+    });
+    await walkBrowserBack({
+      label: '唐300·标签路',
+      viewHash: '#/tags',
+      expandSelector: `${tangGroupSel} [data-test="tag-group-title"]`,
+      rowSelector: `${tangGroupSel} [data-test="poem-row"][data-poem-id="${tangFirstId}"]`,
+      viewWait: waitForTagsView,
+    });
+    // 顺手把「另一首」也走一遍标签路：两首唐300 都必须可达（不是只有第一行）
+    const tangSecondId = tang300.members[1];
+    await hashTo('#/tags');
+    await waitForTagsView();
+    await evaluate(`(() => { const h = document.querySelector(${JSON.stringify(tangGroupSel + ' [data-test="tag-group-title"]')}); if (h && h.getAttribute('aria-expanded') !== 'true') h.click(); return true; })()`);
+    await sleep(120);
+    await evaluate(`document.querySelector(${JSON.stringify(`${tangGroupSel} [data-test="poem-row"][data-poem-id="${tangSecondId}"]`)}).click(); true`);
+    await waitForPoemView(tangSecondId);
+    eq('唐300 第二首（其二）从标签视图也能进（两首均可达）', await evaluate('location.hash'), ROUTES.poem(tangSecondId));
+    await evaluate(`document.querySelector('[data-test="back-to-index"]').click(); true`);
+    await waitForTagsView();
+    eq('从其二返回也回到标签视图', await evaluate('location.hash'), '#/tags');
+    await cdp.send('Emulation.setDeviceMetricsOverride', { width: 430, height: 932, deviceScaleFactor: 2, mobile: false });
+    await sleep(150);
+    await screenshot('s9-5c-format3-tang300-back-from-tag-view.png');
+    await cdp.send('Emulation.clearDeviceMetricsOverride');
+
     await hashTo('#/');
     await waitForDynastyView();
     await waitForIndexExpanded();
@@ -2577,7 +2757,10 @@ async function main() {
   await screenshot('18a-tags-tab-real-collapsed.png');
   // 展开真实标签：行数 == members 数，行序 == members 顺序（产物已排好，客户端不重排）
   await evaluate(`document.querySelector('[data-test="tag-group-title"]').click(); true`);
-  const realTagRows = await evaluate(`[...document.querySelectorAll('[data-test="tag-group"] [data-test="poem-row"]')].map((r) => r.dataset.poemId)`);
+  const realTagRows = await evaluate(`(() => {
+    const g = document.querySelector('[data-test="tag-group"][data-tag-id=' + ${JSON.stringify(JSON.stringify(realTags[0].id))} + ']');
+    return [...g.querySelectorAll('[data-test="poem-row"]')].filter((r) => r.offsetParent !== null).map((r) => r.dataset.poemId);
+  })()`);
   eq('真实标签展开后的行顺序 == 产物 members 顺序', realTagRows, realTags[0].members);
   eq('真实标签展开后行数 == members 数', realTagRows.length, realTags[0].members.length);
   await screenshot('18b-tags-tab-real-one-open.png');

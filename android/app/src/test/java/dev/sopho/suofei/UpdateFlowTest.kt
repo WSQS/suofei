@@ -95,16 +95,16 @@ class UpdateFlowTest {
 
     /**
      * 合成载荷。`formatVersion >= 3` 时**同时带两处 tags 键**（v3 要求它们在位）；
-     * 给了 [tagId] 就写一条真实归属（标签页渲染依据的形状）。
+     * 给了 [tagIds] 就按给定次序/序号写真实归属（标签页渲染依据的形状）。
      */
-    private fun payload(version: String, formatVersion: Int = 2, tagId: String? = null): String {
+    private fun payload(version: String, formatVersion: Int = 2, tagIds: List<String> = emptyList()): String {
         val topLevelTags = if (formatVersion >= 3) {
-            if (tagId == null) "\"tags\":[]," else "\"tags\":[{\"id\":\"$tagId\",\"members\":[\"p1\"]}],"
+            "\"tags\":[" + tagIds.joinToString(",") { "{\"id\":\"$it\",\"members\":[\"p1\"]}" } + "],"
         } else {
             ""
         }
         val poemTags = if (formatVersion >= 3) {
-            if (tagId == null) "\"tags\":[]," else "\"tags\":[{\"id\":\"$tagId\",\"orderInTag\":1}],"
+            "\"tags\":[" + tagIds.mapIndexed { i, t -> "{\"id\":\"$t\",\"orderInTag\":${i + 1}}" }.joinToString(",") + "],"
         } else {
             ""
         }
@@ -215,7 +215,8 @@ class UpdateFlowTest {
     @Test
     fun formatVersionThree_isAccepted_endToEnd() {
         val store = store()
-        val body = payload("2026.10.18.1", formatVersion = 3, tagId = "古诗十九首")
+        val tagIds = listOf("古诗十九首", "唐诗三百首")
+        val body = payload("2026.10.18.1", formatVersion = 3, tagIds = tagIds)
         responses["/latest.json"] = 200 to manifest("2026.10.18.1", sha256(body), formatVersion = 3).toByteArray()
         responses["/content.json"] = 200 to body.toByteArray()
 
@@ -223,7 +224,7 @@ class UpdateFlowTest {
         assertTrue("实际结果：$outcome", outcome is UpdateOutcome.Activated)
         val content = store.loadActive()!!.content
         assertEquals(3, content.formatVersion)
-        assertEquals("标签页的数据源就是这条链路拿到的 tags[]", listOf("古诗十九首"), content.tagGroups.map { it.name })
+        assertEquals("标签页的数据源就是这条链路拿到的 tags[]（次序也不得重排）", tagIds, content.tagGroups.map { it.name })
     }
 
     @Test
