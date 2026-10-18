@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>多浏览视图（朝代 ／ 选本）可操作原型 · 三个入口候选 A/B/C · 夹具数据</title>
+<title>标签 tab 可操作原型（朝代 ｜ 标签）· 夹具数据</title>
 <style>
 /* 令牌快照（内嵌副本，不是新权威）
  *   来源：items/app-ui/history/round-2026-10-16-width-pct/q-width-pct.html 内嵌的 tech 快照
@@ -55,7 +55,7 @@
 
 /* 草案值 / 已定值 / 脚本写回值（**都不在** docs/design/visual-tokens.md 里）
  *   [已定]  用户已定的表达（本页照做，不重新提问）
- *   [草案]  本页为了把候选表达出来临时取的数，**不是**规范值、也未被采纳
+ *   [草案]  本页为了把结构表达出来临时取的数，**不是**规范值、也未被采纳
  *   [写回]  页面脚本量完后写回的运行时值
  */
 /* == DRAFT-VALUES-BEGIN == */
@@ -64,31 +64,27 @@
   --cw: 100%;                    /* [写回] 本视口下的内容宽 C */
   --edge-x: 1.05rem;             /* [草案] 行内沿 16.8px（内容列**内**的一层，不是列外余白） */
   /* [已定] 目录页水平关系（对齐轮）：记号悬挂在组名左沿之外，槽宽 27.52、固定缝 0.4rem；
-   *        诗目与组名首字同一竖线（缩进 0）。本页把同一条左沿也用于「选本诗目」与选本名。 */
+   *        诗目与组名首字同一竖线（缩进 0）。标签 tab 的组头与子诗目**沿用同一条左沿**。 */
   --slot: 27.52px;
   --seam: 0.4rem;
   --mark-size: 0.8rem;
   --gname-size: 1.05rem;
   --ghead-pt: 0.85rem;           /* [草案] 组头上下内边距（对齐轮） */
   --ghead-pb: 0.7rem;
-  --count-size: 0.82rem;         /* [草案] 计数 */
+  --count-size: 0.82rem;         /* [草案] 计数（**只在朝代 tab 出现**） */
   --author-size: 0.8rem;         /* [草案] 诗目作者 */
   --author-gap: 0.45em;          /* [草案] 题名 → 作者 */
   --row-pad: 0.9rem 1.05rem;     /* [草案] 诗目行内边距 */
   --about-size: 0.86rem;         /* [草案] 顶部「关于」 */
-  --ctl-size: 0.82rem;           /* [草案] 控件（返回／详情／tab／下拉） */
+  --ctl-size: 0.82rem;           /* [草案] 控件（返回／详情／tab） */
   --ctl-ls: 0.06em;
-  --meta-size: 0.78rem;          /* [草案] 诗页身份行／选本元信息行 */
-  --ord-size: 0.72rem;           /* [草案] 选本内次序（等宽） */
+  --meta-size: 0.78rem;          /* [草案] 诗页身份行 */
+  --empty-top: 1.9rem;           /* [草案] 空标签里那句空态的上方留白 */
   --head-pad-top: 1.5rem;        /* [已定] 诗页题头上方留白 */
   --title-gap: 0.7rem;           /* [已定] 题名 → 身份行 */
   --body-gap: 2.1rem;            /* [已定] 身份行 → 原文 */
   --body-pad-b: 0.6rem;
   --ctl-top-pad: 0.7rem;
-  --tag-head-top: 1.35rem;       /* [草案] 选本页：顶部行 → 选本名 */
-  --tag-meta-gap: 0.55rem;       /* [草案] 选本名 → 元信息行 */
-  --tag-head-gap: 0.9rem;        /* [草案] 元信息行 → 诗目 */
-  --empty-top: 1.9rem;           /* [草案] 空状态上方留白 */
   --d-head-top: 1.5rem;          /* [草案] 详情页：顶部行 → 诗题（沿用诗页） */
   --src-gap-top: 1.6rem;         /* [草案] 诗题 → 来源块 */
   --src-gap-in: 0.35rem;         /* [草案] 来源标签 → 来源文本 */
@@ -119,7 +115,7 @@ a { color: inherit; }
 :focus-visible { outline: 1px solid var(--test-line); outline-offset: 2px; }
 
 /* ── 原型条（**不是**应用页面）─────────────────────────────────────
- * 它固定在顶部，是为了让每一张截图里都能看见「这是夹具／这是哪个候选」。
+ * 它固定在顶部，是为了让每一张截图里都能看见「这是夹具」。
  * 应用页面从 .pg 开始，.pg 里的东西才属于被评审的那一层。
  */
 .strip {
@@ -141,23 +137,6 @@ a { color: inherit; }
 }
 .strip .stag { color: var(--warn-text); }
 .strip .ssep { color: var(--line); }
-.strip button {
-  font: inherit;
-  color: var(--text-dim);
-  background: none;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-s);
-  padding: 0.1rem 0.4rem;
-  cursor: pointer;
-  letter-spacing: 0.02em;
-  transition: var(--row-transition);
-}
-.strip button:hover { color: var(--text); border-color: var(--test-line); }
-.strip button[aria-pressed="true"] {
-  color: var(--test-text);
-  border-color: var(--test-line);
-  background: var(--test-soft);
-}
 .strip .snum { color: var(--test-text); }
 
 /* ── 应用页面（被评审的那一层）──────────────────────────────────────
@@ -167,7 +146,7 @@ a { color: inherit; }
 .pg { position: relative; }
 .col { width: var(--cw); margin-inline: auto; padding-bottom: 2.4rem; }
 
-/* 顶部行：左＝本候选的入口控件／返回，右＝关于（目录页） */
+/* 顶部行：左＝「朝代 ｜ 标签」两个 tab，右＝关于（关于页不在本项范围） */
 .topline {
   position: relative;
   display: flex;
@@ -200,7 +179,7 @@ a.ctl, button.ctl { background: none; border: 0; padding: 0; cursor: pointer; }
 .topbar { display: flex; justify-content: space-between; align-items: baseline; padding: var(--ctl-top-pad) var(--edge-x) 0; }
 .topbar > * { flex: 0 0 auto; white-space: nowrap; }
 
-/* ── 候选 A：顶部 tab（同页两种组织方式并列）── */
+/* ── 顶部 tab（朝代 ｜ 标签）── */
 .tabs { display: flex; gap: 1.05rem; min-width: 0; }
 .tab {
   font: inherit;
@@ -218,59 +197,11 @@ a.ctl, button.ctl { background: none; border: 0; padding: 0; cursor: pointer; }
 .tab:hover { color: var(--text); }
 .tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent-line); }
 
-/* ── 候选 B：顶部下拉（一个「浏览」选择器）── */
-.picker {
-  font: inherit;
-  font-size: var(--about-size);
-  letter-spacing: var(--ctl-ls);
-  color: var(--text-dim);
-  background: none;
-  border: 0;
-  padding: 0;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: var(--row-transition);
-}
-.picker:hover { color: var(--text); }
-.picker .caret { color: var(--text-faint); margin-left: 0.3em; font-size: 0.9em; }
-.menu {
-  position: absolute;
-  z-index: 6;
-  left: var(--edge-x);
-  right: var(--edge-x);
-  top: calc(100% - 1px);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-s);
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.5);
-  padding: 0.25rem 0;
-}
-.mitem {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5em;
-  width: 100%;
-  text-align: left;
-  font: inherit;
-  font-size: var(--about-size);
-  letter-spacing: var(--ctl-ls);
-  color: var(--text);
-  background: none;
-  border: 0;
-  padding: 0.55rem 0.75rem;
-  cursor: pointer;
-  transition: var(--row-transition);
-}
-.mitem:hover { background: var(--surface-hover); }
-.mitem .mcount { margin-left: auto; font-family: var(--font-mono); font-size: var(--count-size); color: var(--text-faint); white-space: nowrap; }
-.mitem[aria-checked="true"] { color: var(--accent-text); }
-.msep { height: 1px; background: var(--line); margin: 0.25rem 0; }
-
-/* ── 分组（朝代视图，继承目录页已选形态）── */
+/* ── 分组（朝代 tab 与标签 tab **共用同一套**：组头＝悬挂记号＋组名，整行可点）── */
 .grp { margin-top: var(--group-gap); }
 .ghead {
   display: flex;
-  align-items: center;
+  align-items: center;          /* 记号与组名**竖直居中** */
   width: 100%;
   margin: 0;
   text-align: left;
@@ -286,12 +217,14 @@ a.ctl, button.ctl { background: none; border: 0; padding: 0; cursor: pointer; }
 }
 .gmark { flex: 0 0 auto; font-family: var(--font-mono); font-size: var(--mark-size); letter-spacing: 0; color: var(--text-faint); margin-right: var(--seam); }
 .gname { font-size: var(--gname-size); letter-spacing: var(--gname-ls); }
+/* 计数只属于**朝代** tab（[19] 首）；标签 tab 的组头**没有**这一段 */
 .gcount { margin-left: auto; font-family: var(--font-mono); font-size: var(--count-size); color: var(--text-faint); }
 .gcount b::before { content: '['; color: var(--text-faint); font-size: 0.85em; margin-right: 1px; }
 .gcount b::after { content: ']'; color: var(--text-faint); font-size: 0.85em; margin-left: 1px; }
 .ghead:hover .gmark, .ghead:hover .gcount { color: var(--text-dim); }
 .glist { list-style: none; margin: 0; padding: 0; }
 .glist .poemrow { border-bottom: 1px solid var(--line); }
+/* 子诗目：题名左沿 = 内容列 + --slot（与组名首字同一竖线、缩进 0），作者紧随题名；**无序号** */
 .plink {
   display: block;
   padding: var(--row-pad);
@@ -303,68 +236,11 @@ a.ctl, button.ctl { background: none; border: 0; padding: 0; cursor: pointer; }
 .plink:hover { background: var(--surface-hover); }
 .ptitle { letter-spacing: var(--ptitle-ls); overflow-wrap: anywhere; }
 .pauthor { font-size: var(--author-size); color: var(--text-faint); margin-left: var(--author-gap); }
-
-/* ── 选本列表（选本 tab／独立选本页 共用）── */
-.tlist { list-style: none; margin: 0; padding: 0; }
-/* 独立页（候选 C）里选本列表接在页面标题之后 ⇒ 补一条上发丝线，把标题与列表分开 */
-.tlist--page { border-top: 1px solid var(--line); margin-top: 0.9rem; }
-.tlist .titem { border-bottom: 1px solid var(--line); }
-.tlink {
-  display: flex;
-  align-items: baseline;
-  gap: 0.6em;
-  padding: var(--row-pad);
-  padding-left: var(--slot);
-  padding-right: var(--edge-x);
-  text-decoration: none;
-  transition: var(--row-transition);
-}
-.tlink:hover { background: var(--surface-hover); }
-.tname { letter-spacing: var(--ptitle-ls); overflow-wrap: anywhere; }
-.tcount { margin-left: auto; font-family: var(--font-mono); font-size: var(--count-size); color: var(--text-faint); white-space: nowrap; }
-.tcount b::before { content: '['; font-size: 0.85em; margin-right: 1px; }
-.tcount b::after { content: ']'; font-size: 0.85em; margin-left: 1px; }
-
-/* ── 选本页（某选本在本库的诗目）── */
-.taghead { padding: var(--tag-head-top) 0 0; padding-left: var(--slot); padding-right: var(--edge-x); }
-.tagname { margin: 0; font-size: var(--gname-size); font-weight: 400; letter-spacing: var(--gname-ls); line-height: 1.5; overflow-wrap: anywhere; }
-.tagmeta {
-  margin: var(--tag-meta-gap) 0 0;
-  font-family: var(--font-ui);
-  font-size: var(--meta-size);
-  letter-spacing: var(--ctl-ls);
-  color: var(--text-faint);
-}
-.tagmeta .cnt { font-family: var(--font-mono); font-size: var(--count-size); }
-.tagmeta .cnt b::before { content: '['; font-size: 0.85em; margin-right: 1px; }
-.tagmeta .cnt b::after { content: ']'; font-size: 0.85em; margin-left: 1px; }
-.tagmeta .ordnote { color: var(--text-faint); }
-.plist { list-style: none; margin: var(--tag-head-gap) 0 0; padding: 0; }
-.plist .pitem { border-bottom: 1px solid var(--line); }
-.prow {
-  display: grid;
-  grid-template-columns: calc(var(--slot) - var(--seam)) 1fr;
-  column-gap: var(--seam);
-  align-items: baseline;
-  padding: var(--row-pad);
-  padding-left: 0;
-  padding-right: var(--edge-x);
-  text-decoration: none;
-  transition: var(--row-transition);
-}
-.prow:hover { background: var(--surface-hover); }
-.pord {
-  font-family: var(--font-mono);
-  font-size: var(--ord-size);
-  letter-spacing: 0;
-  color: var(--text-faint);
-  text-align: right;
-  white-space: nowrap;
-}
-.ptitlewrap { min-width: 0; }
-.empty {
+/* 空标签展开后的一句空态（**不写「0 首」**） */
+.gempty {
   margin: 0;
-  padding: var(--empty-top) var(--edge-x) 0 var(--slot);
+  padding: var(--empty-top) 0 0 var(--slot);
+  padding-right: var(--edge-x);
   color: var(--text-dim);
   overflow-wrap: anywhere;
 }
@@ -403,14 +279,11 @@ a.ctl, button.ctl { background: none; border: 0; padding: 0; cursor: pointer; }
 </head>
 <body>
 
-<!-- 原型条：不属于应用页面（每一张截图里都在，提醒「这是夹具／这是哪个候选」） -->
+<!-- 原型条：不属于应用页面（每一张截图里都在，提醒「这是夹具」） -->
 <div class="strip" data-test="strip">
   <span class="stag">讨论原型 · 非产品实施 · 夹具数据</span>
   <span class="ssep">|</span>
-  <span>入口候选</span>
-  <button type="button" data-mode="A" data-test="mode-A">A 顶部 tab</button>
-  <button type="button" data-mode="B" data-test="mode-B">B 顶部下拉</button>
-  <button type="button" data-mode="C" data-test="mode-C">C 独立页</button>
+  <span>标签名与诗 ↔ 标签的归属全部是夹具（含一个主题类标签「咏怀」，用来说明标签不限选本）</span>
   <span class="ssep">|</span>
   <span>视口 <span class="snum" data-test="vw">—</span> · 内容宽 C <span class="snum" data-test="cw">—</span> · scroll <span class="snum" data-test="sy">0</span></span>
 </div>
@@ -427,8 +300,8 @@ a.ctl, button.ctl { background: none; border: 0; padding: 0; cursor: pointer; }
 
   /* ══════════════════════════════════════════════════════════════
    * 0 · 数据：诗的正文／作者／朝代／体裁／底本与详情 = **真实内容**（只读抄自 content/poems，未改）
-   *     选本（tag）与「诗 ↔ 选本」的归属 = **夹具**（临时编造，只为把界面表达出来）
-   *     ⚠ 本文件不写 content/、不给真诗打标签；这里的一切都只活在浏览器内存里。
+   *     标签（tag）名与「诗 ↔ 标签」的归属 = **夹具**（临时编造，只为把界面表达出来）
+   *     ⚠ 本文件不写 content/、**不给真诗打标签**；这里的一切都只活在浏览器内存里。
    * ══════════════════════════════════════════════════════════════ */
   var POEMS = JSON.parse(document.querySelector('[data-test="poems-json"]').textContent);
   /* 诗的 ID：按已选口径由**路径派生**（`杜甫/梦李白二首·其一.md` ⇒ `杜甫-梦李白二首·其一`），
@@ -438,17 +311,19 @@ a.ctl, button.ctl { background: none; border: 0; padding: 0; cursor: pointer; }
   POEMS.forEach(function (p) { BY_ID[p.id] = p; });
   var DYN = ['汉', '唐', '近现代'];
 
-  /* ---- 夹具：选本 ---- */
+  /* ---- 夹具：标签（名字与归属全部编造；「咏怀」是主题类，用来证明界面不假设"标签＝选本"）---- */
   var TAGS = [
     { id: 'gushi-shijiu-shou', name: '古诗十九首' },
     { id: 'tangshi-sanbai-shou', name: '唐诗三百首' },
     { id: 'hanwei-liuchao', name: '汉魏六朝诗选' },
-    { id: 'yutai-xinyong', name: '玉台新咏' }
+    { id: 'yonghuai', name: '咏怀' },
+    { id: 'yutai-xinyong', name: '玉台新咏' }       /* 夹具：空标签（本库还没收录任何诗） */
   ];
-  /* 夹具：诗的归属。orderInTag＝**选本内次序**（选本自己的编次，夹具值），
-   * 与底本次序 orderInSource 是**两个不同的东西**：
+  /* 夹具：诗 ↔ 标签的归属。orderInTag＝**标签内次序**（夹具值），
+   * ⚠ 本轮 UI **不渲染**它（不显示任何序号），但数据里**保留**它——不显示序号 ≠ 删除数据。
    *   · 古诗十九首：夹具里 orderInTag 恰好＝orderInSource（1…19）——纯巧合，不是同一字段；
-   *   · 唐诗三百首：夹具给 172，而该诗 orderInSource＝1 ⇒ 两个数在界面上能明显看出不同。 */
+   *   · 唐诗三百首：夹具给 172，而该诗 orderInSource＝1 ⇒ 两个数明显不同；
+   *   · 玉台新咏：空标签。 */
   var TAGGING = {
     'gushi-shijiu-shou': POEMS.filter(function (p) { return p.dynasty === '汉'; })
       .map(function (p) { return { id: p.id, orderInTag: p.orderInSource }; })
@@ -458,12 +333,17 @@ a.ctl, button.ctl { background: none; border: 0; padding: 0; cursor: pointer; }
       { id: '古诗十九首-行行重行行', orderInTag: 1 },
       { id: '古诗十九首-涉江采芙蓉', orderInTag: 4 }
     ],
-    'yutai-xinyong': []   /* 夹具：一个本库还没收录任何诗的选本 */
+    'yonghuai': [
+      { id: '古诗十九首-生年不满百', orderInTag: 1 },
+      { id: '古诗十九首-驱车上东门', orderInTag: 2 },
+      { id: '古诗十九首-去者日以疏', orderInTag: 3 }
+    ],
+    'yutai-xinyong': []
   };
   function tagById(id) { for (var i = 0; i < TAGS.length; i++) if (TAGS[i].id === id) return TAGS[i]; return null; }
+  /* 标签下的诗：**按夹具的标签内次序排**（这个次序值本身不显示在界面上） */
   function tagPoems(id) {
-    return (TAGGING[id] || []).map(function (x) { return { poem: BY_ID[x.id], orderInTag: x.orderInTag }; })
-      .filter(function (x) { return !!x.poem; });
+    return (TAGGING[id] || []).map(function (x) { return BY_ID[x.id]; }).filter(function (p) { return !!p; });
   }
 
   /* ══════════════════════════════════════════════════════════════
@@ -501,43 +381,38 @@ a.ctl, button.ctl { background: none; border: 0; padding: 0; cursor: pointer; }
   }
 
   /* ══════════════════════════════════════════════════════════════
-   * 2 · 路由与「返回」栈
-   *     route 形如 '/A'、'/A/hub/tags'、'/A/t/gushi-shijiu-shou'、'/A/p/<id>'、'/A/p/<id>/detail'
+   * 2 · 路由与「返回」栈（只有一种入口形态：顶部两个 tab）
+   *     route 形如 '/hub'（朝代）、'/tags'（标签）、'/p/<id>'、'/p/<id>/detail'
    *     - 向前导航 = 改 location.hash（file:// 下也可用；pushState 在 file:// 会被拒）
-   *     - 「返回」= 回到**我们自己记下的上一视图**（不用 history.back，浏览器后退也对同一层级生效）
-   *     - 每个 route 记住自己的 scrollY，回到该 route 时尽量还原
+   *     - 「返回」= 回到**我们自己记下的上一视图**（浏览器后退也对同一层级生效）
+   *     - 每个 route 记住自己的 scrollY；回到该 route 时还原
+   *     - 展开状态分两套（朝代组 / 标签组），都活在内存里 ⇒ 返回与来回切 tab 都保持
    * ══════════════════════════════════════════════════════════════ */
   var cur = null;            /* 当前 route */
   var backStack = [];        /* 进入当前 route 之前的 route 串 */
   var pendingBack = false;   /* 下一次 hashchange 是「返回」触发的 */
-  var skipPush = false;      /* 下一次 hashchange 是「换候选」触发的（不记返回栈） */
   var scrollMem = {};        /* route → scrollY */
-  var expanded = {};         /* 朝代组展开状态（跨视图保留） */
-  var menuOpen = false;      /* 候选 B 的下拉是否打开 */
+  var exp = { dyn: {}, tag: {} };   /* 朝代组 / 标签组的展开状态（键＝组名 / 标签 id） */
 
   function normHash() {
     var h = location.hash.replace(/^#/, '');
     /* Chrome 对 hash 里的非 ASCII 会百分号转义（路由里含中文诗题/诗 id）⇒ 读回来先解码 */
     try { h = decodeURIComponent(h); } catch (e) { /* 保留原串 */ }
-    if (!h) return '/A';
+    if (!h) return '/hub';
     if (h.charAt(0) !== '/') h = '/' + h;
     return h;
   }
   function parts(r) { return r.split('/').filter(Boolean); }
-  function modeOf(r) { var m = parts(r)[0]; return (m === 'A' || m === 'B' || m === 'C') ? m : 'A'; }
-  function rootOf(r) { return '/' + modeOf(r); }
   function go(r) {
     saveScroll();
     pendingBack = false;
-    menuOpen = false;
     if (normHash() === r) { render(); return; }
     location.hash = '#' + r;
   }
   function goBack() {
     saveScroll();
-    menuOpen = false;
     var r = backStack.pop();
-    if (r === undefined) { go(rootOf(cur)); return; }
+    if (r === undefined) { go('/hub'); return; }
     pendingBack = true;
     if (normHash() === r) { pendingBack = false; render(); return; }
     location.hash = '#' + r;
@@ -553,7 +428,6 @@ a.ctl, button.ctl { background: none; border: 0; padding: 0; cursor: pointer; }
     var r = normHash();
     if (cur === r) { render(); restoreScroll(r); return; }
     if (pendingBack) { pendingBack = false; }
-    else if (skipPush) { skipPush = false; }
     else if (backStack.length && backStack[backStack.length - 1] === r) { backStack.pop(); }  /* 浏览器后退 */
     else if (cur !== null) { backStack.push(cur); }
     cur = r;
@@ -565,6 +439,7 @@ a.ctl, button.ctl { background: none; border: 0; padding: 0; cursor: pointer; }
    * 3 · 小工具
    * ══════════════════════════════════════════════════════════════ */
   var colEl = document.querySelector('[data-test="col"]');
+  var pgEl = document.querySelector('[data-test="pg"]');
   function el(tag, cls, text) {
     var e = document.createElement(tag);
     if (cls) e.className = cls;
@@ -572,7 +447,6 @@ a.ctl, button.ctl { background: none; border: 0; padding: 0; cursor: pointer; }
     return e;
   }
   function clear(n) { while (n.firstChild) n.removeChild(n.firstChild); }
-  function pad3(n) { var s = String(n); while (s.length < 3) s = '0' + s; return s; }
   function link(cls, route, text) {
     var a = el('a', cls, text);
     a.href = '#' + route;
@@ -588,8 +462,8 @@ a.ctl, button.ctl { background: none; border: 0; padding: 0; cursor: pointer; }
 
   /* ══════════════════════════════════════════════════════════════
    * 4 · 顶部行
-   *     hub 页：左＝候选自己的入口控件，右＝关于（关于页不在本项范围，本原型不实现）
-   *     下钻页：左＝返回
+   *     浏览页：左＝「朝代 ｜ 标签」两个 tab，右＝关于（关于页不在本项范围，本原型不实现）
+   *     下钻页：左＝返回（诗页右端另有「详情」，**始终显示**）
    * ══════════════════════════════════════════════════════════════ */
   function aboutSpan() {
     var s = el('span', 'aboutlink', '关于');
@@ -597,67 +471,24 @@ a.ctl, button.ctl { background: none; border: 0; padding: 0; cursor: pointer; }
     s.title = '本原型不实现关于页（不在本项范围）';
     return s;
   }
-  function hubTopline(mode, view) {
+  function hubTopline(view) {
     var bar = el('div', 'topline');
     bar.setAttribute('data-test', 'topline');
-    var left;
-    if (mode === 'A') {
-      left = el('div', 'tabs');
-      left.setAttribute('role', 'tablist');
-      [['dynasty', '朝代'], ['tags', '选本']].forEach(function (t) {
-        var b = el('button', 'tab', t[1]);
-        b.type = 'button';
-        b.setAttribute('role', 'tab');
-        b.setAttribute('data-tab', t[0]);
-        b.setAttribute('data-go', '/' + mode + (t[0] === 'tags' ? '/hub/tags' : '/hub'));
-        b.setAttribute('aria-selected', view === t[0] ? 'true' : 'false');
-        left.appendChild(b);
-      });
-    } else if (mode === 'B') {
-      left = el('button', 'picker');
-      left.type = 'button';
-      left.setAttribute('data-picker', '1');
-      left.setAttribute('data-test', 'picker');
-      left.setAttribute('aria-haspopup', 'menu');
-      left.setAttribute('aria-expanded', menuOpen ? 'true' : 'false');
-      left.appendChild(document.createTextNode('浏览：朝代'));
-      left.appendChild(el('span', 'caret', '▾'));
-    } else {
-      left = link('ctl', '/' + mode + '/tags', '选本 ›');
-      left.setAttribute('data-test', 'entrylink');
-    }
-    bar.appendChild(left);
-    bar.appendChild(aboutSpan());
-    if (mode === 'B' && menuOpen) bar.appendChild(pickerMenu());
-    return bar;
-  }
-  function pickerMenu() {
-    var m = el('div', 'menu');
-    m.setAttribute('data-test', 'menu');
-    m.setAttribute('role', 'menu');
-    var first = el('button', 'mitem');
-    first.type = 'button';
-    first.setAttribute('role', 'menuitemradio');
-    first.setAttribute('data-go', '/B/hub');
-    first.setAttribute('aria-checked', 'true');
-    first.appendChild(el('span', null, '朝代'));
-    m.appendChild(first);
-    m.appendChild(el('div', 'msep'));
-    TAGS.forEach(function (t) {
-      var n = tagPoems(t.id).length;
-      var b = el('button', 'mitem');
+    var tabs = el('div', 'tabs');
+    tabs.setAttribute('role', 'tablist');
+    tabs.setAttribute('data-test', 'tabs');
+    [['dynasty', '朝代', '/hub'], ['tags', '标签', '/tags']].forEach(function (t) {
+      var b = el('button', 'tab', t[1]);
       b.type = 'button';
-      b.setAttribute('role', 'menuitemradio');
-      b.setAttribute('aria-checked', 'false');
-      b.setAttribute('data-go', '/B/t/' + t.id);
-      b.appendChild(el('span', null, t.name));
-      var c = el('span', 'mcount');
-      c.appendChild(el('b', null, String(n)));
-      c.appendChild(document.createTextNode(' 首'));
-      b.appendChild(c);
-      m.appendChild(b);
+      b.setAttribute('role', 'tab');
+      b.setAttribute('data-tab', t[0]);
+      b.setAttribute('data-go', t[2]);
+      b.setAttribute('aria-selected', view === t[0] ? 'true' : 'false');
+      tabs.appendChild(b);
     });
-    return m;
+    bar.appendChild(tabs);
+    bar.appendChild(aboutSpan());
+    return bar;
   }
   function barTopline(items) {
     var bar = el('div', 'topbar');
@@ -670,148 +501,97 @@ a.ctl, button.ctl { background: none; border: 0; padding: 0; cursor: pointer; }
         b.setAttribute('data-test', 'back');
         bar.appendChild(b);
       } else {
-        bar.appendChild(link('ctl', it.route, it.text));
+        var a = link('ctl', it.route, it.text);
+        a.setAttribute('data-test', it.test || null);
+        bar.appendChild(a);
       }
     });
     return bar;
   }
 
   /* ══════════════════════════════════════════════════════════════
-   * 5 · 选本列表（候选 A 的「选本」tab 与候选 C 的独立选本页共用）
-   *     计数一律写成「本库已收录 [N] 首」——**不是**「该选本共 N 首」，也不写「已全收」
+   * 5 · 一个组（朝代 tab 与标签 tab **同一套结构**）
+   *     key  ：'dyn:汉' / 'tag:gushi-shijiu-shou'（展开状态按它记）
+   *     opts ：{ count } —— 只有朝代 tab 传 count；标签 tab **不传**（组头不出现任何数量）
+   *     组头＝悬挂记号 [−]/[+] ＋ 组名，**整行可点**；初态收起由调用方决定
+   *     展开后：子诗目＝题名左沿与组名首字同一竖线（缩进 0）＋ 作者紧随；**无序号**
+   *     空组（只有标签 tab 会有）：展开后给一句空态，**不写「0 首」**
    * ══════════════════════════════════════════════════════════════ */
-  function tagList(mode) {
-    var ul = el('ul', 'tlist');
-    ul.setAttribute('data-test', 'taglist');
-    TAGS.forEach(function (t) {
-      var n = tagPoems(t.id).length;
-      var li = el('li', 'titem');
-      var a = link('tlink', '/' + mode + '/t/' + t.id);
-      a.setAttribute('data-tag', t.id);
-      a.appendChild(el('span', 'tname', t.name));
-      var c = el('span', 'tcount');
-      c.appendChild(el('span', null, '本库已收录 '));
-      c.appendChild(el('b', null, String(n)));
-      c.appendChild(el('span', null, ' 首'));
-      a.appendChild(c);
+  function groupBlock(key, name, poems, open, opts) {
+    opts = opts || {};
+    var grp = el('div', 'grp');
+    var head = el('button', 'ghead');
+    head.type = 'button';
+    head.setAttribute('data-ghead', key);
+    head.setAttribute('data-test', 'ghead');
+    head.setAttribute('aria-expanded', open ? 'true' : 'false');
+    var mark = el('span', 'gmark', open ? '[−]' : '[+]');
+    mark.setAttribute('data-test', 'gmark');
+    mark.setAttribute('aria-hidden', 'true');
+    head.appendChild(mark);
+    var nm = el('span', 'gname', name);
+    nm.setAttribute('data-test', 'gname');
+    head.appendChild(nm);
+    if (opts.count != null) {
+      var cnt = el('span', 'gcount');
+      cnt.setAttribute('data-test', 'gcount');
+      cnt.appendChild(el('b', null, String(opts.count)));
+      cnt.appendChild(document.createTextNode(' 首'));
+      head.appendChild(cnt);
+    }
+    grp.appendChild(head);
+    if (!open) return grp;
+    if (!poems.length) {
+      var em = el('p', 'gempty', '这个标签下还没有诗。');
+      em.setAttribute('data-test', 'tempty');
+      grp.appendChild(em);
+      return grp;
+    }
+    var ul = el('ul', 'glist');
+    ul.setAttribute('data-test', 'glist');
+    poems.forEach(function (p) {
+      var li = el('li', 'poemrow');
+      var a = link('plink', '/p/' + p.id);
+      a.setAttribute('data-poem', p.id);
+      a.appendChild(el('span', 'ptitle', p.title));
+      a.appendChild(el('span', 'pauthor', p.author));
       li.appendChild(a);
       ul.appendChild(li);
     });
-    return ul;
+    grp.appendChild(ul);
+    return grp;
   }
 
   /* ══════════════════════════════════════════════════════════════
    * 6 · 各页
    * ══════════════════════════════════════════════════════════════ */
-  function renderHub(mode, view) {
+  function renderDynasty() {
     clear(colEl);
-    colEl.appendChild(hubTopline(mode, view));
-    if (view === 'tags') {
-      colEl.appendChild(tagList(mode));
-      return;
-    }
+    colEl.appendChild(hubTopline('dynasty'));
     DYN.forEach(function (name) {
       var poems = POEMS.filter(function (p) { return p.dynasty === name; });
       if (!poems.length) return;
-      var grp = el('div', 'grp');
-      var open = !!expanded[name];
-      var head = el('button', 'ghead');
-      head.type = 'button';
-      head.setAttribute('data-ghead', name);
-      head.setAttribute('data-test', 'ghead');
-      head.setAttribute('aria-expanded', open ? 'true' : 'false');
-      var mark = el('span', 'gmark', open ? '[−]' : '[+]');
-      mark.setAttribute('aria-hidden', 'true');
-      head.appendChild(mark);
-      head.appendChild(el('span', 'gname', name));
-      var cnt = el('span', 'gcount');
-      cnt.appendChild(el('b', null, String(poems.length)));
-      cnt.appendChild(document.createTextNode(' 首'));
-      head.appendChild(cnt);
-      grp.appendChild(head);
-      if (open) {
-        var ul = el('ul', 'glist');
-        poems.forEach(function (p) {
-          var li = el('li', 'poemrow');
-          var a = link('plink', '/' + mode + '/p/' + p.id);
-          a.appendChild(el('span', 'ptitle', p.title));
-          a.appendChild(el('span', 'pauthor', p.author));
-          li.appendChild(a);
-          ul.appendChild(li);
-        });
-        grp.appendChild(ul);
-      }
-      colEl.appendChild(grp);
+      /* 朝代 tab 保留原有计数（[19] 首）——用户说的「不用显示数量」本轮按**标签页**范围理解 */
+      colEl.appendChild(groupBlock('dyn:' + name, name, poems, !!exp.dyn[name], { count: poems.length }));
     });
   }
 
-  function renderTagListPage(mode) {
+  function renderTags() {
     clear(colEl);
-    colEl.appendChild(barTopline([{ back: true }]));
-    var head = el('div', 'taghead');
-    head.appendChild(el('h1', 'tagname', '选本'));
-    colEl.appendChild(head);
-    var ul = tagList(mode);
-    ul.classList.add('tlist--page');
-    colEl.appendChild(ul);
-  }
-
-  function renderTagPage(mode, tagId) {
-    var t = tagById(tagId);
-    clear(colEl);
-    colEl.appendChild(barTopline([{ back: true }]));
-    if (!t) {
-      var miss = el('p', 'empty', '这个选本不在夹具里。');
-      colEl.appendChild(miss);
-      return;
-    }
-    var items = tagPoems(tagId);
-    var head = el('div', 'taghead');
-    head.appendChild(el('h1', 'tagname', t.name));
-    var meta = el('p', 'tagmeta');
-    meta.setAttribute('data-test', 'tagmeta');
-    meta.appendChild(document.createTextNode('本库已收录 '));
-    var c = el('span', 'cnt');
-    c.appendChild(el('b', null, String(items.length)));
-    meta.appendChild(c);
-    meta.appendChild(document.createTextNode(' 首'));
-    if (items.length) {
-      var note = el('span', 'ordnote', ' · 按选本次序');
-      meta.appendChild(note);
-    }
-    head.appendChild(meta);
-    colEl.appendChild(head);
-
-    if (!items.length) {
-      var e = el('p', 'empty', '本库尚未收录这个选本的诗。');
-      e.setAttribute('data-test', 'empty');
-      colEl.appendChild(e);
-      return;
-    }
-    var ul = el('ul', 'plist');
-    ul.setAttribute('data-test', 'plist');
-    items.forEach(function (it) {
-      var li = el('li', 'pitem');
-      var a = link('prow', '/' + mode + '/p/' + it.poem.id);
-      a.setAttribute('data-poem', it.poem.id);
-      a.appendChild(el('span', 'pord', pad3(it.orderInTag)));
-      var w = el('span', 'ptitlewrap');
-      w.appendChild(el('span', 'ptitle', it.poem.title));
-      w.appendChild(el('span', 'pauthor', it.poem.author));
-      a.appendChild(w);
-      li.appendChild(a);
-      ul.appendChild(li);
+    colEl.appendChild(hubTopline('tags'));
+    /* 与朝代页同构：每个标签就是一个组头；**组头不带数量**、页面不出现任何数量 */
+    TAGS.forEach(function (t) {
+      colEl.appendChild(groupBlock('tag:' + t.id, t.name, tagPoems(t.id), !!exp.tag[t.id], {}));
     });
-    colEl.appendChild(ul);
   }
 
-  function renderPoem(mode, poemId) {
+  function renderPoem(poemId) {
     var p = BY_ID[poemId];
     clear(colEl);
     /* 已选：诗页顶部的「详情」入口**始终显示**——没有 `## 详情` 但有底本的诗，详情页仍然存在（页上只有「底本与来源」） */
-    var right = p ? { route: '/' + mode + '/p/' + p.id + '/detail', text: '详情' } : null;
+    var right = p ? { route: '/p/' + p.id + '/detail', text: '详情', test: 'detail-entry' } : null;
     colEl.appendChild(barTopline(right ? [{ back: true }, right] : [{ back: true }]));
-    if (!p) { colEl.appendChild(el('p', 'empty', '这首诗不在夹具里。')); return; }
+    if (!p) { colEl.appendChild(el('p', 'gempty', '这首诗不在夹具里。')); return; }
     var head = el('div', 'poem-head');
     head.appendChild(el('h1', 'p-title', p.title));
     head.appendChild(el('p', 'p-id', p.author + ' · ' + p.dynasty + ' · ' + p.genre));
@@ -826,11 +606,11 @@ a.ctl, button.ctl { background: none; border: 0; padding: 0; cursor: pointer; }
     colEl.appendChild(body);
   }
 
-  function renderDetail(mode, poemId) {
+  function renderDetail(poemId) {
     var p = BY_ID[poemId];
     clear(colEl);
     colEl.appendChild(barTopline([{ back: true }]));
-    if (!p) { colEl.appendChild(el('p', 'empty', '这首诗不在夹具里。')); return; }
+    if (!p) { colEl.appendChild(el('p', 'gempty', '这首诗不在夹具里。')); return; }
     var head = el('div', 'd-head');
     head.appendChild(el('h1', 'd-title', p.title));
     colEl.appendChild(head);
@@ -883,25 +663,17 @@ a.ctl, button.ctl { background: none; border: 0; padding: 0; cursor: pointer; }
   function render() {
     applyW();
     var r = cur || normHash();
-    var mode = modeOf(r);
-    var ps = parts(r).slice(1);
-    document.querySelector('[data-test="pg"]').setAttribute('data-route', r);
-    /* ⚠ 这里**不能**用 data-mode：.pg 是整页容器，若它也带 data-mode，
-     * 页内任何点击的 closest('[data-mode]') 都会爬到这里、被当成「换候选」。用 data-page-mode。 */
-    document.querySelector('[data-test="pg"]').setAttribute('data-page-mode', mode);
-    Array.prototype.forEach.call(document.querySelectorAll('[data-mode]:not([data-test="pg"])'), function (b) {
-      b.setAttribute('aria-pressed', b.getAttribute('data-mode') === mode ? 'true' : 'false');
-    });
-    if (!ps.length) { renderHub(mode, 'dynasty'); return; }
-    if (mode === 'A' && ps[0] === 'hub') { renderHub(mode, ps[1] === 'tags' ? 'tags' : 'dynasty'); return; }
-    if (mode === 'C' && ps[0] === 'tags') { renderTagListPage(mode); return; }
-    if (ps[0] === 't' && ps[1]) { renderTagPage(mode, ps[1]); return; }
+    var ps = parts(r);
+    pgEl.setAttribute('data-route', r);
+    if (!ps.length || ps[0] === 'hub') { pgEl.setAttribute('data-view', 'dynasty'); renderDynasty(); return; }
+    if (ps[0] === 'tags') { pgEl.setAttribute('data-view', 'tags'); renderTags(); return; }
     if (ps[0] === 'p' && ps[1]) {
-      if (ps[2] === 'detail') renderDetail(mode, ps[1]);
-      else renderPoem(mode, ps[1]);
+      pgEl.setAttribute('data-view', ps[2] === 'detail' ? 'detail' : 'poem');
+      if (ps[2] === 'detail') renderDetail(ps[1]); else renderPoem(ps[1]);
       return;
     }
-    renderHub(mode, 'dynasty');
+    pgEl.setAttribute('data-view', 'dynasty');
+    renderDynasty();
   }
 
   /* ══════════════════════════════════════════════════════════════
@@ -914,26 +686,25 @@ a.ctl, button.ctl { background: none; border: 0; padding: 0; cursor: pointer; }
     if (back) { e.preventDefault(); goBack(); return; }
     var g = t.closest('[data-go]');
     if (g) { e.preventDefault(); go(g.getAttribute('data-go')); return; }
-    var m = t.closest('[data-mode]');
-    if (m) {
+    var gh = t.closest('[data-ghead]');
+    if (gh) {
       e.preventDefault();
-      var mode = m.getAttribute('data-mode');
-      backStack = [];       /* 换候选＝重新开始，返回栈清空 */
-      skipPush = true;
-      menuOpen = false;
-      expanded = {};
-      if (normHash() === '/' + mode) { skipPush = false; render(); }
-      else location.hash = '#/' + mode;
+      var key = gh.getAttribute('data-ghead');
+      if (key.indexOf('dyn:') === 0) { var n = key.slice(4); exp.dyn[n] = !exp.dyn[n]; }
+      else if (key.indexOf('tag:') === 0) { var id = key.slice(4); exp.tag[id] = !exp.tag[id]; }
+      /* 展开/收起会改页面高度 ⇒ 展开时把刚才点的组头保持在原位置，避免视图跳动 */
+      var y0 = window.scrollY;
+      var top0 = gh.getBoundingClientRect().top;
+      render();
+      var gh2 = document.querySelector('[data-ghead="' + key.replace(/"/g, '\\"') + '"]');
+      if (gh2) {
+        var dy = gh2.getBoundingClientRect().top - top0;
+        if (dy) window.scrollTo(0, Math.max(0, y0 + dy));
+      }
+      saveScroll();
+      applyScrollY();
       return;
     }
-    var pk = t.closest('[data-picker]');
-    if (pk) { e.preventDefault(); menuOpen = !menuOpen; render(); return; }
-    var gh = t.closest('[data-ghead]');
-    if (gh) { e.preventDefault(); var k = gh.getAttribute('data-ghead'); expanded[k] = !expanded[k]; render(); return; }
-    if (menuOpen) { menuOpen = false; render(); }
-  });
-  document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && menuOpen) { menuOpen = false; render(); }
   });
   window.addEventListener('hashchange', onHash);
   window.addEventListener('resize', applyW);
@@ -943,7 +714,7 @@ a.ctl, button.ctl { background: none; border: 0; padding: 0; cursor: pointer; }
   applyW();
   cur = normHash();
   render();
-  /* 深链（例如直接打开 #/A/t/gushi-shijiu-shou）也照上面渲染；不额外压返回栈 */
+  /* 深链（例如直接打开 #/tags）也照上面渲染；不额外压返回栈 */
   window.addEventListener('load', function () { applyW(); });
 })();
 </script>
