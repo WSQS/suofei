@@ -94,5 +94,12 @@ fun noteEntryLabel(expanded: Boolean): String =
 /** 详情页来源块上的标签（原型 D0 的 ① 档：来源前带标签）。 */
 const val LABEL_SOURCE_BLOCK = "底本与来源"
 
+/**
+ * 目录页顶部两个 tab 的文字（原型逐字：**「朝代 ｜ 标签」**）。
+ * 竖线不是文本：原型用 tab 之间的间距与选中下划线分隔，这里同样不把「｜」画成字。
+ */
+const val LABEL_TAB_DYNASTY = "朝代"
+const val LABEL_TAB_TAG = "标签"
+
 /** 产物里没有详情正文时的**如实**空状态（不编内容、不留空白让人以为没加载出来）。 */
 const val DETAIL_EMPTY_HINT = "这一首在产物里没有详情正文。"

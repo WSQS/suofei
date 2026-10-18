@@ -4,18 +4,40 @@ package dev.sopho.suofei.data
  * 内容领域模型 —— 与 `docs/design/content-contract.md` 第 2 节的 `dist/content.json` 一一对应。
  * 这里只有「读」的模型：客户端不解析 Markdown 源文件，也不写回 JSON。
  *
- * **字段形状（2026-10-16，`formatVersion` 2）**：顶层 `dynasties` 是**有序的中文值数组**（不再是
- * `[{key,label,order}]`）；每首 **10 键** `id,title,author,dynasty,genre,source,orderInSource,detail,stanzas,notes`，
- * 缺值**保键**写 `null`；分组用每首的**中文 `dynasty`** 与顶层数组**精确匹配**。
+ * **字段形状（2026-10-18，`formatVersion` 3）**：在 v2（顶层 `dynasties` ＝有序中文值数组；每首 10 键）上
+ * **新增两处标签字段**——顶层 `tags[] = [{id, members[]}]`、每首 `poems[].tags[] = [{tagId, orderInTag}]`（可为空数组）。
+ * `formatVersion` 仍是「字段集一变就升」的 B 判据（用户 2026-10-15 定）：新字段 ⇒ 3，旧客户端拒收。
+ * **v2 内容仍可读**：v2 载荷根本没有这两个键 ⇒ 解析成空标签表（不是失败）——这正是「旧快照保留且可读」的依据。
+ *
+ * 仍有效的 v2 事实：缺值**保键**写 `null`；分组用每首的**中文 `dynasty`** 与顶层数组**精确匹配**。
  * 机器可读的预期见夹具 `tests/fixtures/contract/real-01-full.json`（＋契约 `schema/content.schema.json`）；
  * 原型轮那份 `expectations.json` 是**历史快照**，已不是测试输入。
  *
- * ⚠ 这条与**另一条线（S1S2 编译器）**同批：字段形状变了，产物必须由新版编译器产出；
- * 本端不再认识旧形状（`dynastyKey`/`dynastyLabel`/`dynastyOrder`/`era`/`variants`）。
+ * ⚠ 字段形状变了，产物必须由新版编译器产出；本端不再认识 v1 形状（`dynastyKey`/`dynastyLabel`/
+ * `dynastyOrder`/`era`/`variants`）。
  */
 
 /** 一个分组：**组名就是顶层 `dynasties` 数组里的那个中文串**（不再有 key/label/order 三元组）。 */
 data class DynastyGroup(val name: String, val poems: List<Poem>)
+
+/**
+ * 诗 → 标签的一条归属（`formatVersion` 3 的 `poems[].tags[]`）。
+ *
+ * `orderInTag` ＝ **这一首在该标签内的位置**（必填、由内容侧给出；它**不是**底本次序——
+ * 底本次序是另一个字段 [Poem.orderInSource]，两者互不顶替）。
+ * 标签内的成员次序由编译期按 `orderInTag` 升序算好在顶层 `tags[].members` 里，客户端**不重排**。
+ */
+data class TagRef(val tagId: String, val orderInTag: Int)
+
+/**
+ * 顶层 `tags[]` 的一项：`id` 是**中文标签名本身**（就是显示名，本期不带 name/qualifier）；
+ * `members` 是编译期派生的**有序**诗 id 索引（按 `orderInTag` 升序，客户端照它渲染）。
+ * 零成员的标签仍在数据里（[Content.tags]），但**不渲染**（见 [Content.tagGroups]）。
+ */
+data class Tag(val id: String, val memberIds: List<String>)
+
+/** 标签视图的一组：标签名 ＋ 它的诗（次序＝产物 `members` 次序，**客户端不重排**）。 */
+data class TagGroup(val name: String, val poems: List<Poem>)
 
 data class Poem(
     val id: String,
@@ -29,6 +51,8 @@ data class Poem(
     val source: String?,
     /** 底本原次序（编译期写入的整数）。**产物公开发布的唯一次序字段**。 */
     val orderInSource: Int?,
+    /** 这一首所属的标签与它在各标签内的位置（`formatVersion` 3）。旧产物没有这个键 ⇒ 空表。 */
+    val tags: List<TagRef> = emptyList(),
     /** `## 详情` 节的**整段 Markdown 文本**；空节/缺节 ⇒ `null`（键仍在）。 */
     val detail: String?,
     /** 分段数组，内层为行数组。契约要求：纸本空行 → 段边界，原文分行不得丢失。 */
@@ -53,6 +77,11 @@ data class Content(
     /** **有序的中文组名数组**（显示次序＝数组次序）。 */
     val dynasties: List<String>,
     val poems: List<Poem>,
+    /**
+     * 顶层 `tags[]`，**次序＝产物次序**（编译期已按拼音排好；客户端不重排）。
+     * 旧产物（`formatVersion` 2）没有这个键 ⇒ 空表（不是失败：那时本来就没有标签）。
+     */
+    val tags: List<Tag> = emptyList(),
 ) {
     /**
      * 目录：按顶层数组的次序分组，**只包含实际有内容的组**（空组不出现）；
@@ -69,6 +98,20 @@ data class Content(
                     if (members.any { it.hasOrderingInfo }) members else members.sortedWith(POEM_ORDER)
                 DynastyGroup(name, ordered)
             }
+        }
+    }
+
+    /**
+     * 标签视图：**照产物次序**把每个标签的 `members` 换成诗对象，**零成员的标签整组不出现**
+     * （用户 2026-10-18：「标签下面没有诗就该没有标签」——不渲染组头、不渲染按钮、不写空态文字）。
+     * 不重排：标签之间用 `tags[]` 的次序、标签内用 `members` 的次序（编译期是唯一排序权威）。
+     * `members` 里的 id 一定存在：解析期已按「成员必须指向真实诗」校验过（见 `ContentParser`）。
+     */
+    val tagGroups: List<TagGroup> by lazy {
+        val byId = poems.associateBy { it.id }
+        tags.mapNotNull { tag ->
+            val members = tag.memberIds.map { id -> byId.getValue(id) }
+            if (members.isEmpty()) null else TagGroup(tag.id, members)
         }
     }
 

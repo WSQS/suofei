@@ -16,6 +16,15 @@ import kotlinx.coroutines.withContext
 /** 四个页面（用户 2026-10-15 定）：目录 / 诗 / 诗歌详情 / 关于（原「更新页」改名）。 */
 enum class Screen { LIBRARY, POEM, POEM_DETAIL, ABOUT }
 
+/**
+ * 目录页的两个视图（用户 2026-10-18 定：顶部「朝代 ｜ 标签」两个 tab，标签页与朝代页**同构**）。
+ *
+ * ⚠ 它们**不是**页面：页面集合仍是四个（`Screen`）。切 tab 不改变 `Screen`，所以
+ * 「诗页返回 ⇒ 回到**进入它的那个原视图**」不需要额外记“从哪进的”——`libraryTab` 一直是那个值，
+ * 两个 tab 各自的展开与滚动位置也各自留在 `AppRoot` 的 `remember` 里。
+ */
+enum class LibraryTab { DYNASTY, TAG }
+
 /** 更新检查的可见状态。每种失败都明确写「旧版保留」。 */
 sealed interface UpdateStatus {
     data object Idle : UpdateStatus
@@ -39,6 +48,10 @@ class AppState(
         private set
 
     var screen: Screen by mutableStateOf(Screen.LIBRARY)
+        private set
+
+    /** 目录页当前视图（朝代 / 标签）。回目录时**不改它** —— 这就是「返回回到进入它的原视图」。 */
+    var libraryTab: LibraryTab by mutableStateOf(LibraryTab.DYNASTY)
         private set
 
     var selectedPoem: Poem? by mutableStateOf(null)
@@ -88,6 +101,11 @@ class AppState(
         }
         selectedPoem = null
         screen = Screen.LIBRARY
+    }
+
+    /** 切目录页视图（朝代 ／ 标签）。两个 tab 的展开与滚动各自保留，见 `AppRoot`。 */
+    fun selectLibraryTab(tab: LibraryTab) {
+        libraryTab = tab
     }
 
     fun openPoem(poem: Poem) {

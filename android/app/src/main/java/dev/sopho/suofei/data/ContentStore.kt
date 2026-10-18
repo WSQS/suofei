@@ -82,8 +82,10 @@ class ContentStore(private val rootDir: File) {
             return null
         }
         // 契约 §4：结构版本更高的内容**不去解析**。
-        // 这条在「应用被降级」时是真会发生的：新版应用装过 formatVersion=2 的内容，
+        // 这条在「应用被降级」时是真会发生的：新版应用装过 formatVersion=3 的内容，
         // 旧版应用再打开时，必须忽略它、退回内置内容，而不是拿旧解析器去读新结构。
+        // 反过来：**低版本快照仍可读**（v2 载荷没有 tags 两处键 ⇒ 解析成空标签表）——
+        // 这就是「旧快照保留」不把人踢回内置内容的依据。
         if (content.formatVersion > ContentParser.SUPPORTED_FORMAT_VERSION) return null
         // 指针与载荷自相矛盾 ⇒ 当作损坏，不静默按任一方当真。
         if (content.contentVersion != version) return null
@@ -115,6 +117,17 @@ class ContentStore(private val rootDir: File) {
             staged.readText(Charsets.UTF_8)
         } catch (e: IOException) {
             return InstallResult.Refused("暂存文件读取失败：${e.message}", RefusalKind.IO)
+        }
+
+        // **先按版本门拒收，再做完整解析**：更高版本的载荷可能连形状都变了，若先走完整解析，
+        // 真实原因（需升级应用）会变成一个误导的「JSON 非法」。这是「旧客户端遇到新格式」的拒收点。
+        val declared = ContentParser.declaredFormatVersion(text)
+        if (declared != null && declared > ContentParser.SUPPORTED_FORMAT_VERSION) {
+            staged.delete()
+            return InstallResult.Refused(
+                "内容结构版本 $declared 高于本应用支持的 ${ContentParser.SUPPORTED_FORMAT_VERSION}",
+                RefusalKind.FORMAT_TOO_NEW,
+            )
         }
 
         val content = try {
