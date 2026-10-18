@@ -1,5 +1,6 @@
 package dev.sopho.suofei
 
+import dev.sopho.suofei.ui.PoetryTokens
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -60,10 +61,58 @@ class ScreenInventoryTest {
     fun libraryScreen_hasTheAboutEntryAtTheTop_andNoAppName() {
         val library = body("LibraryScreen")
         assertTrue("目录页要有「关于」入口", library.contains("onAbout"))
-        assertTrue("「关于」在顶部（列表第一项）", library.contains("AboutEntryRow"))
+        assertTrue("顶部行（两个 tab ＋ 关于）在列表第一项", library.contains("LibraryTopRow"))
         // 用户 q-52a14e2c：不在目录重复显示应用名
         assertFalse("目录页不得出现应用名", library.contains("AboutFields.APP_NAME"))
         assertFalse("目录页不得出现「索斐」", library.contains("索斐"))
+    }
+
+    // ── 顶部两个 tab（2026-10-18：用户定「朝代 ｜ 标签」，标签页与朝代页同构）────────────────
+
+    @Test
+    fun libraryTopRow_hasBothTabs_andTheAboutEntry() {
+        val top = body("LibraryTopRow")
+        assertTrue("左：朝代 tab", top.contains("LABEL_TAB_DYNASTY"))
+        assertTrue("左：标签 tab", top.contains("LABEL_TAB_TAG"))
+        assertTrue("右：「关于」入口仍然只在顶部一个", top.contains("\"关于\"") && top.contains("onAbout()"))
+        // tab 是切换目录页的两个视图，不是两个页面：点它们只调 selectLibraryTab
+        assertTrue("tab 只切视图", top.contains("onSelectTab("))
+        assertFalse("tab 不得直接改 Screen（页面集合仍是四个）", top.contains("openPoem") || top.contains("openAbout("))
+        // 选中态：文字色变 text ＋ 下方一条 accent-line 下划线（原型 .tab[aria-selected]）
+        val tab = body("TabLabel")
+        assertTrue("选中时文字用主色", tab.contains("PoetryTokens.text"))
+        assertTrue("下划线用 accent-line 令牌", tab.contains("PoetryTokens.accentLine"))
+        assertEquals("下划线 1px", PoetryTokens.TAB_UNDERLINE_DP, 1f, 1e-6f)
+        // 「关于」与两个 tab **同一行、同一个字号**（0.86rem；Web 2026-10-18 已对齐）
+        assertTrue(
+            "「关于」必须与 tab 同号（PoetryTextStyles.tab），不得再用 ctl 的 0.82rem",
+            top.contains("Text(\"关于\", style = PoetryTextStyles.tab"),
+        )
+        assertFalse(
+            "「关于」不得再用 ctl 样式（同一行两种字号）",
+            Regex("""Text\(\"关于\", style = PoetryTextStyles\.ctl""").containsMatchIn(top),
+        )
+    }
+
+    @Test
+    fun bothLibraryViews_renderThroughTheSameGroupItems() {
+        // 「标签页与朝代页同构」不只靠相似的值：两个视图都走 `groupItems` 同一段渲染。
+        val library = body("LibraryScreen")
+        assertEquals("两个 tab 都必须走同一段分组渲染", 2, Regex("""->\s*groupItems\(""").findAll(library).count())
+        assertTrue("朝代视图用 content.groups", library.contains("content.groups"))
+        assertTrue("标签视图用 content.tagGroups", library.contains("content.tagGroups"))
+    }
+
+    @Test
+    fun tagView_showsNoCounts_andHidesZeroMemberTags() {
+        val library = body("LibraryScreen")
+        // 标签页**不显示任何数量**：showCount = false 那一支；零成员标签由 Content.tagGroups 已过滤
+        assertTrue("标签视图显式不显示计数", Regex("""showCount\s*=\s*false""").containsMatchIn(library))
+        assertTrue("朝代视图计数照旧", Regex("""showCount\s*=\s*true""").containsMatchIn(library))
+        // 组头：count == null 时不画计数；标签页没有序号（orderInTag 不上界面）
+        assertTrue("组头按 count 可选", body("GroupHeaderRow").contains("count: Int?"))
+        assertTrue("null 不画计数", body("GroupHeaderRow").contains("if (count != null)"))
+        assertFalse("标签视图不得渲染序号 orderInTag", code.contains("orderInTag"))
     }
 
     @Test
@@ -78,8 +127,8 @@ class ScreenInventoryTest {
         assertFalse("组头不得是卡片（不得有边框）", header.contains(".border("))
         assertFalse("组头不得是卡片（不得有圆角）", header.contains("RoundedCornerShape"))
         assertTrue("组头下方一条发丝线", header.contains("HairLine("))
-        // 首态全收起 ⇒ 用「有没有被点开」的映射，且初值不存在
-        assertTrue("展开状态由外部持有（跨屏保留）", body("LibraryScreen").contains("expandedGroups"))
+        // 首态全收起 ⇒ 用「有没有被点开」的映射，且初值不存在；两个 tab 各一份（切走再切回仍在）
+        assertTrue("展开状态由外部持有（跨屏保留）", body("LibraryScreen").contains("expandedMap"))
     }
 
     @Test

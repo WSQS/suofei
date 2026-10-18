@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -38,6 +40,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
@@ -85,8 +88,12 @@ fun AppRoot(state: AppState, onCheckUpdate: () -> Unit) {
 
     // 跨屏保留：目录的滚动位置（IF-45）与**各组的展开状态**（从诗页返回目录时不该被重置）。
     // 「首态全部收起」＝这两个容器一开始就是空的/false（不是靠额外判断）。
-    val libraryListState = rememberLazyListState()
-    val expandedGroups = remember { mutableStateMapOf<String, Boolean>() }
+    // 2026-10-18：目录页有两个视图（朝代／标签）⇒ **各一套**滚动与展开状态。
+    // 切走再切回仍在；从诗页返回也仍停在进入它的那个视图上（`state.libraryTab` 一直没变）。
+    val dynastyListState = rememberLazyListState()
+    val tagListState = rememberLazyListState()
+    val dynastyExpanded = remember { mutableStateMapOf<String, Boolean>() }
+    val tagExpanded = remember { mutableStateMapOf<String, Boolean>() }
 
     Scaffold(containerColor = PoetryTokens.bg) { padding ->
         Box(
@@ -121,8 +128,12 @@ fun AppRoot(state: AppState, onCheckUpdate: () -> Unit) {
                 Screen.LIBRARY -> LibraryScreen(
                     content = content,
                     pendingVersion = state.pendingVersion,
-                    listState = libraryListState,
-                    expandedGroups = expandedGroups,
+                    tab = state.libraryTab,
+                    onSelectTab = { state.selectLibraryTab(it) },
+                    dynastyListState = dynastyListState,
+                    dynastyExpanded = dynastyExpanded,
+                    tagListState = tagListState,
+                    tagExpanded = tagExpanded,
                     onPick = { state.openPoem(it) },
                     onAbout = { state.openAbout() },
                 )
@@ -218,7 +229,11 @@ private fun CtlText(text: String, onClick: () -> Unit) {
 /**
  * 目录页（采纳锚 `round-2026-10-15-hub-align` 的 ④ 档「悬挂＋竖直居中」＋层级轮的三条行为）。
  *
- * 信息只有：**「关于」入口（顶部）**、**组名＋数量**、**题名＋作者**。
+ * **2026-10-18 起顶部是「朝代 ｜ 标签」两个 tab ＋「关于」**（采纳锚 `q-tag-views.html`）：
+ * 标签视图与朝代视图**同构**（同一段 `groupItems` 渲染：悬挂记号、整行可点、初态全收起、各组独立）。
+ * 信息只有：**两个 tab（顶部）＋「关于」入口**、**组名（＋朝代页的数量）**、**题名＋作者**。
+ * 标签视图 **不显示任何数量**（组头无计数、行前无序号——序号 `orderInTag` 只在数据里，不渲染），
+ * **零成员的标签整组不出现**（连空态文字都没有）。
  * 🚫 不出现：应用名（用户 `q-52a14e2c`：不在目录重复显示）、搜索、笔记标记、题名预览、
  * 状态位／版本号（原页脚已按采纳锚移除——诗页「正文之后没有页脚行」同理）。
  * 行为：**首次全部收起（含只有一个组）**、**整块组头可点**、**各组独立展开**、
@@ -228,47 +243,142 @@ private fun CtlText(text: String, onClick: () -> Unit) {
 private fun LibraryScreen(
     content: Content,
     pendingVersion: String?,
-    listState: LazyListState,
-    expandedGroups: MutableMap<String, Boolean>,
+    tab: LibraryTab,
+    onSelectTab: (LibraryTab) -> Unit,
+    dynastyListState: LazyListState,
+    dynastyExpanded: MutableMap<String, Boolean>,
+    tagListState: LazyListState,
+    tagExpanded: MutableMap<String, Boolean>,
     onPick: (Poem) -> Unit,
     onAbout: () -> Unit,
 ) {
     ContentColumn { _ ->
+        // 两个视图**各自一份**滚动状态：切走再切回，位置还在（用户 2026-10-18 的验收项）。
+        val listState = if (tab == LibraryTab.DYNASTY) dynastyListState else tagListState
+        val expandedMap = if (tab == LibraryTab.DYNASTY) dynastyExpanded else tagExpanded
         LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-            item(key = "about-entry") { AboutEntryRow(onAbout) }
+            item(key = "top-tabs") {
+                LibraryTopRow(tab = tab, onSelectTab = onSelectTab, onAbout = onAbout)
+            }
             if (pendingVersion != null) {
                 item(key = "pending-banner") { PendingBanner(pendingVersion) }
             }
-            content.groups.forEach { group ->
-                val expanded = expandedGroups[group.name] == true
-                item(key = "dynasty-${group.name}") {
-                    GroupHeaderRow(
-                        name = group.name,
-                        count = group.poems.size,
-                        expanded = expanded,
-                        onToggle = { expandedGroups[group.name] = !expanded },
-                    )
-                }
-                if (expanded) {
-                    items(group.poems, key = { it.id }) { poem -> PoemRow(poem, onPick) }
-                }
+            // 两个视图**同一段渲染**（组头＋子诗目）：只有「是否有数量」与数据源不同。
+            when (tab) {
+                LibraryTab.DYNASTY -> groupItems(
+                    scopeKey = "dynasty",
+                    groups = content.groups.map { it.name to it.poems },
+                    // 朝代页计数照旧（用户 2026-10-18：只去标签页的统计）
+                    showCount = true,
+                    expanded = expandedMap,
+                    onPick = onPick,
+                )
+
+                LibraryTab.TAG -> groupItems(
+                    scopeKey = "tag",
+                    // 零成员的标签**不渲染**：`tagGroups` 已按成员数 ≥ 1 过滤（`Content.tagGroups`）
+                    groups = content.tagGroups.map { it.name to it.poems },
+                    // 标签页**不显示任何数量**（组头没有计数、行前没有序号）
+                    showCount = false,
+                    expanded = expandedMap,
+                    onPick = onPick,
+                )
             }
             item(key = "tail") { Spacer(Modifier.height(PoetryTokens.rem(PoetryTokens.COL_BOTTOM_REM))) }
         }
     }
 }
 
-/** 「关于」入口：在顶部、右沿＝列右沿 − 行内沿（实测距列右沿 16.8px）。 */
+/**
+ * 目录页的分组列表（**朝代与标签两个视图共用同一段渲染**）：组头（悬挂记号＋组名＋可选计数）
+ * ＋展开后的子诗目。`scopeKey` 只用于 LazyColumn 的 item key（同一首诗可属于多个标签，
+ * 直接用诗 id 会撞 key），不影响渲染内容。
+ */
+private fun LazyListScope.groupItems(
+    scopeKey: String,
+    groups: List<Pair<String, List<Poem>>>,
+    showCount: Boolean,
+    expanded: MutableMap<String, Boolean>,
+    onPick: (Poem) -> Unit,
+) {
+    groups.forEach { (name, poems) ->
+        val groupKey = "$scopeKey-$name"
+        val isExpanded = expanded[name] == true
+        item(key = groupKey) {
+            GroupHeaderRow(
+                name = name,
+                count = if (showCount) poems.size else null,
+                expanded = isExpanded,
+                onToggle = { expanded[name] = !isExpanded },
+            )
+        }
+        if (isExpanded) {
+            items(poems, key = { "$groupKey/${it.id}" }) { poem -> PoemRow(poem, onPick) }
+        }
+    }
+}
+
+/**
+ * 目录页顶部：**「朝代 ｜ 标签」两个 tab（左）＋「关于」（右）**，下方一条发丝线
+ * （形状照采纳锚 `q-tag-views.html` 的 `.topline`）。
+ *
+ * 两个 tab 是**同一份目录的两个视图**，不是两个页面：切 tab 不改 `Screen`。
+ * 「关于」仍然只是入口，不导航到别的 tab。
+ */
 @Composable
-private fun AboutEntryRow(onAbout: () -> Unit) {
-    Row(
+private fun LibraryTopRow(tab: LibraryTab, onSelectTab: (LibraryTab) -> Unit, onAbout: () -> Unit) {
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = edgeX)
+                .padding(vertical = PoetryTokens.rem(PoetryTokens.CTL_TOP_PAD_REM)),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top,
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(PoetryTokens.rem(PoetryTokens.TAB_GAP_REM)),
+                verticalAlignment = Alignment.Top,
+            ) {
+                TabLabel(LABEL_TAB_DYNASTY, selected = tab == LibraryTab.DYNASTY) {
+                    onSelectTab(LibraryTab.DYNASTY)
+                }
+                TabLabel(LABEL_TAB_TAG, selected = tab == LibraryTab.TAG) {
+                    onSelectTab(LibraryTab.TAG)
+                }
+            }
+            // 「关于」与两个 tab **同一行、同一个字号**（0.86rem＝原型 `--about-size`；Web 已按此对齐）：
+            // 不要单独给它 `--ctl-size`（0.82rem），否则同一行两种字号。
+            Text("关于", style = PoetryTextStyles.tab, modifier = Modifier.clickable { onAbout() })
+        }
+        HairLine()
+    }
+}
+
+/**
+ * 一个顶部 tab：文字＋选中时下方一条 1px `accent-line` 下划线（原型 `.tab[aria-selected]`）。
+ * 未选中不画线（透明占位，宽度不变 ⇒ 点击/选中切换不会让排版跳动）。
+ * 宽度靠内容的固有宽度（`IntrinsicSize.Max`），下划线因此恰好与文字等宽。
+ */
+@Composable
+private fun TabLabel(text: String, selected: Boolean, onClick: () -> Unit) {
+    Column(
         Modifier
-            .fillMaxWidth()
-            .padding(horizontal = edgeX)
-            .padding(top = PoetryTokens.rem(PoetryTokens.CTL_TOP_PAD_REM)),
-        horizontalArrangement = Arrangement.End,
+            .width(IntrinsicSize.Max)
+            .clickable { onClick() },
     ) {
-        Text("关于", style = PoetryTextStyles.ctl, modifier = Modifier.clickable { onAbout() })
+        Text(
+            text,
+            style = PoetryTextStyles.tab,
+            color = if (selected) PoetryTokens.text else PoetryTokens.textDim,
+        )
+        Spacer(Modifier.height(PoetryTokens.rem(PoetryTokens.TAB_UNDERLINE_GAP_REM)))
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(PoetryTokens.TAB_UNDERLINE_DP.dp)
+                .background(if (selected) PoetryTokens.accentLine else Color.Transparent),
+        )
     }
 }
 
@@ -299,9 +409,11 @@ private fun PendingBanner(version: String) {
 /**
  * 组头：`[悬挂记号槽] 组名 ………… [n] 首`，**不画卡片**（组头与页底同色），其下一条发丝线。
  * **整块可点**（组名、数量、空白同属一个操作，`q-d28c4e4e`）；记号只表达状态。
+ *
+ * `count == null` ＝ **不显示计数**（用户 2026-10-18：标签页不显示任何数量；朝代页计数照旧）。
  */
 @Composable
-private fun GroupHeaderRow(name: String, count: Int, expanded: Boolean, onToggle: () -> Unit) {
+private fun GroupHeaderRow(name: String, count: Int?, expanded: Boolean, onToggle: () -> Unit) {
     Column(Modifier.fillMaxWidth()) {
         Row(
             Modifier
@@ -313,7 +425,9 @@ private fun GroupHeaderRow(name: String, count: Int, expanded: Boolean, onToggle
         ) {
             HangingMarker(expanded)
             Text(name, style = PoetryTextStyles.groupName, modifier = Modifier.weight(1f))
-            Text(groupCountAnnotated(count), style = PoetryTextStyles.monoDim)
+            if (count != null) {
+                Text(groupCountAnnotated(count), style = PoetryTextStyles.monoDim)
+            }
         }
         HairLine()
     }

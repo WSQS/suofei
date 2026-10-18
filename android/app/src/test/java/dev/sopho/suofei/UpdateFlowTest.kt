@@ -1,5 +1,6 @@
 package dev.sopho.suofei
 
+import dev.sopho.suofei.data.ContentParser
 import dev.sopho.suofei.data.ContentStore
 import dev.sopho.suofei.update.ContentUpdater
 import dev.sopho.suofei.update.FailureKind
@@ -92,13 +93,29 @@ class UpdateFlowTest {
         }
     }
 
-    private fun payload(version: String, formatVersion: Int = 2): String =
-        """
+    /**
+     * 合成载荷。`formatVersion >= 3` 时**同时带两处 tags 键**（v3 要求它们在位）；
+     * 给了 [tagId] 就写一条真实归属（标签页渲染依据的形状）。
+     */
+    private fun payload(version: String, formatVersion: Int = 2, tagId: String? = null): String {
+        val topLevelTags = if (formatVersion >= 3) {
+            if (tagId == null) "\"tags\":[]," else "\"tags\":[{\"id\":\"$tagId\",\"members\":[\"p1\"]}],"
+        } else {
+            ""
+        }
+        val poemTags = if (formatVersion >= 3) {
+            if (tagId == null) "\"tags\":[]," else "\"tags\":[{\"id\":\"$tagId\",\"orderInTag\":1}],"
+        } else {
+            ""
+        }
+        return """
         {"formatVersion":$formatVersion,"contentVersion":"$version","generatedAt":"2026-10-16T12:00:00Z",
          "dynasties":["汉"],
+         $topLevelTags
          "poems":[{"id":"p1","title":"$version","author":"佚名","dynasty":"汉","genre":null,
-                   "source":"占位","orderInSource":1,"detail":null,"stanzas":[["行一。"]],"notes":null}]}
+                   "source":"占位","orderInSource":1,$poemTags"detail":null,"stanzas":[["行一。"]],"notes":null}]}
         """.trimIndent()
+    }
 
     private fun sha256(text: String): String =
         MessageDigest.getInstance("SHA-256").digest(text.toByteArray())
@@ -183,14 +200,51 @@ class UpdateFlowTest {
     @Test
     fun formatTooNew_isRefusedAndNothingDownloads() {
         val store = store()
-        val body = payload("2027.1.1.1", formatVersion = 3)
-        responses["/latest.json"] = 200 to manifest("2027.1.1.1", sha256(body), formatVersion = 3).toByteArray()
+        // 本应用支持的**下一个**结构版本（真实情形：2026-10-18 之前那批 APK 支持到 2，遇到 3 走的就是这条路）。
+        val next = ContentParser.SUPPORTED_FORMAT_VERSION + 1
+        val body = payload("2027.1.1.1", formatVersion = next)
+        responses["/latest.json"] = 200 to manifest("2027.1.1.1", sha256(body), formatVersion = next).toByteArray()
         responses["/content.json"] = 200 to body.toByteArray()
 
         val outcome = ContentUpdater.checkAndUpdate("$base/latest.json", null, 1, store)
         assertEquals(FailureKind.FORMAT_TOO_NEW, (outcome as UpdateOutcome.Failed).kind)
         assertEquals(null, currentVersionOf(store))
         assertEquals("结构不兼容时连内容都不该去下载", listOf("/latest.json"), requestedPaths)
+    }
+
+    @Test
+    fun formatVersionThree_isAccepted_endToEnd() {
+        val store = store()
+        val body = payload("2026.10.18.1", formatVersion = 3, tagId = "古诗十九首")
+        responses["/latest.json"] = 200 to manifest("2026.10.18.1", sha256(body), formatVersion = 3).toByteArray()
+        responses["/content.json"] = 200 to body.toByteArray()
+
+        val outcome = ContentUpdater.checkAndUpdate("$base/latest.json", null, 1, store)
+        assertTrue("实际结果：$outcome", outcome is UpdateOutcome.Activated)
+        val content = store.loadActive()!!.content
+        assertEquals(3, content.formatVersion)
+        assertEquals("标签页的数据源就是这条链路拿到的 tags[]", listOf("古诗十九首"), content.tagGroups.map { it.name })
+    }
+
+    @Test
+    fun manifestSaysThree_butPayloadIsNewer_isRefused_oldVersionKept() {
+        // 载荷自己的 formatVersion 也要过同一道门（清单可能被写错/远端产物不一致）。
+        val store = store()
+        val old = payload("2026.10.18.1", formatVersion = 3)
+        responses["/latest.json"] = 200 to manifest("2026.10.18.1", sha256(old), formatVersion = 3).toByteArray()
+        responses["/content.json"] = 200 to old.toByteArray()
+        assertTrue(ContentUpdater.checkAndUpdate("$base/latest.json", null, 1, store) is UpdateOutcome.Activated)
+
+        val next = ContentParser.SUPPORTED_FORMAT_VERSION + 1
+        val body = payload("2027.1.1.1", formatVersion = next)
+        responses["/latest.json"] = 200 to manifest("2027.1.1.1", sha256(body), formatVersion = 3).toByteArray()
+        responses["/content.json"] = 200 to body.toByteArray()
+
+        val outcome = ContentUpdater.checkAndUpdate("$base/latest.json", "2026.10.18.1", 1, store)
+        assertEquals(FailureKind.FORMAT_TOO_NEW, (outcome as UpdateOutcome.Failed).kind)
+        assertEquals("已激活的旧快照保留", "2026.10.18.1", currentVersionOf(store))
+        assertFalse(File(tmp.root, "content/versions/2027.1.1.1").exists())
+        assertTrue("staging 不留下载体", stagedFiles(store).isEmpty())
     }
 
     @Test

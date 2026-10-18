@@ -1,5 +1,6 @@
 package dev.sopho.suofei
 
+import dev.sopho.suofei.ui.LibraryTab
 import dev.sopho.suofei.ui.Screen
 import dev.sopho.suofei.data.ContentRepository
 import dev.sopho.suofei.data.ContentStore
@@ -71,8 +72,7 @@ class AppStateNavigationTest {
     }
 
     @Test
-    fun openPoemDetail_withoutASelectedPoem_doesNothing() {
-        val s = state()
+    fun openPoemDetail_withoutASelectedPoem_doesNothing() {        val s = state()
         s.openPoemDetail()
         assertEquals("没有选中的诗时详情页不可达（不跳到一个空页）", Screen.LIBRARY, s.screen)
     }
@@ -135,5 +135,45 @@ class AppStateNavigationTest {
             "POEM_DETAIL 分支不得提到 openLibrary",
             Regex("""POEM_DETAIL[^\n]*openLibrary""").containsMatchIn(backBody),
         )
+    }
+
+    // ── 目录页的两个 tab（2026-10-18）：视图是状态，不是页面 ─────────────────
+
+    @Test
+    fun libraryTab_defaultsToDynasty_andIsSwitchable() {
+        val s = state()
+        assertEquals("初态是朝代视图（用户评阅的那一版默认值）", LibraryTab.DYNASTY, s.libraryTab)
+        s.selectLibraryTab(LibraryTab.TAG)
+        assertEquals(LibraryTab.TAG, s.libraryTab)
+        assertEquals("切 tab 不改页面", Screen.LIBRARY, s.screen)
+    }
+
+    @Test
+    fun backFromPoem_returnsToTheViewItWasEnteredFrom() {
+        // 「诗页返回 ⇒ 进入它的那个原视图」（标签进的→回标签；朝代进的→回朝代）。
+        // 实现上不需要额外记「从哪进的」：`libraryTab` 在阅读期间根本没变。
+        val s = state()
+        s.selectLibraryTab(LibraryTab.TAG)
+        val p = poem("p1")
+
+        s.openPoem(p)
+        s.openPoemDetail()
+        s.back()
+        assertEquals("详情返回 ⇒ 那首诗", Screen.POEM, s.screen)
+        assertEquals("仍停在标签视图的状态上", LibraryTab.TAG, s.libraryTab)
+
+        s.back()
+        assertEquals("诗页返回 ⇒ 目录", Screen.LIBRARY, s.screen)
+        assertEquals("回到**进入它的原视图**（标签）", LibraryTab.TAG, s.libraryTab)
+    }
+
+    @Test
+    fun backFromAbout_keepsTheLibraryView() {
+        val s = state()
+        s.selectLibraryTab(LibraryTab.TAG)
+        s.openAbout()
+        s.back()
+        assertEquals(Screen.LIBRARY, s.screen)
+        assertEquals("「关于」返回不改目录视图", LibraryTab.TAG, s.libraryTab)
     }
 }

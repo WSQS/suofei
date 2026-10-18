@@ -1,5 +1,6 @@
 package dev.sopho.suofei
 
+import dev.sopho.suofei.data.ContentParser
 import dev.sopho.suofei.data.ContentStore
 import dev.sopho.suofei.data.InstallResult
 import dev.sopho.suofei.data.RefusalKind
@@ -22,13 +23,34 @@ class ContentStoreTest {
     @get:Rule
     val tmp = TemporaryFolder()
 
-    private fun payload(version: String, formatVersion: Int = 2, title: String = "占位诗题甲"): String =
-        """
+    /**
+     * 合成载荷。`formatVersion >= 3` 时**同时带两处 tags 键**（v3 要求它们在位；没有标签就写 `[]`），
+     * 给了 [tagId] 时写一条真实归属——那份归属也正是标签页渲染依据的数据形状。
+     */
+    private fun payload(
+        version: String,
+        formatVersion: Int = 2,
+        title: String = "占位诗题甲",
+        tagId: String? = null,
+    ): String {
+        val topLevelTags = if (formatVersion >= 3) {
+            if (tagId == null) "\"tags\":[]," else "\"tags\":[{\"id\":\"$tagId\",\"members\":[\"p1\"]}],"
+        } else {
+            ""
+        }
+        val poemTags = if (formatVersion >= 3) {
+            if (tagId == null) "\"tags\":[]," else "\"tags\":[{\"id\":\"$tagId\",\"orderInTag\":1}],"
+        } else {
+            ""
+        }
+        return """
         {"formatVersion":$formatVersion,"contentVersion":"$version","generatedAt":"2026-10-16T12:00:00Z",
          "dynasties":["汉"],
+         $topLevelTags
          "poems":[{"id":"p1","title":"$title","author":"佚名","dynasty":"汉","genre":null,
-                   "source":"占位夹具","orderInSource":1,"detail":null,"stanzas":[["行一。"]],"notes":null}]}
+                   "source":"占位夹具","orderInSource":1,$poemTags"detail":null,"stanzas":[["行一。"]],"notes":null}]}
         """.trimIndent()
+    }
 
     private fun stage(store: ContentStore, version: String, json: String): File {
         val f = store.newStagingFile(version)
@@ -147,8 +169,11 @@ class ContentStoreTest {
         val store = ContentStore(tmp.newFolder("content"))
         store.install(stage(store, "2026.10.14.1", payload("2026.10.14.1")), "2026.10.14.1", null, null)
 
+        // 本应用支持的**下一个**结构版本：这就是「旧客户端遇到新格式」的真实情形
+        // （2026-10-18 之前那批 APK 支持到 2、遇到 3 时走的就是这条路径）。
+        val next = ContentParser.SUPPORTED_FORMAT_VERSION + 1
         val result = store.install(
-            stage(store, "2027.1.1.1", payload("2027.1.1.1", formatVersion = 3)),
+            stage(store, "2027.1.1.1", payload("2027.1.1.1", formatVersion = next)),
             "2027.1.1.1",
             null,
             null,
@@ -157,6 +182,35 @@ class ContentStoreTest {
         assertEquals(RefusalKind.FORMAT_TOO_NEW, (result as InstallResult.Refused).kind)
         assertEquals("2026.10.14.1", store.activeVersion())
         assertFalse(File(tmp.root, "content/versions/2027.1.1.1").exists())
+        assertTrue("staging 不能留下半个文件", (File(tmp.root, "content/staging").listFiles() ?: emptyArray()).isEmpty())
+    }
+
+    @Test
+    fun formatVersionThree_isAccepted_andItsTagsAreReadable() {
+        val store = ContentStore(tmp.newFolder("content"))
+        val result = store.install(
+            stage(store, "2026.10.18.1", payload("2026.10.18.1", formatVersion = 3, tagId = "古诗十九首")),
+            "2026.10.18.1",
+            null,
+            null,
+        )
+        assertTrue("实际结果：$result", result is InstallResult.Activated)
+        val content = store.loadActive()!!.content
+        assertEquals(3, content.formatVersion)
+        assertEquals(listOf("古诗十九首"), content.tags.map { it.id })
+        assertEquals(listOf("占位诗题甲"), content.tagGroups.single().poems.map { it.title })
+    }
+
+    @Test
+    fun formatTwoSnapshot_staysReadable_afterTheAppSupportsThree() {
+        // 「旧快照保留」不只是不删：新应用**还得能读它**（否则用户升级 APK 后反而退回内置内容）。
+        val store = ContentStore(tmp.newFolder("content"))
+        store.install(stage(store, "2026.10.16.1", payload("2026.10.16.1", formatVersion = 2)), "2026.10.16.1", null, null)
+
+        val loaded = store.loadActive()
+        assertNotNull("v2 快照必须仍可读", loaded)
+        assertEquals(2, loaded!!.content.formatVersion)
+        assertTrue("v2 载荷没有 tags 两处键 ⇒ 空标签表（不是失败）", loaded.content.tags.isEmpty())
     }
 
     @Test

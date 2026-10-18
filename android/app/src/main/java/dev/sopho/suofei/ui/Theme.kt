@@ -253,6 +253,18 @@ object PoetryTokens {
     /** 作者紧**随**题名（不右对齐）：距题名末端 ≈0.45em（实测 5.75px）. */
     const val AUTHOR_GAP_EM = 0.45f
 
+    // ── 目录页顶部两个 tab（2026-10-18：用户定「朝代 ｜ 标签」；形状照采纳锚 `q-tag-views.html`）──
+    // ⚠ 下列四个值来自原型里的 `[草案]` 标记（缝 1.05rem、下划线 1px 用 `--accent-line`）：
+    //    它们只**把结构表达出来**，不是已采纳的视觉。
+    /** tab 字号 0.86rem（原型 `--about-size`；**「关于」与 tab 同号**，2026-10-18 与 Web 对齐）。 */
+    const val TAB_REM = 0.86f
+    /** 两个 tab 之间的缝 `gap: 1.05rem`. */
+    const val TAB_GAP_REM = 1.05f
+    /** tab 文字 → 选中下划线 `padding-bottom: 0.18rem`. */
+    const val TAB_UNDERLINE_GAP_REM = 0.18f
+    /** 选中下划线 `border-bottom: 1px solid var(--accent-line)`。 */
+    const val TAB_UNDERLINE_DP = 1f
+
     // ── 详情页（采纳锚 `round-2026-10-16-detail` 的 D0 三项）──
     /** 诗题 → 来源块 `--src-gap-top` 1.6rem. */
     const val SRC_GAP_TOP_REM = 1.6f
@@ -440,6 +452,15 @@ object PoetryTextStyles {
     val listAuthor = TextStyle(
         fontFamily = PoetryTokens.fontSans,
         fontSize = PoetryTokens.remToDpValue(PoetryTokens.LIST_AUTHOR_REM).sp,
+        color = PoetryTokens.textDim,
+    )
+
+    /** 目录页顶部 tab：0.86rem / 0.06em / 次要色（**选中态**由调用方改 `text` 色，
+     *  下划线是另画的一条 1px 线，见 [PoetryTokens.TAB_UNDERLINE_DP]）。 */
+    val tab = TextStyle(
+        fontFamily = PoetryTokens.fontSans,
+        fontSize = PoetryTokens.remToDpValue(PoetryTokens.TAB_REM).sp,
+        letterSpacing = PoetryTokens.CTL_LETTER_SPACING.em,
         color = PoetryTokens.textDim,
     )
 
