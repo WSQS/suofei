@@ -209,7 +209,7 @@ function codes(text, id) {
   return parsePoemRecord(rec(text, id)).errors.map((e) => e.code);
 }
 
-test('合法文件产出固定键序的 10 键产物对象', () => {
+test('合法文件产出固定键序的 11 键产物对象', () => {
   const { poem, errors } = parsePoemRecord(rec(OK_TEXT));
   assert.deepEqual(errors, []);
   assert.deepEqual(Object.keys(poem), [
@@ -223,12 +223,15 @@ test('合法文件产出固定键序的 10 键产物对象', () => {
     'detail',
     'stanzas',
     'notes',
+    'tags',
   ]);
   assert.equal(poem.id, 'demo-01');
   assert.equal(poem.dynasty, '汉');
   assert.equal(poem.detail, '### 异文\n\n- **某异文** —— 说明。');
   assert.equal(poem.notes, '夹具笔记。');
   assert.deepEqual(poem.stanzas, [['正文一行。']]);
+  // 源里没写 tags ⇒ []（不是 null）
+  assert.deepEqual(poem.tags, []);
 });
 
 test('缺节 ⇒ detail/notes 都 null，但键都在；空节同样', () => {

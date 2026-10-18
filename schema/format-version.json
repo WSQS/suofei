@@ -2,7 +2,7 @@
   "_note": "`formatVersion` 的「字段集一变就升」是**用户 2026-10-15 定的 B 判据**（理由是机械、可自动断言、没有判断风险；代价＝每一变就断掉一次内容热更，且**不可逆**——老客户端会拒收更高 formatVersion 的内容、退回内置，用户只能手动装新 APK）。",
   "authority": "产物 JSON 的键路径（唯一口径在 tools/lib/field-set.mjs 的 fieldPaths；数组下标折叠为 []；只看键不看值）",
   "howToChange": "改了字段集就必须：① 升 formatVersion；② 往 versions 追加一条（**旧条保留**，它记录着老客户端认得的形状）：node tools/check-fieldset.mjs --print-entry",
-  "guard": "node tools/check-fieldset.mjs（也跑在 npm test 里；本脚本不自动改本文件）。⚠ 2026-10-16 起默认编译 `tests/fixtures/shape-v2/content`（形状夹具）——因为 S2 落地时 content/poems 还是 v1 源、编不过；S3 迁移后可 `--content content` 回到真实内容。",
+  "guard": "node tools/check-fieldset.mjs（也跑在 npm test 里；本脚本不自动改本文件）。⚠ 2026-10-16 起默认编译 `tests/fixtures/shape-v2/content`（形状夹具）——因为 S2 落地时 content/poems 还是 v1 源、编不过；S3 迁移后可 `--content content` 回到真实内容。**2026-10-18 起默认夹具改为 `tests/fixtures/shape-v3/content`**（2 → 3：新增 tags；夹具里至少一首带标签，否则 `tags[].id/members` 路径会因空数组而缺席）。",
   "versions": [
     {
       "formatVersion": 1,
@@ -62,6 +62,41 @@
         "poems[].stanzas[]",
         "poems[].stanzas[][]",
         "poems[].title"
+      ]
+    },
+    {
+      "formatVersion": 3,
+      "_what": "2026-10-18：新增标签。每首多一个 `tags`（数组，没归属时是 `[]` 不是 null），元素 { id, orderInTag }；顶层多一个 `tags`（数组，编译期从诗归属汇总），元素 { id, members }，members 按 orderInTag 升序、标签之间按拼音排。**不发布任何 SortKey**。字段路径 19 → 28 条（+9）。按 B 判据（字段集一变就升）必须升版本（不可逆：认 formatVersion=2 的旧客户端会拒收 3、保留现有快照）。",
+      "fieldSetSha256": "1ec5811d9c048cac1dc8b812691ea304695ced1c9a052e01d31b246282a13f52",
+      "fieldPaths": [
+        "contentVersion",
+        "dynasties",
+        "dynasties[]",
+        "formatVersion",
+        "generatedAt",
+        "poems",
+        "poems[]",
+        "poems[].author",
+        "poems[].detail",
+        "poems[].dynasty",
+        "poems[].genre",
+        "poems[].id",
+        "poems[].notes",
+        "poems[].orderInSource",
+        "poems[].source",
+        "poems[].stanzas",
+        "poems[].stanzas[]",
+        "poems[].stanzas[][]",
+        "poems[].tags",
+        "poems[].tags[]",
+        "poems[].tags[].id",
+        "poems[].tags[].orderInTag",
+        "poems[].title",
+        "tags",
+        "tags[]",
+        "tags[].id",
+        "tags[].members",
+        "tags[].members[]"
       ]
     }
   ]

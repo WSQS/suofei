@@ -193,7 +193,7 @@ test('ok-sorting：组序、组内作者/诗名拼音序、佚名最后、分段
   assert.equal(c.poems.find((p) => p.id === 'gushi-shijiu-shou-01').stanzas.length, 2);
   assert.equal(c.poems.find((p) => p.id === 'cao-yong-yin-ma-chang-cheng-ku-xing-01').stanzas.length, 1);
   assert.equal(c.contentVersion, '2026.10.14.1');
-  assert.equal(c.formatVersion, 2);
+  assert.equal(c.formatVersion, 3);
 });
 
 test('ok-notes-variants：`## 笔记` 进 notes（保留换行）、`## 详情` 进 detail、缺省键写 null', () => {
@@ -222,6 +222,7 @@ for (const [name, version] of [
   ['ok-basic', '2026.10.14.12'],
   ['ok-order-source', '2026.10.14.13'],
   ['shape-v2', '2026.10.14.14'],
+  ['shape-v3', '2026.10.14.17'],
   ['rules-v4-legal/nested', '2026.10.14.15'],
 ]) {
   test(`JSON Schema 校验产物（${name}）`, () => {
@@ -356,7 +357,7 @@ test('--json 输出机器可读结果（含忽略计数）', () => {
   assert.equal(j.poems, 1);
   assert.equal(j.checkedOnly, true);
   assert.equal(j.ignoredFiles, 4);
-  assert.equal(j.formatVersion, 2);
+  assert.equal(j.formatVersion, 3);
 });
 
 test('内容目录不存在 → CONTENT_DIR_MISSING（退出码 1）', () => {

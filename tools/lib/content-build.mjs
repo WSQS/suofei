@@ -20,6 +20,7 @@ import {
   KNOWN_SECTIONS,
   OPTIONAL_FRONT_MATTER_KEYS,
   PINYIN_COLLATOR_LOCALE,
+  POEM_TAG_KEYS,
   REMOVED_FRONT_MATTER_KEYS,
   REQUIRED_FRONT_MATTER_KEYS,
   SECTION_DETAIL,
@@ -204,6 +205,84 @@ export function parsePoemRecord(record) {
     }
   }
 
+  // tags（formatVersion=3）：可选；不写 ⇒ []（**不是 null**）。元素形状 { id, orderInTag }。
+  // `id` 是标签的中文 id（就是显示名），`orderInTag` 是该标签内的位置：**必填、不可 null**。
+  /** @type {{id: string, orderInTag: number}[]} */
+  const tags = [];
+  if (data.tags !== undefined && data.tags !== null) {
+    const tagsLine = keyLine('tags');
+    if (!Array.isArray(data.tags)) {
+      push(
+        'TAG_SHAPE',
+        `「tags」必须是标签列表（形如：\n      tags:\n        - id: 古诗十九首\n          orderInTag: 1\n），实际是 ${Array.isArray(data.tags) ? '列表' : typeof data.tags}。不写 \`tags\` 或写 \`tags: []\` 都表示没有标签。`,
+        tagsLine,
+      );
+    } else {
+      /** `tags` 块里第 i 个列表项所在的行号（定位到项本身；实在找不到就退回 \`tags:\` 键所在行）。 */
+      const tagItemLines = (() => {
+        if (tagsLine === null) return /** @type {number[]} */ ([]);
+        const first = tagsLine - fmLineOffset; // `tags:` 本行的 fmLines 下标
+        const keyIndent = fmLines[first].length - fmLines[first].trimStart().length;
+        /** @type {number[]} */
+        const out = [];
+        for (let k = first + 1; k < fmLines.length; k++) {
+          const line = fmLines[k];
+          if (line.trim() === '') continue;
+          const ind = line.length - line.trimStart().length;
+          if (ind <= keyIndent) break; // 回到顶层键 ⇒ 列表结束
+          const t = line.trim();
+          if (t === '-' || t.startsWith('- ')) out.push(fmLineOffset + k);
+        }
+        return out;
+      })();
+      const itemLine = (i) => tagItemLines[i] ?? tagsLine;
+      const seenTagIds = new Set();
+      data.tags.forEach((item, i) => {
+        const at = itemLine(i);
+        const where = `「tags」第 ${i + 1} 项`;
+        if (item === null || typeof item !== 'object' || Array.isArray(item)) {
+          push('TAG_SHAPE', `${where}必须是 { id, orderInTag } 对象，实际是 ${item === null ? 'null' : Array.isArray(item) ? '列表' : typeof item}。`, at);
+          return;
+        }
+        const extra = Object.keys(item).filter((k) => !POEM_TAG_KEYS.includes(k));
+        if (extra.length > 0) {
+          push(
+            'TAG_SHAPE',
+            `${where}出现声明之外的键「${extra.join('、')}」；只允许 ${POEM_TAG_KEYS.join(' / ')}（标签的中文 id 就是显示名，没有 name/slug/aliases/qualifier 之类的键）。`,
+            at,
+          );
+        }
+        const rawId = item.id;
+        const idOk = typeof rawId === 'string' && rawId.trim() !== '' && rawId.trim() === rawId;
+        if (!idOk) {
+          push(
+            'TAG_SHAPE',
+            `${where}的「id」必须是非空、且首尾没有空白的字符串（中文 id 就是显示名；不做 trim、不做别名折叠），实际是 ${JSON.stringify(rawId)}。`,
+            at,
+          );
+        } else if (seenTagIds.has(rawId)) {
+          push(
+            'TAG_DUPLICATE_ID',
+            `同一首诗里标签「${rawId}」出现了两次（${where}）。一首诗在一个标签里只能有一个位置；请删掉重复项，不要留两个 orderInTag 互相矛盾。`,
+            at,
+          );
+        } else {
+          seenTagIds.add(rawId);
+        }
+        const ord = item.orderInTag;
+        const orderOk = typeof ord === 'number' && Number.isInteger(ord) && ord >= 1;
+        if (!orderOk) {
+          push(
+            'TAG_ORDER_REQUIRED',
+            `${where}${idOk ? `（标签「${rawId}」）` : ''}缺 \`orderInTag\`，或它不是 ≥ 1 的整数（实际是 ${JSON.stringify(ord)}）。\`orderInTag\` 在该标签内**必填、不可省略、不可 null**（用户 2026-10-18 定）；它表示这首在该标签里的位置。`,
+            at,
+          );
+        }
+        if (idOk && orderOk) tags.push({ id: /** @type {string} */ (rawId), orderInTag: ord });
+      });
+    }
+  }
+
   // ── 正文：先跟踪围栏，再切节（围栏内的 `##` 不算分界）──
   /** @type {{line: number, text: string}[]} */
   const originLines = [];
@@ -307,7 +386,7 @@ export function parsePoemRecord(record) {
     return { poem: null, errors, id: record.id, draft };
   }
 
-  /** 每首 10 键，缺值写 `null` 保键（客户端形状恒定）。 */
+  /** 每首 11 键（formatVersion=3），缺值写 `null` 保键（客户端形状恒定）；`tags` 总是数组。 */
   const poem = {
     id: record.id,
     title: /** @type {string} */ (data.title),
@@ -319,6 +398,7 @@ export function parsePoemRecord(record) {
     detail: draft.detail,
     stanzas,
     notes: draft.notes,
+    tags,
   };
   return { poem, errors: [], id: record.id, draft };
 }
@@ -406,6 +486,102 @@ export function sortPoems(poems, strategy = DEFAULT_ORDER_STRATEGY) {
 }
 
 /**
+ * 顶层 `tags[]` ＝ **编译期从诗的归属汇总生成**（不写人手标签表）。两件不同的事：
+ *   ① **标签之间**：按中文拼音（`Intl.Collator(PINYIN_COLLATOR_LOCALE)`）排序；collator 判等时
+ *      按 id 的码点序稳定兜底（与 `collatorRankMap` 同一口径）⇒ 产物确定、可复现。
+ *   ② **标签内**：`members` 按诗的 `orderInTag` 升序（同序 ⇒ `TAG_ORDER_DUP`）；
+ *      万一同序（报错后不会写产物），再用 poemId 码点序兜底，保证函数本身总是确定的。
+ * **不发布任何 SortKey**：拼音名次只在本函数的局部 Map 里。
+ *
+ * @param {{id: string, tags?: {id: string, orderInTag: number}[]}[]} poems
+ * @param {ContentError[]} errors 收 `TAG_ORDER_DUP`
+ * @param {Map<string, string>} [displayPaths] poemId → 源文件展示路径（只用于把跨诗诊断指到文件）
+ * @returns {{id: string, members: string[]}[]}
+ */
+export function buildTagIndex(poems, errors = [], displayPaths = new Map()) {
+  /** @type {Map<string, {poemId: string, orderInTag: number}[]>} */
+  const byTag = new Map();
+  for (const p of poems) {
+    for (const t of p.tags ?? []) {
+      const list = byTag.get(t.id);
+      if (list === undefined) byTag.set(t.id, [{ poemId: p.id, orderInTag: t.orderInTag }]);
+      else list.push({ poemId: p.id, orderInTag: t.orderInTag });
+    }
+  }
+
+  for (const [tagId, list] of byTag) {
+    /** @type {Map<number, {poemId: string, orderInTag: number}[]>} */
+    const byOrder = new Map();
+    for (const m of list) {
+      const slot = byOrder.get(m.orderInTag);
+      if (slot === undefined) byOrder.set(m.orderInTag, [m]);
+      else slot.push(m);
+    }
+    for (const [order, ms] of byOrder) {
+      if (ms.length > 1) {
+        const ids = ms.map((m) => `\`${m.poemId}\``);
+        errors.push(
+          new ContentError(
+            'TAG_ORDER_DUP',
+            `标签「${tagId}」里 \`orderInTag: ${order}\` 被 ${ms.length} 首诗同时占用：${ids.join('、')}。` +
+              `同一标签内的次序必须唯一（用户 2026-10-18 定：同序**报错**，不得默默用 id 排）；` +
+              `请修改其中至少一首的 orderInTag，或重新给这组诗定次序。`,
+            { file: displayPaths.get(ms[0].poemId) ?? null },
+          ),
+        );
+      }
+    }
+  }
+
+  const ids = [...byTag.keys()];
+  const ranks = collatorRankMap(ids);
+  ids.sort((a, b) => ranks.get(a) - ranks.get(b));
+
+  return ids.map((id) => ({
+    id,
+    members: [...(byTag.get(id) ?? [])]
+      .sort((a, b) => a.orderInTag - b.orderInTag || (a.poemId < b.poemId ? -1 : a.poemId > b.poemId ? 1 : 0))
+      .map((m) => m.poemId),
+  }));
+}
+
+/**
+ * 双向互查：诗的 `tags[]` 与顶层 `tags[].members` 必须描述**同一组归属**。
+ * 这是**内部一致性断言**（两边都由 `buildTagIndex` 生成）；不通就是编译器 bug，不是一个内容诊断。
+ * @param {{id: string, tags?: {id: string}[]}[]} poems
+ * @param {{id: string, members: string[]}[]} tags
+ */
+export function assertTagIndexConsistent(poems, tags) {
+  /** @type {Map<string, Set<string>>} */
+  const fromPoems = new Map();
+  for (const p of poems) fromPoems.set(p.id, new Set((p.tags ?? []).map((t) => t.id)));
+  /** @type {Map<string, Set<string>>} */
+  const fromIndex = new Map();
+  for (const t of tags) {
+    for (const poemId of t.members) {
+      if (!fromIndex.has(poemId)) fromIndex.set(poemId, new Set());
+      /** @type {Set<string>} */ (fromIndex.get(poemId)).add(t.id);
+    }
+  }
+  for (const [poemId, wanted] of fromPoems) {
+    const got = fromIndex.get(poemId) ?? new Set();
+    const missing = [...wanted].filter((id) => !got.has(id));
+    const extra = [...got].filter((id) => !wanted.has(id));
+    if (missing.length || extra.length) {
+      throw new Error(
+        `内部不一致：诗「${poemId}」的 tags=${JSON.stringify([...wanted])}，而顶层 tags[].members 给的是 ${JSON.stringify([...got])}` +
+          `${missing.length ? `；缺 ${missing.join('、')}` : ''}${extra.length ? `；多 ${extra.join('、')}` : ''}`,
+      );
+    }
+  }
+  for (const poemId of fromIndex.keys()) {
+    if (!fromPoems.has(poemId)) {
+      throw new Error(`内部不一致：顶层 tags[].members 里出现了不存在的诗 id「${poemId}」`);
+    }
+  }
+}
+
+/**
  * 从已读入的文件记录构建产物 JSON。
  * @param {{
  *   records: {displayPath: string, id: string, text: string}[],
@@ -466,12 +642,22 @@ export function buildContentFromRecords({
 
   sortPoems(poems, orderStrategy);
 
+  /** 顶层 `tags`：**从诗归属汇总**（编译期生成）；成员按 `orderInTag` 升序，标签之间按拼音。 */
+  /** @type {Map<string, string>} */
+  const displayPaths = new Map(records.map((r) => [r.id, r.displayPath]));
+  const tags = buildTagIndex(poems, errors, displayPaths);
+  assertTagIndexConsistent(poems, tags);
+
+  if (errors.length > 0) {
+    return { content: null, errors, versionNotes: [], contentVersion: null, orderStrategy };
+  }
+
   /** 顶层 `dynasties` ＝ **有序中文值数组**（只列实际有内容的组，次序即注册表 order 升序）。 */
   const dynasties = [...new Set(poems.map((p) => p.dynasty))].sort(
     (a, b) => dynastyOrderOf(a) - dynastyOrderOf(b) || (a < b ? -1 : a > b ? 1 : 0),
   );
 
-  const digestHex = contentDigest({ formatVersion: FORMAT_VERSION, dynasties, poems });
+  const digestHex = contentDigest({ formatVersion: FORMAT_VERSION, dynasties, tags, poems });
   let resolved;
   try {
     resolved = resolveContentVersion({ explicit: explicitVersion, previous: previousVersion, digestHex });
@@ -487,6 +673,7 @@ export function buildContentFromRecords({
     contentVersion: resolved.version,
     generatedAt,
     dynasties,
+    tags,
     poems,
   };
   return { content, errors: [], versionNotes: resolved.notes, contentVersion: resolved.version, orderStrategy };

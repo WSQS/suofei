@@ -16,12 +16,23 @@ import { fileURLToPath } from 'node:url';
  * 2026-10-16：1 → 2（**不可逆**，用户已定 B 判据「字段集一变就升」）。
  * 变化：每首 10 键（去掉 dynastyKey/dynastyLabel/dynastyOrder/era/variants，改为单一中文 `dynasty`
  * ＋ `detail`）；顶层 `dynasties` 从 `[{key,label,order}]` 变为**有序中文值数组**。
- * 老客户端会拒收 formatVersion=2 的内容（S4 单独验），这不是可以就地改回的东西。
+ *
+ * 2026-10-18：2 → 3（同样是 B 判据 ⇒ **新字段就升**，整批执行）。
+ * 变化：新增 `poems[].tags[]`（每项 `{id, orderInTag}`）与编译期汇总的顶层 `tags[]`
+ * （每项 `{id, members}`）。**不发布任何 SortKey**：标签之间的拼音次序只在编译期用。
+ * 老客户端（认 formatVersion=2）会拒收 formatVersion=3 的内容、保留现有快照——这是刻意的代价。
  */
-export const FORMAT_VERSION = 2;
+export const FORMAT_VERSION = 3;
 
 /** 顶层键序（产物里的插入顺序，保证字节可复现、diff 稳定）。 */
-export const CONTENT_KEYS = Object.freeze(['formatVersion', 'contentVersion', 'generatedAt', 'dynasties', 'poems']);
+export const CONTENT_KEYS = Object.freeze([
+  'formatVersion',
+  'contentVersion',
+  'generatedAt',
+  'dynasties',
+  'tags',
+  'poems',
+]);
 
 /**
  * 顶层 `dynasties` 的条目形状（formatVersion=2）。
@@ -40,6 +51,9 @@ export const DYNASTY_ENTRY_TYPE = 'string';
  *
  * 2026-10-16（formatVersion=2）：单一中文 `dynasty` 取代 dynastyKey/dynastyLabel/dynastyOrder；
  * `era`/`variants` 退出产物，考据文本整段进 `detail`（来自源文件的 `## 详情` 节）。
+ *
+ * 2026-10-18（formatVersion=3）：末尾新增 `tags`（**总是一个数组**；没有归属时是 `[]`，不是 `null`——
+ * 「没有标签」是一个可读的值，不是一个缺失）。`tags` 放在末尾不影响其余 10 键的相对次序。
  */
 export const POEM_KEYS = Object.freeze([
   'id',
@@ -52,7 +66,22 @@ export const POEM_KEYS = Object.freeze([
   'detail',
   'stanzas',
   'notes',
+  'tags',
 ]);
+
+/**
+ * 诗侧标签条目的键（formatVersion=3，用户 2026-10-18 定）。
+ *
+ * `id` ＝**标签的中文 id，就是显示名本身**（不加 `name`/`qualifier`/`aliases`）；
+ * `orderInTag` ＝**该标签内的位置**，整数、必填、不可 null（不是「底本编次」，也不是 `orderInSource`）。
+ */
+export const POEM_TAG_KEYS = Object.freeze(['id', 'orderInTag']);
+
+/**
+ * 顶层 `tags[]` 条目的键：**编译期从诗的归属汇总生成**（`{id, members}`），不是人手写的第二份事实来源。
+ * `members` ＝ 该标签下 `poemId` 的数组，**按 `orderInTag` 升序**。
+ */
+export const TAG_INDEX_KEYS = Object.freeze(['id', 'members']);
 
 /**
  * **仅编译期内部使用**的排序名次键：算完次序即丢弃，**不写进 dist/content.json**。
@@ -71,8 +100,13 @@ export const SECTION_NOTES = '笔记';
 /** 必填键。本轮冻结：只增可选键，不改名、不降级。 */
 export const REQUIRED_FRONT_MATTER_KEYS = Object.freeze(['title', 'author', 'dynasty', 'source']);
 
-/** 可选键。本轮冻结。 */
-export const OPTIONAL_FRONT_MATTER_KEYS = Object.freeze(['genre', 'orderInSource']);
+/**
+ * 可选键。本轮冻结。
+ *
+ * 2026-10-18（formatVersion=3）新增 `tags`：**归属**写在诗上，标签集合由编译期自动汇总；
+ * 源里**可以不写**（⇒ 产物 `tags: []`，不是 `null`）。
+ */
+export const OPTIONAL_FRONT_MATTER_KEYS = Object.freeze(['genre', 'orderInSource', 'tags']);
 
 /**
  * **已从源格式去掉**的旧键（formatVersion=1 的写法）。
