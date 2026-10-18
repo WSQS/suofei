@@ -15,11 +15,13 @@
  *   node tools/check-fieldset.mjs --content <dir>  # 换一个内容根来编译（默认见下）
  *   node tools/check-fieldset.mjs --print-entry    # 打印当前产物对应的记录条目（人工贴进 schema/format-version.json）
  *
- * ⚠ 2026-10-16（formatVersion 1 → 2）为什么默认内容根变成了一个**形状夹具**：
+ * ⚠ 2026-10-16（formatVersion 1 → 2）与 2026-10-18（2 → 3）为什么默认内容根是一个**形状夹具**：
  *   本门的对象是**产物形状**（键路径），而新编译器只认新源格式；S2 落地时 `content/poems/`
  *   里还是 v1 源（19 首迁移是 S3、另有授权时序）⇒ 编译真实内容会直接失败，本门会变成「编译不过」
- *   而不是「字段集一致」。所以本门默认编译 `tests/fixtures/shape-v2/content`——一份**列全 10 键**
- *   的最小内容（编译器对每一首都无条件发出这 10 个键，所以单首诗就能定形状）。
+ *   而不是「字段集一致」。所以本门默认编译 `tests/fixtures/shape-v3/content`——一份**列全 11 键**
+ *   的最小内容（编译器对每一首都无条件发出这 11 个键；且**至少一首带一个标签**——否则顶层
+ *   `tags[].id / members` 这几条路径会因空数组而不出现，形状就漏了）。
+ *   旧夹具 `shape-v2` 保留（它仍是一个合法的无标签内容，cli 测试拿它当输入）。
  *   S3 落地后可改用 `--content content` 回到真实内容。
  *
  * **本脚本不自动改 schema/format-version.json**：升版本是不可逆动作，得由人显式落笔。
@@ -31,8 +33,8 @@ import { join } from 'node:path';
 import { fieldSetEntry } from './lib/field-set.mjs';
 
 const RECORD = 'schema/format-version.json';
-/** 形状夹具：列全 10 键的最小内容（见文件头的 ⚠ 说明）。 */
-export const DEFAULT_SHAPE_CONTENT_DIR = 'tests/fixtures/shape-v2/content';
+/** 形状夹具：列全 11 键 ＋ 至少一个真实标签的最小内容（见文件头的 ⚠ 说明）。 */
+export const DEFAULT_SHAPE_CONTENT_DIR = 'tests/fixtures/shape-v3/content';
 
 /** 编译一次当前形状（产物由 CLI 组装，含顶层键——所以拿到的就是客户端会读到的东西）。
  * @param {string} outDir

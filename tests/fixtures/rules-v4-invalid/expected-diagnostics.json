@@ -73,7 +73,7 @@
       {
         "code": "MISSING_REQUIRED_KEY",
         "line": 1,
-        "message": "必填键「source」缺失或值为空。允许的键：title / author / dynasty / source / genre / orderInSource"
+        "message": "必填键「source」缺失或值为空。允许的键：title / author / dynasty / source / genre / orderInSource / tags"
       }
     ],
     "out-of-range-inline-and-block": [

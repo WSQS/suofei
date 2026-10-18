@@ -8,13 +8,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { detailCount, evaluateTargets, shapeOf, verdictOf } from '../tools/check-bundled-content.mjs';
 
-/** 当前编译产物的最小形状（10 键齐全）。 */
+/** 当前编译产物的最小形状（11 键齐全，含一个标签）。 */
 function product(over = {}) {
   return {
-    formatVersion: 2,
+    formatVersion: 3,
     contentVersion: '2026.10.16.1',
     generatedAt: '2026-10-16T00:00:00Z',
     dynasties: ['汉'],
+    tags: [{ id: '古诗十九首', members: ['汉-行行重行行'] }],
     poems: [
       {
         id: '汉-行行重行行',
@@ -27,6 +28,7 @@ function product(over = {}) {
         detail: '### 异文',
         stanzas: [['行行重行行，与君生别离。']],
         notes: null,
+        tags: [{ id: '古诗十九首', orderInTag: 1 }],
       },
     ],
     ...over,
@@ -48,7 +50,7 @@ test('一致 ⇒ 绿，且摘要说清「已查几处」', () => {
   const verdict = verdictOf(result, current);
   assert.equal(verdict.exitCode, 0);
   assert.match(verdict.lines[0], /一致性通过：已查 1 处/);
-  assert.match(verdict.lines[0], /formatVersion=2/);
+  assert.match(verdict.lines[0], /formatVersion=3/);
 });
 
 test('内置产物落后（内容不同）⇒ 红，并把两边的量摆出来', () => {
@@ -65,11 +67,11 @@ test('内置产物落后（内容不同）⇒ 红，并把两边的量摆出来'
 });
 
 test('formatVersion 不是同一代 ⇒ 红，并单独说「不是同一代」（不混进字段 diff）', () => {
-  const current = product(); // v2
+  const current = product(); // v3
   const builtinV1 = { ...product(), formatVersion: 1 };
   const result = evaluateTargets(current, [entry({ text: JSON.stringify(builtinV1) })]);
   assert.equal(result.problems.length, 1);
-  assert.match(result.problems[0], /formatVersion=1 与当前编译产物 2 不是同一代/);
+  assert.match(result.problems[0], /formatVersion=1 与当前编译产物 3 不是同一代/);
   assert.match(result.problems[0], /没跟着升版/);
   assert.equal(verdictOf(result, current).exitCode, 1);
 });
@@ -85,7 +87,7 @@ test('必需目标缺失 ⇒ 红（明确说是「必需的内置产物」）', 
 
 test('目标不是合法 JSON ⇒ 红（不当成「没查」搪塞过去）', () => {
   const current = product();
-  const result = evaluateTargets(current, [entry({ text: '{ "formatVersion": 2, ' })]);
+  const result = evaluateTargets(current, [entry({ text: '{ "formatVersion": 3, ' })]);
   assert.equal(result.problems.length, 1);
   assert.match(result.problems[0], /不是合法 JSON/);
   assert.equal(verdictOf(result, current).exitCode, 1);
