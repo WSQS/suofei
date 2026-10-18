@@ -371,53 +371,136 @@ function poemRow(poem, onOpen) {
 }
 
 /**
- * 首屏：按时代分组目录。**组这一层可折叠**（IF-44：首态全部收起、整组头可点、各组独立）；
- * 记号＝悬挂在组名左沿之外的方括号 `[+]/[−]`（方向已由用户局部选定），**只表达状态**。
- * @param {{onOpen?: Function, onAbout?: Function, isExpanded?: (key:string)=>boolean, onToggle?: Function}} [opts]
+ * 标签分组：**照产物顶层 `tags` 数组顺序**（编译期已按拼音排好），组内**照 `members` 数组顺序**
+ * （编译期已按 `orderInTag` 升序）—— 客户端**一处都不重排**（用户 2026-10-18 数据规则）。
+ * 标签名＝标签 id 本身（中文 id 即显示名，没有单独的显示名字段）。
+ *
+ * **零成员的标签不渲染**（用户 2026-10-18 返修）：成员数 < 1 直接跳过 —— 不出现组头、
+ * 不出现展开按钮、也不出现「这个标签下还没有诗」一类空态文字。
+ * ⚠ 只是不出界面：标签定义（与本库无关的空归属）仍留在产物里；**无标签的诗照旧留在朝代页**。
  */
-export function renderIndex(doc, { onOpen, onAbout, isExpanded, onToggle } = {}) {
-  const root = h('div', { class: 'view view--index', dataset: { test: 'view-index' } });
+export function tagGroups(doc) {
+  const byId = new Map((doc?.poems ?? []).map((p) => [p.id, p]));
+  const groups = [];
+  for (const tag of doc?.tags ?? []) {
+    const members = Array.isArray(tag?.members) ? tag.members : [];
+    const poems = members.map((id) => byId.get(id)).filter(Boolean);
+    if (poems.length < 1) continue;
+    groups.push({ key: tag.id, label: tag.id, poems });
+  }
+  return groups;
+}
+
+/** 顶部行：左＝「朝代 ｜ 标签」两个 tab，右＝关于（用户 2026-10-18 采纳的整合版）。
+ *  tab 是 `<button role="tab">`：点了改 hash（不是记忆状态），这样深链接/刷新/浏览器后退都对得上。
+ *  视觉：选中的 tab 用 `aria-selected="true"` 驱动下边线（`.tab[aria-selected="true"]`），不另加类名。 */
+function indexTabs(activeTab, { onAbout, onSelectTab }) {
   const bar = h('div', { class: 'index-bar', dataset: { test: 'index-bar' } });
-  // 「关于」入口（用户 2026-10-15 定：目录页顶部只放它，不重复应用名）。
+  const tabs = h('div', { class: 'tabs', role: 'tablist', dataset: { test: 'tabs' } });
+  const mkTab = (id, label, test) => {
+    const b = h('button', {
+      type: 'button',
+      class: 'tab',
+      role: 'tab',
+      'aria-selected': activeTab === id ? 'true' : 'false',
+      dataset: { test, tab: id },
+      text: label,
+    });
+    b.addEventListener('click', () => onSelectTab?.(id));
+    return b;
+  };
+  tabs.append(mkTab('dynasty', '朝代', 'tab-dynasty'), mkTab('tags', '标签', 'tab-tags'));
+  // 「关于」入口（用户 2026-10-15 定：顶部只放它，不重复应用名）。
   const about = h('a', { class: 'about-link', href: ROUTES.about, dataset: { test: 'about-link' }, text: '关于' });
   about.addEventListener('click', () => onAbout?.());
-  bar.append(about);
-  root.append(bar);
+  bar.append(tabs, about);
+  return bar;
+}
 
-  const groups = groupPoems(doc);
+/**
+ * 一个可折叠组（**朝代 tab 与标签 tab 共用这一段**，用户 2026-10-18：「页面结构和朝代页保持一致」）。
+ *  - 组头＝悬挂记号 `[+]/[−]`（与组名**竖直居中**）＋组名，**整行可点**；
+ *  - 子诗目：题名左沿＝组名首字左沿（悬挂槽宽，缩进 0）、作者紧随、**无序号**；
+ *  - `count` 只有**朝代** tab 传（标签 tab 传 null ⇒ 组头里没有那一段，页面上不出现任何数量）。
+ */
+function groupBlock({ kind, key, label, poems, expanded, count = null, onOpen, onToggle }) {
+  const isTag = kind === 'tag';
+  const sec = h('section', {
+    class: isTag ? 'tag-group' : 'dynasty-group',
+    dataset: isTag
+      ? { test: 'tag-group', tagId: key }
+      : { test: 'dynasty-group', dynastyKey: key, dynasty: label },
+  });
+
+  const mark = h('span', { class: 'gh-mark', dataset: { test: 'group-mark' }, text: expanded ? '[−]' : '[+]' });
+  mark.setAttribute('aria-hidden', 'true');
+  const slot = h('span', { class: 'gh-slot' }, [mark]);
+  const nameEl = h('span', {
+    class: isTag ? 'tag-label' : 'dynasty-label',
+    dataset: { test: isTag ? 'tag-label' : 'dynasty-label' },
+    text: label,
+  });
+  const headParts = [slot, nameEl];
+  if (count !== null) {
+    headParts.push(h('span', { class: 'dynasty-count' }, [h('b', { text: String(count) }), ' 首']));
+  }
+  const head = h('button', {
+    type: 'button',
+    class: isTag ? 'tag-group-title' : 'dynasty-group-title',
+    dataset: { test: isTag ? 'tag-group-title' : 'dynasty-group-title' },
+    'aria-expanded': expanded ? 'true' : 'false',
+  }, headParts);
+
+  const list = h('div', { class: 'poem-list', dataset: { test: 'poem-list' } });
+  for (const p of poems) list.append(poemRow(p, onOpen));
+  if (!expanded) list.hidden = true;
+
+  head.addEventListener('click', () => {
+    const next = head.getAttribute('aria-expanded') !== 'true';
+    head.setAttribute('aria-expanded', next ? 'true' : 'false');
+    mark.textContent = next ? '[−]' : '[+]';
+    list.hidden = !next;
+    onToggle?.(key, next);
+  });
+
+  sec.append(head, list);
+  return sec;
+}
+
+/**
+ * 首屏（目录页）：顶部「朝代 ｜ 标签」两 tab ＋ 下属可折叠组。
+ * - `activeTab = 'dynasty'`：按时代分组，组头带计数；
+ * - `activeTab = 'tags'`：按标签分组（照产物顺序），**组头与页面上都不出现任何数量**；零成员的标签不渲染；
+ * - **组这一层可折叠**（IF-44：首态全部收起、整组头可点、各组独立）；记号＝悬挂在组名左沿之外的
+ *   `[+]/[−]`，**只表达状态**；
+ * - 展开状态**不在这里**（由 main.js 按 tab 分别记住，返回/切 tab 都不丢）。
+ * @param {{
+ *   activeTab?: 'dynasty'|'tags', onOpen?: Function, onAbout?: Function, onSelectTab?: Function,
+ *   isExpanded?: (key:string)=>boolean, onToggle?: Function,
+ * }} [opts]
+ */
+export function renderIndex(doc, {
+  activeTab = 'dynasty', onOpen, onAbout, onSelectTab, isExpanded, onToggle,
+} = {}) {
+  const isTags = activeTab === 'tags';
+  const root = h('div', {
+    class: 'view view--index',
+    dataset: { test: 'view-index', tab: isTags ? 'tags' : 'dynasty' },
+  });
+  root.append(indexTabs(isTags ? 'tags' : 'dynasty', { onAbout, onSelectTab }));
+
+  const groups = isTags ? tagGroups(doc) : groupPoems(doc);
   for (const g of groups) {
-    const expanded = Boolean(isExpanded?.(g.key));
-    const sec = h('section', {
-      class: 'dynasty-group',
-      dataset: { test: 'dynasty-group', dynastyKey: g.key, dynasty: g.label },
-    });
-
-    const mark = h('span', { class: 'gh-mark', dataset: { test: 'group-mark' }, text: expanded ? '[−]' : '[+]' });
-    mark.setAttribute('aria-hidden', 'true');
-    const slot = h('span', { class: 'gh-slot' }, [mark]);
-    const label = h('span', { class: 'dynasty-label', dataset: { test: 'dynasty-label' }, text: g.label });
-    const count = h('span', { class: 'dynasty-count' }, [h('b', { text: String(g.poems.length) }), ' 首']);
-    const head = h('button', {
-      type: 'button',
-      class: 'dynasty-group-title',
-      dataset: { test: 'dynasty-group-title' },
-      'aria-expanded': expanded ? 'true' : 'false',
-    }, [slot, label, count]);
-
-    const list = h('div', { class: 'poem-list', dataset: { test: 'poem-list' } });
-    for (const p of g.poems) list.append(poemRow(p, onOpen));
-    if (!expanded) list.hidden = true;
-
-    head.addEventListener('click', () => {
-      const next = head.getAttribute('aria-expanded') !== 'true';
-      head.setAttribute('aria-expanded', next ? 'true' : 'false');
-      mark.textContent = next ? '[−]' : '[+]';
-      list.hidden = !next;
-      onToggle?.(g.key, next);
-    });
-
-    sec.append(head, list);
-    root.append(sec);
+    root.append(groupBlock({
+      kind: isTags ? 'tag' : 'dynasty',
+      key: g.key,
+      label: g.label,
+      poems: g.poems,
+      expanded: Boolean(isExpanded?.(g.key)),
+      count: isTags ? null : g.poems.length,   // 标签 tab：组头不带数量
+      onOpen,
+      onToggle,
+    }));
   }
   return root;
 }
@@ -434,7 +517,7 @@ function topRow(children) {
  * （入口在顶部行、展开在正文下方内联无框；**无笔记整块隐藏**）。
  * 正文之后的「详情」入口已在顶部行右侧（用户 2026-10-16 定，与返回同一行）。
  */
-export function renderPoemPage(doc, id, { onBack, onDetail } = {}) {
+export function renderPoemPage(doc, id, { onBack, onDetail, backHref = ROUTES.index, backLabel = '← 目录' } = {}) {
   const poem = getPoem(doc, id);
   if (!poem) {
     return h('div', { class: 'view view--missing', dataset: { test: 'view-poem-missing' } }, [
@@ -443,7 +526,9 @@ export function renderPoemPage(doc, id, { onBack, onDetail } = {}) {
   }
   const root = h('div', { class: 'view view--poem', dataset: { test: 'view-poem', poemId: poem.id } });
 
-  const back = h('a', { class: 'back-link', href: ROUTES.index, dataset: { test: 'back-to-index' }, text: '← 目录' });
+  // 「返回」落到**进入这首诗的原视图**（朝代 tab 或标签 tab；用户 2026-10-18 采纳的返回链）
+  // ⇒ 文案跟着原视图走（进去的是标签视图却写「← 目录」就是在骗人）。
+  const back = h('a', { class: 'back-link', href: backHref, dataset: { test: 'back-to-index' }, text: backLabel });
   back.addEventListener('click', () => onBack?.());
   const right = h('div', { class: 'top-right' });
 
@@ -553,9 +638,11 @@ export function renderDetailPage(doc, id, { onBack } = {}) {
  * 「仓库链接」两行 `dt`），与采纳锚不符（采纳锚里这两项分别是**页标题**与**置底 URL**，都不是标签行）⇒
  * 改为上面 ①②③ 的 A3／V3（标签左对齐＝四条线合一）。
  */
-export function renderAboutPage({ appVersion, doc, onBack } = {}) {
+export function renderAboutPage({ appVersion, doc, onBack, backHref = ROUTES.index, backLabel = '← 目录' } = {}) {
   const root = h('div', { class: 'view view--about', dataset: { test: 'view-about' } });
-  const back = h('a', { class: 'back-link', href: ROUTES.index, dataset: { test: 'about-back-to-index' }, text: '← 目录' });
+  const back = h('a', {
+    class: 'back-link', href: backHref, dataset: { test: 'about-back-to-index' }, text: backLabel,
+  });
   back.addEventListener('click', () => onBack?.());
   root.append(topRow([back]));
 

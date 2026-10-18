@@ -6,8 +6,9 @@
 //   B) 站点部署变体：给「两版本切换」与「失败状态」测试用，每个部署带自己的 APP_VERSION，
 //      由 tests/lib/deploy.mjs 组装（壳 + 内容一起换）。
 //
-// ⚠ 这里的形状是 **formatVersion 2**（顶层 `dynasties` ＝有序中文值数组；每首 10 键，
-//    `dynasty` 单值、`detail` 是最小 Markdown 文本）。
+// ⚠ 这里的形状是 **formatVersion 3**（顶层 `dynasties` ＝有序中文值数组；顶层 `tags` ＝有序数组；
+//   每首 11 键，`tags` 为 `[{ tagId, orderInTag }]` 可为 `[]`）。从 v2 基座派生时，调用处先把它
+//   转成 v3 测试夹具（`tests/lib/v3-fixture.mjs` 的 `toV3TestDoc`）。
 
 /** 加进来的那首测试诗：自带笔记（含空行分段、`- ` 列表、`**粗体**` 与转义样本）；
  *  `dynasty` 由调用处覆盖为基座末首的朝代。 */
@@ -26,6 +27,8 @@ export const FIXTURE_POEM = {
     ['这是一句很长的测试夹具诗句，用来触发按句读的语义折行：甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌亥。'],
   ],
   notes: '【测试笔记·不是用户笔记】\n\n用于验证「笔记按需展开」的测试文本。\n\n- 第一点：列表与段落。\n- 第二点：换行保留。\n\n这里验证最小 Markdown 子集：**粗体**与普通文字混排。\n\n这里验证转义：<b>不应被当作标签</b>，应原样显示。',
+  // v3 必填键：夹具诗**不打标签**（`[]` ）—— 不给夹具诗编造归属。
+  tags: [],
 };
 
 /** 老形状（formatVersion 1）里去掉两个拼音名次键的副本：模拟 C 线改完后的最小产物形状。
@@ -86,6 +89,11 @@ export function makeFixtureContent(base) {
     + '用于验证两版本成对切换与渲染路径。不是发布内容。';
   const last = base.poems[base.poems.length - 1];
   doc.poems = doc.poems.slice(0, -1);
+  // v3：删掉的诗要从顶层 `tags` 的 `members` 里一并移除 —— 否则派生内容会引用一首不存在的诗，
+  // 在客户端结构校验里会被当成坏内容（引用闭合是两个方向都查的）。
+  for (const t of doc.tags ?? []) {
+    if (Array.isArray(t.members)) t.members = t.members.filter((id) => id !== last.id);
+  }
   doc.poems.push({
     ...structuredClone(FIXTURE_POEM),
     dynasty: last.dynasty,   // 分组沿用基座最后一首的朝代（值数组不变）
@@ -116,7 +124,7 @@ export function makeFutureFormatDoc(base) {
 
 /**
  * 生成全部测试变体。
- * @param {object} base 基座产物（真实产物优先；应为 formatVersion 2）
+ * @param {object} base 基座产物（真实产物优先；应为 formatVersion 3）
  * @returns {Record<string, {name: string, kind: 'doc'|'text', doc?: object, text?: string, note: string}>}
  */
 export function buildVariants(base) {

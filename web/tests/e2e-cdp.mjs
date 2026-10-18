@@ -30,9 +30,10 @@ import {
 } from '../app/content.js';
 import { ABOUT, APP_VERSION, CONTENT_REVISION, CONTENT_URL, ROUTES, resourceCacheName } from '../app/config.js';
 import {
-  breakPoemLine, comparePoems, groupPoems, hasProductOrder, isUnknownAuthor, productOrderStatus, UNKNOWN_AUTHORS,
+  breakPoemLine, comparePoems, groupPoems, hasProductOrder, isUnknownAuthor, productOrderStatus, tagGroups, UNKNOWN_AUTHORS,
 } from '../app/render.js';
 import { buildVariants } from '../scripts/lib/variants.mjs';
+import { TAG_FIXTURE_EMPTY_TAG, makeTagTabFixtureDoc, toV3TestDoc } from '../scripts/lib/v3-test-content.mjs';
 import { DEPLOY_FILES, DEPLOY_TEXT_FILES, makeDeployment, makeDeploymentFromDir } from './lib/deploy.mjs';
 
 const webRoot = fileURLToPath(new URL('..', import.meta.url));
@@ -281,6 +282,16 @@ const waitForPoemView = (id) => waitFor(
 const waitForErrorView = () => waitFor(`Boolean(document.querySelector('[data-test="view-error"]'))`, { label: '失败状态' });
 const waitForAboutView = () => waitFor(`Boolean(document.querySelector('[data-test="view-about"]'))`, { label: '关于页' });
 
+/** 目录页的「标签 tab」（同一个 view-index，`data-tab="tags"`）。 */
+const waitForTagsView = () => waitFor(
+  `Boolean(document.querySelector('[data-test="view-index"][data-tab="tags"]'))`,
+  { label: '标签视图（view-index[data-tab=tags]）' },
+);
+const waitForDynastyView = () => waitFor(
+  `Boolean(document.querySelector('[data-test="view-index"][data-tab="dynasty"]'))`,
+  { label: '朝代视图（view-index[data-tab=dynasty]）' },
+);
+
 /** 切到某首诗的详情页并把表达式在那个页面上求值（省得每处都写一遍 hashTo + waitFor）。 */
 async function evaluateOnDetail(id, expression) {
   await hashTo(`#/p/${id}/detail`);
@@ -426,12 +437,16 @@ function unitTests(baseDoc, variants) {
   check('结构不合法的内容被拒（并给出可读条目）', bad.ok === false && bad.errors.length >= 2, bad.errors.join(' / '));
   check('非对象内容被拒', validateContent('nope').ok === false);
 
-  // 字段集（formatVersion 2）：顶层 dynasties ＝有序中文值数组；每首 10 键。
+  // 字段集（formatVersion 3）：顶层 dynasties ＝有序中文值数组、顶层 tags ＝有序数组；每首 11 键。
   //    诗页**不得**出现详情文本（反向断言在 §1c）；**详情页必须渲染**（正断言在 §1c-2）。
-  const KEY_SET = ['id', 'title', 'author', 'dynasty', 'genre', 'source', 'orderInSource', 'detail', 'stanzas', 'notes'];
+  //    `tags` 是 v3 新加的键（`[{ tagId, orderInTag }]`，可为 `[]`——几何诗都没标签也不该编）。
+  const KEY_SET = ['id', 'title', 'author', 'dynasty', 'genre', 'source', 'orderInSource', 'detail', 'stanzas', 'notes', 'tags'];
   const keySetOk = baseDoc.poems.every((p) => Object.keys(p).length === KEY_SET.length && KEY_SET.every((k) => k in p));
-  check('每首恰好 10 键（id/title/author/dynasty/genre/source/orderInSource/detail/stanzas/notes）', keySetOk,
+  check('每首恰好 11 键（id/title/author/dynasty/genre/source/orderInSource/detail/stanzas/notes/tags）', keySetOk,
     dump(baseDoc.poems.map((p) => Object.keys(p)).filter((ks) => ks.length !== KEY_SET.length || !KEY_SET.every((k) => ks.includes(k)))));
+  check('顶层 tags 是**有序数组**（顺序即渲染顺序）',
+    Array.isArray(baseDoc.tags) && baseDoc.tags.every((t) => t && typeof t.id === 'string' && Array.isArray(t.members)),
+    dump(baseDoc.tags));
   check('顶层 dynasties 是**有序中文值数组**',
     baseDoc.dynasties.length > 0 && baseDoc.dynasties.every((d) => typeof d === 'string' && d !== ''), dump(baseDoc.dynasties));
   check('组名精确匹配：每首 dynasty 都在顶层 dynasties 里',
@@ -457,7 +472,11 @@ function unitTests(baseDoc, variants) {
   const future = checkCompatibility(variants.futureFormat.doc);
   check('格式版本更高 → 判定为部署不一致', future.ok === false && future.message.includes('部署不一致'), future.message);
   check('格式版本更低 → 也判不兼容', checkCompatibility({ formatVersion: 0 }).ok === false);
-  eq('支持的内容格式版本（字段集升版 1 → 2，用户 2026-10-15 定）', SUPPORTED_FORMAT_VERSION, 2);
+  eq('支持的内容格式版本（字段集升版 2 → 3：每首加 tags、顶层加 tags，用户 2026-10-18 定）', SUPPORTED_FORMAT_VERSION, 3);
+  // 版本门**不放宽**：比本站高的拒，比本站低的也拒（v2 产物现在就是「低版本」）。
+  eq('v2 产物（本轮之前的旧内容）→ 判为格式版本不兼容（没有放宽版本门）',
+    checkCompatibility({ formatVersion: 2 }).ok, false);
+  eq('v3 正是本站支持的那一个版本', checkCompatibility({ formatVersion: 3 }), { ok: true });
 
   section('0b 次序策略：产物带了 orderInSource 时一律不重排（回归）');
   eq('真实产物被判定为「产物次序权威」', hasProductOrder(baseDoc), true);
@@ -568,6 +587,54 @@ function unitTests(baseDoc, variants) {
     breakPoemLine('甲乙丙丁，戊', 4, m1), ['甲乙丙', '丁，戊']);
   check('折行不删字/不加字（拼接后与原文逐字相同）',
     breakPoemLine('行行重行行，与君生别离。甲乙丙丁戊', 5, m1).join('') === '行行重行行，与君生别离。甲乙丙丁戊');
+
+  section('0k 标签（formatVersion 3）：次序照产物、零成员不出组、引用闭合真的被查');
+  const tagFix = makeTagTabFixtureDoc();
+  const tagFixValid = validateContent(tagFix);
+  check('标签夹具自身通过结构校验（夹具先得是干净的）', tagFixValid.ok, tagFixValid.errors.join(' / ') || 'ok');
+  // 独立 oracle：拼音序用 Intl.Collator 现算，**不引用 app 的任何排序函数**。
+  const tagCollator = new Intl.Collator(['zh-Hans-CN-u-co-pinyin', 'zh-Hans-CN', 'zh'], {
+    numeric: true, sensitivity: 'variant',
+  });
+  const nonEmptyTags = tagFix.tags.filter((t) => t.members.length > 0).map((t) => t.id);
+  const renderedTagOrder = tagGroups(tagFix).map((g) => g.key);
+  eq('标签组顺序 == 产物顶层 tags 数组顺序（客户端一处都不重排）', renderedTagOrder, nonEmptyTags);
+  const tagPinyinOrder = [...nonEmptyTags].sort((a, b) => tagCollator.compare(a, b));
+  check('产物的标签顺序**确实不是拼音序**（所以上一条断言有牙齿）',
+    dump(renderedTagOrder) !== dump(tagPinyinOrder), dump({ renderedTagOrder, tagPinyinOrder }));
+  const firstTagGroup = tagGroups(tagFix)[0];
+  eq('标签内成员顺序 == 产物 members 数组顺序', firstTagGroup.poems.map((p) => p.id), tagFix.tags[0].members);
+  const memberPinyinOrder = [...firstTagGroup.poems].sort((a, b) => tagCollator.compare(a.title, b.title)).map((p) => p.id);
+  const poemsArrayOrder = tagFix.poems.map((p) => p.id).filter((id) => tagFix.tags[0].members.includes(id));
+  check('成员顺序**确实不是拼音序**，也不是 poems 数组顺序（所以上一条断言有牙齿）',
+    dump(firstTagGroup.poems.map((p) => p.id)) !== dump(memberPinyinOrder)
+      && dump(firstTagGroup.poems.map((p) => p.id)) !== dump(poemsArrayOrder),
+    dump({ rendered: firstTagGroup.poems.map((p) => p.id), memberPinyinOrder, poemsArrayOrder }));
+  check('夹具里确实有一条零成员的标签（否则下一条是空的）',
+    tagFix.tags.some((t) => t.id === TAG_FIXTURE_EMPTY_TAG && t.members.length === 0), dump(tagFix.tags.map((t) => [t.id, t.members.length])));
+  check('零成员的标签**不成为组**（也不出空态文字：连组都没有）',
+    !renderedTagOrder.includes(TAG_FIXTURE_EMPTY_TAG), dump(renderedTagOrder));
+  eq('无标签的诗照旧在朝代页（只是不在标签页）', groupPoems(tagFix).flatMap((g) => g.poems.map((p) => p.id)).length, tagFix.poems.length);
+
+  // 引用闭合（两个方向）与必填字段：这些是「结构校验真的在把关」，不是只画得出来就行。
+  const noTopTags = structuredClone(tagFix);
+  delete noTopTags.tags;
+  check('缺顶层 tags → 结构校验失败（v3 必填键）', validateContent(noTopTags).ok === false,
+    validateContent(noTopTags).errors.join(' / '));
+  const nullOrderInTag = structuredClone(tagFix);
+  nullOrderInTag.poems[0].tags = [{ tagId: '测试标签乙', orderInTag: null }];
+  check('orderInTag 为 null → 结构校验失败（数据侧口径：必填整数，不可为 null）',
+    validateContent(nullOrderInTag).ok === false, validateContent(nullOrderInTag).errors.join(' / '));
+  const undeclaredTag = structuredClone(tagFix);
+  undeclaredTag.poems[0].tags = [{ tagId: '没有这个标签', orderInTag: 1 }];
+  check('诗的 tagId 未在顶层 tags 声明 → 结构校验失败（引用闭合①）',
+    validateContent(undeclaredTag).ok === false, validateContent(undeclaredTag).errors.join(' / '));
+  const danglingMember = structuredClone(tagFix);
+  danglingMember.tags[0].members = [...danglingMember.tags[0].members, 'no-such-poem'];
+  check('members 指向不存在的诗 → 结构校验失败（引用闭合②）',
+    validateContent(danglingMember).ok === false, validateContent(danglingMember).errors.join(' / '));
+  check('诗的 tags 为 [] 是合法的（不是每首诗都必须属于某个标签）',
+    tagFix.poems.some((p) => p.tags.length === 0) && validateContent(tagFix).ok);
 }
 
 /** 「内容必须单独取、不许内联」的自证 + 体积报告。 */
@@ -710,20 +777,30 @@ async function main() {
     const code = await new Promise((r) => child.on('exit', r));
     if (code !== 0) throw new Error('tools/build-content.mjs 编译失败');
   }
-  const baseText = await readFile(distPath, 'utf8');
-  const baseDoc = JSON.parse(baseText);
-  // 基座必须是**真实的 v2 产物**：过渡件 `scripts/lib/upgrade-content.mjs`（v1→v2 适配）已按
-  // `docs/design/implementation-plan.md` §4b 删除 —— 客户端只认 formatVersion 2，v1 会被**如实拒绝**
-  // （`app/content.js` 的 SUPPORTED_FORMAT_VERSION 判据），**绝不静默升版**。
-  // 基座不是 2 ⇒ 直接失败，不要在这里偷偷把 v1 升上去（那正是 §4b 禁止的事）。
-  if (Number(baseDoc.formatVersion) !== 2) {
-    throw new Error(`基座 dist/content.json 不是 formatVersion 2（实际 ${baseDoc.formatVersion}）：`
-      + '过渡适配已删除，本地演练/测试必须跑在真实 v2 产物上（先跑 node tools/build-content.mjs 生成它）');
+  const distText = await readFile(distPath, 'utf8');
+  const distDoc = JSON.parse(distText);
+  // 基座必须是能渲染的**真实产物**：不能把 v1/v2 偷偷升版去冒充发布内容。
+  // ⚠ 2026-10-18（标签字段集 v3）：本工作树里 C 线的编译产物还是 v2 ⇒ 走 `toV3TestDoc` 派生
+  //   一份**明确标为夹具的 v3**（每首 tags: []、顶层 tags: []，**不给任何真实诗编造标签**）。
+  //   C 线一旦真的编出 v3，这里自动直接用它（不再派生）。
+  let baseText = distText;
+  let baseDoc = distDoc;
+  let baseIsFixture = distDoc.fixture === true || distDoc.placeholder === true;
+  let baseOrigin = 'dist/content.json（真实产物，本身就是 formatVersion 3）';
+  if (Number(distDoc.formatVersion) === 2) {
+    baseDoc = toV3TestDoc(distDoc);
+    baseText = `${JSON.stringify(baseDoc, null, 2)}\n`;
+    baseIsFixture = true;
+    baseOrigin = 'dist/content.json（真实 v2 产物）→ 派生 v3 测试夹具（fixture: true，未给任何诗编造标签）';
+    console.log('⚠ dist/content.json 还是 formatVersion 2（C 线的 tags 字段未落）→ 用明确标为夹具的 v3 派生内容跑本轮。');
+  } else if (Number(distDoc.formatVersion) !== 3) {
+    throw new Error(`基座 dist/content.json 的 formatVersion 是 ${distDoc.formatVersion}，`
+      + '既不是本壳支持的 3，也不是可派生的 2：不猜，直接失败（先跑 node tools/build-content.mjs）');
   }
   const total = baseDoc.poems.length;
-  console.log(`\n基座内容：dist/content.json（真实产物）`);
+  console.log(`\n基座内容：${baseOrigin}`);
   console.log(`  formatVersion=${baseDoc.formatVersion} contentVersion=${baseDoc.contentVersion} poems=${total}`
-    + ` dynasties=${baseDoc.dynasties.join(',')}`);
+    + ` dynasties=${baseDoc.dynasties.join(',')} tags=${(baseDoc.tags ?? []).length}`);
   console.log(`  基座每首键集：${Object.keys(baseDoc.poems[0]).join(',')}`);
 
   const variants = buildVariants(baseDoc);
@@ -851,7 +928,15 @@ async function main() {
   eq('内容版本（仅展示）', s.contentVersion, baseDoc.contentVersion);
   eq('诗数量', s.poems, total);
   eq('内容格式版本', s.formatVersion, baseDoc.formatVersion);
-  check('真实产物没有夹具黄条', !(await evaluate(`Boolean(document.querySelector('[data-test="fixture-notice"]'))`)));
+  if (baseIsFixture) {
+    // 本轮基座是从真实 v2 产物**派生**的 v3 测试夹具（C 线 tags 字段还没落）⇒ 黄条**必须**出现，
+    // 并明确说这是夹具 —— 不能把夹具当发布内容，也不能反向把真产物当成坏的。
+    const noticeText = await evaluate(`(document.querySelector('[data-test="fixture-notice"]') || { innerText: '' }).innerText`);
+    check('基座是派生的 v3 测试夹具 ⇒ 界面必须把它标出来（不把夹具当发布内容）',
+      /夹具/.test(noticeText), dump(noticeText));
+  } else {
+    check('真实产物没有夹具黄条', !(await evaluate(`Boolean(document.querySelector('[data-test="fixture-notice"]'))`)));
+  }
   // ⚠ 真实内容现在有三个组 ⇒ **按组**取行（拿全部 poem-row 当单组是更早的写法）。
   const groupRowTitles = (key) => evaluate(`(() => {
     const g = [...document.querySelectorAll('[data-test="dynasty-group"]')]
@@ -2219,6 +2304,331 @@ async function main() {
     console.log('  本节新增页面级报错 ' + errsInSection.length + ' 条'
       + (errsInSection.length ? '：' + errsInSection.map((e) => String(e).split('\n')[0]).join(' | ') : ''));
   }
+
+  // ---------------------------------------------------------------- 10. 标签 tab（工程线 2／3）
+  //
+  // 验收口径来自用户 2026-10-18 采纳的整合版（`items/tag-views/history/round-2026-10-18-tag-tab-adopted/`）：
+  //   顶部「朝代 ｜ 标签」两 tab ＋右侧关于；标签页与朝代页**同构**；标签页**无任何数量**；
+  //   零成员标签不渲染；返回链**逐层**（详情 → 诗页 → 原视图）；两个 tab 各自保展开与滚动；
+  //   两端一律**照产物排序**。
+  section('10 标签 tab：同构 / 无任何数量 / 零成员不渲染 / 逐层返回 / 各 tab 各自状态 / 照产物排序');
+
+  // ---- 10a 真实基座（派生 v3、没有标签）上的标签视图：能深链接、没有组、也没有空态文字 ----
+  await hashTo(ROUTES.tags);
+  await waitForTagsView();
+  eq('标签 tab 有独立路由（可深链接、刷新不丢）', await evaluate('location.hash'), '#/tags');
+  const bareTagsView = await evaluate(`(() => {
+    const v = document.querySelector('[data-test="view-index"]');
+    return { groups: v.querySelectorAll('[data-test="tag-group"]').length, counts: v.querySelectorAll('.dynasty-count').length, text: v.innerText };
+  })()`);
+  eq('基座内容没有任何标签 ⇒ 标签视图一组都没有（不画空组）', bareTagsView.groups, 0);
+  eq('基座标签视图也没有任何数量元素', bareTagsView.counts, 0);
+  check('没有标签时也不出现「还没有标签」这类空态文字',
+    !/还没有|暂无|空态|无标签/.test(bareTagsView.text), dump(bareTagsView.text));
+  eq('标签 tab 里顶部仍是那两个 tab ＋关于（不是另一套外壳）',
+    await evaluate(`[...document.querySelectorAll('[data-test="index-bar"] [role="tab"]')].map(t => t.textContent)`),
+    ['朝代', '标签']);
+
+  // ---- 10b 真发一版**带标签的测试夹具**（并切到它） ----
+  const tagDoc = makeTagTabFixtureDoc();
+  const tagDocText = `${JSON.stringify(tagDoc, null, 2)}\n`;
+  const tagApp = nextAppVersion(APP_VERSION, 7);
+  const tagDep = await makeDeployment({ destDir: join(deployRoot, 'tags'), appVersion: tagApp, contentText: tagDocText });
+  console.log(`  部署标签夹具：appVersion=${tagApp} 标签=${tagDoc.tags.length} 首=${tagDoc.poems.length}（均为测试夹具）`);
+  await redeploy(tagDep.destDir);
+  await reload();
+  await waitFor(`Boolean(document.querySelector('[data-test="update-available"]'))`, { label: '标签夹具版本被发现' });
+  const tokenTagDep = await docToken();
+  await evaluate(`document.querySelector('[data-test="apply-update"]').click(); true`);
+  await waitForNewDocument(tokenTagDep, '切到标签夹具版本');
+  await waitForTagsView();
+  s = await summary();
+  eq('切到夹具版本后：内容版本就是夹具的', s.contentVersion, tagDoc.contentVersion);
+  eq('切到夹具版本后：首数就是夹具的', s.poems, tagDoc.poems.length);
+
+  // 小屏手机视口（430×932，与原型截图同口径）——后面量几何与出图都用它。
+  await cdp.send('Emulation.setDeviceMetricsOverride', { width: 430, height: 932, deviceScaleFactor: 2, mobile: false });
+
+  // ---- 10c 顶部两 tab ＋ 朝代 tab 初态 ----
+  await openFresh(BASE);
+  await waitForDynastyView();
+  const topInfo = await evaluate(`(() => {
+    const bar = document.querySelector('[data-test="index-bar"]');
+    const tabs = [...bar.querySelectorAll('[role="tab"]')];
+    const about = bar.querySelector('[data-test="about-link"]');
+    return {
+      labels: tabs.map((t) => t.textContent),
+      selected: tabs.map((t) => t.getAttribute('aria-selected')),
+      tabTagNames: tabs.map((t) => t.tagName),
+      about: about ? about.textContent : null,
+      aboutHref: about ? about.getAttribute('href') : null,
+      linksInBar: [...bar.querySelectorAll('a')].map((a) => a.textContent),
+    };
+  })()`);
+  eq('顶部：「朝代 ｜ 标签」两个 tab（按顺序）＋ 右侧关于',
+    [topInfo.labels, topInfo.about], [['朝代', '标签'], '关于']);
+  eq('两个 tab 是 `role=tab` 的按钮（不是链接，与采纳锚一致）',
+    [topInfo.tabTagNames, await evaluate(`[...document.querySelectorAll('[data-test="index-bar"] [role="tab"]')].map(t => t.getAttribute('role'))`)],
+    [['BUTTON', 'BUTTON'], ['tab', 'tab']]);
+  eq('默认停在第 1 个 tab「朝代」（地址栏没有 hash，或者在 #/）',
+    [await evaluate(`document.querySelector('[data-test="view-index"]').dataset.tab`), ['#/', ''].includes(await evaluate('location.hash'))],
+    ['dynasty', true]);
+  eq('初态选中的是「朝代」',
+    await evaluate(`document.querySelector('[data-test="tab-dynasty"]').getAttribute('aria-selected')`), 'true');
+  eq('顶部只有「关于」一个链接（tab 不是链接）', topInfo.linksInBar, ['关于']);
+  eq('关于入口仍指向 #/about', topInfo.aboutHref, '#/about');
+  const dynInitial = await evaluate(`(() => {
+    const v = document.querySelector('[data-test="view-index"]');
+    const heads = [...v.querySelectorAll('[data-test="dynasty-group-title"]')];
+    return {
+      keys: [...v.querySelectorAll('[data-test="dynasty-group"]')].map((g) => g.dataset.dynastyKey),
+      expanded: heads.map((h) => h.getAttribute('aria-expanded')),
+      marks: heads.map((h) => h.querySelector('[data-test="group-mark"]').textContent),
+      visibleRows: [...v.querySelectorAll('[data-test="poem-row"]')].filter((r) => r.offsetParent !== null).length,
+      counts: [...v.querySelectorAll('.dynasty-count b')].map((b) => b.textContent),
+    };
+  })()`);
+  eq('朝代 tab 初态：组全部收起（各组独立）',
+    [dynInitial.expanded, dynInitial.marks, dynInitial.visibleRows],
+    [dynInitial.keys.map(() => 'false'), dynInitial.keys.map(() => '[+]'), 0]);
+  eq('朝代 tab **仍有**计数（用户只要求标签页不显示数量）', dynInitial.counts, ['3', '1']);
+  await screenshot('19-dynasty-tab.png');
+
+  // ---- 10d 切到标签 tab：同构、无任何数量、零成员不渲染 ----
+  await evaluate(`document.querySelector('[data-test="tab-tags"]').click(); true`);
+  await waitForTagsView();
+  eq('点「标签」⇒ 地址变成 #/tags（tab 切换是路由切换，不是内存开关）', await evaluate('location.hash'), '#/tags');
+  const tagView = await evaluate(`(() => {
+    const v = document.querySelector('[data-test="view-index"]');
+    const heads = [...v.querySelectorAll('[data-test="tag-group-title"]')];
+    return {
+      keys: [...v.querySelectorAll('[data-test="tag-group"]')].map((g) => g.dataset.tagId),
+      labels: heads.map((h) => h.querySelector('[data-test="tag-label"]').textContent),
+      expanded: heads.map((h) => h.getAttribute('aria-expanded')),
+      marks: heads.map((h) => h.querySelector('[data-test="group-mark"]').textContent),
+      visibleRows: [...v.querySelectorAll('[data-test="poem-row"]')].filter((r) => r.offsetParent !== null).length,
+      counts: v.querySelectorAll('.dynasty-count').length,
+      heads: v.querySelectorAll('[data-test="tag-group-title"]').length,
+      text: v.innerText,
+      titleAlign: getComputedStyle(document.querySelector('[data-test="tab-tags"]')).borderBottomColor,
+    };
+  })()`);
+  const productTagOrder = tagDoc.tags.filter((t) => t.members.length > 0).map((t) => t.id);
+  const pinyinCollator = new Intl.Collator(['zh-Hans-CN-u-co-pinyin', 'zh-Hans-CN', 'zh'], { numeric: true, sensitivity: 'variant' });
+  const pinyinTagOrder = [...productTagOrder].sort((a, b) => pinyinCollator.compare(a, b));
+  eq('标签组顺序 == 产物顶层 tags 数组顺序（页面不重排）', tagView.keys, productTagOrder);
+  check('产物的标签顺序**确实不是拼音序**（所以上一条断言有牙齿）',
+    dump(productTagOrder) !== dump(pinyinTagOrder), dump({ productTagOrder, pinyinTagOrder }));
+  eq('组名 = 标签 id 本身（中文 id 即显示名）', tagView.labels, productTagOrder);
+  eq('标签 tab 初态：全部收起', tagView.expanded, productTagOrder.map(() => 'false'));
+  eq('标签 tab 收起时记号都是 [+]', tagView.marks, productTagOrder.map(() => '[+]'));
+  eq('标签 tab 收起时可见诗目 0 行', tagView.visibleRows, 0);
+  eq('零成员的标签不渲染：组头数量 == 有成员的标签数', tagView.heads, productTagOrder.length);
+  check(`零成员的标签「${TAG_FIXTURE_EMPTY_TAG}」连文字都不出现`, !tagView.text.includes(TAG_FIXTURE_EMPTY_TAG), dump(tagView.text));
+  eq('夹具里确实有那条零成员标签（否则上面两条是空的）',
+    tagDoc.tags.some((t) => t.id === TAG_FIXTURE_EMPTY_TAG && t.members.length === 0), true);
+  eq('标签页没有任何计数元素（组头里没有那一段）', tagView.counts, 0);
+  check('标签页整页不出现「首」字，也不出现任何数字（无计数、无「本库已收录 N 首」、无编号）',
+    !/首/.test(tagView.text) && !/\d/.test(tagView.text), dump(tagView.text));
+  eq('选中态搬到「标签」上（下边线用 accent）',
+    await evaluate(`document.querySelector('[data-test="tab-tags"]').getAttribute('aria-selected')`), 'true');
+  await screenshot('20-tags-all-collapsed.png');
+
+  // ---- 10e 单组展开：同构几何（悬挂记号竖直居中、题名左沿＝标签名首字、作者紧随、无序号） ----
+  await evaluate(`document.querySelector('[data-test="tag-group-title"]').click(); true`);
+  const oneOpen = await evaluate(`(() => {
+    const v = document.querySelector('[data-test="view-index"]');
+    const gs = [...v.querySelectorAll('[data-test="tag-group"]')];
+    const g = gs[0];
+    const head = g.querySelector('[data-test="tag-group-title"]');
+    const mark = head.querySelector('[data-test="group-mark"]');
+    const label = head.querySelector('[data-test="tag-label"]');
+    const rows = [...g.querySelectorAll('[data-test="poem-row"]')];
+    const firstTitle = rows[0] ? rows[0].querySelector('.poem-row-title') : null;
+    const firstAuthor = rows[0] ? rows[0].querySelector('.poem-row-author') : null;
+    const r = (el) => el.getBoundingClientRect();
+    const hostLeft = document.getElementById('view').getBoundingClientRect().left;
+    return {
+      expanded: gs.map((x) => x.querySelector('[data-test="tag-group-title"]').getAttribute('aria-expanded')),
+      marks: gs.map((x) => x.querySelector('[data-test="group-mark"]').textContent),
+      rowIds: rows.map((x) => x.dataset.poemId),
+      rowTitles: rows.map((x) => x.querySelector('.poem-row-title').textContent),
+      groupText: g.innerText,
+      slot: r(head.querySelector('.gh-slot')).width,
+      markCenterDelta: (r(mark).top + r(mark).bottom) / 2 - (r(label).top + r(label).bottom) / 2,
+      labelLeft: r(label).left - hostLeft,
+      titleLeft: firstTitle ? r(firstTitle).left - hostLeft : null,
+      authorGap: firstTitle && firstAuthor ? r(firstAuthor).left - r(firstTitle).right : null,
+      wholeHeadClickable: head.tagName === 'BUTTON' && r(head).width > r(g).width * 0.9,
+    };
+  })()`);
+  eq('单组展开：只有它展开，其余组仍收起（各组独立）', oneOpen.expanded, ['true', 'false', 'false']);
+  eq('展开后记号变 [−]，其余仍 [+]', oneOpen.marks, ['[−]', '[+]', '[+]']);
+  eq('展开后的诗目顺序 == 产物 members 顺序', oneOpen.rowIds, tagDoc.tags[0].members);
+  const pinyinMemberOrder = [...tagDoc.tags[0].members]
+    .sort((a, b) => pinyinCollator.compare(
+      tagDoc.poems.find((p) => p.id === a).title, tagDoc.poems.find((p) => p.id === b).title,
+    ));
+  check('成员顺序确实不是拼音序，也不是 poems 数组顺序（所以上一条断言有牙齿）',
+    dump(tagDoc.tags[0].members) !== dump(pinyinMemberOrder)
+      && dump(tagDoc.tags[0].members) !== dump(tagDoc.poems.map((p) => p.id).filter((id) => tagDoc.tags[0].members.includes(id))),
+    dump({ members: tagDoc.tags[0].members, pinyinMemberOrder }));
+  check('子诗目**无序号**：组内文字里没有任何数字（没有 001 这类编号）',
+    !/\d/.test(oneOpen.groupText), dump(oneOpen.groupText));
+  check('同构几何：记号槽 ≈27.52px（与朝代页同一条槽）', Math.abs(oneOpen.slot - 27.52) < 0.6, `slot=${oneOpen.slot}`);
+  check('同构几何：记号与标签名竖直居中（盒中心差 <1px）', Math.abs(oneOpen.markCenterDelta) < 1, `Δ=${oneOpen.markCenterDelta}`);
+  check('同构几何：题名左沿 == 标签名首字左沿（±1px，缩进 0）',
+    oneOpen.titleLeft !== null && Math.abs(oneOpen.titleLeft - oneOpen.labelLeft) <= 1,
+    dump({ titleLeft: oneOpen.titleLeft, labelLeft: oneOpen.labelLeft }));
+  check('作者紧随题名（同一行、间隙 <12px）',
+    oneOpen.authorGap !== null && oneOpen.authorGap >= 0 && oneOpen.authorGap < 12, `gap=${oneOpen.authorGap}`);
+  eq('组头是整行可点的按钮（不是只有组名可点）', oneOpen.wholeHeadClickable, true);
+  await screenshot('21-tag-one-open.png');
+
+  // ---- 10f 返回链：详情 → 诗页 → **原视图（标签）**，逐层退，不跳层 ----
+  // 需要页面真的能滚（默认 430×932 下这段夹具不够长）⇒ 临时把视口压矮，滚得动才量得出“位置保持”。
+  await cdp.send('Emulation.setDeviceMetricsOverride', { width: 430, height: 360, deviceScaleFactor: 2, mobile: false });
+  const tagY = await evaluate(`(() => {
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    window.scrollTo(0, Math.min(140, Math.max(0, max)));
+    return window.scrollY;
+  })()`);
+  check('（前置）标签视图可滚动（不然“滚动保持”量不出东西）', tagY > 0, `scrollY=${tagY}`);
+  const chainPoemId = tagDoc.tags[0].members[0];
+  await evaluate(`document.querySelector('[data-test="tag-group"] [data-test="poem-row"]').click(); true`);
+  await waitForPoemView(chainPoemId);
+  eq('从标签视图点进诗：地址是那首诗', await evaluate('location.hash'), ROUTES.poem(chainPoemId));
+  eq('诗页「返回」说的是原视图（← 标签，不是「← 目录」）',
+    await evaluate(`document.querySelector('[data-test="back-to-index"]').textContent`), '← 标签');
+  eq('诗页「返回」地址指向 #/tags',
+    await evaluate(`document.querySelector('[data-test="back-to-index"]').getAttribute('href')`), '#/tags');
+  await evaluate(`document.querySelector('[data-test="poem-detail-link"]').click(); true`);
+  await waitFor(`Boolean(document.querySelector('[data-test="view-detail"]'))`, { label: '详情页' });
+  eq('诗 → 详情（地址带 /detail）', await evaluate('location.hash'), ROUTES.detail(chainPoemId));
+  await evaluate(`document.querySelector('[data-test="back-to-poem"]').click(); true`);
+  await waitForPoemView(chainPoemId);
+  eq('详情「返回」只退一层：回到**这首诗的诗页**（不是标签视图）', await evaluate('location.hash'), ROUTES.poem(chainPoemId));
+  await evaluate(`document.querySelector('[data-test="back-to-index"]').click(); true`);
+  await waitForTagsView();
+  eq('诗页「返回」再退一层：回到**原来的标签视图**（不是朝代）', await evaluate('location.hash'), '#/tags');
+  await waitFor(`Math.abs(window.scrollY - ${tagY}) <= 2`, { label: '返回后滚动恢复', timeout: 5000 });
+  const afterChain = await evaluate(`(() => {
+    const gs = [...document.querySelectorAll('[data-test="tag-group"]')];
+    const g = gs[0];
+    return {
+      expanded: gs.map((x) => x.querySelector('[data-test="tag-group-title"]').getAttribute('aria-expanded')),
+      rows: [...g.querySelectorAll('[data-test="poem-row"]')].length,
+      y: window.scrollY,
+    };
+  })()`);
+  eq('返回后原组**仍然展开**（其余仍收起）', afterChain.expanded, ['true', 'false', 'false']);
+  eq('返回后展开行数 == members 数（不是空的）', afterChain.rows, tagDoc.tags[0].members.length);
+  check('返回后滚动位置保持（±2px）', Math.abs(afterChain.y - tagY) <= 2, `离开 ${tagY} → 回来 ${afterChain.y}`);
+
+  // ---- 10g 浏览器后退也一次退一层：详情 → 诗页 → 标签视图 ----
+  await evaluate(`document.querySelector('[data-test="tag-group"] [data-test="poem-row"]').click(); true`);
+  await waitForPoemView(tagDoc.tags[0].members[0]);
+  await evaluate(`document.querySelector('[data-test="poem-detail-link"]').click(); true`);
+  await waitFor(`Boolean(document.querySelector('[data-test="view-detail"]'))`, { label: '详情页（后退链）' });
+  const detailHash = await evaluate('location.hash');
+  await evaluate('history.back(); true');
+  await waitForPoemView(tagDoc.tags[0].members[0]);
+  const backOnce = await evaluate('location.hash');
+  await evaluate('history.back(); true');
+  await waitForTagsView();
+  eq('浏览器后退也一次退一层：详情 → 诗页 → 标签视图',
+    [detailHash.endsWith('/detail'), backOnce], [true, ROUTES.poem(tagDoc.tags[0].members[0])]);
+  eq('后退回来后仍在标签视图（不是朝代）', await evaluate('location.hash'), '#/tags');
+  // 截图口径回到手机竖屏（430×932），拍「返回之后仍然展开」这一张
+  await cdp.send('Emulation.setDeviceMetricsOverride', { width: 430, height: 932, deviceScaleFactor: 2, mobile: false });
+  await sleep(200);
+  await screenshot('22-tag-return-restored.png');
+
+  // ---- 10h 两个 tab 各自保展开与滚动（本会话内） ----
+  // 视口压矮，两个视图都滚得动 —— 否则“滚动位置保持”在短页上是 0→0，等于什么都没验。
+  await cdp.send('Emulation.setDeviceMetricsOverride', { width: 430, height: 240, deviceScaleFactor: 2, mobile: false });
+  await waitForTagsView();
+  const tagScroll = await evaluate(`(() => {
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    window.scrollTo(0, Math.min(80, Math.max(0, max)));
+    return window.scrollY;
+  })()`);
+  check('（前置）矮视口下标签视图可滚动', tagScroll > 0, `scrollY=${tagScroll}`);
+  // 先看：切到朝代 tab 时，朝代自己的展开状态是**自己的**（此前没展开过 ⇒ 仍全收起）。
+  await evaluate(`document.querySelector('[data-test="tab-dynasty"]').click(); true`);
+  await waitForDynastyView();
+  eq('切到朝代 tab：展开状态用的是朝代自己的（这一会话里从未展开 ⇒ 仍全收起）',
+    await evaluate(`[...document.querySelectorAll('[data-test="dynasty-group-title"]')].map(b => b.getAttribute('aria-expanded'))`),
+    ['false', 'false']);
+  // 两组都展开（矮视口下才滚得动）＋ 记录朝代视图的滚动位置与展开状态
+  await evaluate(`(() => {
+    for (const b of document.querySelectorAll('[data-test="dynasty-group-title"]')) {
+      if (b.getAttribute('aria-expanded') !== 'true') b.click();
+    }
+    return true;
+  })()`);
+  await sleep(120);
+  const dynY = await evaluate(`(() => {
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    window.scrollTo(0, Math.min(60, Math.max(0, max)));
+    return window.scrollY;
+  })()`);
+  check('（前置）矮视口下朝代视图也可滚动', dynY > 0, `scrollY=${dynY}`);
+  const dynExpandedBefore = await evaluate(`[...document.querySelectorAll('[data-test="dynasty-group-title"]')].map(b => b.getAttribute('aria-expanded'))`);
+  // 切到标签：标签页自己的展开与滚动应当原样回来
+  await evaluate(`document.querySelector('[data-test="tab-tags"]').click(); true`);
+  await waitForTagsView();
+  await waitFor(`Math.abs(window.scrollY - ${tagScroll}) <= 2`, { label: '切回标签 tab 后恢复自己的滚动', timeout: 5000 });
+  const tagsAfterSwitch = await evaluate(`({
+    expanded: [...document.querySelectorAll('[data-test="tag-group-title"]')].map(b => b.getAttribute('aria-expanded')),
+    y: window.scrollY,
+  })`);
+  eq('切到标签 tab：标签页自己的展开状态仍在', tagsAfterSwitch.expanded, ['true', 'false', 'false']);
+  check('切到标签 tab：标签页自己的滚动位置恢复（±2px）',
+    Math.abs(tagsAfterSwitch.y - tagScroll) <= 2, `记下 ${tagScroll} → 回来 ${tagsAfterSwitch.y}`);
+  // 再切回朝代：朝代自己的展开与滚动也仍在
+  await evaluate(`document.querySelector('[data-test="tab-dynasty"]').click(); true`);
+  await waitForDynastyView();
+  await waitFor(`Math.abs(window.scrollY - ${dynY}) <= 2`, { label: '切回朝代 tab 后恢复自己的滚动', timeout: 5000 });
+  const dynAfterSwitch = await evaluate(`({
+    expanded: [...document.querySelectorAll('[data-test="dynasty-group-title"]')].map(b => b.getAttribute('aria-expanded')),
+    y: window.scrollY,
+  })`);
+  eq('切回朝代 tab：朝代页自己的展开状态仍在', dynAfterSwitch.expanded, dynExpandedBefore);
+  check('切回朝代 tab：朝代页自己的滚动位置恢复（±2px）',
+    Math.abs(dynAfterSwitch.y - dynY) <= 2, `记下 ${dynY} → 回来 ${dynAfterSwitch.y}`);
+
+  // ---- 10i 原朝代阅读全链回归：从朝代 tab 进的诗，「返回」回**朝代**（不是标签） ----
+  await cdp.send('Emulation.setDeviceMetricsOverride', { width: 430, height: 932, deviceScaleFactor: 2, mobile: false });
+  await sleep(150);
+  const dynPoemId = tagDoc.poems[0].id;
+  await evaluate(`document.querySelector('[data-test="dynasty-group"] [data-test="poem-row"]').click(); true`);
+  await waitForPoemView(dynPoemId);
+  eq('从朝代 tab 进诗：「返回」文案是「← 目录」',
+    await evaluate(`document.querySelector('[data-test="back-to-index"]').textContent`), '← 目录');
+  await evaluate(`document.querySelector('[data-test="back-to-index"]').click(); true`);
+  await waitForDynastyView();
+  eq('从朝代 tab 进的诗，返回回**朝代视图**（不是标签）', await evaluate('location.hash'), '#/');
+  eq('朝代视图的展开状态也还在',
+    await evaluate(`[...document.querySelectorAll('[data-test="dynasty-group-title"]')].map(b => b.getAttribute('aria-expanded'))`),
+    dynExpandedBefore);
+
+  // ---- 10j 关于页的「返回」也回原视图 ----
+  await evaluate(`document.querySelector('[data-test="tab-tags"]').click(); true`);
+  await waitForTagsView();
+  await evaluate(`document.querySelector('[data-test="about-link"]').click(); true`);
+  await waitForAboutView();
+  eq('从标签视图进「关于」：返回文案是「← 标签」',
+    await evaluate(`document.querySelector('[data-test="about-back-to-index"]').textContent`), '← 标签');
+  eq('从标签视图进「关于」：返回地址是 #/tags',
+    await evaluate(`document.querySelector('[data-test="about-back-to-index"]').getAttribute('href')`), '#/tags');
+  await evaluate(`document.querySelector('[data-test="about-back-to-index"]').click(); true`);
+  await waitForTagsView();
+  eq('关于页返回后回到标签视图（不是朝代）', await evaluate('location.hash'), '#/tags');
+
+  await cdp.send('Emulation.clearDeviceMetricsOverride');
+  check('标签 tab 一整节没有新增未捕获异常 / JS error 日志（累计）',
+    pageErrors.length === 0, pageErrors.join(' | ') || '（无）');
 }
 
 // ------------------------------------------------------------------ 收尾

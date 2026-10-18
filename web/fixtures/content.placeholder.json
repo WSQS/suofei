@@ -1,5 +1,5 @@
 {
-  "formatVersion": 2,
+  "formatVersion": 3,
   "contentVersion": "2026.10.14.1",
   "generatedAt": "2026-10-14T12:00:00Z",
   "placeholder": true,
@@ -30,7 +30,8 @@
           "胡马依北风，越鸟巢南枝。"
         ]
       ],
-      "notes": null
+      "notes": null,
+      "tags": []
     },
     {
       "id": "gushi-shijiu-shou-02",
@@ -47,7 +48,8 @@
           "盈盈楼上女，皎皎当窗牖。"
         ]
       ],
-      "notes": ""
+      "notes": "",
+      "tags": []
     },
     {
       "id": "gushi-shijiu-shou-06",
@@ -64,7 +66,8 @@
           "采之欲遗谁？所思在远道。"
         ]
       ],
-      "notes": null
+      "notes": null,
+      "tags": []
     },
     {
       "id": "shijing-guanju",
@@ -81,7 +84,8 @@
           "窈窕淑女，君子好逑。"
         ]
       ],
-      "notes": null
+      "notes": null,
+      "tags": []
     },
     {
       "id": "weijin-caocao-guancanghai",
@@ -98,7 +102,8 @@
           "水何澹澹，山岛竦峙。"
         ]
       ],
-      "notes": null
+      "notes": null,
+      "tags": []
     },
     {
       "id": "tang-libai-jingyesi",
@@ -115,7 +120,8 @@
           "举头望明月，低头思故乡。"
         ]
       ],
-      "notes": null
+      "notes": null,
+      "tags": []
     },
     {
       "id": "tang-libai-wanglushanpubu",
@@ -132,7 +138,8 @@
           "飞流直下三千尺，疑是银河落九天。"
         ]
       ],
-      "notes": null
+      "notes": null,
+      "tags": []
     },
     {
       "id": "tang-zhangji-fengqiaoyebo",
@@ -151,7 +158,9 @@
           "姑苏城外寒山寺，夜半钟声到客船。"
         ]
       ],
-      "notes": "【测试笔记·不是用户笔记】\n\n这是用于验证「笔记按需展开」的测试文本。\n\n- 第一点：验证列表与段落。\n- 第二点：验证换行保留。\n\n这里验证最小 Markdown 子集：**粗体**与普通文字混排。\n\n这里验证转义：<b>不应被当作标签</b>，应原样显示。"
+      "notes": "【测试笔记·不是用户笔记】\n\n这是用于验证「笔记按需展开」的测试文本。\n\n- 第一点：验证列表与段落。\n- 第二点：验证换行保留。\n\n这里验证最小 Markdown 子集：**粗体**与普通文字混排。\n\n这里验证转义：<b>不应被当作标签</b>，应原样显示。",
+      "tags": []
     }
-  ]
+  ],
+  "tags": []
 }

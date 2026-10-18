@@ -31,6 +31,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { buildVariants } from './lib/variants.mjs';
+import { toV3TestDoc } from './lib/v3-test-content.mjs';
 
 const webRoot = fileURLToPath(new URL('..', import.meta.url));
 const repoRoot = resolve(webRoot, '..');
@@ -83,9 +84,22 @@ async function main() {
 
   let text = baseText;
   let origin = baseOrigin;
+  // ⚠ v3 字段集：本工作树里 C 线产物还是 formatVersion 2（`poems[].tags` / 顶层 `tags` 未落），
+  //   而壳只认 3 ⇒ **本地演练也必须喂 v3 形状**，否则预览页一打开就是「格式版本不兼容」。
+  //   所以这里只在基座是 v2 时**派生一份明确标为夹具的 v3**（不编造标签，见 lib/v3-test-content.mjs）；
+  //   基座已经是 v3 时原样使用，**不静默升版**真实的 v2 产物去冒充发布内容。
+  try {
+    const baseDoc = JSON.parse(baseText);
+    if (Number(baseDoc.formatVersion) === 2) {
+      const v3 = toV3TestDoc(baseDoc);
+      baseText = `${JSON.stringify(v3, null, 2)}\n`;
+      text = baseText;
+      origin = `${baseOrigin} → 派生 v3 测试夹具（基座是 formatVersion 2；未给任何诗编造标签）`;
+    }
+  } catch { /* 基座本来就不是合法 JSON（变体故意造成）⇒ 不做转换，留给下面的报错 */ }
   // ⚠ 这里**没有**「把 v1 升成 v2」的过渡适配：过渡件 `scripts/lib/upgrade-content.mjs` 已按
-  // `docs/design/implementation-plan.md` §4b 删除。客户端只认 `formatVersion: 2`，v1 会被**如实拒绝**
-  // （`SUPPORTED_FORMAT_VERSION`）—— 所以本地演练也必须喂真实 v2 产物，不在这里偷偷升版。
+  // `docs/design/implementation-plan.md` §4b 删除。客户端只认 `formatVersion: 3`，v1/v2 会被**如实拒绝**
+  // （`SUPPORTED_FORMAT_VERSION`）。
   if (variantName && !FIXTURE_VARIANTS[variantName]) {
     let variants;
     try {

@@ -91,8 +91,16 @@ export const resourceCacheName = (appVersion = APP_VERSION, contentRevision = CO
  *    - 顶层 `dynasties` 由 `[{key,label,order}]` 改为**有序中文值数组**（`['汉', …]`）；
  *    - 每首诗 10 键：`id,title,author,dynasty,genre,source,orderInSource,detail,stanzas,notes`
  *      （`dynasty` 单值；`detail`＝一段最小 Markdown 文本；`variants`/`era` 不再发布）。
- *  ⇒ 本壳**只认 2**：低版本内容（老产物）会被如实拒绝（老客户端也会拒绝新内容——这正是升版的代价）。 */
-export const SUPPORTED_FORMAT_VERSION = 2;
+ *  ⇒ 本壳**只认 2**：低版本内容（老产物）会被如实拒绝（老客户端也会拒绝新内容——这正是升版的代价）。
+ *  **2 → 3（用户 2026-10-18 拍板标签数据规则；字段集一变就升，同 1 → 2 的理由）**：
+ *    - 每首多一个必填键 `tags: [{ tagId, orderInTag }]`（可为 `[]`；`orderInTag` 是**标签内位置**，必填整数）；
+ *    - 顶层多一个必填键 `tags: [{ id, members: [poemId…] }]`（`id` 即中文显示名，编译期已按拼音排好；
+ *      `members` 已按 `orderInTag` 升序）。⇒ 客户端**一律照产物数组顺序渲染**，标签之间与标签内都不重排。
+ *    - 没有 `SortKey` 之类的排序键（客户端不得自己造一个）。
+ *  ⇒ 本壳**只认 3**：v2 产物（本轮之前编出来的）会被如实拒绝 —— 内容与壳一起发布，这是升版的代价。
+ *  ⚠ 本工作树里 C 线的编译产物仍是 v2（tag 字段还没落）；测试用**明确标为夹具的 v3 内容**跑
+ *    （`web/tests/lib/v3-fixture.mjs` 从 v2 产物派生，带 `fixture: true`），不把 v3 夹具当发布内容。 */
+export const SUPPORTED_FORMAT_VERSION = 3;
 
 /** 本版本**不使用** localStorage（所以没有键空间依赖）；也不用 IndexedDB。 */
 export const LOCAL_STORAGE_KEYS = {};
@@ -102,7 +110,11 @@ export const LOCAL_STORAGE_KEYS = {};
 /** 哈希路由：静态托管（Pages）没有重写规则，所以不用路径路由。
  *  id 用契约里的稳定 id，不用标题，链接不会因为改标题失效。 */
 export const ROUTES = {
+  /** 目录＝**朝代 tab**（顶部「朝代 ｜ 标签」的第一个 tab）。 */
   index: '#/',
+  /** 目录＝**标签 tab**（同一个目录页的第二种分组；深链接可直达，初态同样全部收起）。
+   *  为什么用独立路由而不是纯内存状态：① tab 切换要能深链接/刷新；② 浏览器后退要能一层一层退。 */
+  tags: '#/tags',
   poem: (id) => `#/p/${encodeURIComponent(id)}`,
   /** 诗歌详情页（第四页，用户 2026-10-15 定，见 `docs/interface-decisions.md` IF-47）。
    *  **分层语义**：`#/p/<id>/detail` ＝ 这首诗的详情（考据与来源），深链接可直达。 */
@@ -114,4 +126,6 @@ export const ROUTES = {
   /** 详情页：必须**先**于 poemPattern 匹配，否则 `/p/<id>/detail` 会被当成 id 为 `<id>/detail`。 */
   detailPattern: /^\/p\/([^/]+)\/detail$/,
   aboutPattern: /^\/about$/,
+  /** 标签 tab 的路径（与 `#/` 是同一个目录页的两个视图）。 */
+  tagsPattern: /^\/tags$/,
 };

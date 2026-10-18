@@ -34,6 +34,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { APP_VERSION, ROUTES } from '../app/config.js';
+import { toV3TestDoc } from '../scripts/lib/v3-test-content.mjs';
 import { makeDeployment } from './lib/deploy.mjs';
 
 // ------------------------------------------------------------------ 常量与参数
@@ -492,9 +493,18 @@ async function main() {
     contentText = await readFile(built, 'utf8');
     contentFrom = `${built}（现场编译：仓库里没有 dist/content.json）`;
   }
-  const doc = JSON.parse(contentText);
-  if (Number(doc.formatVersion) !== 2) {
-    throw new Error(`内容产物不是 formatVersion 2（实际 ${doc.formatVersion}）——请先跑 node tools/build-content.mjs`);
+  let doc = JSON.parse(contentText);
+  // ⚠ 2026-10-18（标签字段集 v3）：壳只认 formatVersion 3（版本门不放宽），而本工作树里 C 线的产物
+  //   还是 v2 ⇒ 按已定 v3 形状派生一份**明确标为夹具**的内容（每首 tags: []、顶层 tags: []，
+  //   不给任何诗编造标签），否则这个页面打开就是「格式版本不兼容」，什么也量不到。
+  if (Number(doc.formatVersion) === 2) {
+    doc = toV3TestDoc(doc);
+    contentText = `${JSON.stringify(doc, null, 2)}\n`;
+    contentFrom += ' → 派生 v3 测试夹具（fixture: true）';
+    console.log('⚠ 内容产物是 formatVersion 2（C 线的 tags 字段未落）→ 用明确标为夹具的 v3 派生内容跑本节。');
+  }
+  if (Number(doc.formatVersion) !== 3) {
+    throw new Error(`内容产物不是 formatVersion 3（实际 ${doc.formatVersion}）——请先跑 node tools/build-content.mjs`);
   }
   // 详情页测**固定这一首**（第一首带 detail 的），各视口量的是同一篇正文，数字可比。
   const poem = doc.poems.find((p) => typeof p.detail === 'string' && p.detail.trim()) || doc.poems[0];
