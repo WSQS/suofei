@@ -361,8 +361,8 @@ test('真实 content/poems：顶层 tags 与诗侧归属**按源派生**一致�
   assertTagIndexConsistent(content.poems, content.tags);
 });
 
-test('真实内容本次的实况：2 个标签（古诗十九首 19 ／ 唐诗三百首 2），毛诗仍无标签', () => {
-  const { content } = realContentAndDerivation();
+test('真实内容本次的实况：2 个标签（古诗十九首 19 ／ 唐诗三百首 3），毛诗仍无标签', () => {
+  const { content, declared } = realContentAndDerivation();
 
   // 这一层是「本次真实数据长这样」的实况断言，不是「永远只能有 2 个标签」的契约；
   // 上面那条按源派生的测试才是契约。内容线再加标签时，改的是这里。
@@ -374,7 +374,16 @@ test('真实内容本次的实况：2 个标签（古诗十九首 19 ／ 唐诗�
   const gjss = content.tags[0];
   const tss = content.tags[1];
   assert.equal(gjss.members.length, 19);
-  assert.equal(tss.members.length, 2);
+
+  // ⚠ 2026-10-19（新增杜甫《望岳》，《唐诗三百首》从 2 首扩为 3 首）：成员数与成员次序**不再写死**，
+  //   期望值从源文 front matter 的 `tags` 派生（同一条「产物 == 源」契约在上一条测试里已断言）。
+  //   比字面量更强：源里加了/改了归属而产物忘了重编 ⇒ 这里真报红。
+  const tssDeclared = declared
+    .flatMap((d) => d.tags.filter((t) => t.id === '唐诗三百首').map((t) => ({ id: d.id, orderInTag: t.orderInTag })))
+    .sort((a, b) => a.orderInTag - b.orderInTag);
+  assert.ok(tssDeclared.length > 0, '源文里应当有人声明「唐诗三百首」，否则下面的断言是空的');
+  assert.equal(tss.members.length, tssDeclared.length);
+  assert.deepEqual(tss.members, tssDeclared.map((d) => d.id));
 
   // members 次序 = orderInTag 升序 = 《文选》卷二十九原次序（docs/sources/gushi-shijiu-shou.md §5.1）
   const expectByOrder = [
@@ -404,15 +413,19 @@ test('真实内容本次的实况：2 个标签（古诗十九首 19 ／ 唐诗�
     1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
   ]);
 
-  // 唐诗三百首：两首杜甫，其一 orderInTag 1、其二 2 ⇒ members 就是 1 → 2
+  // 唐诗三百首：三首杜甫（望岳 → 梦李白其一 → 梦李白其二），orderInTag 1 / 2 / 3。
+  // 次序依据：汉典古籍《唐诗三百首》站内相对先后（望岳 37147 在两首梦李白 37150/37151 之前），
+  // 见 docs/sources/wangyue-intake.md §4——**不是**蘅塘退士原刻的卷次或序号。
+  // 这一条是「本次实况」：只点出本轮的真数据，不把 1/2/3 说成契约（契约是 orderInTag 升序，上面已断言）。
   const tssTitles = tss.members.map((id) => titleOf.get(id));
-  assert.deepEqual(tssTitles, ['梦李白二首·其一', '梦李白二首·其二']);
+  assert.deepEqual(tssTitles, ['望岳', '梦李白二首·其一', '梦李白二首·其二']);
   assert.deepEqual(tss.members.map((id) => content.poems.find((p) => p.id === id).tags[0]), [
     { id: '唐诗三百首', orderInTag: 1 },
     { id: '唐诗三百首', orderInTag: 2 },
+    { id: '唐诗三百首', orderInTag: 3 },
   ]);
 
-  // 毛诗（毛泽东《七律·和郭沫若同志》）仍无标签——按作者直接看，不从「其余 3 首」倒推
+  // 毛诗（毛泽东《七律·和郭沫若同志》）仍无标签——按作者直接看，不从「其余 N 首」倒推
   const mao = content.poems.filter((p) => p.author === '毛泽东');
   assert.equal(mao.length, 1, `应能按作者认出毛诗这一首，实际：${mao.map((p) => p.id)}`);
   assert.deepEqual(mao[0].tags, []);
