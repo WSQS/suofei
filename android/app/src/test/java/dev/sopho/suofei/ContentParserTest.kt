@@ -187,23 +187,104 @@ class ContentParserTest {
             "唐诗三百首展开后顺序为 望岳 → 其一 → 其二",
             listOf("望岳", "梦李白二首·其一", "梦李白二首·其二"), tangGroup.poems.map { it.title },
         )
-        // ⚠ 2026-10-19（用户决定：三首 `orderInSource` 改为 1/2/3）：**两个视图必须表达同一相对次序**。
-        //   改前望岳不写该键（产物 `null`）⇒ 朝代页把它排到两首《梦李白》之后，同一批诗在两视图里**次序相反**。
-        //   期望值**从标签组反推**（不写一个标题字），所以它钉的是「两视图一致」这件事本身。
+        // ⚠ 2026-10-19（用户决定：三首 `orderInSource` 改为 1/2/3）：改前望岳不写该键（产物 `null`）
+        //   ⇒ 朝代页把它排到两首《梦李白》之后，同一批诗在两视图里**次序相反**。
+        //
+        // ⚠ **本批内容回归，不是普遍契约**（同交付返修，2026-10-19）：这里**只**对**本批这三首**钉事项，
+        //   **不**断言「朝代『唐』组次序 == 标签『唐诗三百首』次序」，也**不**断言「唐组 orderInSource = 1..N」：
+        //   - 今后若加一首**不在唐300里的唐诗**（或反过来），朝代序天然不等于标签序 ⇒ 那种过宽的断言会**假红**；
+        //   - 「唐诗都属于唐300」不是事实：**标签只是子集**，两种次序**互不派生**（见下面
+        //     `fixture_dynastyOrderAndTagOrderMayDiffer_tagIsOnlyASubset` 那条夹具）；
+        //   - 也不同时把「某组没有 orderInSource」「两视图次序不同」「换了底本」判为非法。
+        //   做法：先按**稳定 id** 取这三首，再在两侧各取**子序列**比相对次序 —— 不看整组，也不看「所有唐」。
+        val batchIds = listOf("杜甫-望岳", "杜甫-梦李白二首·其一", "杜甫-梦李白二首·其二")
         val tangDynasty = content.groups.first { it.name == "唐" }
         assertEquals(
-            "朝代页「唐」组次序 == 标签页「唐诗三百首」标签内次序（2026-10-19 起的口径）",
-            tangGroup.poems.map { it.title }, tangDynasty.poems.map { it.title },
+            "本批三首在朝代页「唐」组里的**子序列**（按稳定 id 筛，不假设整组就只有这三首）= 望岳→其一→其二",
+            batchIds, tangDynasty.poems.map { it.id }.filter { it in batchIds },
         )
         assertEquals(
-            "「唐」组三首的 orderInSource = 1..N（本库按已核底本相对先后，不称《全唐诗》全书编号）",
-            (1..tangDynasty.poems.size).toList(), tangDynasty.poems.map { it.orderInSource },
+            "本批三首在标签页「唐诗三百首」里的**子序列** = 望岳→其一→其二（与上一侧同一相对次序）",
+            batchIds, tangGroup.poems.map { it.id }.filter { it in batchIds },
+        )
+
+        // 源侧 `orderInSource` **独立读取**：直接读 `content/poems/**` 的 front matter，
+        // 不借编译器/产物的解析结果（否则就是产物自证）。本批三首的显式对应关系在这里钉死。
+        val expectedOrderInSource = linkedMapOf(
+            "杜甫-望岳" to 1,          // 望岳 = 1
+            "杜甫-梦李白二首·其一" to 2, // 其一 = 2
+            "杜甫-梦李白二首·其二" to 3, // 其二 = 3
+        )
+        for ((id, expected) in expectedOrderInSource) {
+            val src = ContentSources.byId[id]
+                ?: throw AssertionError("按稳定 id 找不到源文：$id（查找基于 content/poems/ 的相对路径派生 id）")
+            assertEquals("源文 front matter 的 orderInSource（$id）", expected, ContentSources.orderInSourceOf(src))
+        }
+        assertEquals(
+            "产物里本批三首的 orderInSource 必须与源文一致（望岳=1、其一=2、其二=3）",
+            expectedOrderInSource.values.toList(),
+            expectedOrderInSource.keys.map { id -> tangDynasty.poems.firstOrNull { it.id == id }?.orderInSource },
         )
         assertEquals("标签页的组数 == 2（两个组头）", 2, content.tagGroups.size)
         // 毛诗仍没有标签
         val mao = content.poems.filter { it.author == "毛泽东" }
         assertEquals("应能按作者认出毛诗这一首", 1, mao.size)
         assertTrue("毛诗本轮仍无标签", mao.single().tags.isEmpty())
+    }
+
+    /**
+     * 夹具（**测试用，不是真实内容**，不描述任何真实诗集）：证明
+     * **「朝代次序」与「标签次序」可以不同，标签只是子集** —— 两者各自正确、不相等是**合法**的。
+     *
+     * 为什么需要这条：本批那三首恰好两视图次序一致，容易被旧断言（和读它的人）误读成
+     * 「唐 ⇒ 唐300」「朝代序永远等于标签序」。事实不是这样：
+     * - 朝代页的次序＝`orderInSource`（本库按已核底本的相对先后）；
+     * - 标签页的次序＝`orderInTag` ＋ **该标签所依底本**的先后；
+     * 二者**互不派生**；一首诗也可以完全不在某个标签里（无标签的诗仍在朝代页 —— 标签是附加轴）。
+     * 这条夹具只钉「解析器照产物原样表达两侧、且不因两侧不同而报错」，
+     * **不改真实内容、不动用户已定的排序**，也不评价底本优劣。
+     */
+    @Test
+    fun fixture_dynastyOrderAndTagOrderMayDiffer_tagIsOnlyASubset() {
+        val content = ContentParser.parse(
+            product(
+                // 甲诗：不在该标签内（标签＝子集，不是「所有唐」）；v3 要求每首都有 tags 键，无归属就写 []
+                poemJson("t1", title = "甲诗", dynasty = "唐", orderInSource = "1", tags = "[]"),
+                // 乙诗：在标签内，orderInTag=2（标签里排第二）
+                poemJson(
+                    "t2", title = "乙诗", dynasty = "唐", orderInSource = "2",
+                    tags = """[{"id":"唐诗三百首","orderInTag":2}]""",
+                ),
+                // 丙诗：在标签内，orderInTag=1（标签里排第一 ⇒ 与朝代序相反，合法）
+                poemJson(
+                    "t3", title = "丙诗", dynasty = "唐", orderInSource = "3",
+                    tags = """[{"id":"唐诗三百首","orderInTag":1}]""",
+                ),
+                dynasties = """"唐"""",
+                formatVersion = 3,
+                tags = """[{"id":"唐诗三百首","members":["t3","t2"]}]""",
+            ),
+        )
+
+        // 一侧：朝代页「唐」＝产物次序（orderInSource 1..3），无标签的甲诗**仍在**这里。
+        val dynasty = content.groups.single { it.name == "唐" }
+        assertEquals("朝代页「唐」次序照产物 orderInSource", listOf("甲诗", "乙诗", "丙诗"), dynasty.poems.map { it.title })
+        assertEquals(listOf(1, 2, 3), dynasty.poems.map { it.orderInSource })
+
+        // 另一侧：标签页「唐诗三百首」＝该标签的成员与次序（orderInTag 1..2），只是「唐」的**子集**。
+        val tag = content.tagGroups.single { it.name == "唐诗三百首" }
+        assertEquals("标签页只列该标签的成员，次序照 orderInTag", listOf("丙诗", "乙诗"), tag.poems.map { it.title })
+        assertTrue("甲诗不在该标签内（标签是子集，不是「所有唐」）", tag.poems.none { it.id == "t1" })
+        assertTrue("没有标签的诗仍留在朝代页（标签是附加轴）", dynasty.poems.any { it.id == "t1" })
+
+        // **核心**：两者各自正确，而且**不相等**就是合法的 —— 不得把「两视图次序不同」判为非法。
+        assertNotEquals(
+            "本夹具里朝代序与标签序不同：这正是合法情形（旧口径「两视图必须同序」会在这里假红）",
+            dynasty.poems.map { it.id }, tag.poems.map { it.id },
+        )
+        val both = { ids: List<String> -> ids.filter { id -> tag.poems.any { it.id == id } } }
+        assertEquals("两侧都有的成员，按朝代序：乙→丙", listOf("t2", "t3"), both(dynasty.poems.map { it.id }))
+        assertEquals("两侧都有的成员，按标签序：丙→乙（与上一行相反，合法）", listOf("t3", "t2"), both(tag.poems.map { it.id }))
     }
 
     @Test

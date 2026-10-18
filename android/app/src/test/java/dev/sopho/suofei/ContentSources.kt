@@ -54,6 +54,26 @@ object ContentSources {
     /** 源文里**出现过的**组名（按首次出现次序去重）。 */
     val dynastiesInSources: List<String> get() = poemSources.map { dynastyOf(it) }.distinct()
 
+    /**
+     * 源文 front matter 里的 `orderInSource` —— **独立于编译器与产物**地读（源侧真值）。
+     *
+     * 为什么要这一个：若期望值也从产物取，就是「产物自证」—— 编译器写错了、或内置产物过期了，
+     * 断言两边一起错、仍然全绿。所以对「源文说了什么」必须直接读源文。
+     *
+     * 读法：只扫 **front matter 块**（第一对 `---` 之间）。没有该行 ⇒ `null`（编译器把「不写」读成 null，
+     * 不替用户编）；有该行但值不是整数 ⇒ **直接失败**（不静默当 null，否则源文写坏了也无人报警）。
+     */
+    fun orderInSourceOf(file: File): Int? {
+        val lines = file.readText(Charsets.UTF_8).lines()
+        val start = lines.indexOfFirst { it.trim() == "---" }
+        val end = if (start < 0) -1 else lines.withIndex().firstOrNull { it.index > start && it.value.trim() == "---" }?.index ?: -1
+        if (start < 0 || end < 0) throw AssertionError("源文读不出 front matter：${file.absolutePath}")
+        val line = lines.subList(start + 1, end).firstOrNull { it.startsWith("orderInSource:") } ?: return null
+        val raw = line.removePrefix("orderInSource:").trim().removeSurrounding("\"")
+        return raw.toIntOrNull()
+            ?: throw AssertionError("源文 front matter 的 `orderInSource` 不是整数：${file.absolutePath}\n  $line")
+    }
+
     /** 源文里写了 `## 详情` 节的文件数 —— 产物里 `detail` 非 `null` 的条数必须等于它。 */
     val sourcesWithDetail: Int get() = poemSources.count { file ->
         file.readText(Charsets.UTF_8).lineSequence().any { it.trim() == "## 详情" }
