@@ -83,7 +83,29 @@
 
 ---
 
-## 1. 候选在哪（两端 ＋ 构建身份与签名）（历史轮次记录，见 §0b/§0c/§0d 的最新发布）
+## 0e. **23 首正式发布（2026-10-19；同 app 版本 + 新 APK）**
+
+**tag `v0.1.4+content-2026.10.19.3`**（annotated tag 对象 `431b984` → commit `8d81fe6`）｜
+**CI run `39184862870`（success，5m28s，`workflow_dispatch` + `mode=same-app-content-refresh` + `dry_run=false`）**｜
+站点 <https://wsqs.github.io/suofei/>｜Release <https://github.com/WSQS/suofei/releases/tag/v0.1.4%2Bcontent-2026.10.19.3>
+
+- **应用版本没变**：`APP_VERSION` / `versionName` **0.1.4**、`versionCode` **5**、`formatVersion` **3**；只有内容 `.18.3 → .19.3`。
+- **就绪门（CI、release 变体）**：**绿 32 / 黄 0 / 跳过 2 / 红 0（共 34）**；结论行「**same-app 内容刷新就绪**（内置 23 首；APP_VERSION 0.1.4 / versionCode 5 未变，内容 2026.10.18.3 → 2026.10.19.3）」。
+  那 2 跳＝`app-version-bumped` / `apk-versioncode-bumped`，**被同模式下的正面断言取代**（线上现值 == 基线 tag == 本次；versionCode/versionName 与同 app 版本旧 tag 相等，不写死数字）。
+  真跑门：Web e2e **687/687**（带**真旧基底** = tag `.18.3` 的 `web/**` ＋ 线上 `content/2026.10.18.3/content.json`）、Android JVM 单测 **174 例 / 失败 0**、Web↔契约 MD 对照 **204/204**。
+- **同一份字节**（`dist` ＝ `web/content.json` ＝ `web/content/.19.3/content.json` ＝ **APK 内置** ＝ `latest.json.sha256` ＝ 线上 `content.json`）：
+  `a38eb577485e8a78f9d1bca623f7ba3ea1f590b8c0ed2aabac0e07c7460f4e9e`（29494 字节）。
+- **APK**：`suofei-2026.10.19.3.apk`（7,069,334 字节；asset digest `3cfb2b1b…`），`apksigner` 验过：`CN=Suofei, OU=suofei, O=WSQS, C=CN`，SHA-256 `1346444c…`（**与 0.1.4 同一张证书**）；`versionCode 5` / `versionName 0.1.4` / `dev.sopho.suofei` / 应用名「索斐」；**内置 23 首**。
+- **线上读回**：`APP_VERSION=0.1.4`、`CONTENT_REVISION=2026.10.19.3`（`app/config.js` 与 `sw.js` 两处同值）；缓存键 `pc-resources-0.1.4+2026.10.19.3`；`content.json` **23 首 / 3 组 `["汉","唐","近现代"]`**、tags **古诗十九首 19 ／ 唐诗三百首 3**（members 望岳 → 梦李白其一 → 梦李白其二，朝代页「唐」组同次序）；`content/latest.json` → `minAppVersionCode 5` 且 sha 与 content 相同。
+- **同一 tag 的两次 run（用户 2026-10-19 第 3 条要求）**：`push` 触发的 `39184828558` **red** —— 它停在**构建前**的前置闸（「tag 的应用版本 0.1.4 已有别的发布 tag ⇒ 这是同 app 内容刷新，请用 dispatch 选 same-app」），**没构建、没部署 Pages、没建 Release、没动 latest**（步骤表：后面全部 skipped）；真正发布的是**显式 dispatch** 那条。
+- **旧历史未动**：`v0.1.4+content-2026.10.18.3` 的 tag 对象 `dd2f819` → commit `463ce05` 未变；它的 Release 与 APK 重新下载核过 —— asset digest `f704907f…`、证书同上、**内置内容仍是 `.18.3` / 22 首**（sha `1ab3f330…`），即没有被本次覆盖。
+- **本轮顺带修掉的两个「判据漏洞」**（不是门没过，是该查的没查）：① `check-ready` 的两个「不满足推进条件」分支原先**只打印、不改退出码**（黄/跳 时工作流照样发）⇒ 现在结论与退出码同源（`release/lib/readiness.mjs`，有单测 + 源码守卫）；② same-app 的结论判据原先**不含 APK 五门** ⇒ `apk-signing` 黄也放行；现在五门进判据，`debug` 变体在两种模式下都只能是演练口径。
+- **发布接线（用户四条硬要求）**：`workflow_dispatch` 显式 `mode`（`push` 永远正常升版）；checkout 按 `inputs.tag` 取 commit 并两步自检 `RELEASE_TAG ↔ release-manifest.sourceCommit ↔ HEAD` 三者一致；发布步骤要 `push` 或 `dry_run=false`；同一 tag 的两次 run 同 concurrency 组（`cancel-in-progress: false`）⇒ 排队、不互相 cancel。
+- **未验（如实）**：物理真机安装/覆盖升级（验收基准仍是本项目模拟器，本轮**未在模拟器上装这个正式包**）、无障碍（键盘/TalkBack/对比度）、缺字回退与 OLED 观感、组头发丝线的两端差异、系统字号放大、WebView 内核；**更新链的中间态**（下载中/校验中/待切换）只在 e2e 的本地真部署里演练过，**不是线上站点**；Pages/Release 的生效延迟由服务商决定，不声称原子性。
+
+---
+
+## 1. 候选在哪（两端 ＋ 构建身份与签名）（历史轮次记录，见 §0b/§0c/§0d/§0e 的最新发布）
 
 （⚠ 下表的「本机候选」是**发布前**的表述；**正式发布已按 §0b 完成**（tag `v0.1.2+…`、正式签名包已上线），
 本表保留下来是为了说明两端候选与线上现行的对应关系。）
