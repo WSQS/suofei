@@ -30,9 +30,23 @@ const ROOT = path.resolve(import.meta.dirname, '..');
 const CLI = path.join(ROOT, 'tools', 'build-content.mjs');
 const FIXTURES = path.join(ROOT, 'tests', 'fixtures');
 
+/** 夹具序号计数器：`orderInSource` 自 2026-10-19 起**必填正整数、同一朝代内唯一**，
+ * 而本文件里大量用例是「同一朝代里造几首诗只为了验标签」⇒ 每造一首就给一个全局递增值，
+ * 不干扰标签断言，也不会撞上 `ORDER_IN_SOURCE_DUP`。需要指定值时显式传 `orderInSource`。 */
+let fixtureOrder = 0;
+
 /** 造一首诗源文本；`tags` 为 null 表示整段不写；`rawFront` 放额外原样行（如 `tags: []`）。 */
-function poemText({ title = '甲', author = '佚名', dynasty = '汉', tags = null, extraFront = [], body = '甲句一。' }) {
-  const lines = ['---', `title: "${title}"`, `author: "${author}"`, `dynasty: "${dynasty}"`];
+function poemText({
+  title = '甲',
+  author = '佚名',
+  dynasty = '汉',
+  orderInSource = null,
+  tags = null,
+  extraFront = [],
+  body = '甲句一。',
+}) {
+  const order = orderInSource ?? ++fixtureOrder;
+  const lines = ['---', `title: "${title}"`, `author: "${author}"`, `dynasty: "${dynasty}"`, `orderInSource: ${order}`];
   lines.push(...extraFront);
   if (tags !== null) {
     lines.push('tags:');
@@ -95,9 +109,9 @@ test('orderInTag 缺失 / 为 null / 非整数 / < 1 ⇒ TAG_ORDER_REQUIRED（�
     assert.equal(content, null, `${c.label}：应编译失败`);
     assert.deepEqual(codes(errors), ['TAG_ORDER_REQUIRED'], `${c.label}：${JSON.stringify(errors.map((e) => e.message))}`);
     const e = errors[0];
-    // 诊断带文件:行号，并落在「那一项」而不是文件头（标题/作者/朝代 3 行 + `tags:` 本体行 = 第 6 行）
+    // 诊断带文件:行号，并落在「那一项」而不是文件头（标题/作者/朝代/orderInSource 4 行 + `tags:` 本体行 = 第 7 行）
     assert.equal(e.file, 'content/poems/甲.md');
-    assert.equal(e.line, 6, `${c.label}：行号应指向第 6 行的列表项；message=${e.message}`);
+    assert.equal(e.line, 7, `${c.label}：行号应指向第 7 行的列表项；message=${e.message}`);
     assert.match(e.message, /orderInTag/);
     assert.match(e.message, /必填/);
   }
@@ -108,7 +122,7 @@ test('多项时诊断行号定位到**出问题的那一项**（第二项缺 ord
     record('甲', poemText({ tags: ['  - id: 甲组', '    orderInTag: 1', '  - id: 乙组'] })),
   );
   assert.deepEqual(codes(errors), ['TAG_ORDER_REQUIRED']);
-  assert.equal(errors[0].line, 8, '应指向第 8 行（第二项）；message=' + errors[0].message);
+  assert.equal(errors[0].line, 9, '应指向第 9 行（第二项）；message=' + errors[0].message);
   assert.match(errors[0].message, /乙组/);
 });
 
@@ -306,18 +320,54 @@ function readDeclaredTags(record) {
   return { id: record.id, title, tags };
 }
 
-/** 编译真实内容并同时给出「按源派生」的期望值。 */
-function realContentAndDerivation() {
+/**
+ * 真实内容此刻的**已知唯一内容缺口**：毛诗（本工作树：`毛泽东/七律·和郭沫若同志`）还没写 `orderInSource`
+ * （用户 2026-10-19 明确：
+ * **不许我们替它们填号**；真实编译就应如实红）。它把「真实内容还不完整」钉成一条可复跑的断言：
+ * 一旦这两首补上真实次序，那条缺口测试会自己转红，提醒恢复下面两条全链路断言。
+ */
+const REAL_CONTENT_ORDER_GAP = ['毛泽东-七律·和郭沫若同志'];
+
+test('真实内容当前的唯一缺口：毛诗缺必填的 orderInSource（其余诊断一条也不许有）', () => {
   const { records, errors: scanErrors } = scanPoems(path.join(ROOT, 'content', 'poems'));
   assert.deepEqual(scanErrors, []);
   const { content, errors } = buildContentFromRecords({ records, orderStrategy: 'source' });
-  assert.deepEqual(errors, []);
+  assert.equal(content, null, '真实内容此刻必然编译失败（毛诗缺必填键 ⇒ 不产出产物）');
+  // 诊断带的是源路径，换回 id 再比（id 才是内容契约里的名字）
+  const idOfPath = new Map(records.map((r) => [r.displayPath, r.id]));
+  const gap = errors
+    .filter((e) => e.code === 'ORDER_IN_SOURCE_REQUIRED')
+    .map((e) => idOfPath.get(e.file ?? '') ?? `<未知路径 ${e.file}>`)
+    .sort();
+  assert.deepEqual(gap, [...REAL_CONTENT_ORDER_GAP].sort(), '缺口必须仍然只有这首（多了/少了对不上就说明内容或编译器变了）');
+  assert.deepEqual(
+    errors.filter((e) => e.code !== 'ORDER_IN_SOURCE_REQUIRED'),
+    [],
+    '除了这条已知缺口，真实内容不得有任何别的诊断',
+  );
+});
+
+/** 编译真实内容并同时给出「按源派生」的期望值。真实内容当前的缺口未补齐时，调用方应 skip。 */
+function realContentAndDerivation(t) {
+  const { records, errors: scanErrors } = scanPoems(path.join(ROOT, 'content', 'poems'));
+  assert.deepEqual(scanErrors, []);
+  const { content, errors } = buildContentFromRecords({ records, orderStrategy: 'source' });
+  if (errors.length > 0) {
+    // 已知缺口（毛诗缺 orderInSource）挡着全链路断言：如实跳过，不假装已验。
+    t.skip(
+      `真实内容此刻编译红（已知缺口：${REAL_CONTENT_ORDER_GAP.join(' / ')} 缺必填 orderInSource，` +
+        '用户 2026-10-19 明确不许替它们填号）⇒ 本条待内容补齐后再跑；缺口本身由上面那条测试钉住。',
+    );
+    return null;
+  }
   const declared = records.map(readDeclaredTags);
   return { content, declared, titleOf: new Map(declared.map((d) => [d.id, d.title])) };
 }
 
-test('真实 content/poems：顶层 tags 与诗侧归属**按源派生**一致（标签间拼音序、标签内 orderInTag 升序）', () => {
-  const { content, declared } = realContentAndDerivation();
+test('真实 content/poems：顶层 tags 与诗侧归属**按源派生**一致（标签间拼音序、标签内 orderInTag 升序）', (t) => {
+  const real = realContentAndDerivation(t);
+  if (!real) return; // 真实内容当前的已知缺口未补齐 ⇒ 已如实 skip（见上面那条缺口测试）
+  const { content, declared } = real;
   const compare = new Intl.Collator(PINYIN_COLLATOR_LOCALE).compare;
 
   // 期望的标签集合 = 源里出现过的 id（去重）——不写死名单
@@ -361,8 +411,10 @@ test('真实 content/poems：顶层 tags 与诗侧归属**按源派生**一致�
   assertTagIndexConsistent(content.poems, content.tags);
 });
 
-test('真实内容本次的实况：2 个标签（古诗十九首 19 ／ 唐诗三百首 3），毛诗仍无标签', () => {
-  const { content, declared } = realContentAndDerivation();
+test('真实内容本次的实况：2 个标签（古诗十九首 19 ／ 唐诗三百首 3），毛诗仍无标签', (t) => {
+  const real = realContentAndDerivation(t);
+  if (!real) return; // 同上：真实内容缺口未补齐时如实 skip
+  const { content, declared } = real;
 
   // 这一层是「本次真实数据长这样」的实况断言，不是「永远只能有 2 个标签」的契约；
   // 上面那条按源派生的测试才是契约。内容线再加标签时，改的是这里。
@@ -467,6 +519,6 @@ test('CLI 编译 tags-ok 夹具：EXIT 0，产物形状符合契约（顶层 tag
 test('parsePoemRecord：tags 的关键诊断带文件:行号（不是只给一个码）', () => {
   const { errors } = parsePoemRecord(record('甲', poemText({ tags: ['  - id: 测试标签'] })));
   assert.deepEqual(codes(errors), ['TAG_ORDER_REQUIRED']);
-  assert.equal(errors[0].line, 6);
+  assert.equal(errors[0].line, 7);
   assert.match(errors[0].message, /orderInTag/);
 });

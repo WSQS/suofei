@@ -2,6 +2,8 @@
 title: "笔记解析样例"
 author: "无名氏"
 dynasty: "未详"
+# orderInSource 是夹具测试值，不是真实底本次序。
+orderInSource: 1
 source: "测试 fixture（非真实底本，勿用于发布）"
 ---
 

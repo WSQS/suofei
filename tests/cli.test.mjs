@@ -50,7 +50,10 @@ const FAILURE_CASES = [
   { dir: 'fail-unknown-key', codes: ['UNKNOWN_KEY'], rule: '未声明的 front matter 键' },
   { dir: 'fail-unknown-dynasty', codes: ['DYNASTY_UNDECLARED'], rule: '朝代组名未声明' },
   { dir: 'fail-empty-body', codes: ['BODY_EMPTY'], rule: '正文区没有非空行' },
-  { dir: 'fail-order-not-integer', codes: ['ORDER_IN_SOURCE_NOT_INTEGER'], rule: 'orderInSource 非整数' },
+  { dir: 'fail-order-not-integer', codes: ['ORDER_IN_SOURCE_NOT_INTEGER'], rule: 'orderInSource 写了但不是 ≥ 1 的整数（「第一」/0/-1/1.5）' },
+  { dir: 'fail-order-required', codes: ['ORDER_IN_SOURCE_REQUIRED'], rule: 'orderInSource 缺（必填、不可省略）' },
+  { dir: 'fail-order-null', codes: ['ORDER_IN_SOURCE_REQUIRED'], rule: 'orderInSource 写成 null（必填、不可 null）' },
+  { dir: 'fail-order-dup', codes: ['ORDER_IN_SOURCE_DUP'], rule: '同一朝代内 orderInSource 重复（跨作者也算）' },
   { dir: 'fail-non-markdown', codes: ['SOURCE_NOT_MARKDOWN'], rule: '内容根里有非 .md 文件' },
   { dir: 'dash-collision', codes: ['ID_DUPLICATE'], rule: '相对路径派生出的 id 撞车' },
 ];
@@ -81,7 +84,7 @@ test('符号链接 ⇒ SOURCE_SYMLINK（旧实现会静默丢弃，这是刻意�
   fs.mkdirSync(poems, { recursive: true });
   fs.writeFileSync(
     path.join(poems, 'ok-01.md'),
-    '---\ntitle: "夹具"\nauthor: "佚名"\ndynasty: "汉"\nsource: "夹具。"\n---\n\n正文行。\n',
+    '---\ntitle: "夹具"\nauthor: "佚名"\ndynasty: "汉"\norderInSource: 1\nsource: "夹具。"\n---\n\n正文行。\n',
     'utf8',
   );
   const target = path.join(dir, 'target');
@@ -125,7 +128,7 @@ test('空目录 ⇒ 忽略并计数（在临时目录里建，因为 git 存不�
   fs.mkdirSync(path.join(poems, '空目录'), { recursive: true });
   fs.writeFileSync(
     path.join(poems, 'ok-01.md'),
-    '---\ntitle: "夹具"\nauthor: "佚名"\ndynasty: "汉"\nsource: "夹具。"\n---\n\n正文行。\n',
+    '---\ntitle: "夹具"\nauthor: "佚名"\ndynasty: "汉"\norderInSource: 1\nsource: "夹具。"\n---\n\n正文行。\n',
     'utf8',
   );
   const r = runCli(['--check', '--content', path.join(dir, 'content')]);
@@ -143,26 +146,36 @@ test('ok-basic：--check 通过且不写产物', () => {
   assert.equal(fs.existsSync(out), false);
 });
 
-test('ok-sorting：组序、组内作者/诗名拼音序、佚名最后、分段保留', () => {
+test('ok-sorting：组序、组内 orderInSource 升序（夹具值就按这个次序写的）、分段保留', () => {
   const { status, stderr, out } = buildFixture('ok-sorting', ['--content-version', '2026.10.14.1']);
   assert.equal(status, 0, stderr);
   const c = JSON.parse(fs.readFileSync(out, 'utf8'));
 
   assert.deepEqual(c.dynasties, ['汉', '唐'], '顶层 dynasties 是有序中文值数组');
+  // 2026-10-19（用户拍板 B）：组内次序 = orderInSource 升序（夹具里汉组写 1/2/3、唐组写 1/2/3/4），
+  // **不再**由作者/诗名拼音决定；下面这组 id 次序仍是既有盘，断言语义变了（数值序列 → 列表形状）。
   assert.deepEqual(
     c.poems.map((p) => p.id),
     [
-      'cao-yong-yin-ma-chang-cheng-ku-xing-01', // 汉：蔡邕（具名）
-      'gushi-shijiu-shou-02', // 汉：佚名，青青河畔草(qing)
-      'gushi-shijiu-shou-01', // 汉：佚名，行行重行行(xing)
-      'du-fu-chun-wang-01', // 唐：杜甫(du)
-      'li-bai-jing-ye-si-01', // 唐：李白(li)，静夜思(jing)
-      'li-bai-zao-fa-bai-di-cheng-01', // 唐：李白，早发白帝城(zao)
-      'tang-yi-ming-shan-ge-01', // 唐：佚名，最后
+      'cao-yong-yin-ma-chang-cheng-ku-xing-01', // 汉：orderInSource 1
+      'gushi-shijiu-shou-02', // 汉：2（青青河畔草）
+      'gushi-shijiu-shou-01', // 汉：3（行行重行行）
+      'du-fu-chun-wang-01', // 唐：1
+      'li-bai-jing-ye-si-01', // 唐：2（静夜思）
+      'li-bai-zao-fa-bai-di-cheng-01', // 唐：3（早发白帝城）
+      'tang-yi-ming-shan-ge-01', // 唐：4
     ],
   );
+  // 顺序号的硬约束：组内严格递增，且每首都带正整数
+  for (const label of c.dynasties) {
+    const seq = c.poems.filter((p) => p.dynasty === label).map((p) => p.orderInSource);
+    assert.equal(seq.every((v) => Number.isInteger(v) && v >= 1), true, `${label} 组每首都应有正整数 orderInSource`);
+    assert.equal(new Set(seq).size, seq.length, `${label} 组内序号不得重复`);
+    assert.deepEqual(seq, [...seq].sort((a, b) => a - b), `${label} 组内次序应为序号升序`);
+  }
 
-  // 「佚名排最后」：每个组内，佚名都排在所有具名作者之后（次序语义，不靠排序字段）
+  // 「佚名最后」这条**曾是排序规则**，2026-10-19 起不再是：它只是本夹具里序号写法的副产品（唐组佚名给了 4）。
+  // 保留这条形状断言（佚名全部在组尾）是为了盯住夹具本身的次序写法，不当作排序规则的证据。
   for (const label of c.dynasties) {
     const authors = c.poems.filter((p) => p.dynasty === label).map((p) => p.author);
     const firstUnknown = authors.findIndex((a) => a === '佚名');
@@ -196,14 +209,15 @@ test('ok-sorting：组序、组内作者/诗名拼音序、佚名最后、分段
   assert.equal(c.formatVersion, 3);
 });
 
-test('ok-notes-variants：`## 笔记` 进 notes（保留换行）、`## 详情` 进 detail、缺省键写 null', () => {
+test('ok-notes-variants：`## 笔记` 进 notes（保留换行）、`## 详情` 进 detail、可空键写 null', () => {
   const { status, stderr, out } = buildFixture('ok-notes-variants', ['--content-version', '2026.10.14.2']);
   assert.equal(status, 0, stderr);
   const p = JSON.parse(fs.readFileSync(out, 'utf8')).poems[0];
   assert.equal(p.notes, '这是**测试用**个人笔记文本，不是用户真实笔记。\n第二行：用于验证块标量里的换行被保留。');
   assert.equal(p.detail, '- **测试异文甲** —— 来自 fixture 的异文说明\n- **测试异文乙**');
   assert.equal(p.genre, null);
-  assert.equal(p.orderInSource, null);
+  // orderInSource 自 2026-10-19 起是必填正整数：夹具里的 1 是显式测试值，不再可能是 null
+  assert.equal(p.orderInSource, 1);
   assert.ok('detail' in p && 'notes' in p);
 });
 
@@ -221,6 +235,7 @@ for (const [name, version] of [
   ['ok-notes-variants', '2026.10.14.11'],
   ['ok-basic', '2026.10.14.12'],
   ['ok-order-source', '2026.10.14.13'],
+  ['ok-order-dynasty', '2026.10.19.1'],
   ['shape-v2', '2026.10.14.14'],
   ['shape-v3', '2026.10.14.17'],
   ['rules-v4-legal/nested', '2026.10.14.15'],
@@ -265,7 +280,7 @@ test('SOURCE_DATE_EPOCH 可固定 generatedAt，同一内容字节可复现', ()
 
 // ---------- 排序策略：source / pinyin（同一 fixture，两份实际产物对比） ----------
 
-test('ok-order-source：--order source（默认）按底本原次序，无值者接在后面', () => {
+test('ok-order-source：--order source（默认）按底本原次序，无值者后置（夹具里每首都已给值）', () => {
   const a = buildFixture('ok-order-source', ['--content-version', '2026.10.14.17', '--order', 'source']);
   const b = buildFixture('ok-order-source', ['--content-version', '2026.10.14.17']); // 默认应与 source 一致
   assert.equal(a.status, 0, a.stderr);
@@ -283,7 +298,7 @@ test('ok-order-source：--order pinyin 忽略 orderInSource', () => {
   assert.deepEqual(titles, ['饮马长城窟行', '客从远方来', '青青河畔草', '涉江采芙蓉', '生年不满百', '行行重行行']);
 });
 
-test('ok-order-source 产物：orderInSource 为整数或 null', () => {
+test('ok-order-source 产物：orderInSource 一律为正整数（不再有 null）', () => {
   const { status, stderr, out } = buildFixture('ok-order-source', [
     '--content-version',
     '2026.10.14.19',
@@ -294,8 +309,41 @@ test('ok-order-source 产物：orderInSource 为整数或 null', () => {
   const { ok, errors } = validateAgainstSchema(out);
   assert.ok(ok, `schema 校验失败：${JSON.stringify(errors)}`);
   const poems = JSON.parse(fs.readFileSync(out, 'utf8')).poems;
-  assert.equal(poems.find((p) => p.title === '饮马长城窟行').orderInSource, null);
+  // 2026-10-19：该键必填正整数 ⇒ 夹具里每首都有值（饮马长城窟行是显式测试值 20）
+  assert.equal(poems.find((p) => p.title === '饮马长城窟行').orderInSource, 20);
   assert.equal(poems.find((p) => p.title === '客从远方来').orderInSource, 18);
+  assert.equal(poems.every((p) => Number.isInteger(p.orderInSource) && p.orderInSource >= 1), true);
+});
+
+test('ok-order-dynasty：朝代组序 → orderInSource 升序；跨朝代各自从 1 起、留空号均合法；**不是**作者拼音序', () => {
+  const { status, stderr, out } = buildFixture('ok-order-dynasty', ['--content-version', '2026.10.19.1']);
+  assert.equal(status, 0, stderr);
+  const doc = JSON.parse(fs.readFileSync(out, 'utf8'));
+  assert.deepEqual(doc.dynasties, ['汉', '唐']);
+  assert.deepEqual(
+    doc.poems.map((p) => `${p.dynasty}:${p.orderInSource}:${p.author}/${p.title}`),
+    [
+      '汉:1:佚名/行行重行行',
+      '汉:5:蔡邕/饮马长城窟行', // 序号与作者拼音无关：「蔡」(cai) 不再决定位置
+      '汉:9:佚名/青青河畔草', // 汉组留了空号 2..4、6..8，仍然合法
+      '唐:1:李白/静夜思', // 唐组又从 1 起（跨朝代不冲突）
+      '唐:2:李白/早发白帝城',
+      '唐:3:杜甫/春望', // 若按作者拼音，杜甫(du) 会排第一 ⇒ 这条断言就是 B 口径的反证
+    ],
+  );
+  const { ok, errors } = validateAgainstSchema(out);
+  assert.ok(ok, `schema 校验失败：${JSON.stringify(errors)}`);
+});
+
+test('fail-order-dup：冲突诊断列出全部冲突的诗 id 与源路径（不靠作者/题名兜底）', () => {
+  const { status, stderr } = buildFixture('fail-order-dup');
+  assert.equal(status, 1);
+  assert.match(stderr, /\[ORDER_IN_SOURCE_DUP\]/);
+  assert.ok(stderr.includes('dup-cao-yong'), `应列出第一首冲突 id；实际：${stderr}`);
+  assert.ok(stderr.includes('dup-yi-ming-01'), `应列出第二首冲突 id；实际：${stderr}`);
+  assert.ok(stderr.includes('poems/dup-cao-yong.md') && stderr.includes('poems/dup-yi-ming-01.md'), '应列出源路径');
+  assert.equal(stderr.includes('dup-yi-ming-02'), false, '不冲突的诗不应出现在冲突名单里');
+  assert.ok(stderr.includes('跨作者') && stderr.includes('允许留空号'), '诊断要写清判据');
 });
 
 test('--order 取值非法 → 用法错误（退出码 2），不猜、不静默回退', () => {
@@ -305,7 +353,7 @@ test('--order 取值非法 → 用法错误（退出码 2），不猜、不静�
 });
 
 test('所有 ok fixture 的产物都不含任何排序字段，键序恒为 POEM_KEYS', () => {
-  for (const [i, name] of ['ok-basic', 'ok-sorting', 'ok-notes-variants', 'ok-order-source', 'ok-shi19-order'].entries()) {
+  for (const [i, name] of ['ok-basic', 'ok-sorting', 'ok-notes-variants', 'ok-order-source', 'ok-order-dynasty', 'ok-shi19-order'].entries()) {
     const { status, stderr, out } = buildFixture(name, ['--content-version', `2026.10.1${i}.1`]);
     assert.equal(status, 0, `${name}: ${stderr}`);
     const raw = fs.readFileSync(out, 'utf8');

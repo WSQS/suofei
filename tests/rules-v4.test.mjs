@@ -156,6 +156,7 @@ test('合成：`## 笔记` 下只有空格与 Tab ⇒ 无诊断且 notes = null�
     'title: "夹具"',
     'author: "佚名"',
     'dynasty: "汉"',
+    'orderInSource: 1',
     'source: "夹具：不是真实数据。"',
     '---',
     '',
@@ -180,6 +181,7 @@ test('合成：`##详情`（缺空格）⇒ MD_HEADING，且那一行原样留�
     'title: "夹具"',
     'author: "佚名"',
     'dynasty: "汉"',
+    'orderInSource: 1',
     'source: "夹具：不是真实数据。"',
     '---',
     '',
@@ -189,7 +191,7 @@ test('合成：`##详情`（缺空格）⇒ MD_HEADING，且那一行原样留�
   ].join('\n');
   const r = parsePoemRecord({ displayPath: '<合成字符串>.md', id: 'x', text });
   assert.deepEqual(r.errors.map((e) => e.code), ['MD_HEADING']);
-  assert.equal(r.errors[0].line, 10);
+  assert.equal(r.errors[0].line, 11);
   assert.ok(r.errors[0].message.includes('缺一个空格'));
   // 结构证明：它没有被切成节（draft 里没有多出节），那一行留在正文里
   assert.deepEqual(r.draft.stanzas, [['夹具正文一行。'], ['##详情']]);
@@ -201,6 +203,7 @@ test('合成：原文里的 `**` 不是粗体 ⇒ 无诊断、诗行原样保留
     'title: "夹具"',
     'author: "佚名"',
     'dynasty: "汉"',
+    'orderInSource: 1',
     'source: "夹具：不是真实数据。"',
     '---',
     '',
@@ -217,6 +220,7 @@ test('合成：原文区行首 `#` ⇒ MD_HEADING（原文不报别的 Markdown 
     'title: "夹具"',
     'author: "佚名"',
     'dynasty: "汉"',
+    'orderInSource: 1',
     'source: "夹具：不是真实数据。"',
     '---',
     '',
@@ -225,7 +229,7 @@ test('合成：原文区行首 `#` ⇒ MD_HEADING（原文不报别的 Markdown 
   ].join('\n');
   const r = parsePoemRecord({ displayPath: '<合成字符串>.md', id: 'x', text });
   assert.deepEqual(r.errors.map((e) => e.code), ['MD_HEADING']);
-  assert.equal(r.errors[0].line, 8);
+  assert.equal(r.errors[0].line, 9);
 });
 
 // ---------- ⑧ 未闭合强调（负责人 2026-10-16 落定） ----------
@@ -237,6 +241,7 @@ test('未闭合强调：`**粗体`（少收尾）与落单 `*` ⇒ MD_EMPHASIS_U
       'title: "夹具"',
       'author: "佚名"',
       'dynasty: "汉"',
+      'orderInSource: 1',
       'source: "夹具：不是真实数据。"',
       '---',
       '',
@@ -249,7 +254,7 @@ test('未闭合强调：`**粗体`（少收尾）与落单 `*` ⇒ MD_EMPHASIS_U
   for (const line of ['**粗体少了收尾', '这里有一个落单的 * 星号', '**粗体** 里夹着的 * 落单了']) {
     const r = parsePoemRecord({ displayPath: '<合成字符串>.md', id: 'x', text: caseText(line) });
     assert.deepEqual(r.errors.map((e) => e.code), ['MD_EMPHASIS_UNCLOSED'], `应报未闭合：${line}`);
-    assert.equal(r.errors[0].line, 12);
+    assert.equal(r.errors[0].line, 13);
   }
   // 成对的写法不报
   for (const line of ['**粗体** 与 *斜体* 都成对', '- **游子不顾返** —— 成对']) {
@@ -262,7 +267,7 @@ test('未闭合强调：`**粗体`（少收尾）与落单 `*` ⇒ MD_EMPHASIS_U
 
 test('朝代组名：精确匹配（`汉` 通过；`汉 `（尾随空格）与 `漢` 报 DYNASTY_UNDECLARED）', () => {
   const mk = (dynasty) =>
-    ['---', 'title: "夹具"', 'author: "佚名"', `dynasty: ${dynasty}`, 'source: "夹具。"', '---', '', '正文行。'].join('\n');
+    ['---', 'title: "夹具"', 'author: "佚名"', `dynasty: ${dynasty}`, 'orderInSource: 1', 'source: "夹具。"', '---', '', '正文行。'].join('\n');
   assert.deepEqual(parsePoemRecord({ displayPath: 'x.md', id: 'x', text: mk('"汉"') }).errors, []);
   for (const bad of ['"汉 "', '"漢"', '"东汉"', '"三国"']) {
     const r = parsePoemRecord({ displayPath: 'x.md', id: 'x', text: mk(bad) });
