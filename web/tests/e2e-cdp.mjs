@@ -1003,7 +1003,7 @@ async function main() {
   })()`);
   eq('「汉」组目录的诗名次序 == 用户拍板的《文选》卷二十九原次序（19 首，确定性）',
     await groupRowTitles('汉'), SOURCE_ORDER_TITLES);
-  eq('「近现代」组单独成组、只 1 首（用户新录入那首）', await groupRowTitles('近现代'), ['七律·和郭沫若同志']);
+  eq('「近现代」组单独成组、2 首（忆秦娥 → 七律，照产物 orderInSource 1 → 2）', await groupRowTitles('近现代'), ['忆秦娥·娄山关', '七律·和郭沫若同志']);
   eq('目录次序 == 产物数组次序（整串）', await domPoemIds(), expectedDomOrder(baseDoc));
   eq('「汉」组首尾两端', await evaluate(`(() => {
     const g = [...document.querySelectorAll('[data-test="dynasty-group"]')]
@@ -1644,9 +1644,39 @@ async function main() {
   eq('正文仍然 pre-wrap（行内空白不被折叠）', poemVis.lineWhite, 'pre-wrap');
   eq('--stanza-gap 令牌值为 1.2em（不为 0）',
     await evaluate(`getComputedStyle(document.documentElement).getPropertyValue('--stanza-gap').trim()`), '1.2em');
-  check(`真实产物 ${baseDoc.poems.length} 首都是单节，所以段间空行的**元素级**断言在 §4e（夹具诗）上做`,
-    baseDoc.poems.every((p) => p.stanzas.length === 1),
-    `最大节数=${Math.max(...baseDoc.poems.map((p) => p.stanzas.length))}`);
+  // ⚠ 2026-10-19（用户提交《忆秦娥·娄山关》：两阕之间的空行 ⇒ 产物 `stanzas` 是**两段**）：
+  //   真实产物不再「全都是单节」，所以段间空行从「只靠 §4e 夹具」升级成**在真实的词上**做元素级断言。
+  //   夹具那条（§4e）照旧保留：它拿一首人为超宽的测试诗同时验折行与分段，与这里不重叠。
+  const multiStanzaPoems = baseDoc.poems.filter((p) => p.stanzas.length > 1);
+  eq('本次实况：真实产物里唯一多节的诗 == 《忆秦娥·娄山关》（两阕）',
+    multiStanzaPoems.map((p) => [p.title, p.stanzas.length]), [['忆秦娥·娄山关', 2]]);
+  for (const ciPoem of multiStanzaPoems) {
+    await hashTo(`#/p/${ciPoem.id}`);
+    await waitForPoemView(ciPoem.id);
+    eq(`真实词页的分节数 == 产物 stanzas 段数（${ciPoem.title}）`,
+      await evaluate(`document.querySelectorAll('[data-test="stanza"]').length`), ciPoem.stanzas.length);
+    eq('每阀的**印刷行**数与产物一致（视觉折行不改变印刷行）',
+      await evaluate(`[...document.querySelectorAll('[data-test="stanza"]')].map(s => new Set([...s.querySelectorAll('[data-test="poem-line"]')].map(e => e.dataset.printedLine)).size)`),
+      ciPoem.stanzas.map((x) => x.length));
+    eq('词页正文逐行 == 源文两阀（一字不改）',
+      await evaluate(`(() => {
+        const out = [];
+        for (const s of document.querySelectorAll('[data-test="stanza"]')) {
+          const byLine = new Map();
+          for (const e of s.querySelectorAll('[data-test="poem-line"]')) {
+            const k = e.dataset.printedLine;
+            if (!byLine.has(k)) byLine.set(k, []);
+            byLine.get(k).push(e.textContent);
+          }
+          out.push(...[...byLine.values()].map((p) => p.join('')));
+        }
+        return out;
+      })()`),
+      ciPoem.stanzas.flat());
+    const ciGap = await evaluate(`parseFloat(getComputedStyle(document.querySelectorAll('[data-test="stanza"]')[1]).marginTop)`);
+    check('两阀之间有间距（空行＝stanzas 分段，不是空 DOM 行）', ciGap > 0, `marginTop=${ciGap}px`);
+    check('词页段间距 = --stanza-gap（1.2em × 17px = 20.4px）', Math.abs(ciGap - 17 * 1.2) < 0.2, `marginTop=${ciGap}px`);
+  }
   eq('详情来源块字号 = --note-size（13.5px）',
     (await evaluateOnDetail(p1.id, `getComputedStyle(document.querySelector('[data-test="detail-source"]')).fontSize`)),
     '13.5px');
