@@ -2242,21 +2242,19 @@ async function main() {
   await writeFile(resolve(artifactsDir, 'dom-dumps.txt'), domDump.join('\n\n'), 'utf8');
   console.log('\n产物：web/tests/artifacts/（截图 + dom-dumps.txt + deploy/ 各版本部署目录，均已 gitignore）');
 
-  // ---------------------------------------------------------------- 9. format 2 → format 3（真·旧基底）
+  // ---------------------------------------------------------------- 9. 同格式的内容刷新（真·旧基底）
   //
-  // 本轮过渡的实质**不是「加了多少首诗」**：线上已发布的基底 `.26` 与本轮新内容在 **formatVersion 2 → 3**
-  // （每首多 `tags: []`、顶层多 `tags: [{id, members}]`）、内容修订号、壳字节上不同——本轮**另加**了杜甫《望岳》
-  // （2026-10-19，22 → 23 首），但**首数差不是过渡证据**（下面只作「不丢诗」的不变式）。所以盯的是四件事：
-  //   ① 两端的**格式身份/资源身份**（formatVersion、contentVersion、sha256、缓存名）；
-  //   ② **版本门两个方向都受控**：旧壳不读 3、新壳不读 2 —— 如实报原因，不渲染、不猜；
-  //   ③ **成对发布**：新修订 ⇒ 新 sw.js 字节 ⇒ 新 cache（壳+内容同批），旧 cache 的字节**从头到尾没变**；
-  //   ④ 接受之后 v3 真能渲染（全库 ${total} 首 ＋「古诗十九首」19 首照产物顺序）；半套部署**装不上**且不污染现有缓存。
-  //
-  // ⚠ 上一轮的写法（本节曾写「20 首 → 22 首」「旧缓存名只有前缀＋应用版本」）**已作废**：
-  //   已发布基底 `.26` 就是 22 首、而且缓存名里**已经带修订段**。拿首数差当过渡证据是空的。
-  // ⚠ 2026-10-19 又一条作废：本节曾断言「两版首数**相同**」——本轮真的多了一首（《望岳》），那句话不再成立。
-  //   改成更硬的不变式：**旧基底里的诗一首都不丢**（id 全在），首数不减。
-  section('9 format 2 → format 3：真·旧基底（已发布那一对字节）→ 本轮新内容（formatVersion 3）');
+  // ⚠️ 2026-10-19 **前提变了**（「format 2 → 3」的旧前提已作废，不得再盲套）：
+  //   上一轮已发布的基底就是 **formatVersion 3**（22 首 / `2026.10.18.3`），本轮新内容**仍是 format 3**（23 首）。
+  //   所以这一节验的不再是「格式门过渡」，而是**同一个 app 版本、同一个格式、只换内容**这一种真实更新：
+  //   ① 两端的**资源身份**（contentVersion / sha256 / 缓存名里那一段修订）；
+  //   ② **成对发布**：新修订 ⇒ 新 sw.js 字节 ⇒ 新 cache；旧 cache 的字节**从头到尾没变**，接受之前用户仍读旧内容；
+  //   ③ **内容增量**：旧基底的诗一首不丢、首数不减、「唐诗三百首」的成员只增（旧成员次序保持为子序列）；
+  //   ④ 接受之后新内容真能渲染（全库 ${total} 首 ＋ 两个标签组），旧 cache 被 activate 删掉、只剩新那一对；
+  //   ⑤ **失败保旧**（半套部署装不上）与**离线可读**。
+  //   版本门（壳拒收不认得的格式）**仍然必须存在**，但它已经不是本轮的过渡特征 ⇒ 改用**合成字节**单独验（§9b/9c），
+  //   并且明确写清「那不是旧基底」。
+  section('9 同格式内容刷新：真·旧基底（已发布那一对字节，format 3）→ 本轮新内容（仍是 format 3）');
   const sha256 = (text) => createHash('sha256').update(Buffer.from(String(text), 'utf8')).digest('hex');
   const readConstFrom = (text, name) => new RegExp(`(?:const|export const) ${name} = '([^']*)'`).exec(text)?.[1] ?? null;
   /** 版本号逐段比较（`YYYY.MM.DD.N` 与 `x.y.z` 都是逐段数值）。 */
@@ -2296,10 +2294,11 @@ async function main() {
     // ---- 9a 两端的格式身份与资源身份（纯字节证据，不碰浏览器）----
     eq('旧内容就是线上已发布的那一份（contentVersion == 环境声明）', oldDoc.contentVersion, baselineEnv.contentVersion);
     if (baselineEnv.contentSha256) eq('旧内容字节就是线上快照（sha256 == 环境声明）', oldSha, baselineEnv.contentSha256);
-    eq('旧基底是 formatVersion 2（本轮过渡的**起点**）', Number(oldDoc.formatVersion), 2);
-    eq('本轮产物是 formatVersion 3（本轮过渡的**终点**）', Number(baseDoc.formatVersion), 3);
-    eq('旧壳字节里写着自己只支持 formatVersion 2（不是「以为自己是 3」）', oldSupported, 2);
-    eq('本树的壳只支持 formatVersion 3', SUPPORTED_FORMAT_VERSION, 3);
+    // 格式身份：**不再假设旧基底是 2**（那条断言属于上一轮，已作废）——一律拿旧字节自己的声明互相核。
+    eq('旧壳字节里写着自己支持的格式 == 旧内容自带的格式（不是「以为自己是别的」）', oldSupported, Number(oldDoc.formatVersion));
+    eq('本轮壳与旧壳支持同一个格式版本（**本轮不做格式升版**；「format 2 → 3」是上一轮的事）',
+      SUPPORTED_FORMAT_VERSION, oldSupported);
+    eq('本轮产物与新内容的格式是同一个（同格式、只换内容）', Number(baseDoc.formatVersion), Number(oldDoc.formatVersion));
     eq('旧壳的 sw.js 与 config.js 修订常量一致（否则缓存名不唯一）', readConstFrom(oldSwText, 'CONTENT_REVISION'), oldRev);
     eq('旧缓存名 == 前缀＋应用版本＋修订段（线上那一个，期望值由旧字节的常量算）', oldCacheName,
       `${RESOURCE_CACHE_PREFIX}${oldAppVersion}+${oldRev}`);
@@ -2313,9 +2312,21 @@ async function main() {
       oldDoc.poems.map((p) => p.id).filter((id) => !newIdSet.has(id)), []);
     check('首数没有减少',
       baseDoc.poems.length >= oldDoc.poems.length, dump({ old: oldDoc.poems.length, new: baseDoc.poems.length }));
-    check('旧内容没有顶层 tags 字段（format 2 没有这一层）', oldDoc.tags === undefined, dump(Object.keys(oldDoc)));
-    eq('旧内容每首的键集里也没有 tags（format 2 的键集）',
-      oldDoc.poems.filter((p) => p.tags !== undefined).length, 0);
+    // 旧基底的内容形状：已发布那一份**已经是 format 3**（顶层 tags ＋ 每首 tags）⇒ 「format 2 没有这一层」的旧断言作废。
+    check('旧内容带顶层 tags 数组（已发布基底已经是 format 3）', Array.isArray(oldDoc.tags), dump(Object.keys(oldDoc)));
+    eq('旧内容每首都带 tags 数组（format 3 的必填键）',
+      oldDoc.poems.filter((p) => !Array.isArray(p.tags)).length, 0);
+    // 「唐诗三百首」的成员**只增不改**：旧成员一个不丢、旧次序保持为子序列（本轮加《望岳》进第一位）。
+    const oldTang = (oldDoc.tags ?? []).find((t) => t.id === '唐诗三百首');
+    const newTangIds = (baseDoc.tags ?? []).find((t) => t.id === '唐诗三百首')?.members ?? [];
+    check('已发布基底里就有「唐诗三百首」标签（否则下面的成员增量断言是空的）', Boolean(oldTang), dump((oldDoc.tags ?? []).map((t) => t.id)));
+    const subseq = (sub, all) => { let i = 0; for (const x of all) if (x === sub[i]) i += 1; return i === sub.length; };
+    check('旧成员次序在新 members 里保持为子序列（只增不改、不重排旧成员）',
+      subseq(oldTang.members, newTangIds), dump({ oldMembers: oldTang.members, newMembers: newTangIds }));
+    check('「唐诗三百首」的成员数是**增**的（本轮 2 → 3）',
+      newTangIds.length > oldTang.members.length,
+      dump({ old: oldTang.members.length, new: newTangIds.length }));
+    console.log(`  「唐诗三百首」成员：已发布 ${oldTang.members.length} → 本轮 ${newTangIds.length}`);
     check('新内容每首都带 tags 数组（format 3 的必填键）',
       baseDoc.poems.every((p) => Array.isArray(p.tags)), dump(Object.keys(baseDoc.poems[0])));
     // 新内容的标签身份：唯一来源是本轮产物（客户端一律照产物顺序、不重排）。
@@ -2374,60 +2385,61 @@ async function main() {
       throw new Error(`旧基底目录缺文件：${missingDeploy.join(',')}（${baselineEnv.webDir}）`);
     }
 
-    // ---- 9b 版本门（方向一）：**新壳**遇到 format 2 内容 ⇒ 如实拒绝 ----
-    // 做法：本轮壳字节 ＋ 旧 format2 内容**成对发一次**（修订号抬一格 ⇒ 真的换 sw.js 字节、真的建新 cache），
-    // 接受后新壳去读旧格式 ⇒ 必须报「版本太低」而不是硬渲染。
-    const revForOldContent = nextContentRevision(baseDoc.contentVersion);
-    const gateNewShell = await makeDeployment({
-      destDir: join(deployRoot, 'gate-newshell-format2'),
-      appVersion: APP_VERSION, contentRevision: revForOldContent, contentText: oldText,
-    });
-    console.log(`  版本门①：cache=${gateNewShell.cacheName}（本轮壳 ＋ 旧 format2 内容 —— 真实发布不会这样配对，专门验门）`);
-    await redeploy(gateNewShell.destDir);
-    await reload();
-    await waitFor(`Boolean(document.querySelector('[data-test="update-available"]'))`, { label: '版本门①：好内容状态下发现这次部署' });
-    const tokenGateNewShell = await docToken();
-    await evaluate(`document.querySelector('[data-test="apply-update"]').click(); true`);
-    await waitForNewDocument(tokenGateNewShell, '版本门①：切到「新壳＋旧内容」');
-    await waitForErrorView();
-    const gateNewShellText = await errorText();
-    // 实际口径（本轮实测，不粉饰）：v3 壳的**结构校验先跑**，所以它报的是「tags 不是数组」；
-    // 旧壳那边走的才是 checkCompatibility 的「格式版本 3 高于本站壳支持的 2」。两者都是受控拒收，
-    // 但 kind 不同（schema ≠ incompatible）—— 这条差别写在这里，不把断言写成“总之失败了”。
-    check('新壳（只认 3）遇到 format 2 内容 ⇒ 如实拒收（受控错误，不硬渲染）',
-      /内容结构校验失败|格式版本/.test(gateNewShellText), dump(gateNewShellText));
-    check('版本门①：拒收原因指向「格式/字段」本身（不是含糊的「内容没能取到」）',
-      /tags|格式版本/.test(gateNewShellText), dump(gateNewShellText));
-    console.log('  版本门①的实际文案：' + gateNewShellText);
-    eq('版本门①：失败页里没有渲染任何诗行', await evaluate(`document.querySelectorAll('[data-test="poem-row"]').length`), 0);
-    check('版本门①：也没有假装成功（没有凭空出现标签 tab）',
-      !(await evaluate(`Boolean(document.querySelector('[data-test="tab-tags"]'))`)));
-    eq('版本门①：缓存里那份 content.json 就是旧的 format2 字节（壳拒收 ≠ 没取到）',
-      sha256(await cacheText(gateNewShell.cacheName, '/content.json')), oldSha);
-    await screenshot('s9-1-gate-format3-shell-refuses-format2.png');
-    await clearSiteData();
-
-    // ---- 9c 版本门（方向二）：**旧壳**（format 2）遇到本轮 format 3 内容 ⇒ 如实拒绝 ----
-    // 旧壳字节**原样**（一个字节不改），只把 content.json 换成 v3。真实发布不会这样配对，
-    // 这里专门验「旧壳上版本门同样是受控的、且被拒的内容不是坏字节」。
-    const gateOldShell = await makeDeploymentFromDir({
-      destDir: join(deployRoot, 'gate-oldshell-format3'),
-      webDir: baselineEnv.webDir, contentText: baseText,
-    });
-    eq('旧壳那一侧的缓存名仍是线上那一个（旧字节没被改写）', gateOldShell.cacheName, oldCacheName);
-    console.log(`  版本门②：cache=${gateOldShell.cacheName}（旧 format2 壳 ＋ 本轮 format3 内容）`);
-    await redeploy(gateOldShell.destDir);
-    await goto(BASE);
-    await waitForErrorView();
-    const gateOldShellText = await errorText();
-    check('旧壳（只认 2）遇到 format 3 内容 ⇒ 如实报「版本太高」，不硬渲染',
-      /格式版本 3/.test(gateOldShellText) && /本站壳支持的 2/.test(gateOldShellText), dump(gateOldShellText));
-    eq('版本门②：失败页里没有任何诗行', await evaluate(`document.querySelectorAll('[data-test="poem-row"]').length`), 0);
-    check('版本门②：旧壳本来就没有标签 tab（也没有因此凭空多出一个）',
-      !(await evaluate(`Boolean(document.querySelector('[data-test="tab-tags"]'))`)));
-    eq('版本门②：缓存里存下来的就是本轮 v3 字节（旧壳是「不看」，不是「拿不到」）',
-      sha256(await cacheText(gateOldShell.cacheName, '/content.json')), sha256(baseText));
-    await screenshot('s9-2-gate-format2-shell-refuses-format3.png');
+    // ---- 9b 版本门（**合成字节 + 本轮壳**，不是旧基底）：不认得的格式仍然受控拒收 ----
+    // ⚠️ 为什么改成合成字节：本轮的真实过渡是**同格式**（已发布基底就是 format 3）⇒「新壳＋旧内容」与
+    //    「旧壳＋新内容」在真实发布里都是**合法配对**，已经没有 2 ↔ 3 的门要过（上一轮的 9b/9c 因此作废）。
+    //    但**版本门本身不许因此消失**：这里把内容人为写成 format 4 / format 2 各发一版，验壳如实拒收、不硬渲染。
+    const revForHigherFormat = nextContentRevision(baseDoc.contentVersion);
+    const revForLowerFormat = nextContentRevision(revForHigherFormat);
+    const higherThanSupported = { ...baseDoc, formatVersion: SUPPORTED_FORMAT_VERSION + 1 };
+    // 低格式：把 v3 才有的 tags 抹掉，模拟「更老的 format 2 内容」（键集也回到 v2 的样子）
+    const lowerFormat = {
+      ...baseDoc,
+      formatVersion: SUPPORTED_FORMAT_VERSION - 1,
+      poems: baseDoc.poems.map(({ tags: _droppedTags, ...rest }) => rest),
+    };
+    delete lowerFormat.tags;
+    const formatGateCases = [
+      {
+        label: `格式比本站高（format ${SUPPORTED_FORMAT_VERSION + 1}）`,
+        doc: higherThanSupported,
+        rev: revForHigherFormat,
+        expect: new RegExp(`格式版本 ${SUPPORTED_FORMAT_VERSION + 1}`),
+      },
+      {
+        label: '格式比本站低（format 2：没有 tags 那一层）',
+        doc: lowerFormat,
+        rev: revForLowerFormat,
+        expect: /结构校验失败|格式版本/,
+      },
+    ];
+    for (const c of formatGateCases) {
+      const dep = await makeDeployment({
+        destDir: join(deployRoot, `gate-format-${String(c.doc.formatVersion)}`),
+        appVersion: APP_VERSION,
+        contentRevision: c.rev,
+        contentText: JSON.stringify(c.doc),
+      });
+      console.log(`  版本门（合成字节，非旧基底）：${c.label} cache=${dep.cacheName}`);
+      await redeploy(dep.destDir);
+      await reload();
+      await waitFor(`Boolean(document.querySelector('[data-test="update-available"]'))`,
+        { label: `版本门（${c.label}）：发现这次部署` });
+      const tokenFormatGate = await docToken();
+      await evaluate(`document.querySelector('[data-test="apply-update"]').click(); true`);
+      await waitForNewDocument(tokenFormatGate, `版本门（${c.label}）：切换`);
+      await waitForErrorView();
+      const formatGateText = await errorText();
+      check(`版本门（${c.label}）：如实受控拒收（不硬渲染）`, c.expect.test(formatGateText), dump(formatGateText));
+      console.log(`  版本门（${c.label}）的实际文案：` + formatGateText);
+      eq(`版本门（${c.label}）：失败页里没有渲染任何诗行`,
+        await evaluate(`document.querySelectorAll('[data-test="poem-row"]').length`), 0);
+      eq(`版本门（${c.label}）：缓存里存的就是那份字节（壳拒收 ≠ 没取到）`,
+        sha256(await cacheText(dep.cacheName, '/content.json')), sha256(JSON.stringify(c.doc)));
+      // ⚠ 不要在两次之间 clearSiteData：清掉站点数据后就没有 SW 了 ⇒ 下一次是**首次安装**（直接接管），
+      //    不会出现「有新版本」提示，那一步只能等到超时。两次连续部署（各有新修订 ⇒ 各有新 sw 字节）
+      //    才是「已装过 SW 的用户」那条真实路径；清理放在循环之后，给下面的 §9d 一个干净起点。
+    }
     await clearSiteData();
 
     // ---- 9d 装**真·旧基底**：已发布那一对字节，一个字节都不改 ----
@@ -2443,14 +2455,16 @@ async function main() {
     eq('旧站点：页面汇报的应用版本就是已发布那个', s.appVersion, oldAppVersion);
     eq('旧站点：读的是已发布那一版内容', s.contentVersion, oldDoc.contentVersion);
     eq('旧站点：诗数量与已发布一致', s.poems, oldDoc.poems.length);
-    eq('旧站点：客户端认的格式版本就是 2', s.formatVersion, 2);
-    check('旧站点：旧壳没有「标签 tab」（本轮新增的视图，旧壳里根本不存在）',
-      !(await evaluate(`Boolean(document.querySelector('[data-test="tab-tags"]'))`)));
+    eq('旧站点：客户端认的格式版本就是旧内容自带的那一个（不再假设是 2）',
+      s.formatVersion, Number(oldDoc.formatVersion));
+    // 已发布基底就是 format 3 的壳 ⇒ 它本来就有「标签」tab（上一轮那句「旧壳没有标签 tab」已作废）。
+    check('旧站点：标签 tab 在（旧壳已是 format 3 的壳，标签视图本来就存在）',
+      await evaluate(`Boolean(document.querySelector('[data-test="tab-tags"]'))`));
     await waitForSiteCaches([vOld.cacheName], '旧站点缓存就位');
     eq('旧站点的站点缓存集合 == 线上那一个', await siteCaches(), [vOld.cacheName]);
     eq('旧缓存里的 content.json 字节 == 线上快照（sha256）',
       sha256(await cacheText(vOld.cacheName, '/content.json')), oldSha);
-    await screenshot('s9-3-format2-published-baseline.png');
+    await screenshot('s9-3-published-baseline.png');
 
     // ---- 9e 成对发新版：本轮壳 ＋ v3 内容，修订 = 本轮 contentVersion ----
     const vNew = await makeDeployment({
@@ -2469,9 +2483,9 @@ async function main() {
       { label: '旧壳发现新版本（同 APP_VERSION、新修订、新格式）' });
     await waitForCacheEntry(vNew.cacheName, '/content.json', '新 cache 里的 content.json 就位');
     s = await summary();
-    eq('接受前：旧用户读到的仍是已发布的 format2 内容版本', s.contentVersion, oldDoc.contentVersion);
+    eq('接受前：旧用户读到的仍是已发布那一版内容', s.contentVersion, oldDoc.contentVersion);
     eq('接受前：首数仍是旧那一版', s.poems, oldDoc.poems.length);
-    eq('接受前：页面上生效的格式仍是 2', s.formatVersion, 2);
+    eq('接受前：页面上生效的格式仍是已发布那一版', s.formatVersion, Number(oldDoc.formatVersion));
     check('接受前：旧页面没有裂（没有失败状态 —— 新格式没有半路塞给它）',
       !(await evaluate(`Boolean(document.querySelector('[data-test="view-error"]'))`)));
     // 过渡期的硬证据：**旧 cache 里的字节一点没变**（新 SW 的 install 写的是新 cache，不覆盖旧的）。
@@ -2481,7 +2495,7 @@ async function main() {
     check('新旧缓存并存：新的一对已就绪、旧的仍在服务（不是「先删旧的」）',
       cachesDuringSwitch.includes(vOld.cacheName) && cachesDuringSwitch.includes(vNew.cacheName),
       dump(cachesDuringSwitch));
-    await screenshot('s9-4-format2-to-format3-update-available.png');
+    await screenshot('s9-4-update-available-same-format.png');
 
     const tokenSwitch = await docToken();
     await evaluate(`document.querySelector('[data-test="apply-update"]').click(); true`);
@@ -2490,7 +2504,7 @@ async function main() {
     s = await summary();
     eq('切换后：应用版本仍是同一个（本轮换的是格式/内容修订，不是 APP_VERSION）', s.appVersion, APP_VERSION);
     eq('切换后：内容版本 = 本轮产物', s.contentVersion, baseDoc.contentVersion);
-    eq('切换后：客户端认的格式版本 = 3', s.formatVersion, 3);
+    eq('切换后：客户端认的格式版本 = 本轮产物那一个', s.formatVersion, Number(baseDoc.formatVersion));
     eq('切换后：首数 == 本轮产物首数', s.poems, baseDoc.poems.length);
     eq('切换后：目录次序 == 本轮产物数组次序', await domPoemIds(), expectedDomOrder(baseDoc));
     check('切换后没有残留失败状态', !(await evaluate(`Boolean(document.querySelector('[data-test="view-error"]'))`)));
@@ -2526,7 +2540,7 @@ async function main() {
     eq('别的组收起时，它的行不可见（标签只收带该标签的诗，不是把整库倒出来）',
       await evaluate(`[...document.querySelectorAll('[data-test="tag-group"]:not([data-tag-id=' + ${JSON.stringify(JSON.stringify(baseTagGroups[0].id))} + ']) [data-test="poem-row"]')].filter((r) => r.offsetParent !== null).length`),
       0);
-    await screenshot('s9-5-format3-tags-19-members.png');
+    await screenshot('s9-5-tags-19-members.png');
 
     // ---- 9e-2 真实 dist 上的同一个标签页：「唐诗三百首」也必须能展开（两行其一 → 其二）----
     // 这一节**不换夹具**：用的就是本轮真实产物（`web/content.json` → 发布出去的那一对字节）。
@@ -2554,7 +2568,7 @@ async function main() {
     //（否则这张图和 s9-5 会是一模一样的帧，等于没出证据）。
     await evaluate(`document.querySelector('[data-test="tag-group"][data-tag-id="唐诗三百首"]').scrollIntoView({ block: 'start' }); true`);
     await sleep(150);
-    await screenshot('s9-5b-format3-real-two-tags-tang300-two-rows.png');
+    await screenshot('s9-5b-real-tang300-three-rows.png');
     await evaluate('window.scrollTo(0, 0); true');
 
     // ---- 9e-3 唐300 两路逐层返回（真实产物、真哈希路由）----
@@ -2668,7 +2682,7 @@ async function main() {
     eq('从其二返回也回到标签视图', await evaluate('location.hash'), '#/tags');
     await cdp.send('Emulation.setDeviceMetricsOverride', { width: 430, height: 932, deviceScaleFactor: 2, mobile: false });
     await sleep(150);
-    await screenshot('s9-5c-format3-tang300-back-from-tag-view.png');
+    await screenshot('s9-5c-tang300-back-from-tag-view.png');
     await cdp.send('Emulation.clearDeviceMetricsOverride');
 
     await hashTo('#/');
@@ -2728,7 +2742,7 @@ async function main() {
     eq('失败码证据：预缓存要取的 content.json 在服务器上是 404（install 因此失败）', failProbe.contentStatus, 404);
     eq('失败保旧：当前 v3 缓存里的 content.json 字节**一点没变**（sha256 仍是本轮产物）',
       sha256(await cacheText(vNew.cacheName, '/content.json')), sha256(baseText));
-    await screenshot('s9-6-format3-broken-install-keeps-v3.png');
+    await screenshot('s9-6-broken-install-keeps-current.png');
 
     // ---- 9h 离线不裂：断网 + 停服务后仍能读 v3（含标签视图）----
     await cdp.send('Network.emulateNetworkConditions', { offline: true, latency: 0, downloadThroughput: 0, uploadThroughput: 0 });
@@ -2752,7 +2766,7 @@ async function main() {
       baseTagIds);
     await hashTo('#/');
     await waitForDynastyView();
-    await screenshot('s9-7-format3-offline-after-update.png');
+    await screenshot('s9-7-offline-after-update.png');
     await startServer(vNew.destDir);
     await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
     await reload();

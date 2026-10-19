@@ -27,8 +27,9 @@ import { RELEASE_VERSION_RE } from './lib/version-source.mjs';
 import { compareContentVersion } from '../tools/lib/version.mjs';
 import { LIVE_CHECK_IDS, findE2EDeployFiles, runAndroidUnitTests, runMarkdownConformance, runWebE2E } from './lib/live.mjs';
 import { downloadLiveContentFile, readLiveAppVersion } from './lib/live-version.mjs';
+import { decideReadiness } from './lib/readiness.mjs';
 import {
-  checkSwCacheNameShape, classifyWebChanges, compareAgainstBaselines, parseChangedPaths,
+  checkSwCacheNameShape, classifyWebChanges, compareAgainstBaselines, diffPublishedPoems, parseChangedPaths,
   pickSameAppBaseline, readAppVersionConstant, readContentRevision,
 } from './lib/content-refresh.mjs';
 import { decideSigning } from './lib/apksigner.mjs';
@@ -756,17 +757,27 @@ check('same-app-content-delta', '内容相对**线上已发布那一份**：已�
   }
   const before = JSON.parse(fs.readFileSync(dest, 'utf8'));
   const after = c.dist;
-  const afterById = new Map((after.poems ?? []).map((x) => [x.id, x]));
-  const missing = [];
-  const modified = [];
-  for (const bp of before.poems ?? []) {
-    const np = afterById.get(bp.id);
-    if (!np) missing.push(bp.id);
-    else if (JSON.stringify(np) !== JSON.stringify(bp)) modified.push(bp.id);
+  // 「已发布作品只增不改」的精确判据在 lib 里（纯函数、有单测）：
+  //  · 逐首逐字段比，**不由本门自己**放宽；
+  //  · 唯一的例外是 **已逐首逐字段登记、且形状只可能是排序键** 的改动（见 PUBLISHED_POEM_FIELD_EDITS，日期/决定/理由都写在表里）；
+  //  · 登记了却没变（声明过期）也红 —— 否则这张表会慢慢变成一句谎话。
+  const d = diffPublishedPoems({ before, after });
+  if (d.missing.length) fail(`本次**删掉了已发布作品**：${d.missing.join('、')}`);
+  if (d.textModified.length) {
+    fail(
+      `本次改动了**已发布作品的字句/其它字段**（已发布内容只增不改）：\n`
+      + d.textModified.map((x) => `     - ${x.id}：${x.because}`).join('\n')
+      + '\n   真正的排序键调整必须在 release/lib/content-refresh.mjs 的 PUBLISHED_POEM_FIELD_EDITS 里逐首登记，'
+      + '且只许 orderInSource / tags[].orderInTag 变。',
+    );
   }
-  if (missing.length) fail(`本次**删掉了已发布作品**：${missing.join('、')}`);
-  if (modified.length) fail(`本次**改动了已发布作品的字句**：${modified.join('、')}（已发布内容只增不改）`);
-  const added = (after.poems ?? []).filter((x) => !(before.poems ?? []).some((b) => b.id === x.id));
+  if (d.stale.length) {
+    fail(
+      `这些作品在 PUBLISHED_POEM_FIELD_EDITS 里登记了改动，但本次产物里它们**并没有变**：${d.stale.join('、')}\n`
+      + '   登记过期 = 这张表在说谎（会让以后的审查以为某个改动发生过）。请把过期的条目删掉。',
+    );
+  }
+  const added = d.added;
   if (added.length === 0) fail('本次相对已发布内容没有任何新增作品 —— 那这次“内容刷新”刷新了什么？');
   // 组名：基线里的组必须按同一次序仍然存在（不许删组、不许乱序）
   const seq = (sub, all) => {
@@ -779,8 +790,10 @@ check('same-app-content-delta', '内容相对**线上已发布那一份**：已�
   }
   return `线上 ${base.contentVersion}：${(before.poems ?? []).length} 首 / ${(before.dynasties ?? []).length} 组 `
     + `→ 本次 ${(after.poems ?? []).length} 首 / ${(after.dynasties ?? []).length} 组；`
-    + `新增 ${added.length} 首（${added.map((x) => x.title).join('、')}）；已发布 ${(before.poems ?? []).length} 首逐字节未变；`
-    + `快照 sha256=${dl.sha256.slice(0, 16)}…`;
+    + `新增 ${added.length} 首（${added.map((x) => x.title).join('、')}）；已发布 ${(before.poems ?? []).length} 首正文/其它字段逐字节未变；`
+    + `已登记的**排序键**改动 ${d.reordered.length} 首（`
+    + (d.reordered.length ? d.reordered.map((x) => `${x.id}：${x.fields.join('+')}`).join('；') : '无')
+    + `）；快照 sha256=${dl.sha256.slice(0, 16)}…`;
 }, ['dist', 'manifest']);
 
 check('same-app-content-bumped', 'contentVersion **严格大于**线上真值与基线发布（否则已更新的客户端不会采用）', (c) => {
@@ -1026,32 +1039,40 @@ function main() {
   //   **黄 = 没通过**（环境不可用/需人工确认）、**跳过 = 没查** —— 都不能被读成“可以推进”。
   const gating = [...LIVE_CHECK_IDS, 'apk-signing'].map((id) => results.find((r) => r.id === id)).filter(Boolean);
   const notGreen = gating.filter((r) => r.status !== 'PASS');
-  if (opts.sameAppRefresh) {
-    const sameAppGating = [
-      ...LIVE_CHECK_IDS,
-      'same-app-app-version-unchanged',
-      'same-app-version-code-unchanged',
-      'same-app-android-source-identical',
-      'same-app-web-source-scope',
-      'same-app-content-delta',
-      'content-revision-stamped',
-    ].map((id) => results.find((r) => r.id === id)).filter(Boolean);
-    const sameAppNotGreen = sameAppGating.filter((r) => r.status !== 'PASS');
-    if (sameAppNotGreen.length === 0) {
-      const base = ctx.sameAppBaseline;
-      console.log(
-        `结论：**same-app 内容刷新就绪**（APK 为同版本号重打包、内置 ${ctx.dist?.poems?.length ?? '?'} 首；`
-        + `APP_VERSION ${ctx.manifest?.app?.webAppVersion} / versionCode ${ctx.manifest?.app?.versionCode} 未变，`
-        + `内容 ${base?.contentVersion} → ${ctx.dist?.contentVersion}）。`,
-      );
-      console.log('  即：可以按新 tag 建 Release 并附这个 APK；**不是**一次升版发布（应用版本与 versionCode 都没动）。');
-    } else {
-      console.log('结论：**不满足推进条件** —— same-app 内容刷新这些门不是绿的（黄=没跑/未确认，跳过=没查，都不能当通过）：');
-      for (const r of sameAppNotGreen) console.log(`  · ${r.id} = ${r.status}：${String(r.detail).split('\n')[0]}`);
-    }
-  } else if (variant === 'debug') {
+  // ── 结论与退出码的**同一个**判据 ─────────────────────────────────────────────
+  // ⚠️ 2026-10-19 修的真缺陷：这两个「不满足推进条件」分支原先**只打印、不改退出码**（末尾统一 exit 0）⇒
+  //   只要不是 `FAIL` 而是 `WARN`（没跑）/`SKIP`（没查），工作流就会**照样**进到 Pages / Release 那几步。
+  //   ⇒ 现在打印与退出码都读 `decideReadiness()`（纯函数、有单测），**结论说「不推进」就一定 exit ≠ 0**。
+  const sameAppGating = opts.sameAppRefresh
+    ? [
+        ...LIVE_CHECK_IDS,
+        'same-app-app-version-unchanged',
+        'same-app-version-code-unchanged',
+        'same-app-android-source-identical',
+        'same-app-web-source-scope',
+        'same-app-content-delta',
+        'content-revision-stamped',
+      ].map((id) => results.find((r) => r.id === id)).filter(Boolean)
+    : [];
+  const sameAppNotGreen = sameAppGating.filter((r) => r.status !== 'PASS');
+  const decision = decideReadiness({
+    sameAppRefresh: opts.sameAppRefresh, variant, notGreen, sameAppNotGreen,
+  });
+  if (decision.kind === 'same-app-ready') {
+    const base = ctx.sameAppBaseline;
+    console.log(
+      `结论：**same-app 内容刷新就绪**（APK 为同版本号重打包、内置 ${ctx.dist?.poems?.length ?? '?'} 首；`
+      + `APP_VERSION ${ctx.manifest?.app?.webAppVersion} / versionCode ${ctx.manifest?.app?.versionCode} 未变，`
+      + `内容 ${base?.contentVersion} → ${ctx.dist?.contentVersion}）。`,
+    );
+    console.log('  即：可以按新 tag 建 Release 并附这个 APK；**不是**一次升版发布（应用版本与 versionCode 都没动）。');
+  } else if (opts.sameAppRefresh) {
+    console.log('结论：**不满足推进条件** —— same-app 内容刷新这些门不是绿的（黄=没跑/未确认，跳过=没查，都不能当通过）：');
+    for (const r of sameAppNotGreen) console.log(`  · ${r.id} = ${r.status}：${String(r.detail).split('\n')[0]}`);
+    console.log('影响：**不推进**（不建 Release、不部署 Pages、不动 latest.json）；旧版本与旧 tag 一律不变，没有东西被删。');
+  } else if (decision.kind === 'rehearsal-debug') {
     console.log('结论：**演练口径就绪**（debug 变体：三样产物齐、各门过，但 **debug 签名 → 不得用于正式发布**）。');
-  } else if (notGreen.length === 0) {
+  } else if (decision.kind === 'release-ready') {
     console.log('结论：**三样产物就绪**（release 变体）。可以推进「最新版」。');
   } else {
     console.log(
@@ -1097,8 +1118,8 @@ function main() {
       : '  本次是 debug 签名（不能用于正式发布）、未在真机或模拟器上安装运行。',
   );
   console.log('  GitHub Pages / Release 各自的缓存与生效延迟由服务商决定，本流水线**不声称原子性**。');
-  if (opts.json) console.log(JSON.stringify({ ready: true, outDir: display(outDir), results }, null, 2));
-  process.exit(0);
+  if (opts.json) console.log(JSON.stringify({ ready: decision.ready, exitCode: decision.exitCode, kind: decision.kind, outDir: display(outDir), results }, null, 2));
+  process.exit(decision.exitCode);
 }
 
 // 只有被当作可执行脚本直接运行时才跑主流程（`import` 它不应跑一遍检查）。
