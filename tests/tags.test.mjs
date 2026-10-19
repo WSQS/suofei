@@ -24,6 +24,7 @@ import {
 } from '../tools/lib/content-build.mjs';
 import { fieldPaths } from '../tools/lib/field-set.mjs';
 import { idFromRelativePath, scanPoems } from '../tools/lib/scan.mjs';
+import { readTrackedPoemPaths } from '../tools/lib/tracked-poems.mjs';
 import { PINYIN_COLLATOR_LOCALE, POEM_KEYS, POEM_TAG_KEYS, TAG_INDEX_KEYS } from '../tools/lib/interface.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
@@ -476,27 +477,45 @@ test('真实 content/poems：顶层 tags 与诗侧归属**按源派生**一致�
   assertTagIndexConsistent(content.poems, content.tags);
 });
 
-// ---------- 已跟踪内容的**实况快照**（不是格式契约；从 `git ls-files` 派生，工作区多一首未跟踪稿不会弄红） ----------
+// ---------- 已跟踪内容的**实况快照**（不是格式契约；从「已跟踪诗源清单」派生，工作区多一首未跟踪稿不会弄红） ----------
 
 /**
- * 只取**已跟踪**的源文件（`git ls-files content/poems`）。
+ * 只取**已跟踪**的源文件。清单来源由 `tools/lib/tracked-poems.mjs` 统一解析：
+ *   环境变量 `SUOFEI_TRACKED_POEMS` > 本仓库根的 `git ls-files` > 已提交清单 `content/tracked-poems.json`。
  *
  * 为什么不直接扫目录：工作区里可能有一首还没 `git add` 的稿子（用户本机就有这种情形）。
  * 那时「本次已跟踪内容长什么样」被未提交的文件弄红，说的就不是已落库的内容了——用户
  * 2026-10-19 明确要求这类实况用例从**已跟踪内容**派生。
+ *
+ * 为什么不再在这里直接 `spawnSync('git', …)`（2026-10-19 实测）：
+ *   - 没有 `.git` 的 `git archive` 展开目录里，git 直接 `fatal`（退出 128）⇒ 用例红，红的是**环境**；
+ *   - 仓库内部的副本（`release/out/.work/...`）里，git 会向上解析到**父仓**，
+ *     对副本 cwd 返回**空清单、退出 0** ⇒ 用例红，而且报错像是「已跟踪的诗源为空」。
+ *   现在这两种目录都从**随内容提交的清单**读同一份事实；实在没有清单就**明确报「未提供清单」**
+ *   （这一条没查，不是通过），而不是猜一个空列表。
  */
 function readTrackedPoems() {
-  const r = spawnSync('git', ['ls-files', '-z', '--', 'content/poems'], { cwd: ROOT, encoding: 'utf8' });
-  assert.equal(r.status, 0, `git ls-files 失败：${r.stderr}`);
-  const paths = (r.stdout ?? '').split('\0').filter((p) => p.toLowerCase().endsWith('.md'));
-  assert.ok(paths.length > 0, 'git ls-files 应当列出已跟踪的诗源文件');
+  let list;
+  try {
+    list = readTrackedPoemPaths(ROOT);
+  } catch (err) {
+    // 「未提供清单」必须是红，并把来源/修法原样带出来（没查 ≠ 通过）。
+    assert.fail(err.message);
+  }
+  const { paths, source } = list;
+  assert.ok(paths.length > 0, `已跟踪诗源清单为空（来源：${source}）——这一条没查成，不是通过`);
   return paths.map((rel) => {
+    const abs = path.join(ROOT, rel);
+    assert.ok(
+      fs.existsSync(abs),
+      `清单（来源：${source}）里的 ${rel} 在磁盘上不存在 ⇒ 清单过期？运行 node tools/gen-tracked-poems-manifest.mjs`,
+    );
     const relToPoems = rel.replace(/^content\/poems\//, '');
     return {
       displayPath: rel,
       relPath: relToPoems,
       id: idFromRelativePath(relToPoems),
-      text: fs.readFileSync(path.join(ROOT, rel), 'utf8'),
+      text: fs.readFileSync(abs, 'utf8'),
     };
   });
 }

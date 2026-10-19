@@ -1,0 +1,30 @@
+{
+  "manifestVersion": 1,
+  "note": "生成物，请勿手改。由 tools/gen-tracked-poems-manifest.mjs 从 `git ls-files -z -- content/poems` 生成；无 .git 的 git archive/发布副本读它当「已跟踪诗源清单」，真实仓由 tests/tracked-poems-manifest.test.mjs 逐条核对新鲜度。",
+  "source": "git ls-files -z -- content/poems",
+  "paths": [
+    "content/poems/古诗十九首/东城高且长.md",
+    "content/poems/古诗十九首/今日良宴会.md",
+    "content/poems/古诗十九首/冉冉孤生竹.md",
+    "content/poems/古诗十九首/凛凛岁云暮.md",
+    "content/poems/古诗十九首/去者日以疏.md",
+    "content/poems/古诗十九首/回车驾言迈.md",
+    "content/poems/古诗十九首/孟冬寒气至.md",
+    "content/poems/古诗十九首/客从远方来.md",
+    "content/poems/古诗十九首/庭中有奇树.md",
+    "content/poems/古诗十九首/明月何皎皎.md",
+    "content/poems/古诗十九首/明月皎夜光.md",
+    "content/poems/古诗十九首/涉江采芙蓉.md",
+    "content/poems/古诗十九首/生年不满百.md",
+    "content/poems/古诗十九首/行行重行行.md",
+    "content/poems/古诗十九首/西北有高楼.md",
+    "content/poems/古诗十九首/迢迢牵牛星.md",
+    "content/poems/古诗十九首/青青河畔草.md",
+    "content/poems/古诗十九首/青青陵上柏.md",
+    "content/poems/古诗十九首/驱车上东门.md",
+    "content/poems/杜甫/望岳.md",
+    "content/poems/杜甫/梦李白二首·其一.md",
+    "content/poems/杜甫/梦李白二首·其二.md",
+    "content/poems/毛泽东/七律·和郭沫若同志.md"
+  ]
+}
