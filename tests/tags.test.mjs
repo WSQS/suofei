@@ -535,7 +535,7 @@ function buildTrackedContent() {
   return { records, content, declared: records.map(readFrontMatterFacts) };
 }
 
-test('【已跟踪内容实况，不是契约】23 首、2 个标签（古诗十九首 19 ／ 唐诗三百首 3）、近现代仅七律一首（orderInSource=2）', () => {
+test('【已跟踪内容实况，不是契约】24 首、2 个标签（古诗十九首 19 ／ 唐诗三百首 3）、近现代两首（忆秦娥 1 ／ 七律 2）', () => {
   const { records, content } = buildTrackedContent();
 
   // ⚠ 这一条断言的是「**本次已跟踪内容**长这样」——**内容实况，不是格式契约**。
@@ -543,7 +543,7 @@ test('【已跟踪内容实况，不是契约】23 首、2 个标签（古诗十
   //   无标签 ⇒ []……）由上面那些**按源逐首派生**的用例与夹具用例负责，不依赖作者名，也不依赖
   //   「某人只有一首」。内容线改动内容（例如把一首新诗 `git add` 进来）就跟着改这里；
   //   **工作区里未跟踪**的新诗不会让它红。
-  assert.equal(records.length, 23, '已跟踪 23 首源文件');
+  assert.equal(records.length, 24, '已跟踪 24 首源文件');
   assert.equal(content.poems.length, records.length, '产物首数 = 已跟踪源文件数');
   assert.deepEqual(content.dynasties, ['汉', '唐', '近现代'], '本次实况：三个朝代组');
 
@@ -589,16 +589,17 @@ test('【已跟踪内容实况，不是契约】23 首、2 个标签（古诗十
   );
   assert.deepEqual(titlesOf('唐诗三百首'), ['望岳', '梦李白二首·其一', '梦李白二首·其二']);
 
-  // 近现代：**已跟踪**内容里只有 1 首，就是《七律·和郭沫若同志》（orderInSource=2），且没有标签。
+  // 近现代：**已跟踪**内容里 2 首——《忆秦娥·娄山关》（orderInSource=1）→《七律·和郭沫若同志》（orderInSource=2），
+  //   两首都没有标签（用户未给这两首加标签，产物 `tags: []` 合法）。
   //   这是实况（此刻被跟踪到了哪几首、它们写了什么号），不是「某作者只有一首」「某作者必无标签」的规则。
   const modern = content.poems.filter((p) => p.dynasty === '近现代');
-  assert.deepEqual(modern.map((p) => p.title), ['七律·和郭沫若同志']);
-  assert.equal(modern[0].orderInSource, 2);
-  assert.deepEqual(modern[0].tags, []);
+  assert.deepEqual(modern.map((p) => p.title), ['忆秦娥·娄山关', '七律·和郭沫若同志']);
+  assert.deepEqual(modern.map((p) => p.orderInSource), [1, 2]);
+  for (const p of modern) assert.deepEqual(p.tags, [], `本次实况：${p.title} 没有标签`);
 
-  // 无标签的诗（本次实况）：1 首，就是上面那首近现代
+  // 无标签的诗（本次实况）：2 首，就是上面那两首近现代
   const untagged = content.poems.filter((p) => p.tags.length === 0);
-  assert.deepEqual(untagged.map((p) => p.id), [modern[0].id], '本次实况：无标签的只有近现代那一首');
+  assert.deepEqual(untagged.map((p) => p.id), modern.map((p) => p.id), '本次实况：无标签的只有近现代那两首');
 });
 test('契约夹具 real-01-full.json 仍是当前形状（v3 顶层键序 / 11 键 / 字段集与冻结记录一致）', () => {
   const doc = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'contract', 'real-01-full.json'), 'utf8'));

@@ -109,11 +109,18 @@ class ContentParserTest {
         assertEquals("行行重行行", han.poems.first().title)
         assertEquals("明月何皎皎", han.poems.last().title)
         assertEquals((1..19).toList(), han.poems.map { it.orderInSource })
-        // 新增的「近现代」组：1 首；**没有** orderInSource（该键可选，未写就是 null —— 不替用户编）。
+        // 「近现代」组：**本批（2026-10-19 用户提交《忆秦娥·娄山关》）2 首**，两首都写了 orderInSource：
+        //   忆秦娥·娄山关 = 1 → 七律·和郭沫若同志 = 2（次序就是源文的 `orderInSource`，客户端不重排）。
+        //   ⚠ 本条钉的是**本批实况**（用户此刻给了哪些诗、写了什么号），不是「近现代必有两首」的契约；
+        //   内容线加诗就跟着改这里。历史：2026-10-19 前只有《七律》一首时，这里曾断言「1 首且 orderInSource 为 null」，
+        //   而源文早就是 `orderInSource: 2` ⇒ 那条断言的**陈旧**曾让 Android 单测在本批之前就是红的。
         val modern = content.groups.first { it.name == "近现代" }
-        assertEquals(1, modern.poems.size)
-        assertEquals("七律·和郭沫若同志", modern.poems.single().title)
-        assertEquals(null, modern.poems.single().orderInSource)
+        assertEquals(2, modern.poems.size)
+        assertEquals(
+            listOf("忆秦娥·娄山关", "七律·和郭沫若同志"),
+            modern.poems.map { it.title },
+        )
+        assertEquals(listOf(1, 2), modern.poems.map { it.orderInSource })
 
         // v3：内置产物必须带标签，而且**标签内次序照产物**（客户端不重排）。
         // ⚠ 不写死「1 个标签 / 古诗十九首 19 首 / 其余 3 首空」：
@@ -226,10 +233,10 @@ class ContentParserTest {
             expectedOrderInSource.keys.map { id -> tangDynasty.poems.firstOrNull { it.id == id }?.orderInSource },
         )
         assertEquals("标签页的组数 == 2（两个组头）", 2, content.tagGroups.size)
-        // 毛诗仍没有标签
+        // 毛诗仍没有标签（本批 2 首；标签不因“作者有诗”而自动出现）
         val mao = content.poems.filter { it.author == "毛泽东" }
-        assertEquals("应能按作者认出毛诗这一首", 1, mao.size)
-        assertTrue("毛诗本轮仍无标签", mao.single().tags.isEmpty())
+        assertEquals("应能按作者认出毛诗这两首", 2, mao.size)
+        for (p in mao) assertTrue("毛诗本轮仍无标签（${p.title}）", p.tags.isEmpty())
     }
 
     /**
