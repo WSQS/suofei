@@ -33,7 +33,8 @@ const USAGE = `用法：node tools/build-content.mjs [选项]
   ${CLI_FLAGS.previousVersion} <v>      上一版内容版本，用于单调性检查（默认读取已有产物里的值）
   ${CLI_FLAGS.minify}                    产物压缩为单行 JSON（默认 2 空格缩进，便于评审与 diff）
   ${CLI_FLAGS.order} <source|pinyin>    组内排序策略，默认 ${DEFAULT_ORDER_STRATEGY}（暂定，待用户拍板）
-                               source：先底本原次序 orderInSource，无值者再按拼音；
+                               source：朝代组序 → orderInSource 升序（orderInSource 必填正整数、
+                                       同一朝代内唯一；允许留空号；跨朝代各自从 1 起）；
                                pinyin：作者拼音 → 诗名拼音（佚名排最后）
   ${CLI_FLAGS.json}                      以 JSON 输出结果（便于流水线/脚本消费）
   ${CLI_FLAGS.quiet}                     成功时不打印摘要

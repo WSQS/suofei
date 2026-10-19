@@ -24,6 +24,7 @@ import {
   POEM_TAG_KEYS,
   REMOVED_FRONT_MATTER_KEYS,
   REQUIRED_FRONT_MATTER_KEYS,
+  REQUIRED_INT_FRONT_MATTER_KEYS,
   TAG_INDEX_KEYS,
   UNKNOWN_AUTHOR_MARKERS,
   UNKNOWN_AUTHORS_RELATIVE_PATH,
@@ -89,8 +90,16 @@ test('schema / POEM_KEYS：不发布 authorSortKey/titleSortKey', () => {
   );
 });
 
-test('front matter 键集：必填 + 可选 = 允许的全部；产物字段可追溯到源/结构', () => {
-  assert.deepEqual(ALL_FRONT_MATTER_KEYS, [...REQUIRED_FRONT_MATTER_KEYS, ...OPTIONAL_FRONT_MATTER_KEYS]);
+test('front matter 键集：必填（字符串）＋ 必填（正整数）＋ 可选 = 允许的全部；产物字段可追溯到源/结构', () => {
+  // 三张清单不重叠，且并集就是允许的全部键（次序由 interface.mjs 写死）
+  assert.deepEqual(
+    [...ALL_FRONT_MATTER_KEYS].sort(),
+    [...REQUIRED_FRONT_MATTER_KEYS, ...REQUIRED_INT_FRONT_MATTER_KEYS, ...OPTIONAL_FRONT_MATTER_KEYS].sort(),
+  );
+  assert.equal(new Set(ALL_FRONT_MATTER_KEYS).size, ALL_FRONT_MATTER_KEYS.length, '三张清单不得有重叠');
+  // 2026-10-19（用户拍板 B）：orderInSource 是必填正整数，不再是可选项
+  assert.deepEqual([...REQUIRED_INT_FRONT_MATTER_KEYS], ['orderInSource']);
+  assert.equal(OPTIONAL_FRONT_MATTER_KEYS.includes('orderInSource'), false);
   // 产物字段 → 来源（id 来自相对路径；detail/notes 来自两个节；stanzas 来自正文区）
   const derived = new Set(['id', 'detail', 'notes', 'stanzas']);
   for (const key of POEM_KEYS) {
@@ -104,6 +113,14 @@ test('front matter 键集：必填 + 可选 = 允许的全部；产物字段可�
   for (const key of [...REMOVED_FRONT_MATTER_KEYS, 'id']) {
     assert.equal(ALL_FRONT_MATTER_KEYS.includes(key), false, `${key} 旧键不得再被允许`);
   }
+});
+
+test('schema：orderInSource 必填正整数（不许 null）——与 REQUIRED_INT_FRONT_MATTER_KEYS 一致', () => {
+  const poemItem = schema.properties.poems.items;
+  assert.ok(poemItem.required.includes('orderInSource'), '产物 schema 必须把 orderInSource 列为 required');
+  const prop = poemItem.properties.orderInSource;
+  assert.equal(prop.type, 'integer', 'orderInSource 不再允许 null（type 不得是 ["integer","null"]）');
+  assert.equal(prop.minimum, 1);
 });
 
 test('schema：标签的两个键集/键序 = interface.mjs（诗侧 {id,orderInTag}；顶层 {id,members}）', () => {

@@ -141,7 +141,7 @@ const ORDER_SAMPLE = () => [
   poemWithSource('cao-yong-01', '饮马长城窟行', '蔡邕', undefined),
 ];
 
-test('sortPoems --order source：有 orderInSource 的在先、按升序，无值者接在后面按拼音', () => {
+test('sortPoems --order source：按升序，**无值者**接在后面按拼音（这条分支自 2026-10-19 起只对直构对象/旧产物存在：内容侧缺值已改成 ORDER_IN_SOURCE_REQUIRED）', () => {
   const poems = ORDER_SAMPLE();
   sortPoems(poems, 'source');
   assert.deepEqual(poems.map((p) => p.title), [
@@ -163,7 +163,7 @@ test('sortPoems --order pinyin：忽略 orderInSource，作者拼音 → 诗名�
   ]);
 });
 
-test('sortPoems：未给 orderInSource 时两种策略结果完全一致（默认值不会静默改变行为）', () => {
+test('sortPoems：未给 orderInSource 时两种策略结果完全一致（仅存于直构对象；内容侧已不可能缺该键）', () => {
   const a = [poem('a-01', { author: '乙', title: '甲题' }), poem('b-01', { author: '甲', title: '乙题' })];
   const b = [poem('a-01', { author: '乙', title: '甲题' }), poem('b-01', { author: '甲', title: '乙题' })];
   sortPoems(a, 'source');
@@ -269,21 +269,92 @@ test('字段类型：title/author/dynasty/source 必须字符串；genre 可为 
   assert.deepEqual(codes(OK_TEXT.replace('genre: "五言古诗"\n', '')), []);
 });
 
-test('orderInSource：可选；缺失为 null，非正整数报错', () => {
-  const noOrder = OK_TEXT.replace('orderInSource: 1\n', '');
-  const r = parsePoemRecord(rec(noOrder));
-  assert.deepEqual(r.errors, []);
-  assert.equal(r.poem.orderInSource, null);
+test('orderInSource：**必填正整数** —— 缺失 / null ⇒ ORDER_IN_SOURCE_REQUIRED；0/负数/小数/非数字 ⇒ ORDER_IN_SOURCE_NOT_INTEGER', () => {
+  // ① 缺失：整行删掉（夹具以前就靠「省略即可」，2026-10-19 用户定：不可省略）
+  const noOrder = parsePoemRecord(rec(OK_TEXT.replace('orderInSource: 1\n', '')));
+  assert.deepEqual(
+    noOrder.errors.map((e) => e.code),
+    ['ORDER_IN_SOURCE_REQUIRED'],
+    '缺 orderInSource 必须是 ORDER_IN_SOURCE_REQUIRED',
+  );
+  assert.equal(noOrder.poem, null, '缺必填键不得产出诗对象（也就不会写出产物）');
+  for (const word of ['必填', '不可省略', '不可 null']) {
+    assert.ok(noOrder.errors[0].message.includes(word), `诊断文案要说出「${word}」；实际：${noOrder.errors[0].message}`);
+  }
+
+  // ② null / ~ / 空值（最小 YAML 子集三者都解析成 null）⇒ 同一个码
+  for (const raw of ['null', '~', '']) {
+    const r = parsePoemRecord(rec(OK_TEXT.replace('orderInSource: 1', `orderInSource: ${raw}`)));
+    assert.deepEqual(r.errors.map((e) => e.code), ['ORDER_IN_SOURCE_REQUIRED'], `orderInSource: ${raw} 应被拒绝`);
+    assert.equal(r.poem, null);
+  }
+
+  // ③ 写了但不是 ≥ 1 的整数
   for (const bad of ['第七', '0', '-1', '1.5']) {
     const text = OK_TEXT.replace('orderInSource: 1', `orderInSource: ${bad}`);
     assert.deepEqual(codes(text), ['ORDER_IN_SOURCE_NOT_INTEGER'], `${bad} 应被拒绝`);
   }
+
+  // ④ 合法：最小 1（正整数下界），原样进产物
+  const ok = parsePoemRecord(rec(OK_TEXT));
+  assert.deepEqual(ok.errors, []);
+  assert.equal(ok.poem.orderInSource, 1);
+});
+
+test('同一朝代内 orderInSource 必须唯一：冲突时报 ORDER_IN_SOURCE_DUP，并列出全部冲突的诗 id 与源路径', () => {
+  const withTitle = (t) => OK_TEXT.replace('title: "样例"', `title: "${t}"`);
+  const { content, errors } = buildContentFromRecords({
+    records: [rec(withTitle('甲'), 'a-01'), rec(withTitle('乙'), 'b-01'), rec(OK_TEXT.replace('orderInSource: 1', 'orderInSource: 2'), 'c-01')],
+    explicitVersion: '2026.10.19.1',
+  });
+  assert.equal(content, null, '序号冲突不得产出产物');
+  assert.deepEqual(errors.map((e) => e.code), ['ORDER_IN_SOURCE_DUP']);
+  const msg = errors[0].message;
+  // 两首（同为汉、同一号）都必须在诊断里，且带上源路径——否则读者不知道去哪改
+  assert.ok(msg.includes('a-01') && msg.includes('content/poems/a-01.md'), msg);
+  assert.ok(msg.includes('b-01') && msg.includes('content/poems/b-01.md'), msg);
+  assert.equal(msg.includes('c-01'), false, '不冲突的诗不应被列进冲突名单');
+  assert.ok(msg.includes('跨作者') && msg.includes('允许留空号'), '诊断要写清判据（跨作者也不得重复；允许留空号）');
+});
+
+test('不同朝代各自从 1 起、且允许留空号：都不算冲突，次序仍是朝代组序 → orderInSource 升序', () => {
+  const mk = (id, dynasty, order) =>
+    rec(
+      OK_TEXT.replace('dynasty: "汉"', `dynasty: "${dynasty}"`).replace('orderInSource: 1', `orderInSource: ${order}`),
+      id,
+    );
+  const { content, errors } = buildContentFromRecords({
+    // 汉 1/9（留了空号 2..8），唐 1/7（又从 1 起）——都不冲突
+    records: [mk('h-01', '汉', 1), mk('h-02', '汉', 9), mk('t-01', '唐', 1), mk('t-02', '唐', 7)],
+    explicitVersion: '2026.10.19.2',
+  });
+  assert.deepEqual(errors, []);
+  assert.deepEqual(content.poems.map((p) => `${p.dynasty}:${p.orderInSource}`), ['汉:1', '汉:9', '唐:1', '唐:7']);
+});
+
+test('组内次序是 orderInSource 升序，**不是作者拼音序**（用户 2026-10-19 拍板 B）', () => {
+  const mk = (id, dynasty, order, author) =>
+    rec(
+      OK_TEXT.replace('author: "佚名"', `author: "${author}"`)
+        .replace('dynasty: "汉"', `dynasty: "${dynasty}"`)
+        .replace('orderInSource: 1', `orderInSource: ${order}`),
+      id,
+    );
+  // 杜甫(du) 拼音名次最前，但序号最大 ⇒ 应排最后；作者拼音绝不能先排
+  const { content, errors } = buildContentFromRecords({
+    records: [mk('tang-du-fu', '唐', 3, '杜甫'), mk('tang-li-bai-a', '唐', 1, '李白'), mk('tang-li-bai-b', '唐', 2, '李白')],
+    explicitVersion: '2026.10.19.3',
+  });
+  assert.deepEqual(errors, []);
+  assert.deepEqual(content.poems.map((p) => p.id), ['tang-li-bai-a', 'tang-li-bai-b', 'tang-du-fu']);
 });
 
 test('正文区没有非空行 ⇒ BODY_EMPTY（含完全没有正文区）', () => {
   const blankBody = OK_TEXT.slice(0, OK_TEXT.indexOf('正文一行。')) + '\n\n\n';
   assert.deepEqual(codes(blankBody), ['BODY_EMPTY']);
-  const noBody = ['---', 'title: "x"', 'author: "佚名"', 'dynasty: "汉"', 'source: "s"', '---'].join('\n') + '\n';
+  const noBody =
+    ['---', 'title: "x"', 'author: "佚名"', 'dynasty: "汉"', 'orderInSource: 1', 'source: "s"', '---'].join('\n') +
+    '\n';
   assert.deepEqual(codes(noBody), ['BODY_EMPTY']);
 });
 

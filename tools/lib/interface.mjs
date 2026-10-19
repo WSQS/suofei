@@ -97,16 +97,35 @@ export const KNOWN_SECTIONS = Object.freeze(['详情', '笔记']);
 export const SECTION_DETAIL = '详情';
 export const SECTION_NOTES = '笔记';
 
-/** 必填键。本轮冻结：只增可选键，不改名、不降级。 */
+/** 必填键（**值必须是「非空字符串」的那一类**）。本轮冻结：只增可选键，不改名、不降级。 */
 export const REQUIRED_FRONT_MATTER_KEYS = Object.freeze(['title', 'author', 'dynasty', 'source']);
 
 /**
- * 可选键。本轮冻结。
+ * **必填的正整数键**（用户 2026-10-19 定：`orderInSource` **必填**、**不可省略**、**不可 `null`**）。
+ *
+ * 语义＝这首诗在底本中的原次序（1 起）。用户 2026-10-19 同时拍板（选项 B）：
+ * **同一朝代内序号唯一**（跨作者也不得重复），**跨朝代各自从 1 起**，**允许留空号**；同序 ⇒ `ORDER_IN_SOURCE_DUP`。
+ *
+ * 为什么单列一张清单、而不是并进 `REQUIRED_FRONT_MATTER_KEYS`：那张清单管的是「非空字符串」类
+ * 必填键（缺 ⇒ `MISSING_REQUIRED_KEY`），而 `orderInSource` 有一整组更精确的码——
+ *   缺 / `null` ⇒ `ORDER_IN_SOURCE_REQUIRED`；写了但不是 ≥ 1 的整数 ⇒ `ORDER_IN_SOURCE_NOT_INTEGER`；
+ *   同朝代内同序 ⇒ `ORDER_IN_SOURCE_DUP`。
+ * 三条码都说清「必填、不可省略、不可 null」，比笼统的「必填键缺失」更能指出该做什么。
+ *
+ * ⚠ **键集没变**（源里仍是同样 7 个键，产物仍是同样 11 键）⇒ 按 B 判据**不升** `formatVersion`
+ * （2026-10-19 口径：只收紧值约束）。代价已接受并写进契约：`formatVersion=3` 的旧产物里
+ * `orderInSource: null` 的那几首**不再符合**当前 schema，需重编内容才对得上。
+ */
+export const REQUIRED_INT_FRONT_MATTER_KEYS = Object.freeze(['orderInSource']);
+
+/**
+ * 真正可选的键（可以整行不写）。本轮冻结。
  *
  * 2026-10-18（formatVersion=3）新增 `tags`：**归属**写在诗上，标签集合由编译期自动汇总；
  * 源里**可以不写**（⇒ 产物 `tags: []`，不是 `null`）。
+ * 2026-10-19：`orderInSource` 从这里移出（改为必填正整数，见上一条）。
  */
-export const OPTIONAL_FRONT_MATTER_KEYS = Object.freeze(['genre', 'orderInSource', 'tags']);
+export const OPTIONAL_FRONT_MATTER_KEYS = Object.freeze(['genre', 'tags']);
 
 /**
  * **已从源格式去掉**的旧键（formatVersion=1 的写法）。
@@ -128,10 +147,20 @@ export const REMOVED_FRONT_MATTER_KEYS = Object.freeze([
   'notes',
 ]);
 
-/** 未声明的键会被拒绝（不静默忽略）。 */
+/**
+ * 允许出现的键 ＝ 上面三条清单的**并集**（未声明的键会被拒绝，不静默忽略）。
+ *
+ * 次序**写死**而不是拼接：它是诊断文案（`MISSING_REQUIRED_KEY` 的「允许的键：…」）与文档表格
+ * 引用的同一份次序，拼接会随清单增删悄悄改变文案。三张清单本身不得重叠（`tests/interface.test.mjs` 钉住）。
+ */
 export const ALL_FRONT_MATTER_KEYS = Object.freeze([
-  ...REQUIRED_FRONT_MATTER_KEYS,
-  ...OPTIONAL_FRONT_MATTER_KEYS,
+  'title',
+  'author',
+  'dynasty',
+  'source',
+  'genre',
+  'orderInSource',
+  'tags',
 ]);
 
 /**
@@ -154,14 +183,21 @@ export const ID_PATTERN = '^[^/\\\\\\u0000-\\u001f\\u007f]+$';
 
 /**
  * 组内排序策略（编译期可切，见排序一节）。**客户端不排**：产物已按此处结果排好。
- *   source：先排底本原次序 orderInSource（有值者在先、升序），无值者再按作者/诗名拼音；
+ *   source：组内按必填的 orderInSource 升序（同一朝代内唯一；见 2026-10-19 注）；
  *   pinyin：完全按作者拼音 → 诗名拼音（佚名/未知作者在组内排最后）。
+ *
+ * ⚠ 2026-10-19（用户拍板 B）：`orderInSource` 是**必填正整数、同一朝代内唯一**（跨朝代各自从 1 起，
+ * 允许留空号；同序 ⇒ `ORDER_IN_SOURCE_DUP`）。**排序本身未改**：仍是「朝代组序 → orderInSource 升序」，
+ * **不改成作者先排**、不加作者页/UI 序号；`orderInTag` 仍与该键独立。作者/诗名拼音现在只在
+ * 构造上不可能出现的情形（直构单测对象、旧产物）下做确定性兜底，**不再用来掩盖并列序号**。
  */
 export const SORT_STRATEGIES = Object.freeze(['source', 'pinyin']);
 /**
  * 暂定默认值，**等待用户拍板**（见报告「接口决定（暂定，待用户确认）」）。
  * 选 source 的理由：当内容尚未提供 orderInSource 时，两种策略输出完全一致，
  * 不会静默改变现有行为；一旦内容补上该键，就自然遵守底本原次序。
+ * 2026-10-19 注：`orderInSource` 已是**必填正整数、同一朝代内唯一** ⇒ 新内容里「尚未提供」这个前提不再出现，
+ * 默认仍保持 `source`（**默认值本身没变**；作用范围已由用户拍板 B：朝代内统一编号，见 `SORT_STRATEGIES` 的注）。
  */
 export const DEFAULT_ORDER_STRATEGY = 'source';
 

@@ -51,7 +51,7 @@
       }
     },
     "poems": {
-      "description": "所有诗。**编译期已排好序**（排序是编译期唯一权威），客户端照数组次序渲染；产物里没有排序字段（含整数 orderInSource 时尤其不必再找排序字段）。排序策略：组序由每首 dynasty 的注册表 order 决定；组内先按底本原次序 orderInSource（有值者升序），无值者再按作者拼音 → 诗名拼音（佚名最后）。",
+      "description": "所有诗。**编译期已排好序**（排序是编译期唯一权威），客户端照数组次序渲染；产物里没有排序字段。排序策略（用户 2026-10-19 拍板 B）：组序由每首 dynasty 的注册表 order 决定；组内按必填的 orderInSource **升序**（同一朝代内唯一、允许留空号；跨朝代各自从 1 起）；不按作者分组、不发布作者/诗名排序键。",
       "type": "array",
       "minItems": 1,
       "items": {
@@ -82,9 +82,9 @@
           "genre": { "type": ["string", "null"], "description": "体裁，可空" },
           "source": { "type": "string", "minLength": 1, "pattern": "\\S", "description": "可核的底本/校录来源" },
           "orderInSource": {
-            "type": ["integer", "null"],
+            "type": "integer",
             "minimum": 1,
-            "description": "作品在底本中的原次序（1 起）；可选，未写则为 null。source 排序策略下它在组内最先比较。"
+            "description": "作品在底本中的原次序（1 起）。**必填、不可 null**（用户 2026-10-19 定）：省略/null ⇒ 编译失败 ORDER_IN_SOURCE_REQUIRED，非整数/≤0 ⇒ ORDER_IN_SOURCE_NOT_INTEGER。**同一朝代内必须唯一**（跨作者也不得重复，重复 ⇒ ORDER_IN_SOURCE_DUP；不同朝代可各自从 1 起；**允许留空号**，不要求连续）。排序时它在组内直接决定次序。"
           },
           "detail": {
             "type": ["string", "null"],

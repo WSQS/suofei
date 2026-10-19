@@ -13,7 +13,8 @@
 //  1. **不看构建的自我声明，看重算的事实**：所有哈希都在这里重新算一遍。
 //  2. 结构校验交给契约线 C 的 `tools/validate-content.mjs`（schema 是 C 的所有物）；
 //     本文件**不写死字段清单** —— 契约一改，硬编码的清单就会假红。
-//  3. 次序只认两件事：产物数组的**次序**本身，以及 `orderInSource`（整数、1 起）。
+//  3. 次序只认两件事：产物数组的**次序**本身，以及 `orderInSource`（**必填正整数**、同一朝代内唯一；
+//     2026-10-19 用户拍板 B 后不再接受 null——“只统计有值的那几首”的旧口径已作废）。
 //  4. 检查不了的东西报 SKIP 并说清原因，**不当成通过**。
 
 import fs from 'node:fs';
@@ -249,14 +250,15 @@ check('poem-count', '诗不为空，且与清单记录一致', (c) => {
   return `${n} 首 / ${c.dist.dynasties?.length} 个分组`;
 });
 
-check('order-in-source', '组内次序：数组次序 + orderInSource 升序（**逐组**核；不认任何拼音名次键）', (c) => {
+check('order-in-source', '组内次序：数组次序 + orderInSource 必填正整数、组内严格升序（**逐组**核；不认任何拼音名次键）', (c) => {
   const strategy = c.manifest.orderStrategy;
   if (strategy !== 'source') skip(`本次构建的排序策略是 ${strategy}，不是 source —— orderInSource 的升序前提不成立`);
   const poems = c.dist.poems ?? [];
   if (poems.length === 0) fail('产物里一首诗都没有');
-  // ⚠ 2026-10-16（发布 0.1.3 时改）：真实内容现在**多个组**（汉 19 首 ＋ 近现代 1 首）。
-  //   原来把整份产物当单组、并要求「有值的必须排在前面」⇒ 第二组里那首**本来就没写** orderInSource
-  //   （该键**可选**，不替用户编）会被误判为不合格。正确的口径是**逐组**核：组内先有值（严格升序）。
+  // ⚠ 2026-10-19（用户拍板 B，就地取代旧口径）：`orderInSource` **必填正整数、同一朝代内唯一**
+  //   （跨朝代可各自从 1 起；**允许留空号**）。旧口径是「有值的排在前面、无值的不许排在有值之前」
+  //   —— 那一套**只统计“有值”**，会把「某首根本没核完」放过；现在任何一首缺值/为 null 都要红。
+  //   严格升序自然包含「同组内不重复」（同号 ⇒ 不再上升 ⇒ 红）。
   const groups = new Map();
   for (const p of poems) {
     if (!groups.has(p.dynasty)) groups.set(p.dynasty, []);
@@ -267,27 +269,26 @@ check('order-in-source', '组内次序：数组次序 + orderInSource 升序（*
   if (JSON.stringify(order) !== JSON.stringify(declared)) {
     fail(`产物里的组次序 ${JSON.stringify(order)} ≠ 顶层 dynasties ${JSON.stringify(declared)}（组序应由注册表 order 决定）`);
   }
-  const has = (o) => o !== null && o !== undefined;
   const summary = [];
   for (const [name, list] of groups) {
-    const values = list.filter((p) => has(p.orderInSource));
-    const nulls = list.filter((p) => !has(p.orderInSource));
-    const lastValue = list.reduce((acc, p, i) => (has(p.orderInSource) ? i : acc), -1);
-    const firstNull = list.findIndex((p) => !has(p.orderInSource));
-    if (firstNull !== -1 && firstNull < lastValue) {
-      fail(`组「${name}」：有 orderInSource 的诗必须排在该组无值诗之前，但第 ${firstNull + 1} 项没有值、第 ${lastValue + 1} 项有值`);
+    const bad = list.filter((p) => !Number.isInteger(p.orderInSource) || p.orderInSource < 1);
+    if (bad.length) {
+      fail(
+        `组「${name}」有 ${bad.length} 首的 orderInSource 不是 ≥ 1 的整数（该键**必填、不可 null**）：` +
+          bad.map((p) => `${p.id}=${JSON.stringify(p.orderInSource)}`).join('、'),
+      );
     }
-    for (let k = 1; k < values.length; k++) {
-      if (!Number.isInteger(values[k].orderInSource) || !Number.isInteger(values[k - 1].orderInSource)) {
-        fail(`组「${name}」orderInSource 不是整数：${JSON.stringify(values[k].orderInSource)}`);
-      }
-      if (values[k].orderInSource <= values[k - 1].orderInSource) {
-        fail(`组「${name}」orderInSource 不是升序：${values[k - 1].orderInSource} → ${values[k].orderInSource}`);
+    for (let k = 1; k < list.length; k++) {
+      if (list[k].orderInSource <= list[k - 1].orderInSource) {
+        fail(
+          `组「${name}」orderInSource 不是严格升序：${list[k - 1].id}=${list[k - 1].orderInSource} → ` +
+            `${list[k].id}=${list[k].orderInSource}（同一朝代内序号必须唯一且按升序排）`,
+        );
       }
     }
-    summary.push(`「${name}」${values.length}/${list.length} 首有值${values.length ? `（${values[0].orderInSource}…${values[values.length - 1].orderInSource}）` : ''}`);
+    summary.push(`「${name}」${list.length} 首（${list[0].orderInSource}…${list[list.length - 1].orderInSource}）`);
   }
-  return `${summary.join('，')}；组序 ${JSON.stringify(declared)}；各组内无值的排在组内最后`;
+  return `${summary.join('，')}；组序 ${JSON.stringify(declared)}；组内均带必填正整数且严格升序`;
 });
 
 check('dist-sha256', '规范产物的 sha256 与清单一致（重算）', (c) => {

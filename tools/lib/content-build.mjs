@@ -3,9 +3,12 @@
 // 校验条目与错误码一一对应，见契约 docs/design/content-contract.md 第 3 节。
 //
 // formatVersion=2（2026-10-16）起源格式是：
-//   front matter（必填 title/author/dynasty/source，可选 genre/orderInSource）＋ 正文区（原文，空行＝分段）
+//   front matter（必填 title/author/dynasty/source，**必填正整数** orderInSource，可选 genre/tags）＋ 正文区（原文，空行＝分段）
 //   ＋ 可选的两个节 `## 详情` / `## 笔记`（内容是**最小 Markdown 文本**，整段进 detail/notes）。
 //   `id` 不写在源里（由相对路径派生，见 scan.mjs）。
+//
+// 2026-10-19（用户拍板 B）：`orderInSource` 改为**必填正整数**（不可省略、不可 null），且**同一朝代内唯一**
+//   （跨朝代各自从 1 起；允许留空号）；排序仍是「朝代组序 → orderInSource 升序」，未改成作者先排。
 
 import { ContentError } from './errors.mjs';
 import { parseFrontMatterLines, splitFrontMatter } from './frontmatter.mjs';
@@ -23,6 +26,7 @@ import {
   POEM_TAG_KEYS,
   REMOVED_FRONT_MATTER_KEYS,
   REQUIRED_FRONT_MATTER_KEYS,
+  REQUIRED_INT_FRONT_MATTER_KEYS,
   SECTION_DETAIL,
   SECTION_NOTES,
   SORT_STRATEGIES,
@@ -38,6 +42,7 @@ export {
   UNKNOWN_AUTHOR_MARKERS,
 };
 export const REQUIRED_KEYS = REQUIRED_FRONT_MATTER_KEYS;
+export const REQUIRED_INT_KEYS = REQUIRED_INT_FRONT_MATTER_KEYS;
 export const OPTIONAL_KEYS = OPTIONAL_FRONT_MATTER_KEYS;
 
 /**
@@ -147,7 +152,7 @@ export function parsePoemRecord(record) {
     if (!ALL_FRONT_MATTER_KEYS.includes(key)) {
       push(
         'UNKNOWN_KEY',
-        `front matter 出现声明之外的键「${key}」；允许的键：必填 ${REQUIRED_KEYS.join('/')}，可选 ${OPTIONAL_KEYS.join('/')}`,
+        `front matter 出现声明之外的键「${key}」；允许的键：必填 ${REQUIRED_KEYS.join('/')}；必填正整数 ${REQUIRED_INT_KEYS.join('/')}；可选 ${OPTIONAL_KEYS.join('/')}`,
         keyLine(key),
       );
     }
@@ -160,7 +165,7 @@ export function parsePoemRecord(record) {
     if (missing) {
       push(
         'MISSING_REQUIRED_KEY',
-        `必填键「${key}」缺失或值为空。允许的键：${REQUIRED_KEYS.concat(OPTIONAL_KEYS).join(' / ')}`,
+        `必填键「${key}」缺失或值为空。允许的键：${ALL_FRONT_MATTER_KEYS.join(' / ')}`,
         fmLineOffset - 1,
       );
     }
@@ -195,14 +200,28 @@ export function parsePoemRecord(record) {
     }
   }
 
-  // orderInSource：可选，底本原次序（整数 ≥ 1）；缺失视为未提供，不报错
+  // orderInSource：**必填正整数**（用户 2026-10-19 定：不可省略、不可 null）。
+  //   省略（undefined）或写成 null/`~`/空值（解析器都给 null）⇒ ORDER_IN_SOURCE_REQUIRED；
+  //   写了但不是 ≥ 1 的整数 ⇒ ORDER_IN_SOURCE_NOT_INTEGER（沿用既有码）。
+  //   工具**不替任何人编一个号**：缺号就是内容没核完，按失败处理。
   let orderInSource = null;
-  if (data.orderInSource !== undefined && data.orderInSource !== null) {
-    if (typeof data.orderInSource !== 'number' || !Number.isInteger(data.orderInSource) || data.orderInSource < 1) {
-      push('ORDER_IN_SOURCE_NOT_INTEGER', `「orderInSource」必须是 ≥ 1 的整数，实际是 ${JSON.stringify(data.orderInSource)}`, keyLine('orderInSource'));
-    } else {
-      orderInSource = data.orderInSource;
-    }
+  const rawOrder = data.orderInSource;
+  if (rawOrder === undefined || rawOrder === null) {
+    push(
+      'ORDER_IN_SOURCE_REQUIRED',
+      `缺 \`orderInSource\`（${rawOrder === undefined ? '这一行没写' : '写成了 null'}）。` +
+        '`orderInSource` 是**必填的正整数**（该诗在底本中的原次序，1 起）：**必填、不可省略、不可 null**（用户 2026-10-19 定）。' +
+        '编译工具不替内容编一个号——请照底本写出真实次序；拿不到真实次序就先不写这首诗，不要用 1/2/3 之类的占位号假装已核。',
+      keyLine('orderInSource'),
+    );
+  } else if (typeof rawOrder !== 'number' || !Number.isInteger(rawOrder) || rawOrder < 1) {
+    push(
+      'ORDER_IN_SOURCE_NOT_INTEGER',
+      `「orderInSource」必须是 ≥ 1 的整数（**必填、不可省略、不可 null**），实际是 ${JSON.stringify(rawOrder)}`,
+      keyLine('orderInSource'),
+    );
+  } else {
+    orderInSource = rawOrder;
   }
 
   // tags（formatVersion=3）：可选；不写 ⇒ []（**不是 null**）。元素形状 { id, orderInTag }。
@@ -404,6 +423,47 @@ export function parsePoemRecord(record) {
 }
 
 /**
+ * **同一朝代内 `orderInSource` 必须唯一**（用户 2026-10-19 拍板 B：朝代内统一编号）。
+ *
+ * - 跨朝代各自从 1 起合法；
+ * - **允许留空号**（不要求连续、不要求 1..N——以后插入不必整库重编号）；
+ * - **同序 ⇒ 报错**，且诊断里列出**全部**冲突的诗 id 与源路径（不能只说“重复了”）；
+ * - 刻意不再用作者/诗名拼音把并列者悄悄排开：那种“兜底”正好会把「两个不同的号写成了同一个」
+ *   这类真错漏掩盖掉。
+ *
+ * @param {{id: string, dynasty: string, orderInSource: number|null}[]} poems
+ * @param {ContentError[]} [errors]
+ * @param {Map<string, string>} [displayPaths] poemId → 源文件展示路径（只用于诊断定位）
+ * @returns {ContentError[]}
+ */
+export function checkOrderInSourceUnique(poems, errors = [], displayPaths = new Map()) {
+  /** @type {Map<string, {id: string, dynasty: string, orderInSource: number}[]>} */
+  const bySlot = new Map();
+  for (const p of poems) {
+    if (!Number.isInteger(p.orderInSource)) continue; // 缺失/非法已由 parsePoemRecord 单独报；这里只管并列
+    const key = `${p.dynasty}\u0000${p.orderInSource}`;
+    const list = bySlot.get(key);
+    const item = { id: p.id, dynasty: p.dynasty, orderInSource: p.orderInSource };
+    if (list === undefined) bySlot.set(key, [item]);
+    else list.push(item);
+  }
+  for (const list of bySlot.values()) {
+    if (list.length < 2) continue;
+    const where = list.map((p) => `\`${p.id}\`（${displayPaths.get(p.id) ?? '源路径未知'}）`).join('、');
+    errors.push(
+      new ContentError(
+        'ORDER_IN_SOURCE_DUP',
+        `朝代「${list[0].dynasty}」里 \`orderInSource: ${list[0].orderInSource}\` 被 ${list.length} 首诗同时占用：${where}。` +
+          '同一朝代内的序号必须唯一（用户 2026-10-19 定：**跨作者也不得重复**；不同朝代可以各自从 1 起；**允许留空号**，但同一个号只能给一首）。' +
+          '工具不会用作者/题名替你把并列者排开——那是内容层面的次序错误：请核对底本次序后改号。',
+        { file: displayPaths.get(list[0].id) ?? null },
+      ),
+    );
+  }
+  return errors;
+}
+
+/**
  * 拼音排序名次：对去重后的字符串用 collator 排序，取稳定名次作为整数名次。
  * collator 判定相等时用码位序兜底，保证名次确定、产物可复现。
  * **导出的名次只在编译期内部使用，不写进产物**（见 INTERNAL_SORT_KEYS）。
@@ -448,8 +508,14 @@ export function computeSortKeys(poems) {
 /**
  * 组内排序。组序由注册表决定（每首诗的 `dynasty` → order），组内：
  *   pinyin：作者拼音 → 诗名拼音（佚名/未知作者在组内排最后，显式规则）
- *   source：先 orderInSource（有值者在先、升序）→ 再作者拼音 → 再诗名拼音
+ *   source：先 `orderInSource`（升序），再作者拼音 → 诗名拼音
  * 同组同作者同诗名时以 id 兜底，保证顺序确定。
+ *
+ * ⚠ 2026-10-19（用户拍板 B：`orderInSource` 必填、**同一朝代内唯一**）：
+ *   - `source` 下组内次序**就是** `orderInSource` 升序（朝代组序 → 序号升序；**不改成作者先排**）；
+ *   - 后面的作者/诗名拼音这一段现在**只作为「构造上不可能出现」情形下的确定性兜底**（直构单测对象、
+ *     或旧产物）：真实编译路径上，同一朝代里两首同号会在**写产物前**就报 `ORDER_IN_SOURCE_DUP`，
+ *     因此不会被拼音阴差阳错地排开——这就是「去掉悄无声息的兜底」的做法：把并列改为**冲突诊断**。
  * 本函数**不修改**传入的诗对象（名次只存在于函数内部的 Map）。
  * @param {any[]} poems
  * @param {'source'|'pinyin'} strategy
@@ -645,6 +711,8 @@ export function buildContentFromRecords({
   /** 顶层 `tags`：**从诗归属汇总**（编译期生成）；成员按 `orderInTag` 升序，标签之间按拼音。 */
   /** @type {Map<string, string>} */
   const displayPaths = new Map(records.map((r) => [r.id, r.displayPath]));
+  // 朝代内序号唯一（用户 2026-10-19 定，B 口径）：必须在写产物前把冲突报成诊断。
+  checkOrderInSourceUnique(poems, errors, displayPaths);
   const tags = buildTagIndex(poems, errors, displayPaths);
   assertTagIndexConsistent(poems, tags);
 
