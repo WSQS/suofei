@@ -49,6 +49,24 @@ test('debug 变体＝演练口径：可以正常结束（exit 0），但**不主
   assert.equal(d.kind, 'rehearsal-debug');
   assert.equal(d.ready, false, 'debug 演练永远不许被读成“可以发布”');
   assert.equal(d.exitCode, 0);
+  assert.deepEqual(d.blockers, ['apk-signing'], '黄的那些门仍要如实列出来（别把“演练口径”说成“全绿”）');
+});
+
+test('debug + same-app ⇒ 仍然是演练口径（**不许**说出「same-app 内容刷新就绪」）', () => {
+  // 起因：debug 签名不可能过 apk-signing；若同 app 模式的结论句仍写「可以按新 tag 建 Release」，那是谎话。
+  const d = decideReadiness({ sameAppRefresh: true, variant: 'debug', notGreen: [{ id: 'apk-signing' }], sameAppNotGreen: [{ id: 'apk-signing' }] });
+  assert.equal(d.kind, 'rehearsal-debug');
+  assert.equal(d.ready, false);
+  assert.equal(d.exitCode, 0);
+});
+
+test('same-app + release 变体：APK 五门里任何一门不是绿 ⇒ 不推进（apk-signing 也要算）', () => {
+  const d = decideReadiness({
+    sameAppRefresh: true, variant: 'release',
+    notGreen: [{ id: 'apk-signing' }], sameAppNotGreen: [{ id: 'apk-signing' }],
+  });
+  assert.equal(d.kind, 'same-app-not-ready');
+  assert.equal(d.exitCode, 1);
 });
 
 test('接线：结论与退出码必须都读同一个 decision（源码级守卫）', () => {

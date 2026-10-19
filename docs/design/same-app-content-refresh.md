@@ -200,6 +200,16 @@ workflow_dispatch:
 现在结论与退出码都读同一个纯函数 `release/lib/readiness.mjs: decideReadiness()`（四情形有单测，另有源码守卫禁止
 再出现写死的 `process.exit(0)`）：**没有 PASS 就不是绿**这条判据终于是可执行的，不再只是一句打印。
 
+### 10.4b 顺带补上的一处漏洞：same-app 的判据里原本没有 APK 五门
+
+本模式文档一直写「APK 五门照旧真跑」，但那五门**没有被放进 same-app 的结论判据** ⇒
+只要不是 `FAIL`（例如 `apk-signing` 在缺 `apksigner` 时报 `WARN`），结论仍会写「就绪」并放行发布。
+2026-10-19 起：`apk-present` / `apk-builtin-same-source` / `apk-identity` / `apk-signing` 与
+`content-revision-stamped` 一起进 `sameAppGating`；某门**没出现在本次运行里**（如 `--live-only`）
+按 `SKIP` 算「没查」，不许被静默忽略。
+另：`debug` 变体在**两种模式**下都先判成演练口径（`ready=false, exit 0`）—— debug 签名过不了
+`apk-signing`，所以 debug 构建永远不许说出「可以按新 tag 建 Release」那句话。
+
 ### 10.5 未做的
 
 - 仍未在真机上安装/覆盖升级（模拟器为验收基准）；

@@ -13,16 +13,17 @@
  */
 export function decideReadiness({ sameAppRefresh, variant, notGreen, sameAppNotGreen }) {
   const ids = (xs) => (xs ?? []).map((x) => (typeof x === 'string' ? x : x.id));
+  // ⚠️ **debug 变体先判**（2026-10-19 修）：debug 签名不可能通过 apk-signing 门，所以 debug 构建
+  //    在**任何模式**下都不能被读成「可发布」—— 它只能得到演练口径（exit 0，但 ready=false）。
+  //    同 app 模式尤其危险：它的结论句写着「可以按新 tag 建 Release」，用在 debug 构建上就是谎话。
+  if (variant === 'debug') {
+    return { ready: false, exitCode: 0, kind: 'rehearsal-debug', blockers: ids([...(notGreen ?? []), ...(sameAppNotGreen ?? [])]) };
+  }
   if (sameAppRefresh) {
     const blockers = ids(sameAppNotGreen);
     return blockers.length === 0
       ? { ready: true, exitCode: 0, kind: 'same-app-ready', blockers: [] }
       : { ready: false, exitCode: 1, kind: 'same-app-not-ready', blockers };
-  }
-  // debug 变体＝**本地演练**口径：它**不主张可正式发布**（那个口径由 apk-signing 门与字符串一起说清楚），
-  // 所以演练可以正常结束（退出码 0）；真发布路径上 CI 永远用 release 变体。
-  if (variant === 'debug') {
-    return { ready: false, exitCode: 0, kind: 'rehearsal-debug', blockers: ids(notGreen) };
   }
   const blockers = ids(notGreen);
   return blockers.length === 0

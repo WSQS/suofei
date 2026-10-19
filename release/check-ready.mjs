@@ -1052,7 +1052,13 @@ function main() {
         'same-app-web-source-scope',
         'same-app-content-delta',
         'content-revision-stamped',
-      ].map((id) => results.find((r) => r.id === id)).filter(Boolean)
+        // ⚠️ 2026-10-19 补上（原先漏了它们 ⇒ same-app 模式下 APK 五门里只要 apk-signing 不是绿，
+        //    结论仍会写「就绪」并放行发布。本模式的文档早就写「APK 五门照旧真跑」，那它们就得进判据。
+        'apk-present',
+        'apk-builtin-same-source',
+        'apk-identity',
+        'apk-signing',
+      ].map((id) => results.find((r) => r.id === id) ?? { id, status: 'SKIP', detail: '本项没有在本次运行里出现（如 --live-only）：**没查**，不是通过' })
     : [];
   const sameAppNotGreen = sameAppGating.filter((r) => r.status !== 'PASS');
   const decision = decideReadiness({
@@ -1066,12 +1072,19 @@ function main() {
       + `内容 ${base?.contentVersion} → ${ctx.dist?.contentVersion}）。`,
     );
     console.log('  即：可以按新 tag 建 Release 并附这个 APK；**不是**一次升版发布（应用版本与 versionCode 都没动）。');
+  } else if (decision.kind === 'rehearsal-debug') {
+    console.log('结论：**演练口径就绪**（debug 变体：三样产物齐、各门过，但 **debug 签名 → 不得用于正式发布**）。');
+    if (opts.sameAppRefresh) {
+      console.log('  same-app 模式的门（含 APK 五门）：' +
+        (sameAppNotGreen.length
+          ? '非绿 ' + sameAppNotGreen.map((r) => `${r.id}=${r.status}`).join('、')
+            + ' —— 其中 apk-signing 在 debug 变体下必然是黄（**这就是它不能当发布口径的原因**）'
+          : '全绿'));
+    }
   } else if (opts.sameAppRefresh) {
     console.log('结论：**不满足推进条件** —— same-app 内容刷新这些门不是绿的（黄=没跑/未确认，跳过=没查，都不能当通过）：');
     for (const r of sameAppNotGreen) console.log(`  · ${r.id} = ${r.status}：${String(r.detail).split('\n')[0]}`);
     console.log('影响：**不推进**（不建 Release、不部署 Pages、不动 latest.json）；旧版本与旧 tag 一律不变，没有东西被删。');
-  } else if (decision.kind === 'rehearsal-debug') {
-    console.log('结论：**演练口径就绪**（debug 变体：三样产物齐、各门过，但 **debug 签名 → 不得用于正式发布**）。');
   } else if (decision.kind === 'release-ready') {
     console.log('结论：**三样产物就绪**（release 变体）。可以推进「最新版」。');
   } else {
