@@ -284,6 +284,116 @@ export function compareAgainstBaselines({ contentVersion, liveContentVersion, ba
   };
 }
 
+// ---------------------------------------------------------------- 已发布作品「只增不改」的精确判据
+
+/**
+ * 已发布作品里**允许被改动**的字段（逐首逐字段登记，必须写清去哪里的决定与理由）。
+ *
+ * 为什么要这张表而不是「正文不许变」一句口号：`same-app-content-delta` 门比的是**整首诗的 JSON**。
+ * 排序键也是诗对象的一部分，于是「按用户决定调整组内次序」这种**已批准**的改动会被同一道门判红。
+ * 反过来，如果为了过门把整首诗的比较放松成「只比正文」，那正文之外的字段（`source`、`detail`、
+ * `notes`、`id`……）就没人看了 —— 那才是真的放松门。
+ *
+ * 所以这里走**第三条路**：改动必须**逐首逐字段登记**，而且只接受**排序键**这一个形状
+ * （`orderInSource` 整数、`tags[]` 只允许 `orderInTag` 变、标签 id 与数量一律不许变）。
+ * 任何没登记的改动、任何登记了却不止排序键的改动、以及**登记了但这次并没变**（声明过期）都会红。
+ */
+export const PUBLISHED_POEM_FIELD_EDITS = Object.freeze([
+  {
+    id: '杜甫-梦李白二首·其一',
+    fields: ['orderInSource', 'tags'],
+    reason: '用户 2026-10-19 决定（q-d148dbcf）：唐组三首统一为 orderInSource 1/2/3 与 orderInTag 1/2/3'
+      + '（望岳 → 梦李白其一 → 梦李白其二）⇒ 这一首的 1 变成 2。正文/source/id/notes/detail 一字未动。',
+  },
+  {
+    id: '杜甫-梦李白二首·其二',
+    fields: ['orderInSource', 'tags'],
+    reason: '同上（q-d148dbcf）：2 → 3。正文/source/id/notes/detail 一字未动。',
+  },
+]);
+
+/** 两个对象里值不同的字段名（浅比较，值按 JSON 串比）。 */
+export function changedFieldNames(before, after) {
+  const keys = new Set([...Object.keys(before ?? {}), ...Object.keys(after ?? {})]);
+  return [...keys].filter((k) => JSON.stringify(before?.[k]) !== JSON.stringify(after?.[k]));
+}
+
+/**
+ * 「这首已发布作品的变化**只**是排序键」的精确判据。
+ *
+ * 只认真实形状：`orderInSource` 必须是**两侧都是整数**（null → 整数、整数 → null 都算「不止排序键」，
+ * 因为它们会改变组内排序策略的分支）；`tags` 必须**数量与 id 次序完全一致**，只许 `orderInTag` 变。
+ *
+ * @returns {{ok: boolean, changedFields?: string[], because?: string}}
+ */
+export function orderingOnlyChange(before, after, allowedFields) {
+  const changed = changedFieldNames(before, after);
+  if (changed.length === 0) return { ok: true, changedFields: [] };
+  const notDeclared = changed.filter((k) => !allowedFields.includes(k));
+  if (notDeclared.length) return { ok: false, because: `字段 ${notDeclared.join('、')} 变了，但没在登记里` };
+  for (const k of changed) {
+    if (k === 'orderInSource') {
+      if (!Number.isInteger(before.orderInSource) || !Number.isInteger(after.orderInSource)) {
+        return { ok: false, because: 'orderInSource 两侧都必须是非 null 整数（null 会改变排序策略的分支）' };
+      }
+    } else if (k === 'tags') {
+      const b = before.tags ?? [];
+      const a = after.tags ?? [];
+      if (b.length !== a.length) return { ok: false, because: `tags 数量变了（${b.length} → ${a.length}）` };
+      for (let i = 0; i < b.length; i += 1) {
+        if (b[i].id !== a[i].id) return { ok: false, because: `tags[${i}].id 变了（${b[i].id} → ${a[i].id}）` };
+        if (!Number.isInteger(b[i].orderInTag) || !Number.isInteger(a[i].orderInTag)) {
+          return { ok: false, because: `tags[${i}].orderInTag 两侧都必须是整数` };
+        }
+        const rest = (o) => JSON.stringify(Object.keys(o).filter((x) => x !== 'orderInTag').sort().map((x) => [x, o[x]]));
+        if (rest(b[i]) !== rest(a[i])) return { ok: false, because: `tags[${i}] 除 orderInTag 外还有别的字段变了` };
+      }
+    } else {
+      return { ok: false, because: `字段 ${k} 不是排序键（本判据只放行 orderInSource / tags[].orderInTag）` };
+    }
+  }
+  return { ok: true, changedFields: changed };
+}
+
+/**
+ * 已发布作品 vs 本次产物的差异分类（`same-app-content-delta` 门的纯逻辑）。
+ *
+ * 返回四类，全部都要在回执里说出来：
+ *  - `missing`：本次**删掉了**已发布作品（红）；
+ *  - `textModified`：改了字句/其它字段，且不属于已登记的排序键改动（红）；
+ *  - `reordered`：**已登记**且**只**改了排序键（绿，但逐条打印）；
+ *  - `stale`：登记了却这次没变（红：声明过期会让这张表慢慢变成一张谎话）。
+ *
+ * @param {{before: any, after: any, edits?: readonly {id: string, fields: string[], reason: string}[]}} opts
+ */
+export function diffPublishedPoems({ before, after, edits = PUBLISHED_POEM_FIELD_EDITS }) {
+  const afterById = new Map((after?.poems ?? []).map((p) => [p.id, p]));
+  const beforeById = new Map((before?.poems ?? []).map((p) => [p.id, p]));
+  const declared = new Map((edits ?? []).map((e) => [e.id, e]));
+  const missing = [];
+  const textModified = [];
+  const reordered = [];
+  for (const [id, bp] of beforeById) {
+    const np = afterById.get(id);
+    if (!np) { missing.push(id); continue; }
+    if (JSON.stringify(np) === JSON.stringify(bp)) continue;
+    const decl = declared.get(id);
+    if (!decl) {
+      textModified.push({ id, because: `字段 ${changedFieldNames(bp, np).join('、')} 变了，而这首没有登记任何排序键改动` });
+      continue;
+    }
+    const r = orderingOnlyChange(bp, np, decl.fields);
+    if (!r.ok) { textModified.push({ id, because: r.because }); continue; }
+    reordered.push({ id, fields: r.changedFields, reason: decl.reason });
+  }
+  const stale = (edits ?? [])
+    .filter((e) => beforeById.has(e.id) && afterById.has(e.id)
+      && JSON.stringify(afterById.get(e.id)) === JSON.stringify(beforeById.get(e.id)))
+    .map((e) => e.id);
+  const added = (after?.poems ?? []).filter((p) => !beforeById.has(p.id));
+  return { missing, textModified, reordered, stale, added };
+}
+
 /** 解析 `git diff --name-only` 的输出（去空行、统一 `/`）。 */
 export function parseChangedPaths(output) {
   return String(output ?? '')
