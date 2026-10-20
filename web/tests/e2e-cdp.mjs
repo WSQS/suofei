@@ -117,7 +117,10 @@ function readSourcePoemFacts() {
         if (line === undefined) throw new Error(`${rel} 缺 front matter 键 ${name}:`);
         return line.slice(name.length + 1).trim().replace(/^"(.*)"$/s, '$1');
       };
-      const body = lines.slice(end + 1).join('\n').trim();
+      const bodyLines = lines.slice(end + 1);
+      // 正文区到第一个 `## …` 节（`## 详情` / `## 笔记`）为止 —— 不然详情自己的空行会被数成诗的分段。
+      const firstSection = bodyLines.findIndex((l) => /^##\s/.test(l));
+      const body = (firstSection < 0 ? bodyLines : bodyLines.slice(0, firstSection)).join('\n').trim();
       const stanzas = body.length === 0 ? [] : body.split(/\n\s*\n/).map((block) => block.split('\n').filter((l) => l.trim() !== '').length);
       const orderLine = front.find((l) => l.startsWith('orderInSource:'));
       const orderInSource = orderLine === undefined ? null : Number(orderLine.slice('orderInSource:'.length).trim());
