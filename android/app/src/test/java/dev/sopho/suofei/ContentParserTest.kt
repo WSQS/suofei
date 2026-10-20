@@ -109,18 +109,29 @@ class ContentParserTest {
         assertEquals("行行重行行", han.poems.first().title)
         assertEquals("明月何皎皎", han.poems.last().title)
         assertEquals((1..19).toList(), han.poems.map { it.orderInSource })
-        // 「近现代」组：**本批（2026-10-19 用户提交《忆秦娥·娄山关》）2 首**，两首都写了 orderInSource：
-        //   忆秦娥·娄山关 = 1 → 七律·和郭沫若同志 = 2（次序就是源文的 `orderInSource`，客户端不重排）。
-        //   ⚠ 本条钉的是**本批实况**（用户此刻给了哪些诗、写了什么号），不是「近现代必有两首」的契约；
-        //   内容线加诗就跟着改这里。历史：2026-10-19 前只有《七律》一首时，这里曾断言「1 首且 orderInSource 为 null」，
-        //   而源文早就是 `orderInSource: 2` ⇒ 那条断言的**陈旧**曾让 Android 单测在本批之前就是红的。
-        val modern = content.groups.first { it.name == "近现代" }
-        assertEquals(2, modern.poems.size)
-        assertEquals(
-            listOf("忆秦娥·娄山关", "七律·和郭沫若同志"),
-            modern.poems.map { it.title },
+        // 「近现代」组：**期望值从源文派生**（`ContentSources.orderedPoemsOfDynasty`，直接读 `content/poems/**`
+        //   的 front matter，不借产物自证）。
+        //   ⚠ 2026-10-20（录毛诗四首：24 首 → 28 首）之前，这里写死「2 首 + 忆秦娥/七律 两个题名 + listOf(1, 2)」：
+        //   那是把**批次**当契约（加一首诗就得改测试），而真正该抓的是「产物组内次序 == 源文 orderInSource」。
+        //   ⇒ 改成派生：断言反而更严（产物与源不一致就红），且不用随批次改数字。
+        val expectedModern = ContentSources.orderedPoemsOfDynasty("近现代")
+        assertTrue(
+            "「近现代」组源文应非空（否则下面两条是空断言，不是通过）",
+            expectedModern.isNotEmpty(),
         )
-        assertEquals(listOf(1, 2), modern.poems.map { it.orderInSource })
+        val modern = content.groups.first { it.name == "近现代" }
+        assertEquals(
+            "「近现代」组首数 == 源文里组为该朝代的文件数",
+            expectedModern.size, modern.poems.size,
+        )
+        assertEquals(
+            "「近现代」组诗名次序 == 源文按 orderInSource 升序",
+            expectedModern.map { it.first }, modern.poems.map { it.title },
+        )
+        assertEquals(
+            "产物 orderInSource 与源文逐条相同（客户端不重排）",
+            expectedModern.map { it.second }, modern.poems.map { it.orderInSource },
+        )
 
         // v3：内置产物必须带标签，而且**标签内次序照产物**（客户端不重排）。
         // ⚠ 不写死「1 个标签 / 古诗十九首 19 首 / 其余 3 首空」：
@@ -233,10 +244,36 @@ class ContentParserTest {
             expectedOrderInSource.keys.map { id -> tangDynasty.poems.firstOrNull { it.id == id }?.orderInSource },
         )
         assertEquals("标签页的组数 == 2（两个组头）", 2, content.tagGroups.size)
-        // 毛诗仍没有标签（本批 2 首；标签不因“作者有诗”而自动出现）
+        // 毛诗仍没有标签（标签不因“作者有诗”而自动出现）。
+        // ⚠ 2026-10-20：首数也改成**从源文派生**（以前写死「2 首」）—— 加一首诗不必改测试，
+        //   而「源文里有几首毛诗、产物里就要有几首」这层一致性照旧能被抓住。
+        val maoCountInSources = ContentSources.poemSources.count { ContentSources.authorOf(it) == "毛泽东" }
+        assertTrue("源文里应当至少有这首作者的诗（否则下面这条是空的）", maoCountInSources > 0)
         val mao = content.poems.filter { it.author == "毛泽东" }
-        assertEquals("应能按作者认出毛诗这两首", 2, mao.size)
+        assertEquals("产物里的毛诗首数 == 源文里该作者的诗数", maoCountInSources, mao.size)
         for (p in mao) assertTrue("毛诗本轮仍无标签（${p.title}）", p.tags.isEmpty())
+    }
+
+    /**
+     * **证伪反例**：「近现代组按源文 orderInSource 升序」这条断言必须**能红**（否则它只是一句注释）。
+     *
+     * 做法：拿源侧派生期望，然后把次序对调 ⇒ 与源侧期望**不等**；同时钉住「源侧次序严格升序、号唯一」，
+     * 写错一个数字（例如把七律·和郭沫若同志改回 2）就会在这里与 [orderedPoemsOfDynasty] 的排序/去重冲突。
+     */
+    @Test
+    fun counterexample_modernOrderDerivedFromSourcesHasTeeth() {
+        val expected = ContentSources.orderedPoemsOfDynasty("近现代")
+        assertTrue("至少两首近现代诗，这条反例才有意义（当前 ${expected.size} 首）", expected.size >= 2)
+        val orders = expected.map { it.second }
+        assertEquals("源侧次序必须严格升序", orders.sorted(), orders)
+        assertEquals("源侧 orderInSource 不得重复", orders.toSet().size, orders.size)
+
+        val titles = expected.map { it.first }
+        val swapped = titles.toMutableList().also { java.util.Collections.swap(it, 0, 1) }
+        assertNotEquals(
+            "对调次序后仍与源侧期望相等 ⇒ 那条断言没有牙齿",
+            titles, swapped,
+        )
     }
 
     /**
