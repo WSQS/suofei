@@ -7,6 +7,8 @@
   `--same-app-content-refresh`（应用版本/versionCode **不变**、照常产 APK、只递增 contentVersion；
   Web 缓存名带上内容修订）。设计与门对照见
   [`docs/design/same-app-content-refresh.md`](design/same-app-content-refresh.md)；发布仍由负责人打 tag。
+- **最新（2026-10-20）：同 app 版本内容刷新（28 首）已上线** —— tag **`v0.1.4+content-2026.10.20.1`**、CI run **`39363712714` 绿 32 / 黄 0 / 跳 2 / 红 0**（那 2 跳＝被 `same-app-*` **正面断言**取代的两条递增门）；`APP_VERSION 0.1.4` / `versionCode 5` **未变**；正式签名 `CN=Suofei`（`1346444c…` 同证书）、APK **`suofei-2026.10.20.1.apk`**（**内置 28 首**）、Pages 已部署（缓存键 `pc-resources-0.1.4+2026.10.20.1`）、前馈 `minAppVersionCode 5`。读回见 [`docs/local-stage-delivery.md`](local-stage-delivery.md) **§0f**。
+  - ⚠ 旧 `v0.1.4+content-2026.10.19.3`（23 首）与更早的 tag/Release/APK **历史未动**（资产逐个核过，新 Release 由 GitHub 标为 Latest）。
 - **最新（2026-10-18）：同 app 版本的内容刷新已上线** —— tag **`v0.1.3+content-2026.10.16.26`**、CI run **`39083735474` 绿 32 / 黄 0 / 跳 2 / 红 0**（那 2 跳＝被 `same-app-*` **正面断言**取代的两条递增门，回执里有原文说明）；正式签名 `CN=Suofei`（`1346444c…` **与 0.1.3 同证书**）、APK **`suofei-2026.10.16.26.apk`**（**versionCode 4 / versionName 0.1.3 不变**、**内置 22 首**）、Pages 已部署（缓存键 **`pc-resources-0.1.3+2026.10.16.26`**）、前馈 `minAppVersionCode 3`。
   - ⚠ **上一版 `v0.1.3+content-2026.10.16.24`（20 首）的 tag/Release/APK 历史未动**（两者都在；GitHub 自动把新 Release 标为 Latest，旧包仍可下载）。
 - 阶段（上一版）：**已发布 `0.1.3`（tag `v0.1.3+content-2026.10.16.24`，2026-10-16 S5 第二次）** —— CI run `38905672593` **全绿（26 绿/0 黄/0 跳/0 红）**、正式签名 `CN=Suofei`（指纹与 0.1.2 逐字相同）、Pages 已部署、Release 已建、Android 前馈清单已推进（`minAppVersionCode 3`）。读回见 [`docs/local-stage-delivery.md`](local-stage-delivery.md) §0c。

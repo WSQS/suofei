@@ -105,6 +105,30 @@
 
 ---
 
+## 0f. **28 首正式发布（2026-10-20；同 app 版本 + 新 APK）**
+
+**tag `v0.1.4+content-2026.10.20.1`**（annotated tag 对象 `9de5316` → commit `82c1f02`）｜
+**CI run `39363712714`（success，`workflow_dispatch` + `mode=same-app-content-refresh` + `dry_run=false`）**｜
+站点 <https://wsqs.github.io/suofei/>｜Release <https://github.com/WSQS/suofei/releases/tag/v0.1.4%2Bcontent-2026.10.20.1>
+
+- **应用版本没变**：`APP_VERSION` / `versionName` **0.1.4**、`versionCode` **5**、`formatVersion` **3**；只有内容 `.19.3 → .20.1`（当天真实递增值；**不复用**本地测试号 `.19.8`）。
+- **发布前置事实**：`android/app/src/main` 相对 `v0.1.4+content-2026.10.19.3` **只差 `assets/content/content.json`**（逐字节）；`web/app/**` **逐字节未变**（`CONTENT_REVISION` 只在产物里盖章，仓库恒为 `dev`）；`web/tests/**` 有改动但**不进产物、不参与判定**。
+- **就绪门（CI、release 变体）**：**绿 32 / 黄 0 / 跳过 2 / 红 0（共 34）**；结论行「**same-app 内容刷新就绪**（内置 28 首；APP_VERSION 0.1.4 / versionCode 5 未变，内容 2026.10.19.3 → 2026.10.20.1）」。
+  那 2 跳＝`app-version-bumped` / `apk-versioncode-bumped`，**被同模式下的正面断言取代**（线上现值 == 基线 tag == 本次；versionCode/versionName 与同 app 版本旧 tag 相等）。
+  真跑门：Web e2e **716/716**（带**真旧基底** = tag `.19.3` 的 `web/**` ＋ 线上 `content/2026.10.19.3/content.json`，sha `a38eb577…`）、Android JVM 单测 **175 例 / 失败 0**、Web↔契约 MD 对照 **204/204**。
+- **`same-app-content-delta` 的真实读数**：线上 `.19.3` 23 首 → 28 首；新增 5 首（忆秦娥·娄山关、清平乐·六盘山、浪淘沙·北戴河、七律·到韶山、卜算子·咏梅）；**已发布 23 首正文/其它字段逐字节未变**；**已登记的排序键改动 1 首**《毛泽东-七律·和郭沫若同志》`orderInSource`。
+- **`PUBLISHED_POEM_FIELD_EDITS` 按线上真实产物精准登记**：线上 `.19.3` 里那首是 `orderInSource: null`（发布它时该键还叫可选）⇒ 本次 `null → 5`（必填键补齐的**唯一**被放行方向）。判据只多放了这一个方向（`整数 → null` 仍红、未登记仍红、登记了没变仍红），**没有**放宽成「允许所有文本差异」；两条过期的旧登记（杜甫《梦李白二首》其一/其二，相对 `.19.3` 之前那次基线）已删。
+- **同一份字节**（`dist` ＝ `web/content.json` ＝ `web/content/.20.1/content.json` ＝ **APK 内置** ＝ `latest.json.sha256` ＝ 线上 `content.json`）：
+  `c478104282b0132db84f560c6321b9b54569a842bcbcf6a97628135d89dc470b`（34301 字节）。
+- **APK**：`suofei-2026.10.20.1.apk`（7,071,106 字节），`apksigner verify` 通过（v2 方案）：`CN=Suofei, OU=suofei, O=WSQS, C=CN`、SHA-256 **`1346444c189aa50aa81b76eeeb28ff61aeb8b9b2ba972ed77d2fd2ca74bdf345`**（与上一版同一张证书）；`versionCode 5` / `versionName 0.1.4` / `dev.sopho.suofei` / 应用名「索斐」；**内置 28 首**（`assets/content/content.json` 34301 字节，sha 同上）。
+- **线上读回**：`APP_VERSION=0.1.4`、`CONTENT_REVISION=2026.10.20.1`（`app/config.js` 与 `sw.js` 两处同值）；缓存键 `pc-resources-0.1.4+2026.10.20.1`；`content.json` **28 首 / 3 组 `["汉","唐","近现代"]`**（19 / 3 / 6）；tags **古诗十九首 19 ／ 唐诗三百首 3**；近现代次序 **忆秦娥1 → 清平乐六盘山2 → 浪淘沙北戴河3 → 七律到韶山4 → 七律和郭沫若5 → 卜算子咏梅6**；`notes` 全 `null`；`content/latest.json` → `minAppVersionCode 5` 且 sha 与 content 相同。
+- **同一 tag 的两次 run**：`push` 触发的 `39363660116` **red** —— 停在**构建前**的前置闸（「tag 的应用版本 0.1.4 已有别的发布 tag ⇒ 请用 dispatch 选 same-app」），**没构建、没部署 Pages、没建 Release、没动 latest**（步骤表 5–19 全 skipped；`gh release view` 当时是 `release not found`）；真正发布的是**显式 dispatch** 那条。
+- **旧历史未动**：`v0.1.4+content-2026.10.19.3`（APK 7,069,334 字节）、`.18.3`（7,068,934）、`.16.26`（7,052,306）的 Release 与资产逐个核过仍在；新 Release 由 GitHub 标为 **Latest**。
+- **本轮仓库侧改了什么**：① 把 `origin/master` 的 same-app 发布接线（`mode` 输入、`decideReadiness` 退出码、`PUBLISHED_POEM_FIELD_EDITS` 判据）并进 28 首内容线；② 上面那条精准登记 + 判据的 `null → 正整数` 迁移方向（含单测与门表文档）；③ Web e2e §9 的**过期前提**换成本批真实前提（增量在总首数与近现代组，**标签成员数不变是预期的**）；④ 内置产物重编为 `.20.1`。
+- **未验（如实）**：物理真机安装/覆盖升级；模拟器上**也没有**装这个正式包（验收基准仍是本项目模拟器）；无障碍（键盘/TalkBack/对比度）、系统字号放大、OLED 观感；**更新链的中间态**（下载中/校验中/待切换）只在 e2e 的本地真部署里演练过，**不是线上站点**；Pages/Release 的生效延迟由服务商决定，不声称原子性。
+
+---
+
 ## 1. 候选在哪（两端 ＋ 构建身份与签名）（历史轮次记录，见 §0b/§0c/§0d/§0e 的最新发布）
 
 （⚠ 下表的「本机候选」是**发布前**的表述；**正式发布已按 §0b 完成**（tag `v0.1.2+…`、正式签名包已上线），
