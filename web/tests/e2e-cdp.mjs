@@ -87,6 +87,51 @@ const SOURCE_ORDER_TITLES = [
   '凛凛岁云暮', '孟冬寒气至', '客从远方来', '明月何皎皎',
 ];
 
+/**
+ * 从**源文** `content/poems/**` 派生事实（id / 题名 / 朝代 / orderInSource / 每段印刷行数）。
+ *
+ * ⚠ 2026-10-20（录毛诗四首：24 → 28 首）：真实内容里的「几首 / 什么次序 / 哪几首分段」**不再写字面量** ——
+ *   写死就是把「这一批」当契约（换一批就要改测试），而真正该抓的是「产物与源文不一致」。
+ *   忽略规则与编译器 `tools/lib/scan.mjs`、Android 侧 `ContentSources` 同一套；id 规则同样是 C2
+ *   （相对路径去 `.md`、`/`→`-`、NFC）。读不懂就**直接抛**（不静默当空）。
+ */
+function readSourcePoemFacts() {
+  const root = resolve(repoRoot, 'content', 'poems');
+  return readdirSync(root, { recursive: true })
+    .map((rel) => String(rel).split(/[\\/]/).join('/'))
+    .filter((rel) => rel.endsWith('.md'))
+    .filter((rel) => {
+      const name = rel.split('/').pop();
+      return !name.startsWith('.') && !name.startsWith('_') && !name.startsWith('~')
+        && !name.endsWith('~') && !/^README/i.test(name);
+    })
+    .sort()
+    .map((rel) => {
+      const lines = readFileSync(resolve(root, rel), 'utf8').replace(/\r\n/g, '\n').split('\n');
+      const start = lines.findIndex((l) => l.trim() === '---');
+      const end = lines.findIndex((l, i) => i > start && l.trim() === '---');
+      if (start < 0 || end < 0) throw new Error(`源文读不出 front matter：${rel}`);
+      const front = lines.slice(start + 1, end);
+      const key = (name) => {
+        const line = front.find((l) => l.startsWith(`${name}:`));
+        if (line === undefined) throw new Error(`${rel} 缺 front matter 键 ${name}:`);
+        return line.slice(name.length + 1).trim().replace(/^"(.*)"$/s, '$1');
+      };
+      const body = lines.slice(end + 1).join('\n').trim();
+      const stanzas = body.length === 0 ? [] : body.split(/\n\s*\n/).map((block) => block.split('\n').filter((l) => l.trim() !== '').length);
+      const orderLine = front.find((l) => l.startsWith('orderInSource:'));
+      const orderInSource = orderLine === undefined ? null : Number(orderLine.slice('orderInSource:'.length).trim());
+      return {
+        id: rel.slice(0, -3).split('/').join('-').normalize('NFC'),
+        rel,
+        title: key('title'),
+        dynasty: key('dynasty'),
+        orderInSource,
+        stanzas,
+      };
+    });
+}
+
 // ------------------------------------------------------------------ 断言工具
 
 const results = [];
@@ -517,7 +562,7 @@ function unitTests(baseDoc, variants) {
 
   section('0b 次序策略：产物带了 orderInSource 时一律不重排（回归）');
   eq('真实产物被判定为「产物次序权威」', hasProductOrder(baseDoc), true);
-  // ⚠ 真实内容现在有**三个组**（汉 19 首 ＋ 唐杜甫《梦李白二首》2 条 ＋ 近现代 1 首）；毛泽东那首**未写** orderInSource（该键**可选**，不编）。
+  // ⚠ 2026-10-20：不再写「近现代 1 首」这种批次描述；本批（录毛诗四首）后为 6 首，期望值一律从源文派生。
   const withOrder = baseDoc.poems.filter((p) => p.orderInSource !== undefined && p.orderInSource !== null);
   const usableOrder = withOrder.filter((p) => Number.isInteger(p.orderInSource));
   eq(`判定依据是 orderInSource（${withOrder.length}/${baseDoc.poems.length} 首带整数次序）`,
@@ -1003,7 +1048,19 @@ async function main() {
   })()`);
   eq('「汉」组目录的诗名次序 == 用户拍板的《文选》卷二十九原次序（19 首，确定性）',
     await groupRowTitles('汉'), SOURCE_ORDER_TITLES);
-  eq('「近现代」组单独成组、2 首（忆秦娥 → 七律，照产物 orderInSource 1 → 2）', await groupRowTitles('近现代'), ['忆秦娥·娄山关', '七律·和郭沫若同志']);
+  // ⚠ 2026-10-20（录毛诗四首 24 → 28）：这里原先写死「近现代 2 首（忆秦娥 → 七律）」—— 那是把批次当契约。
+  //   现在期望值**从源文派生**（按 orderInSource 升序），并把 DOM 与源两侧都对上。
+  const modernFromSources = readSourcePoemFacts()
+    .filter((p) => p.dynasty === '近现代')
+    .sort((a, b) => a.orderInSource - b.orderInSource);
+  check('源文里近现代诗非空且 orderInSource 都是整数（否则下面几条是空断言）',
+    modernFromSources.length > 0 && modernFromSources.every((p) => Number.isInteger(p.orderInSource)),
+    dump(modernFromSources.map((p) => [p.title, p.orderInSource])));
+  check('源侧近现代 orderInSource 唯一（否则「按次序」这条断言没有牙齿）',
+    new Set(modernFromSources.map((p) => p.orderInSource)).size === modernFromSources.length,
+    dump(modernFromSources.map((p) => p.orderInSource)));
+  eq('「近现代」组目录次序 == 源文按 orderInSource 升序（词/七律混合，客户端不重排）',
+    await groupRowTitles('近现代'), modernFromSources.map((p) => p.title));
   eq('目录次序 == 产物数组次序（整串）', await domPoemIds(), expectedDomOrder(baseDoc));
   eq('「汉」组首尾两端', await evaluate(`(() => {
     const g = [...document.querySelectorAll('[data-test="dynasty-group"]')]
@@ -1648,11 +1705,24 @@ async function main() {
   //   真实产物不再「全都是单节」，所以段间空行从「只靠 §4e 夹具」升级成**在真实的词上**做元素级断言。
   //   夹具那条（§4e）照旧保留：它拿一首人为超宽的测试诗同时验折行与分段，与这里不重叠。
   const multiStanzaPoems = baseDoc.poems.filter((p) => p.stanzas.length > 1);
-  eq('本次实况：真实产物里唯一多节的诗 == 《忆秦娥·娄山关》（两阕）',
-    multiStanzaPoems.map((p) => [p.title, p.stanzas.length]), [['忆秦娥·娄山关', 2]]);
+  // ⚠ 2026-10-20（录毛诗四首）：原先写死「唯一多节的诗 == 忆秦娥」。现在**从源文派生**
+  //   （源里用空行分段的诗 = 产物里 stanzas.length > 1 的诗，并逐首比段数）。
+  const stanzaCountsFromSources = readSourcePoemFacts()
+    .filter((p) => p.stanzas.length > 1)
+    .map((p) => [p.id, p.stanzas])
+    .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  check('真实源文里确实有空行分段的诗（否则下面的循环是空跑）', stanzaCountsFromSources.length > 0,
+    dump(stanzaCountsFromSources));
+  eq('产物里「多节」的诗与段数 == 源文里用空行分段的诗（逐首比，不写字面量）',
+    multiStanzaPoems.map((p) => [p.id, p.stanzas.map((x) => x.length)])
+      .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0)),
+    stanzaCountsFromSources);
   for (const ciPoem of multiStanzaPoems) {
+    const srcStanzaCounts = stanzaCountsFromSources.find(([id]) => id === ciPoem.id)[1]; // 源文每段印刷行数
     await hashTo(`#/p/${ciPoem.id}`);
     await waitForPoemView(ciPoem.id);
+    eq(`产物每段印刷行数 == 源文（空行分段；${ciPoem.title}）`,
+      ciPoem.stanzas.map((x) => x.length), srcStanzaCounts);
     eq(`真实词页的分节数 == 产物 stanzas 段数（${ciPoem.title}）`,
       await evaluate(`document.querySelectorAll('[data-test="stanza"]').length`), ciPoem.stanzas.length);
     eq('每阀的**印刷行**数与产物一致（视觉折行不改变印刷行）',

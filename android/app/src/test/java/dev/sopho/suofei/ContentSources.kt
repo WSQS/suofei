@@ -175,6 +175,51 @@ object ContentSources {
     }
 
     /**
+     * 源文 front matter 里一个**顶层标量键**的值（去引号）。读不到就**直接失败**。
+     *
+     * 只扫第一对 `---` 之间的块，所以正文里出现同名的字不会误命中。
+     */
+    fun frontMatterValueOf(file: File, key: String): String {
+        val lines = file.readText(Charsets.UTF_8).lines()
+        val start = lines.indexOfFirst { it.trim() == "---" }
+        val end = if (start < 0) -1 else lines.withIndex().firstOrNull { it.index > start && it.value.trim() == "---" }?.index ?: -1
+        if (start < 0 || end < 0) throw AssertionError("源文读不出 front matter：${file.absolutePath}")
+        val line = lines.subList(start + 1, end).firstOrNull { it.startsWith("$key:") }
+            ?: throw AssertionError("源文缺少 front matter 行 `$key:`：${file.absolutePath}")
+        return line.removePrefix("$key:").trim().removeSurrounding("\"")
+    }
+
+    /** 源文 front matter 的 `title:`（显示名）。 */
+    fun titleOf(file: File): String = frontMatterValueOf(file, "title")
+
+    /** 源文 front matter 的 `author:`（精确，不做归一）。 */
+    fun authorOf(file: File): String = frontMatterValueOf(file, "author")
+
+    /**
+     * 某一朝代组内**源文侧**的 `(title, orderInSource, id)`，按 `orderInSource` 升序 —— **完全独立于产物**。
+     *
+     * 为什么要这一个（2026-10-20 录毛诗四首时立）：以前这里写死「近现代 2 首，忆秦娥 1 / 七律 2」——
+     * 那是把**批次**当契约（加一首诗就得改测试），而真正该抓的是「产物组内次序 == 源文 orderInSource」。
+     * 组内缺 `orderInSource`、或两条同序 ⇒ **直接失败**（不默默按 id 兜底：那会让写坏的源文看起来一样绿）。
+     */
+    fun orderedPoemsOfDynasty(label: String): List<Triple<String, Int, String>> {
+        val inGroup = poemSources.filter { dynastyOf(it) == label }
+        val rows = inGroup.map { f ->
+            val id = idOf(f)
+            val order = orderInSourceOf(f)
+                ?: throw AssertionError("「$label」组源文缺少 orderInSource（2026-10-19 起必填）：${f.absolutePath}")
+            Triple(titleOf(f), order, id)
+        }
+        val seen = HashSet<Int>()
+        for ((title, order) in rows.map { it.first to it.second }) {
+            if (!seen.add(order)) {
+                throw AssertionError("「$label」组里 orderInSource=$order 重复（$title）——编译器会报 ORDER_IN_SOURCE_DUP，这里不默默兜底")
+            }
+        }
+        return rows.sortedBy { it.second }
+    }
+
+    /**
      * 朝代注册表 **`tools/lib/dynasties.mjs`**（组名与组序的唯一权威）解析出的 `label → order`。
      *
      * 本端**不持副本**（不在这里写死组名或 order 表）：注册表加了新朝代，这里自动跟上；

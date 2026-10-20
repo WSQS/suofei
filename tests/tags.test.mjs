@@ -25,6 +25,7 @@ import {
 import { fieldPaths } from '../tools/lib/field-set.mjs';
 import { idFromRelativePath, scanPoems } from '../tools/lib/scan.mjs';
 import { readTrackedPoemPaths } from '../tools/lib/tracked-poems.mjs';
+import { dynastyOrderOf } from '../tools/lib/dynasties.mjs';
 import { PINYIN_COLLATOR_LOCALE, POEM_KEYS, POEM_TAG_KEYS, TAG_INDEX_KEYS } from '../tools/lib/interface.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
@@ -535,17 +536,22 @@ function buildTrackedContent() {
   return { records, content, declared: records.map(readFrontMatterFacts) };
 }
 
-test('【已跟踪内容实况，不是契约】24 首、2 个标签（古诗十九首 19 ／ 唐诗三百首 3）、近现代两首（忆秦娥 1 ／ 七律 2）', () => {
-  const { records, content } = buildTrackedContent();
+test('【已跟踪内容实况，不是契约】首数/组序/近现代次序全部从已跟踪源文派生（2026-10-20 本批 28 首）', () => {
+  const { records, content, declared } = buildTrackedContent();
 
   // ⚠ 这一条断言的是「**本次已跟踪内容**长这样」——**内容实况，不是格式契约**。
   //   格式契约（orderInSource 必填正整数、朝代内唯一、标签拼音序、members 按 orderInTag 升序、
   //   无标签 ⇒ []……）由上面那些**按源逐首派生**的用例与夹具用例负责，不依赖作者名，也不依赖
-  //   「某人只有一首」。内容线改动内容（例如把一首新诗 `git add` 进来）就跟着改这里；
-  //   **工作区里未跟踪**的新诗不会让它红。
-  assert.equal(records.length, 24, '已跟踪 24 首源文件');
+  //   「某人只有一首」。
+  //   **首数不再写字面量**（2026-10-20 录毛诗四首：24 → 28 时，若这里写 24，就是把「这一批」
+  //   当成契约；批次一变就必须改测试，而真正该抓的「产物漏一首/多一首」反而抓不到）。
+  //   现在的期望值从**已跟踪源文**派生 ⇒ 加诗不用改这里，产物与源不一致**真报红**。
+  assert.ok(records.length > 0, '已跟踪源文清单为空 —— 这条没查成，不是通过');
   assert.equal(content.poems.length, records.length, '产物首数 = 已跟踪源文件数');
-  assert.deepEqual(content.dynasties, ['汉', '唐', '近现代'], '本次实况：三个朝代组');
+  // 组名与组序：从源文的 `dynasty` 去重、按注册表 order 升序派生（注册表是组序唯一权威）。
+  const declaredDynasties = [...new Set(declared.map((d) => d.dynasty))]
+    .sort((a, b) => dynastyOrderOf(a) - dynastyOrderOf(b) || (a < b ? -1 : a > b ? 1 : 0));
+  assert.deepEqual(content.dynasties, declaredDynasties, '顶层 dynasties == 源文出现过的组，按注册表 order 升序');
 
   // 标签：本次实况是 2 个（古诗十九首 19 首、唐诗三百首 3 首）
   assert.deepEqual(content.tags.map((t) => t.id), ['古诗十九首', '唐诗三百首']);
@@ -554,6 +560,12 @@ test('【已跟踪内容实况，不是契约】24 首、2 个标签（古诗十
     assert.ok(tag, `本次实况里应有标签「${id}」`);
     return tag.members;
   };
+  // 成员数派生：源文里声明了该标签的诗有几首，产物 members 就该有几条（多一个＝凭空编的，少一个＝丢了归属）
+  const declaredCountOf = (tagId) => declared.flatMap((d) => d.tags).filter((t) => t.id === tagId).length;
+  for (const tagId of content.tags.map((t) => t.id)) {
+    assert.equal(membersOf(tagId).length, declaredCountOf(tagId), `「${tagId}」的成员数应 == 源文声明数`);
+  }
+  // 这两条标签的成员是本库的**内容事实**（不是批次计数）：古诗十九首 19、《唐诗三百首》3。
   assert.equal(membersOf('古诗十九首').length, 19);
   assert.equal(membersOf('唐诗三百首').length, 3);
   const titleOf = new Map(content.poems.map((p) => [p.id, p.title]));
@@ -589,17 +601,64 @@ test('【已跟踪内容实况，不是契约】24 首、2 个标签（古诗十
   );
   assert.deepEqual(titlesOf('唐诗三百首'), ['望岳', '梦李白二首·其一', '梦李白二首·其二']);
 
-  // 近现代：**已跟踪**内容里 2 首——《忆秦娥·娄山关》（orderInSource=1）→《七律·和郭沫若同志》（orderInSource=2），
-  //   两首都没有标签（用户未给这两首加标签，产物 `tags: []` 合法）。
-  //   这是实况（此刻被跟踪到了哪几首、它们写了什么号），不是「某作者只有一首」「某作者必无标签」的规则。
+  // 近现代：期望次序**从源文派生**（取源文里的 dynasty/orderInSource/title，按 orderInSource 升序）。
+  //   2026-10-20 本批（清平乐·六盘山／浪淘沙·北戴河／七律·到韶山／卜算子·咏梅）之后是 6 首；
+  //   但这里**不写字面量 6**，也不写死「某作者只有一首」「某作者必无标签」——那是把批次当契约。
+  const modernFromSource = declared
+    .filter((d) => d.dynasty === '近现代')
+    .sort((a, b) => a.orderInSource - b.orderInSource);
+  assert.ok(
+    modernFromSource.length > 0 && modernFromSource.every((d) => Number.isInteger(d.orderInSource)),
+    `近现代组源文应非空且 orderInSource 都是整数（否则下面的派生断言是空的）：${JSON.stringify(modernFromSource.map((d) => [d.title, d.orderInSource]))}`,
+  );
   const modern = content.poems.filter((p) => p.dynasty === '近现代');
-  assert.deepEqual(modern.map((p) => p.title), ['忆秦娥·娄山关', '七律·和郭沫若同志']);
-  assert.deepEqual(modern.map((p) => p.orderInSource), [1, 2]);
-  for (const p of modern) assert.deepEqual(p.tags, [], `本次实况：${p.title} 没有标签`);
+  assert.deepEqual(modern.map((p) => p.id), modernFromSource.map((d) => d.id), '近现代组次序 == 源文按 orderInSource 升序');
+  assert.deepEqual(modern.map((p) => p.title), modernFromSource.map((d) => d.title), '近现代组诗名次序 == 源文次序');
+  assert.deepEqual(modern.map((p) => p.orderInSource), modernFromSource.map((d) => d.orderInSource), '产物 orderInSource 与源文逐条相同');
+  const modernOrders = modern.map((p) => p.orderInSource);
+  assert.deepEqual(modernOrders, [...modernOrders].sort((a, b) => a - b), '近现代组内严格升序');
+  assert.equal(new Set(modernOrders).size, modernOrders.length, '同一朝代内 orderInSource 唯一');
+  for (const p of modern) {
+    const src = declared.find((d) => d.id === p.id);
+    assert.deepEqual(p.tags, src.tags, `${p.title} 的诗侧 tags 应与源文声明一致（本批四首毛诗源里没写 tags ⇒ []）`);
+  }
 
-  // 无标签的诗（本次实况）：2 首，就是上面那两首近现代
-  const untagged = content.poems.filter((p) => p.tags.length === 0);
-  assert.deepEqual(untagged.map((p) => p.id), modern.map((p) => p.id), '本次实况：无标签的只有近现代那两首');
+  // 无标签的诗：派生 =「源文里没有声明任何标签的诗」，产物 `tags: []` 必须与它一致
+  const untaggedFromSource = declared.filter((d) => d.tags.length === 0).map((d) => d.id).sort();
+  const untagged = content.poems.filter((p) => p.tags.length === 0).map((p) => p.id).sort();
+  assert.deepEqual(untagged, untaggedFromSource, '无标签的诗 == 源文里没声明标签的诗');
+});
+
+// 证伪反例：上面那些「派生期望」必须**能红** —— 故意把产物改坏之后，同款断言要失败。
+// 没有这一条，就只能证明「断言写了」，不能证明「断言有牙齿」（本库 2026-10-14 的教训：旧断言全绿而内容早已落后）。
+test('反例：近现代次序被对调 / 标签被凭空加上 ⇒ 按源派生的那几条断言会红', () => {
+  const { content, declared } = buildTrackedContent();
+  const modernFromSource = declared
+    .filter((d) => d.dynasty === '近现代')
+    .sort((a, b) => a.orderInSource - b.orderInSource);
+  assert.ok(modernFromSource.length >= 2, '至少两首近现代诗，这一条反例才有意义');
+
+  // ① 对调产物里近现代前两首 ⇒ 与源派生的次序不等 ⇒ 断言必须抛
+  const swapped = structuredClone(content);
+  const idx = swapped.poems.findIndex((p) => p.dynasty === '近现代');
+  [swapped.poems[idx], swapped.poems[idx + 1]] = [swapped.poems[idx + 1], swapped.poems[idx]];
+  assert.throws(
+    () => assert.deepEqual(
+      swapped.poems.filter((p) => p.dynasty === '近现代').map((p) => p.id),
+      modernFromSource.map((d) => d.id),
+    ),
+    '对调次序后仍与源一致 ⇒ 那条断言没有牙齿',
+  );
+
+  // ② 给一首源里没标签的诗凭空加标签 ⇒ 与源派生的 tags 不等 ⇒ 断言必须抛
+  const polluted = structuredClone(content);
+  const untaggedId = declared.find((d) => d.tags.length === 0).id;
+  polluted.poems.find((p) => p.id === untaggedId).tags = [{ id: '凭空编的标签', orderInTag: 1 }];
+  const srcOfUntagged = declared.find((d) => d.id === untaggedId);
+  assert.throws(
+    () => assert.deepEqual(polluted.poems.find((p) => p.id === untaggedId).tags, srcOfUntagged.tags),
+    '凭空加了标签后仍与源一致 ⇒ 那条断言没有牙齿',
+  );
 });
 test('契约夹具 real-01-full.json 仍是当前形状（v3 顶层键序 / 11 键 / 字段集与冻结记录一致）', () => {
   const doc = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'contract', 'real-01-full.json'), 'utf8'));
