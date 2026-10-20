@@ -2419,17 +2419,29 @@ async function main() {
     check('旧内容带顶层 tags 数组（已发布基底已经是 format 3）', Array.isArray(oldDoc.tags), dump(Object.keys(oldDoc)));
     eq('旧内容每首都带 tags 数组（format 3 的必填键）',
       oldDoc.poems.filter((p) => !Array.isArray(p.tags)).length, 0);
-    // 「唐诗三百首」的成员**只增不改**：旧成员一个不丢、旧次序保持为子序列（本轮加《望岳》进第一位）。
+    // 「唐诗三百首」的成员**只增不改**：旧成员一个不丢、旧次序保持为子序列（把《望岳》加进第一位是 .19.3 那次的事；本批不动这个标签）。
     const oldTang = (oldDoc.tags ?? []).find((t) => t.id === '唐诗三百首');
     const newTangIds = (baseDoc.tags ?? []).find((t) => t.id === '唐诗三百首')?.members ?? [];
     check('已发布基底里就有「唐诗三百首」标签（否则下面的成员增量断言是空的）', Boolean(oldTang), dump((oldDoc.tags ?? []).map((t) => t.id)));
     const subseq = (sub, all) => { let i = 0; for (const x of all) if (x === sub[i]) i += 1; return i === sub.length; };
     check('旧成员次序在新 members 里保持为子序列（只增不改、不重排旧成员）',
       subseq(oldTang.members, newTangIds), dump({ oldMembers: oldTang.members, newMembers: newTangIds }));
-    check('「唐诗三百首」的成员数是**增**的（本轮 2 → 3）',
-      newTangIds.length > oldTang.members.length,
+    // ⚠️ 2026-10-20（本批 28 首）**就地作废**的旧断言：「唐诗三百首」成员数**增**（2 → 3）。
+    //   那写的还是**相对 .19.3 之前**那次基线的增量；线上 .19.3 里这个标签已经是 3 首，
+    //   而本批新增的 5 首都在**近现代**（不带任何标签）⇒ 标签成员数**不变是预期结果**，不是「没刷新」。
+    //   本批真正的增量在**总首数**与**近现代组**，所以把「确有增量」的两条断言放在那两处，
+    //   标签这侧只保留恒成立的不变式：旧成员一个不丢、旧次序保持为子序列。
+    check('总首数是**增**的（本批：23 首 → 28 首）',
+      baseDoc.poems.length > oldDoc.poems.length, dump({ old: oldDoc.poems.length, new: baseDoc.poems.length }));
+    const oldModern = oldDoc.poems.filter((p) => p.dynasty === '近现代');
+    const newModern = baseDoc.poems.filter((p) => p.dynasty === '近现代');
+    check('「近现代」组是**增**的（本批 1 首 → 6 首：新增的 5 首全在这一组）',
+      newModern.length > oldModern.length, dump({ old: oldModern.length, new: newModern.length }));
+    check('「唐诗三百首」成员数**不减**（本批新增都不带标签 ⇒ 不变是预期的）',
+      newTangIds.length >= oldTang.members.length,
       dump({ old: oldTang.members.length, new: newTangIds.length }));
-    console.log(`  「唐诗三百首」成员：已发布 ${oldTang.members.length} → 本轮 ${newTangIds.length}`);
+    console.log(`  「唐诗三百首」成员：已发布 ${oldTang.members.length} → 本轮 ${newTangIds.length}（本批新增均无标签）`);
+    console.log(`  总首数：已发布 ${oldDoc.poems.length} → 本轮 ${baseDoc.poems.length}；近现代 ${oldModern.length} → ${newModern.length}`);
     check('新内容每首都带 tags 数组（format 3 的必填键）',
       baseDoc.poems.every((p) => Array.isArray(p.tags)), dump(Object.keys(baseDoc.poems[0])));
     // 新内容的标签身份：唯一来源是本轮产物（客户端一律照产物顺序、不重排）。
