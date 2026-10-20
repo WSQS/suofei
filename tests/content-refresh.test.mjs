@@ -255,6 +255,10 @@ test('只在同 app 模式成立的门单独成表，默认（升版）模式跳
 // orderInSource/orderInTag 变了。`same-app-content-delta` 原先整首诗比 JSON ⇒ 这条已批准的改动会被判红。
 // 处置不是「把整首比放松成只比正文」（那正文之外的字段就没人看了），而是：
 // **逐首逐字段登记 + 只放行排序键形状 + 登记过期也红**。下面这组用例钉住这四条性质。
+//
+// 2026-10-20 追加（28 首同版本内容刷新）：`orderInSource` 自 2026-10-19 起是**必填正整数**，
+// 而线上 .19.3 里《七律·和郭沫若同志》是 `null`（发布它时该键仍可选）⇒ 必须放行**唯一一个方向**
+// `null → 正整数`（补齐必填键的迁移）。反方向 `整数 → null` 仍红——那是把必填键退回非必填。
 
 import {
   PUBLISHED_POEM_FIELD_EDITS,
@@ -284,6 +288,36 @@ test('只改排序键（orderInSource + tags[].orderInTag）⇒ 判据放行，�
   const r = orderingOnlyChange(before, after, ['orderInSource', 'tags']);
   assert.equal(r.ok, true, `应当放行：${r.because}`);
   assert.deepEqual([...r.changedFields].sort(), ['orderInSource', 'tags']);
+});
+
+test('已发布侧是 null（可选时代留下的产物）→ 本次补齐正整数 ⇒ 已登记即放行（必填键的迁移方向）', () => {
+  const before = poem({ id: '毛泽东-七律·和郭沫若同志', orderInSource: null, tags: [] });
+  const after = poem({ id: '毛泽东-七律·和郭沫若同志', orderInSource: 5, tags: [] });
+  const r = orderingOnlyChange(before, after, ['orderInSource']);
+  assert.equal(r.ok, true, `null → 5 应当放行：${r.because}`);
+  assert.deepEqual([...r.changedFields], ['orderInSource']);
+  const d = diffPublishedPoems({
+    before: { poems: [before] },
+    after: { poems: [after] },
+    edits: [{ id: before.id, fields: ['orderInSource'], reason: '必填键补齐（线上 .19.3 是 null）' }],
+  });
+  assert.equal(d.textModified.length, 0);
+  assert.deepEqual(d.reordered.map((x) => x.id), [before.id]);
+});
+
+test('null → 正整数 但**没登记** ⇒ 照样红（放行只在登记的逐首之内）', () => {
+  const before = poem({ orderInSource: null });
+  const after = poem({ orderInSource: 2 });
+  const d = diffPublishedPoems({ before: { poems: [before] }, after: { poems: [after] }, edits: [] });
+  assert.equal(d.textModified.length, 1);
+  assert.equal(d.reordered.length, 0);
+});
+
+test('本次 orderInSource 不是 ≥1 的整数（null / 0 / 小数 / 字符串）一律红，即便登记过', () => {
+  for (const bad of [null, 0, 1.5, '5']) {
+    const r = orderingOnlyChange(poem({ orderInSource: 1 }), poem({ orderInSource: bad }), ['orderInSource']);
+    assert.equal(r.ok, false, `本次 orderInSource=${JSON.stringify(bad)} 必须红`);
+  }
 });
 
 test('正文/来源/标签 id 一旦变了，即使登记过也只报红（登记只买排序键）', () => {

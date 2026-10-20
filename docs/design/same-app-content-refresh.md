@@ -76,7 +76,7 @@ Web 的更新通道是 Service Worker。浏览器只在 **`sw.js` 的字节变�
 | `same-app-baseline-tag` | — | 跑 | 挑「同 app 版本的旧发布 tag」（`v0.1.3+content-*`，排除本次 tag，取内容版本最大者） |
 | `same-app-android-source-identical` | — | 跑 | `git diff --name-only <基线tag> -- android/` 只许 `assets/content/content.json`；未跟踪文件必须为 0 |
 | `same-app-web-source-scope` | — | 跑 | 已发布文件中：冻结集（`index.html`/`styles.css`/`app/content.js`/`app/render.js`）不许变；改动必须逐条登记在 `WEB_PRODUCT_CHANGE_ALLOWLIST`（带理由）；其余一律红 |
-| `same-app-content-delta` | — | 跑 | 相对**线上已发布那一份内容**：已发布作品**逐首逐字段**未变（不删、不改字句）、确有新增、组名不删不乱序。**唯一的例外**是 `PUBLISHED_POEM_FIELD_EDITS` 里逐首登记的**排序键**改动（只许 `orderInSource` / `tags[].orderInTag`，且标签 id/数量不许变）；登记了却没变（声明过期）也红 |
+| `same-app-content-delta` | — | 跑 | 相对**线上已发布那一份内容**：已发布作品**逐首逐字段**未变（不删、不改字句）、确有新增、组名不删不乱序。**唯一的例外**是 `PUBLISHED_POEM_FIELD_EDITS` 里逐首登记的**排序键**改动（只许 `orderInSource` / `tags[].orderInTag`，且标签 id/数量不许变；`orderInSource` 只放行「正整数 → 正整数」与「**null → 正整数**」——后者是必填键补齐的迁移方向，整数 → null 仍红）；登记了却没变（声明过期）也红 |
 | `content-revision-stamped` | 跑 | 跑 | 缓存名含修订、前缀未变、修订 == contentVersion、不是 `dev` |
 | 三条真跑门（Web e2e / Android JVM 单测 / MD 契约对照） | 跑 | 跑 | 同 app 模式还**要求** e2e 拿到「真旧基底」才许跑（见 §6） |
 

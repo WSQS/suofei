@@ -295,20 +295,23 @@ export function compareAgainstBaselines({ contentVersion, liveContentVersion, ba
  * `notes`、`id`……）就没人看了 —— 那才是真的放松门。
  *
  * 所以这里走**第三条路**：改动必须**逐首逐字段登记**，而且只接受**排序键**这一个形状
- * （`orderInSource` 整数、`tags[]` 只允许 `orderInTag` 变、标签 id 与数量一律不许变）。
+ * （`orderInSource`、`tags[]` 只允许 `orderInTag` 变、标签 id 与数量一律不许变）。
  * 任何没登记的改动、任何登记了却不止排序键的改动、以及**登记了但这次并没变**（声明过期）都会红。
+ *
+ * ⚠️ 2026-10-20（28 首发布）**就地替换**了旧条目：原来那两条（`杜甫-梦李白二首·其一/其二`，1→2、2→3）
+ *   是**相对 2026.10.19.3 之前**那次内容基线的；2026.10.19.3 线上产物里唐组已经是 1/2/3，
+ *   所以那两条**已经过期**（留着就是「登记了却没变」的红）。登记表按**线上现值**重写，只留本次真变了的那首。
  */
 export const PUBLISHED_POEM_FIELD_EDITS = Object.freeze([
   {
-    id: '杜甫-梦李白二首·其一',
-    fields: ['orderInSource', 'tags'],
-    reason: '用户 2026-10-19 决定（q-d148dbcf）：唐组三首统一为 orderInSource 1/2/3 与 orderInTag 1/2/3'
-      + '（望岳 → 梦李白其一 → 梦李白其二）⇒ 这一首的 1 变成 2。正文/source/id/notes/detail 一字未动。',
-  },
-  {
-    id: '杜甫-梦李白二首·其二',
-    fields: ['orderInSource', 'tags'],
-    reason: '同上（q-d148dbcf）：2 → 3。正文/source/id/notes/detail 一字未动。',
+    id: '毛泽东-七律·和郭沫若同志',
+    fields: ['orderInSource'],
+    // 这次必须按**线上 .19.3 的真实产物**登记：那首在线上是 `orderInSource: null`
+    // （发布它的时候这个键还是可选的），不是本地某次提交里的 2 —— 按本地旧值登记会在门里对不上。
+    reason: '线上 2026.10.19.3 里这首是 orderInSource: null（发布它时该键仍可选）；'
+      + '2026-10-19 用户拍板 B 后 orderInSource 改为**必填正整数**，且本批近现代按本库编年排'
+      + '（忆秦娥·娄山关1／清平乐·六盘山2／浪淘沙·北戴河3／七律·到韶山4／七律·和郭沫若同志5／卜算子·咏梅6）'
+      + '⇒ 这一首 null → 5。标题/作者/朝代/体裁/source/detail/stanzas/notes/tags 一字未动。',
   },
 ]);
 
@@ -321,8 +324,14 @@ export function changedFieldNames(before, after) {
 /**
  * 「这首已发布作品的变化**只**是排序键」的精确判据。
  *
- * 只认真实形状：`orderInSource` 必须是**两侧都是整数**（null → 整数、整数 → null 都算「不止排序键」，
- * 因为它们会改变组内排序策略的分支）；`tags` 必须**数量与 id 次序完全一致**，只许 `orderInTag` 变。
+ * 只认真实形状：`orderInSource` **本次必须是正整数**（必填，2026-10-19 用户拍板 B），而**已发布那一侧**
+ * 既可能是正整数、也可能是 `null`——后者是「该键还叫可选」那个时代留下的线上产物。
+ * 所以只放行**一个方向**：`null → 正整数`（补齐必填键的迁移）；**`整数 → null` 一律红**，
+ * 因为那是把必填键退回非必填、并且真的会改变组内排序策略的分支。两侧都是整数时照旧放行（组内重排）。
+ * `tags` 必须**数量与 id 次序完全一致**，只许 `orderInTag` 变。
+ *
+ * 注意：这个判据**只对已逐首登记的**作品被调用（`diffPublishedPoems` 里没有登记的改动直接报红），
+ * 所以「放行 null → 正整数」不等于给所有诗开了后门。
  *
  * @returns {{ok: boolean, changedFields?: string[], because?: string}}
  */
@@ -333,8 +342,18 @@ export function orderingOnlyChange(before, after, allowedFields) {
   if (notDeclared.length) return { ok: false, because: `字段 ${notDeclared.join('、')} 变了，但没在登记里` };
   for (const k of changed) {
     if (k === 'orderInSource') {
-      if (!Number.isInteger(before.orderInSource) || !Number.isInteger(after.orderInSource)) {
-        return { ok: false, because: 'orderInSource 两侧都必须是非 null 整数（null 会改变排序策略的分支）' };
+      const afterOk = Number.isInteger(after.orderInSource) && after.orderInSource >= 1;
+      const beforeOk = before.orderInSource === null
+        || (Number.isInteger(before.orderInSource) && before.orderInSource >= 1);
+      if (!afterOk) {
+        return { ok: false, because: `orderInSource 本次必须是 ≥1 的整数（收到 ${JSON.stringify(after.orderInSource)}）` };
+      }
+      if (!beforeOk) {
+        return {
+          ok: false,
+          because: `已发布那一侧的 orderInSource 只能是正整数或 null（收到 ${JSON.stringify(before.orderInSource)}）；`
+            + '整数 → null 等于把必填键退回非必填，不放行',
+        };
       }
     } else if (k === 'tags') {
       const b = before.tags ?? [];
