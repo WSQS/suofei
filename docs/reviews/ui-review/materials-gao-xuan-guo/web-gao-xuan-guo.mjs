@@ -219,11 +219,18 @@ async function main() {
     await waitFor('Boolean(document.querySelector(\'[data-test="view-detail"]\'))', '详情页');
     await sleep(250);
     const detailText = await evaluate('document.querySelector(\'[data-test="view-detail"]\').innerText');
-    for (const frag of ['题下小序', '韩员外愈', '皇甫侍御湜', '本内容格式没有小序字段', '体裁', '古体诗',
+    for (const frag of ['题下注', '韩员外愈', '皇甫侍御湜', '体裁', '古体诗', '所据电子转录排成 7 行',
       '摇玲珑', '马蹄隐耳', '文章钜公', '九精照耀', '元精耿耿']) {
       check(`详情页含「${frag}」`, detailText.includes(frag), '');
     }
+    // 2026-10-21 修偏：`source` 是**纯文本**、不解析 Markdown ⇒ 本首不得再带 `**` 强调标记；
+    // `detail` 里不得再出现「字段/格式」这类**工程说明**（那不是原文也不是考据）。
     const sourceText = await evaluate('document.querySelector(\'[data-test="detail-source"]\').innerText');
+    check('「底本与来源」整段没有任何 `*` 字符（纯文本字段不写 Markdown 强调）',
+      !sourceText.includes('*'), sourceText);
+    for (const bad of ['本内容格式', '字段', '未写入正文']) {
+      check(`详情正文不再出现工程说明「${bad}」`, !detailText.includes(bad), '');
+    }
     check('详情页「来源」句含卷三百九十三与访问日',
       sourceText.includes('卷三百九十三') && sourceText.includes('2026-10-21'), sourceText.slice(0, 160));
     await snap('详情页：高轩过');

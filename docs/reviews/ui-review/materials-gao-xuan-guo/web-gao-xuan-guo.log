@@ -1,11 +1,11 @@
-基座：http://127.0.0.1:8791/
-web/content.json sha256 = cd22f583183f255cc1c863cf440cda5811ed231d495dc9b0e78908d6211ac609
-contentVersion = 2026.10.20.2（测试号，非发布）
+基座：http://127.0.0.1:8823/
+web/content.json sha256 = d3aab34710fb01dbdf1c899a9ea07be37d15128ed6427e392007fbd0a2de3079
+contentVersion = 2026.10.20.3（测试号，非发布）
 
 PASS  基座内容就是本工作树构建的那一份（contentVersion）
-        actual="2026.10.20.2"  expected="2026.10.20.2"
+        actual="2026.10.20.3"  expected="2026.10.20.3"
 PASS  基座内容 sha256 == web/content.json 的 sha256
-        actual="cd22f583183f255cc1c863cf440cda5811ed231d495dc9b0e78908d6211ac609"  expected="cd22f583183f255cc1c863cf440cda5811ed231d495dc9b0e78908d6211ac609"
+        actual="d3aab34710fb01dbdf1c899a9ea07be37d15128ed6427e392007fbd0a2de3079"  expected="d3aab34710fb01dbdf1c899a9ea07be37d15128ed6427e392007fbd0a2de3079"
 PASS  组序仍是 汉／唐／近现代
         actual=["汉","唐","近现代"]  expected=["汉","唐","近现代"]
 PASS  组头计数：汉 19 首／唐 4 首／近现代 6 首
@@ -34,19 +34,24 @@ PASS  没有「笔记」入口（notes 为 null）
         actual=false  expected=false
 PASS  有「详情」入口
         actual=true  expected=true
-PASS  详情页含「题下小序」
+PASS  详情页含「题下注」
 PASS  详情页含「韩员外愈」
 PASS  详情页含「皇甫侍御湜」
-PASS  详情页含「本内容格式没有小序字段」
 PASS  详情页含「体裁」
 PASS  详情页含「古体诗」
+PASS  详情页含「所据电子转录排成 7 行」
 PASS  详情页含「摇玲珑」
 PASS  详情页含「马蹄隐耳」
 PASS  详情页含「文章钜公」
 PASS  详情页含「九精照耀」
 PASS  详情页含「元精耿耿」
+PASS  「底本与来源」整段没有任何 `*` 字符（纯文本字段不写 Markdown 强调）
+        《全唐诗》卷三百九十三·李贺（站点题署：扬州诗局本）《高轩过》（该卷篇目第 23 篇，前为「上之回」、后为「贝宫夫人」；本站《全唐诗》李贺诗为卷三百九十—三百九十四，邻卷三百八十九为卢仝、三百九十五为刘叉）。电子转录：汉典古籍 gj.zdic.net/jibu/1230/34815.html，2026-10-21 访问；校勘参照识典古籍所署「钦定四库全书」本《御定全唐诗录》卷五十一（清·徐倬编）的电子文本（shidianguji.com/book/SK3319/chapter/1kfmkoiq6o5jv，2026-10-21 访问）——均为电子转录/电子文本，未目验任何影像。卷次回查方法、体裁归类依据与异文清单见 docs/sources/li-he-gao-xuan-guo-intake.md。
+PASS  详情正文不再出现工程说明「本内容格式」
+PASS  详情正文不再出现工程说明「字段」
+PASS  详情正文不再出现工程说明「未写入正文」
 PASS  详情页「来源」句含卷三百九十三与访问日
-        《全唐诗》卷三百九十三·李贺（站点题署：扬州诗局本）《高轩过》（该卷篇目第 23 篇，前为「上之回」、后为「贝宫夫人」；本站《全唐诗》李贺诗为卷三百九十—三百九十四，邻卷三百八十九为卢仝、三百九十五为刘叉）。**电子转录**：汉典古籍 gj.zdic.net/jibu/1230/34815.html，2026-10-2
+        《全唐诗》卷三百九十三·李贺（站点题署：扬州诗局本）《高轩过》（该卷篇目第 23 篇，前为「上之回」、后为「贝宫夫人」；本站《全唐诗》李贺诗为卷三百九十—三百九十四，邻卷三百八十九为卢仝、三百九十五为刘叉）。电子转录：汉典古籍 gj.zdic.net/jibu/1230/34815.html，2026-10-21 访问
 PASS  返回后仍是朝代 tab（原视图）
         actual="dynasty"  expected="dynasty"
 PASS  返回后「唐」组仍是展开的 4 行（状态保持）
@@ -64,4 +69,4 @@ PASS  【标签页】「古诗十九首」仍是 19 首
 PASS  整轮没有未捕获异常 / JS error
         actual=[]  expected=[]
 
-通过 36 / 36
+通过 40 / 40
