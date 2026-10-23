@@ -666,3 +666,18 @@
 - **本地内置 `2026.10.23.1`**（测试号，非发布），三份同 sha `a5081749…`；标签仍 古19 / 唐300 3。
 - **线上仍是 28 首 / `0.1.4` / `2026.10.20.1`**（本批未发布）。
 - 设备副作用（如实保留）：项目测试 AVD 上原有的一份**更早下载内容快照**因 `pm clear` **已不可恢复**；后续借用项目 AVD 前**先核占用与可清基线**，**不把 `ro.boot.avd_name` 正确当作可无条件清任意安装数据**。
+
+## 2026-10-23 · 31 首本地（未发布）· 新增宋·刘过《唐多令·芦叶满汀洲》
+
+- **已跟踪内容＝31 首**（汉20 / 唐4 / **宋1** / 近现代6）；新增 `content/poems/刘过/唐多令·芦叶满汀洲.md`。
+- **底本**：明毛晋汲古阁《宋六十名家词》本《龙洲词》所收《糖多令》（识典古籍转录 `CADAL02110332`，2026-10-23 访问）**定字**；标点与分行从现代排印转录（汉典诗词，2026-10-23 访问），参校古文岛。**全部为电子转录，未目验任何影像**。记录：[`docs/sources/liu-guo-tang-duo-ling-intake.md`](sources/liu-guo-tang-duo-ling-intake.md)。
+- **识别句**「终不似，少年游」逐字命中；**异文实查**（不看摘要、不投票）：底本作「終不似」「故人曾到（不＝否）」「又中秋」「寒沙」「繫船」⇒ 正文取 **终不似 / 故人曾到否 / 又**；古文岛主文的「故人今在否」**无底本支持**，不取但**不断言是后改**。
+- **题注**：底本词题下小字注（通行转录称「小序」）**有据**，写进 `detail` 的 `### 题下注`；⚠ **不称「作者序」**（注中以第三人称「龙洲道人」指称作者，口气是题注/编者附记）⇒ **不加前序字段、不改阅读页布局**（旧 `q-9a` 的「不加小序」只针对两首毛词）。
+- **题名**：本库约定＝通行词牌＋首句《唐多令·芦叶满汀洲》；底本词牌作《糖多令》并注「糖，一作唐」；「重过武昌」一题只见二手叙述，**未核，不写进 detail 作事实**。
+- **分行**：按终止符规则得**两阕各 3 行（[3,3]）**；该结果是本首所用标点本的自然结果，**不是词牌行数契约** —— 测试仍是「从 `genre` 派生」，另加一份**独立手抄字串快照**（`tests/fixtures/liu-guo-tang-duo-ling-verified.json`）做逐字符保真＋反例。
+- `orderInSource = 1`＝**宋组第一首**（本库位置，**非原书第 1 首**）；`tags: []`（**未自动贴任何标签**，标签仍 古19 / 唐300 3）；`notes: null`。
+- **原 30 首逐首逐字段保真已核**（用 `git archive HEAD` 的旧内容另编一份产物逐字段比对：**0 处差异**；标签表内容逐字不变）；组序 汉→唐→**宋**→近现代；`format 3` / `APP 0.1.4` / `code 5` 未变。
+- **本地内置 `2026.10.23.3`**（测试号，**非发布**），`dist` / Android 内置 / `web/content.json` 三份同 sha `757aa5123ba146ad3722d5411cfc583f320759b93539a50cf0fb3c95fd57ed1c`。
+- 门：`build --check` **31 首 / 4 组 exit 0**、`check-fieldset` exit 0（28 条 / `1ec5811d…`）、`check-bundled` exit 0（诗 31 / 带详情 19）、`npm test` **214/214 exit 0**、`check-doc-tables` exit 0、Android `testDebugUnitTest --no-build-cache --rerun-tasks` **175/175 BUILD SUCCESSFUL**、Web e2e **625/625**。
+- 实拍：[`docs/reviews/device-acceptance/liu-guo-tang-duo-ling/`](reviews/device-acceptance/liu-guo-tang-duo-ling/)（`emulator-5556` / AVD `godot_test`）、Web 预览 [`docs/reviews/ui-review/liu-guo-tang-duo-ling/`](reviews/ui-review/liu-guo-tang-duo-ling/)（新 origin `8179`；**8177/8178 未 kill**）。
+- **线上仍是 30 首 / `0.1.4` / `2026.10.20.1`**（本批**未发布**：未 push、未 tag、未动 Pages/Release）。
