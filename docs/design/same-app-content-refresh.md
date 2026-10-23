@@ -76,7 +76,7 @@ Web 的更新通道是 Service Worker。浏览器只在 **`sw.js` 的字节变�
 | `same-app-baseline-tag` | — | 跑 | 挑「同 app 版本的旧发布 tag」（`v0.1.3+content-*`，排除本次 tag，取内容版本最大者） |
 | `same-app-android-source-identical` | — | 跑 | `git diff --name-only <基线tag> -- android/` 只许 `assets/content/content.json`；未跟踪文件必须为 0 |
 | `same-app-web-source-scope` | — | 跑 | 已发布文件中：冻结集（`index.html`/`styles.css`/`app/content.js`/`app/render.js`）不许变；改动必须逐条登记在 `WEB_PRODUCT_CHANGE_ALLOWLIST`（带理由）；其余一律红 |
-| `same-app-content-delta` | — | 跑 | 相对**线上已发布那一份内容**：已发布作品逐字节未变（不删、不改字句）、确有新增、组名不删不乱序 |
+| `same-app-content-delta` | — | 跑 | 相对**线上已发布那一份内容**：已发布作品**逐首逐字段**未变（不删、不改字句）、确有新增、组名不删不乱序。**唯一的例外**是 `PUBLISHED_POEM_FIELD_EDITS` 里逐首登记的**排序键**改动（只许 `orderInSource` / `tags[].orderInTag`，且标签 id/数量不许变；`orderInSource` 只放行「正整数 → 正整数」与「**null → 正整数**」——后者是必填键补齐的迁移方向，整数 → null 仍红）；登记了却没变（声明过期）也红 |
 | `content-revision-stamped` | 跑 | 跑 | 缓存名含修订、前缀未变、修订 == contentVersion、不是 `dev` |
 | 三条真跑门（Web e2e / Android JVM 单测 / MD 契约对照） | 跑 | 跑 | 同 app 模式还**要求** e2e 拿到「真旧基底」才许跑（见 §6） |
 
@@ -132,8 +132,8 @@ Android 侧：`android/` 的**进包源码**与基线 tag 逐字节相同（只�
 
 ## 8. 未做 / 不声称
 
-- **没有**新增工作流：复用 `.github/workflows/release.yml`（`v*` tag 照旧触发），只在 `build` 与
-  `check-ready` 两处加了 `--same-app-content-refresh`。
+- **没有**新增工作流：复用 `.github/workflows/release.yml`（`v*` tag 照旧触发），2026-10-19 起该文件的 `workflow_dispatch`
+  多了一个**显式 `mode` 选项**把 `--same-app-content-refresh` 传给 `build` 与 `check-ready`（见 §10）。
 - **没有**在 CI 上真跑过（与所有既往工作流一样）：本地证据是 debug 变体 + debug 签名；
   正式证书那条门（`apk-signing`）只有在 CI 的 release 变体下才会真跑。
 - **没有**在真机上安装/覆盖升级验证；模拟器上的同版本号覆盖安装是**另一条证据**，不等于真机。
@@ -146,14 +146,16 @@ Android 侧：`android/` 的**进包源码**与基线 tag 逐字节相同（只�
 ```bash
 # 1) 构建（debug 变体演练；正式发布由 CI 用 release 变体 + 四项签名 secrets）
 node release/build-release.mjs \
-  --tag "v0.1.3+content-2026.10.16.26" \
+  --tag "v0.1.4+content-2026.10.19.3" \
   --android-variant debug \
   --same-app-content-refresh \
-  --min-app-version-code 3
+  --min-app-version-code 5
 
 # 2) 就绪检查（三条真跑门会真的起浏览器/跑 Gradle；要 CHROME_BIN 与 JAVA_HOME）
-CHROME_BIN='…/chrome.exe' JAVA_HOME='…/jdk-17' \
-  node release/check-ready.mjs --same-app-content-refresh
+#    ⚠ 退出码：结论不是「就绪」时**一定**非 0（曾黄/跳过也 exit 0，那会让 CI 照发 —— 见 §10.4）
+CHROME_BIN='C:/Users/wsqsy/AppData/Local/Chromium/Application/chrome.exe' \
+  JAVA_HOME='C:/Users/wsqsy/.jdks/ms-17.0.17' \
+  node release/check-ready.mjs --same-app-content-refresh --out release/out
 
 # 单独迭代 Web e2e：
 node release/check-ready.mjs --same-app-content-refresh --live-only
@@ -161,3 +163,55 @@ node release/check-ready.mjs --same-app-content-refresh --live-only
 
 ⚠ 同一份产物目录里重复跑同一个 `contentVersion` 会被编译器拦住（`VERSION_NOT_MONOTONIC`，这是对的）：
 演练前先 `rm -rf release/out`，或换一个 `--out`。
+
+## 10. CI 接线（2026-10-19）
+
+### 10.1 只有 `workflow_dispatch` 能选这个模式
+
+`push`（`v*` tag）**永远**走正常升版模式（`RELEASE_MODE` 落到 `release`）；`workflow_dispatch` 多了一个显式选项：
+
+```yaml
+workflow_dispatch:
+  inputs:
+    tag:  …          # 要发布的 tag（同时是 checkout 的 ref）
+    mode: choice(release | same-app-content-refresh)   # 默认 release
+    dry_run: boolean # 默认 true（要真发布必须显式 false）
+```
+
+### 10.2 四条硬要求（用户 2026-10-19 指定）落到哪一步
+
+| 要求 | 落实处 |
+|---|---|
+| 1. checkout **显式取这次 tag 的 commit**，并校验 `RELEASE_TAG` ↔ `release-manifest.sourceCommit` ↔ `HEAD` 三者一致 | `checkout.with.ref = inputs.tag`（dispatch）／`github.ref_name`（push）；`校验 tag ↔ HEAD ↔ 模式` 与 `校验产物清单 ↔ tag ↔ HEAD` 两步，不一致即 exit 1（在建 Pages/Release **之前**） |
+| 2. 新选项必须在**可 dispatch 的 ref** 上 | 先把本文件（及工作流）合进 `master` 再 dispatch；`push` 路径根本不读 `inputs`，所以**旧 tag/Release 不受影响** |
+| 3. 同一 tag 的两次 run：只有「显式 same-app + `dry_run=false` + 全 ready」能碰 Pages/Release/`latest` | ① 正常模式在**构建前的 preflight 就红**（「应用版本已有别的发布 tag ⇒ 这不是升版，请用 dispatch 选 same-app」），**不构建、不部署**；② 发布步骤的 `if` 同时要求 `push` 或（dispatch 且 `dry_run==false`）；③ 门在发布步骤**之前**，且结论不 ready 时**退出码非 0**；④ 两条 run 共用一个 `concurrency` 组（`cancel-in-progress: false`）⇒ 排队、不互相 cancel、不会同时写 `latest.json` |
+| 4. 两种模式各自真回归 | 正常模式的门**一字未改**（`app-version-bumped` / `apk-versioncode-bumped`）；same-app 用 `same-app-*` 的**替代正面断言**（相等而非递增） |
+
+### 10.3 Release 说明按模式换模板
+
+- 升版：`release/notes/release-notes.md`；
+- 同 app 内容刷新：`release/notes/release-notes-same-app.md`（写清「应用版本没变、只有内容变」）。
+  CI 用 `@TAG@` / `@APP_VERSION@` / `@CONTENT_VERSION@` / `@PREVIOUS_CONTENT_VERSION@` / `@VERSION_CODE@` 注入真实值。
+
+### 10.4 修掉的一个真缺陷：结论说「不推进」却 exit 0
+
+原先 `check-ready` 两个「不满足推进条件」的分支**只打印、不改退出码**（末尾统一 `process.exit(0)`）⇒
+只要不是 `FAIL` 而是 `WARN`（没跑）/`SKIP`（没查），工作流就**照样**进 Pages/Release。
+现在结论与退出码都读同一个纯函数 `release/lib/readiness.mjs: decideReadiness()`（四情形有单测，另有源码守卫禁止
+再出现写死的 `process.exit(0)`）：**没有 PASS 就不是绿**这条判据终于是可执行的，不再只是一句打印。
+
+### 10.4b 顺带补上的一处漏洞：same-app 的判据里原本没有 APK 五门
+
+本模式文档一直写「APK 五门照旧真跑」，但那五门**没有被放进 same-app 的结论判据** ⇒
+只要不是 `FAIL`（例如 `apk-signing` 在缺 `apksigner` 时报 `WARN`），结论仍会写「就绪」并放行发布。
+2026-10-19 起：`apk-present` / `apk-builtin-same-source` / `apk-identity` / `apk-signing` 与
+`content-revision-stamped` 一起进 `sameAppGating`；某门**没出现在本次运行里**（如 `--live-only`）
+按 `SKIP` 算「没查」，不许被静默忽略。
+另：`debug` 变体在**两种模式**下都先判成演练口径（`ready=false, exit 0`）—— debug 签名过不了
+`apk-signing`，所以 debug 构建永远不许说出「可以按新 tag 建 Release」那句话。
+
+### 10.5 未做的
+
+- 仍未在真机上安装/覆盖升级（模拟器为验收基准）；
+- CI 上的第一次 same-app dispatch 结果以当次 run 回执为准，不预先宣称。
+

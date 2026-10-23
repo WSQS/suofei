@@ -249,3 +249,138 @@ test('只在同 app 模式成立的门单独成表，默认（升版）模式跳
   assert.match(src, /if \(!opts\.sameAppRefresh && SAME_APP_ONLY_IDS\.includes\(c\.id\)\) continue;/,
     '跳过必须挂在模式上，且只有这一处');
 });
+
+// ---------------------------------------------------------------- 已发布作品「只增不改」的精确判据
+// 2026-10-19 起因：用户决定把唐组三首的排序键统一成 1/2/3（q-d148dbcf）⇒ 两首**已发布**作品的
+// orderInSource/orderInTag 变了。`same-app-content-delta` 原先整首诗比 JSON ⇒ 这条已批准的改动会被判红。
+// 处置不是「把整首比放松成只比正文」（那正文之外的字段就没人看了），而是：
+// **逐首逐字段登记 + 只放行排序键形状 + 登记过期也红**。下面这组用例钉住这四条性质。
+//
+// 2026-10-20 追加（28 首同版本内容刷新）：`orderInSource` 自 2026-10-19 起是**必填正整数**，
+// 而线上 .19.3 里《七律·和郭沫若同志》是 `null`（发布它时该键仍可选）⇒ 必须放行**唯一一个方向**
+// `null → 正整数`（补齐必填键的迁移）。反方向 `整数 → null` 仍红——那是把必填键退回非必填。
+
+import {
+  PUBLISHED_POEM_FIELD_EDITS,
+  changedFieldNames,
+  diffPublishedPoems,
+  orderingOnlyChange,
+} from '../release/lib/content-refresh.mjs';
+
+const poem = (over = {}) => ({
+  id: '杜甫-梦李白二首·其一',
+  title: '梦李白二首·其一',
+  author: '杜甫',
+  dynasty: '唐',
+  genre: '五言古诗',
+  source: '《全唐诗》卷二百一十八',
+  orderInSource: 1,
+  detail: '详情文本',
+  stanzas: [['死别已吞声', '生别常恻恻']],
+  notes: null,
+  tags: [{ id: '唐诗三百首', orderInTag: 1 }],
+  ...over,
+});
+
+test('只改排序键（orderInSource + tags[].orderInTag）⇒ 判据放行，且报出到底改了哪些字段', () => {
+  const before = poem();
+  const after = poem({ orderInSource: 2, tags: [{ id: '唐诗三百首', orderInTag: 2 }] });
+  const r = orderingOnlyChange(before, after, ['orderInSource', 'tags']);
+  assert.equal(r.ok, true, `应当放行：${r.because}`);
+  assert.deepEqual([...r.changedFields].sort(), ['orderInSource', 'tags']);
+});
+
+test('已发布侧是 null（可选时代留下的产物）→ 本次补齐正整数 ⇒ 已登记即放行（必填键的迁移方向）', () => {
+  const before = poem({ id: '毛泽东-七律·和郭沫若同志', orderInSource: null, tags: [] });
+  const after = poem({ id: '毛泽东-七律·和郭沫若同志', orderInSource: 5, tags: [] });
+  const r = orderingOnlyChange(before, after, ['orderInSource']);
+  assert.equal(r.ok, true, `null → 5 应当放行：${r.because}`);
+  assert.deepEqual([...r.changedFields], ['orderInSource']);
+  const d = diffPublishedPoems({
+    before: { poems: [before] },
+    after: { poems: [after] },
+    edits: [{ id: before.id, fields: ['orderInSource'], reason: '必填键补齐（线上 .19.3 是 null）' }],
+  });
+  assert.equal(d.textModified.length, 0);
+  assert.deepEqual(d.reordered.map((x) => x.id), [before.id]);
+});
+
+test('null → 正整数 但**没登记** ⇒ 照样红（放行只在登记的逐首之内）', () => {
+  const before = poem({ orderInSource: null });
+  const after = poem({ orderInSource: 2 });
+  const d = diffPublishedPoems({ before: { poems: [before] }, after: { poems: [after] }, edits: [] });
+  assert.equal(d.textModified.length, 1);
+  assert.equal(d.reordered.length, 0);
+});
+
+test('本次 orderInSource 不是 ≥1 的整数（null / 0 / 小数 / 字符串）一律红，即便登记过', () => {
+  for (const bad of [null, 0, 1.5, '5']) {
+    const r = orderingOnlyChange(poem({ orderInSource: 1 }), poem({ orderInSource: bad }), ['orderInSource']);
+    assert.equal(r.ok, false, `本次 orderInSource=${JSON.stringify(bad)} 必须红`);
+  }
+});
+
+test('正文/来源/标签 id 一旦变了，即使登记过也只报红（登记只买排序键）', () => {
+  const edited = [
+    { id: 'x', fields: ['orderInSource', 'tags'], reason: 'test' },
+  ];
+  const cases = [
+    { name: '正文变了', after: poem({ stanzas: [['死别已吞声', '生别常恻恻（改）']] }) },
+    { name: '来源变了', after: poem({ source: '《全唐诗》卷二百一十八（改）' }) },
+    { name: '标签 id 变了', after: poem({ tags: [{ id: '别的标签', orderInTag: 1 }] }) },
+    { name: '只把 orderInSource 从 1 改成 null（会改变排序策略分支）', after: poem({ orderInSource: null }) },
+    { name: 'tags 数量变了', after: poem({ tags: [{ id: '唐诗三百首', orderInTag: 1 }, { id: '另一个', orderInTag: 1 }] }) },
+    { name: '笔记被填了', after: poem({ notes: '我写了一段' }) },
+  ];
+  for (const c of cases) {
+    const d = diffPublishedPoems({ before: { poems: [poem()] }, after: { poems: [c.after] }, edits: edited });
+    assert.equal(d.textModified.length, 1, `【${c.name}】必须报红`);
+    assert.equal(d.reordered.length, 0, `【${c.name}】不许被算成“只是排序键”`);
+  }
+});
+
+test('没登记的改动一律报红（登记表不是默认放行）', () => {
+  const d = diffPublishedPoems({
+    before: { poems: [poem()] },
+    after: { poems: [poem({ orderInSource: 2, tags: [{ id: '唐诗三百首', orderInTag: 2 }] })] },
+    edits: [],
+  });
+  assert.equal(d.textModified.length, 1);
+  assert.match(d.textModified[0].because, /没有登记/);
+});
+
+test('登记了但这次并没变 ⇒ 报「声明过期」（否则这张表会慢慢变成一句谎话）', () => {
+  const d = diffPublishedPoems({
+    before: { poems: [poem()] },
+    after: { poems: [poem()] },
+    edits: [{ id: poem().id, fields: ['orderInSource'], reason: '残留条目' }],
+  });
+  assert.deepEqual(d.stale, [poem().id]);
+  assert.equal(d.reordered.length, 0);
+  assert.equal(d.textModified.length, 0);
+});
+
+test('删除已发布作品 / 新增作品分别报出（删＝红，增＝这条路径存在的理由）', () => {
+  const d = diffPublishedPoems({
+    before: { poems: [poem()] },
+    after: { poems: [poem({ id: '杜甫-望岳' })] },
+    edits: [],
+  });
+  assert.deepEqual(d.missing, [poem().id]);
+  assert.deepEqual(d.added.map((x) => x.id), ['杜甫-望岳']);
+});
+
+test('登记表的每一条都写了理由，且只登记排序键字段', () => {
+  for (const e of PUBLISHED_POEM_FIELD_EDITS) {
+    assert.ok(typeof e.reason === 'string' && e.reason.length > 20, `${e.id} 的理由太短，审查时看不出为什么`);
+    for (const f of e.fields) {
+      assert.ok(['orderInSource', 'tags'].includes(f), `${e.id} 登记了非排序键字段 ${f}`);
+    }
+  }
+});
+
+test('changedFieldNames：浅比较、按 JSON 串比（数字/字符串/null 都算不同）', () => {
+  assert.deepEqual(changedFieldNames({ a: 1, b: null }, { a: 2, b: null }), ['a']);
+  assert.deepEqual(changedFieldNames({ a: '1' }, { a: 1 }), ['a']);
+  assert.deepEqual(changedFieldNames({ a: 1 }, { a: 1 }), []);
+});
