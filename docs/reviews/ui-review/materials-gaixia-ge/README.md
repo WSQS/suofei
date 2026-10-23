@@ -1,7 +1,7 @@
 # 项羽《垓下歌》本地新增：核对材料与实测回执（2026-10-23）
 
 > 工作树：`C:\Users\wsqsy\Documents\android\.sopho-wt\1-url-2-content-poems-md-tit-98defaaf`
-> 分支：`wt/1-url-2-content-poems-md-tit-98defaaf`，基线提交 `a43f3d4`
+> 分支：`wt/1-url-2-content-poems-md-tit-98defaaf`，基线提交 `a43f3d4`，**本批提交 `0e74de7`**（本文件与材料就在该提交里）
 > **未 push、未 tag、未 Pages/Release、未动远端 latest**；应用版本 `0.1.4` / `versionCode 5` / `formatVersion 3` **均未变**。
 > 来源、题名/时代口径、异文与未核项写在 [`docs/sources/xiang-yu-gaixia-ge-intake.md`](../../../sources/xiang-yu-gaixia-ge-intake.md)，本文只记**门与实测**。
 
@@ -45,6 +45,8 @@ a5081749c5fd669c8c87804a6ff78ef9fbfe77301bb4b1123b5020fbe02c90dd  web/content.js
 | 打包 | `./gradlew assembleDebug` | **BUILD SUCCESSFUL**，`app/build/outputs/apk/debug/app-debug.apk` |
 
 > 备注：本树本无 `node_modules`（`npm test` 首跑报 `ERR_MODULE_NOT_FOUND: ajv`），已在本树 `npm ci` 装齐 5 个包后重跑；**未动主树的 `node_modules`**。
+
+**在提交 `0e74de7` 上复跑（无写）**：`build --check` =0、`check-fieldset` =0、`check-fieldset --content content` =0、`check-bundled` =0、`npm test` 210/210 =0；三份 sha 复核仍为 `a5081749…`（工作树 `git status` 干净）。Web e2e 612/612 与 Android 175 例是在同一份源上、提交前跑的（本提交未改它们的输入）。
 
 ## 3 改了两处测试：为什么改、有没有改弱
 
