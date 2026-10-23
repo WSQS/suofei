@@ -3,6 +3,7 @@
   "note": "生成物，请勿手改。由 tools/gen-tracked-poems-manifest.mjs 从 `git ls-files -z -- content/poems` 生成；无 .git 的 git archive/发布副本读它当「已跟踪诗源清单」，真实仓由 tests/tracked-poems-manifest.test.mjs 逐条核对新鲜度。",
   "source": "git ls-files -z -- content/poems",
   "paths": [
+    "content/poems/刘过/唐多令·芦叶满汀洲.md",
     "content/poems/古诗十九首/东城高且长.md",
     "content/poems/古诗十九首/今日良宴会.md",
     "content/poems/古诗十九首/冉冉孤生竹.md",
