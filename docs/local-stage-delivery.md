@@ -129,6 +129,52 @@
 
 ---
 
+## 0g. **31 首正式发布（2026-10-23；同 app 版本 + 新 APK）**
+
+**tag `v0.1.4+content-2026.10.23.4`**（annotated tag 对象 `7f0fc58` → commit `96299c0`）｜
+**CI run `39969924570`（success，`workflow_dispatch` + `mode=same-app-content-refresh` + `dry_run=false`）**｜
+站点 <https://wsqs.github.io/suofei/>｜Release <https://github.com/WSQS/suofei/releases/tag/v0.1.4%2Bcontent-2026.10.23.4>
+
+- **应用版本没变**：`APP_VERSION` / `versionName` **0.1.4**、`versionCode` **5**、`formatVersion` **3**、`minAppVersionCode` **5**；只有内容 `.20.1 → .23.4`（当天真实递增值；**不复用**本地测试号 `.23.1/.23.2/.23.3`）。
+- **发布前置事实**：`android/app/src/main` 相对 `v0.1.4+content-2026.10.20.1` **只差 `assets/content/content.json`**（逐字节）；`web/app/**` **逐字节未变**（`CONTENT_REVISION` 只在产物里盖章，仓库恒为 `dev`）；`android/app/src/test/**`（JVM 单测，**不进 APK**）与 `web/tests/**` 有改动但**不参与进包判定**（门里单列）。
+- **就绪门（CI、release 变体）**：**绿 32 / 黄 0 / 跳过 2 / 红 0（共 34）**；结论行「**same-app 内容刷新就绪**（APK 为同版本号重打包、内置 **31 首**；APP_VERSION 0.1.4 / versionCode 5 未变，内容 2026.10.20.1 → 2026.10.23.4）」。
+  那 2 跳＝`app-version-bumped` / `apk-versioncode-bumped`，**被同模式下的正面断言取代**（`same-app-app-version-unchanged`：线上现值 == 基线 tag == 本次；`same-app-version-code-unchanged`：与同 app 版本旧 tag 相等，不写死数字）。
+  真跑门：Web e2e **750/750**（带**真旧基底** = tag `.20.1` 的 `web/**` ＋ 线上 `content/2026.10.20.1/content.json`，sha `c4781042…`、34301 字节）、Android JVM 单测 **175 例 / 失败 0**、Web↔契约 MD 对照 **204/204**。
+- **`same-app-content-delta` 的真实读数**：线上 `.20.1` **28 首 / 3 组** → **31 首 / 4 组**；新增 3 首（**垓下歌**、**高轩过**、**唐多令·芦叶满汀洲**）；**已发布 28 首正文/其它字段逐字节未变**；**已登记的排序键改动 0 首**。
+- **`PUBLISHED_POEM_FIELD_EDITS` = 空表（0 条）**：线上 `.20.1` 已吸收上一条 `orderInSource: null → 5`（毛《七律·和郭沫若同志》），本批新增的 3 首线上不存在 ⇒ 相对 `.20.1` **没有任何一首该变**；留任何一条都是「登记了却没变」（红）。新增两条单测钉住「空表 ≠ 放松」（表必须 0 条；空表下只改排序键也红），**没有**泛 allow。
+- **同一份字节**（`dist` ＝ `web/content.json` ＝ `web/content/.23.4/content.json` ＝ **APK 内置** ＝ `latest.json.sha256` ＝ 线上 `content.json`）：
+  `6e78eb3232d1600d6b527e07f7bd7ba02078f3cc59f286edab4037ea922c8718`（**47124 字节**）。已下载 APK 解包重算，与线上 `content.json`、`latest.json.sha256` **三者逐字节相同**。
+  ⚠ **仓库里提交的 `android/app/src/main/assets/content/content.json` 是另一次（阶段）编译**：sha `4be0b4cd…`、54469 字节（**缩进 JSON**，供评审可读）；发布产物是 `--minify` 单行 47124 字节 ⇒ **两者字节不同是设计如此**（内容层面一致由 `check-bundled-content` 与门里的 `apk-builtin-same-source` 各自证明，别把两者混为一谈）。
+- **APK**：`suofei-2026.10.23.4.apk`（**7,075,882 字节**，sha256 `106d98eb37e02b15b4e19e89d8285364c0670d39a9927f749cf6d331a4a2a55a`，**本地从 Release 下载后重算，与 CI 回执逐字相同**）；
+  `apksigner verify` 通过（v2 方案）：`CN=Suofei, OU=suofei, O=WSQS, C=CN`、SHA-256 **`1346444c189aa50aa81b76eeeb28ff61aeb8b9b2ba972ed77d2fd2ca74bdf345`**（与上一版同一张证书 ⇒ 可覆盖安装）；`versionCode 5` / `versionName 0.1.4` / `dev.sopho.suofei` / 应用名「索斐」；**内置 31 首 / 4 组**（`assets/content/content.json` 47124 字节，sha 同上，`tags` 古诗十九首 19 ／ 唐诗三百首 3）。
+- **线上读回**：`APP_VERSION=0.1.4`、`CONTENT_REVISION=2026.10.23.4`（`app/config.js` 与 `sw.js` 两处同值）、`SUPPORTED_FORMAT_VERSION=3`；缓存键 `pc-resources-0.1.4+2026.10.23.4`；`content.json` **31 首 / 4 组 `["汉","唐","宋","近现代"]`**（20 / 4 / 1 / 6）；`tags` **古诗十九首 19 ／ 唐诗三百首 3**；近现代次序 **忆秦娥1 → 清平乐六盘山2 → 浪淘沙北戴河3 → 七律到韶山4 → 七律和郭沫若5 → 卜算子咏梅6**；**宋组 1 首 = 唐多令·芦叶满汀洲（orderInSource 1）**；汉组末首**垓下歌（20）**；唐组 **望岳1 / 梦李白其一2 / 梦李白其二3 / 高轩过4**；`notes` 全 `null`；`content/latest.json` → `contentVersion 2026.10.23.4`、`sha256`（同上）、`size 47124`、`minAppVersionCode 5`。
+- **同一 tag 的两次 run**：`push` 触发的 `39969850179` **red** —— 停在**构建前**的前置闸（「tag 的应用版本 0.1.4 已有别的发布 tag ⇒ 请用 dispatch 选 same-app」），16 秒结束、**没构建、没部署 Pages、没建 Release、没动 latest**；真正发布的是**显式 dispatch** 那条。
+- **旧历史未动**：`v0.1.4+content-2026.10.20.1`（`82c1f02`，APK 仍在）、`.19.3`、`.18.3`、`.16.26` 的 tag 对象与 Release 资产逐个核过仍在；新 Release 由 GitHub 标为 **Latest**（旧 Release 不改写）。
+- **本轮仓库侧改了什么**：① 把 `origin/master` 的 same-app 发布接线（`mode` 输入、结论退出码、判据）并进 31 首内容线；② 内容一次编译为 `.23.4` 并分发三份；③ **发布前**把三首新诗 `detail` 的工程脚手架清掉（只改 `detail`：正文/异文/`source` 一字未动；题注 OCR 差异改成「按明确所取的这份转录整理」，不再断言「均系误」）；④ 空登记表 + 两条守卫单测；⑤ Web e2e §9 的**过期前提**换成本批真实前提（增量在总首数与组数，宋组首次出现）。
+
+### 0g-1. 发布后自己发现并处置的两处问题（**都记在这里，不悄悄改**）
+
+1. **Release 说明模板把上一批的内容写死了**（`release/notes/release-notes-same-app.md` 里写着「新增一首：杜甫《望岳》」「合计 23 首 / 3 组」——那是 `.19.3 → .20.1` 那一批）。
+   ⇒ 本次 `.23.4` 的 Release 正文**发出时是错的**（说 23 首/3 组）；**同一模板也让上一次 `.20.1`（28 首）的 Release 正文带着同样的错**，而**没有任何门在看「说明与产物是否相符」**。
+   **我的处置**：① **只改了我自己这次刚发的** `.23.4` Release 正文（改成 28 → 31 首、新增三首、宋组首次出现的真实描述；**APK 资产没动**、tag 没动）；② 旧 `.20.1` 的 Release 正文**按约定不改写**（历史记录保持原样，仅在此披露）；③ 模板改成**不含任何本批事实**，并新增**逐版说明文件** `release/notes/release-notes-same-app-<内容版本>.md`（工作流里逐版文件优先、退到模板时打 `::warning::`），外加 `tests/release-notes.test.mjs`（含**证伪**：上一版的真实模板必须被判据抓住）。本批的逐版说明落在 `release/notes/release-notes-same-app-2026.10.23.4.md`（＝修正后的线上正文）。
+2. **Pages 上只留「当前部署」那一份内容快照**：发布后实测 `content/2026.10.23.4/content.json` **200**，而 `content/2026.10.20.1/`、`.19.3/`、`.16.26/` **全部 404**（部署会整体替换站点目录）。
+   ⇒ 这与 `release/lib/live-version.mjs` 注释里「已发版本一直可重取」的措辞**不符**（该措辞对「最早的当前版」成立，对**被取代的**版本不成立）。
+   **不阻塞**：更新链只读 `content/latest.json` → 它指向的正是当前那一份；下一次同 app 刷新的基线内容版本＝线上现值＝当前部署的这份 ⇒ 门取得到。**门与行为没改**，只把 `release/lib/live-version.mjs` 里那句误导性注释就地改成实测事实。
+
+### 0g-2. 本地演练里的一个环境噪声（如实留痕）
+
+- 本地 `check-ready`（debug 演练）第一次、第二次都红在 `same-app-app-version-unchanged`：`spawnSync node ETIMEDOUT`（子进程 9s 预算内没读完 `app/config.js`）。
+  实测这台机器到 `wsqs.github.io` 的时延**极不稳定**（同一请求 0.56s ~ **182s**；单独跑同一读取函数时而 0.7s、时而 18.5s）⇒ **网络噪声，不是门的问题**，也**不是**在放松门。第三次真跑**全绿**（exit 0）；CI 上的同一条门一次通过。
+
+### 0g-3. 未验（如实）
+
+- **物理真机**安装/覆盖升级（明令不碰用户手机）；**模拟器上也没有装这个正式包**；
+- 无障碍（键盘/TalkBack/对比度）、系统字号放大/字体回退、WebView 内核、OLED 观感、横屏/旋转；
+- **更新链的中间态**（下载中/校验中/待切换、失败保旧、不兼容保旧、离线）只在 e2e 的**本地真部署**里演练过（含 `.20.1 → .23.4` 这次的真实旧基底），**不是线上站点上的实测**；
+- Pages / Release 的生效延迟与缓存由服务商决定，**不声称原子性**；**被取代**的内容快照会 404（见 0g-1 第 2 条）。
+
+---
+
 ## 1. 候选在哪（两端 ＋ 构建身份与签名）（历史轮次记录，见 §0b/§0c/§0d/§0e 的最新发布）
 
 （⚠ 下表的「本机候选」是**发布前**的表述；**正式发布已按 §0b 完成**（tag `v0.1.2+…`、正式签名包已上线），

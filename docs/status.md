@@ -2,12 +2,11 @@
 
 > 只此一份台账。当前版本、阶段、并行工作线/写入范围、下一步、未决问题都在这里。
 
-- 更新时间：**2026-10-16**（承接负责人 `bff673a1-4708-41bf-ac1d-4a93f3af2800` 维护）
-- **同 app 版本的内容刷新路径（2026-10-16，本地实现、未发布）**：`build`/`check-ready` 新增
-  `--same-app-content-refresh`（应用版本/versionCode **不变**、照常产 APK、只递增 contentVersion；
-  Web 缓存名带上内容修订）。设计与门对照见
-  [`docs/design/same-app-content-refresh.md`](design/same-app-content-refresh.md)；发布仍由负责人打 tag。
-- **最新（2026-10-20）：同 app 版本内容刷新（28 首）已上线** —— tag **`v0.1.4+content-2026.10.20.1`**、CI run **`39363712714` 绿 32 / 黄 0 / 跳 2 / 红 0**（那 2 跳＝被 `same-app-*` **正面断言**取代的两条递增门）；`APP_VERSION 0.1.4` / `versionCode 5` **未变**；正式签名 `CN=Suofei`（`1346444c…` 同证书）、APK **`suofei-2026.10.20.1.apk`**（**内置 28 首**）、Pages 已部署（缓存键 `pc-resources-0.1.4+2026.10.20.1`）、前馈 `minAppVersionCode 5`。读回见 [`docs/local-stage-delivery.md`](local-stage-delivery.md) **§0f**。
+- 更新时间：**2026-10-23**（承接负责人 `bff673a1-4708-41bf-ac1d-4a93f3af2800` 维护）
+- **最新（2026-10-23）：同 app 版本内容刷新（31 首）已上线** —— tag **`v0.1.4+content-2026.10.23.4`**（commit `96299c0`）、CI run **`39969924570` 绿 32 / 黄 0 / 跳 2 / 红 0**（那 2 跳＝被 `same-app-*` 正面断言取代的两条递增门）；`APP_VERSION 0.1.4` / `versionCode 5` / `formatVersion 3` / `minAppVersionCode 5` **全未变**；正式签名 `CN=Suofei`（`1346444c…` 同证书）、APK **`suofei-2026.10.23.4.apk`**（7,075,882 字节；**内置 31 首 / 4 组**，内置 sha ＝ 线上 JSON ＝ `latest.json.sha256` ＝ `6e78eb32…`）、Pages 已部署（缓存键 `pc-resources-0.1.4+2026.10.23.4`）。全文回执与两处发布后自查见 [`docs/local-stage-delivery.md`](local-stage-delivery.md) **§0g**。
+  - 内容：**31 首 / 4 组**（汉 20 / 唐 4 / **宋 1** / 近现代 6）；tags 古诗十九首 19 ／唐诗三百首 3；`notes` 全 `null`。相对线上 `.20.1` **新增 3 首**（垓下歌、高轩过、唐多令·芦叶满汀洲），**已发布的 28 首逐字段未变**，`PUBLISHED_POEM_FIELD_EDITS` **空表（0 条）**。
+  - ⚠ 旧 `.20.1`（28 首）及更早的 tag/Release/APK **历史未动**（新 Release 由 GitHub 标为 Latest）；⚠ 旧 Release `.20.1` 的**正文**同样带着「模板写死上一批」的错，**按约定不改写历史**，只披露（§0g-1）。
+- **上一版（2026-10-20）：同 app 版本内容刷新（28 首）已上线** —— tag **`v0.1.4+content-2026.10.20.1`**、CI run **`39363712714` 绿 32 / 黄 0 / 跳 2 / 红 0**（那 2 跳＝被 `same-app-*` **正面断言**取代的两条递增门）；`APP_VERSION 0.1.4` / `versionCode 5` **未变**；正式签名 `CN=Suofei`（`1346444c…` 同证书）、APK **`suofei-2026.10.20.1.apk`**（**内置 28 首**）、Pages 已部署（缓存键 `pc-resources-0.1.4+2026.10.20.1`）、前馈 `minAppVersionCode 5`。读回见 [`docs/local-stage-delivery.md`](local-stage-delivery.md) **§0f**。
   - ⚠ 旧 `v0.1.4+content-2026.10.19.3`（23 首）与更早的 tag/Release/APK **历史未动**（资产逐个核过，新 Release 由 GitHub 标为 Latest）。
 - **最新（2026-10-18）：同 app 版本的内容刷新已上线** —— tag **`v0.1.3+content-2026.10.16.26`**、CI run **`39083735474` 绿 32 / 黄 0 / 跳 2 / 红 0**（那 2 跳＝被 `same-app-*` **正面断言**取代的两条递增门，回执里有原文说明）；正式签名 `CN=Suofei`（`1346444c…` **与 0.1.3 同证书**）、APK **`suofei-2026.10.16.26.apk`**（**versionCode 4 / versionName 0.1.3 不变**、**内置 22 首**）、Pages 已部署（缓存键 **`pc-resources-0.1.3+2026.10.16.26`**）、前馈 `minAppVersionCode 3`。
   - ⚠ **上一版 `v0.1.3+content-2026.10.16.24`（20 首）的 tag/Release/APK 历史未动**（两者都在；GitHub 自动把新 Release 标为 Latest，旧包仍可下载）。
@@ -682,4 +681,18 @@
 - **本地内置 `2026.10.23.3`**（测试号，**非发布**），`dist` / Android 内置 / `web/content.json` 三份同 sha `757aa5123ba146ad3722d5411cfc583f320759b93539a50cf0fb3c95fd57ed1c`。
 - 门：`build --check` **31 首 / 4 组 exit 0**、`check-fieldset` exit 0（28 条 / `1ec5811d…`）、`check-bundled` exit 0（诗 31 / 带详情 19）、`npm test` **214/214 exit 0**、`check-doc-tables` exit 0、Android `testDebugUnitTest --no-build-cache --rerun-tasks` **175/175 BUILD SUCCESSFUL**、Web e2e **625/625**。
 - 实拍：[`docs/reviews/device-acceptance/liu-guo-tang-duo-ling/`](reviews/device-acceptance/liu-guo-tang-duo-ling/)（`emulator-5556` / AVD `godot_test`）、Web 预览 [`docs/reviews/ui-review/liu-guo-tang-duo-ling/`](reviews/ui-review/liu-guo-tang-duo-ling/)（新 origin `8179`；**8177/8178 未 kill**）。
-- **线上仍是 30 首 / `0.1.4` / `2026.10.20.1`**（本批**未发布**：未 push、未 tag、未动 Pages/Release）。
+- ~~**线上仍是 30 首 / `0.1.4` / `2026.10.20.1`**（本批**未发布**：未 push、未 tag、未动 Pages/Release）。~~
+  ⇒ **已被 2026-10-23 的正式发布取代**：本批 31 首已随 tag `v0.1.4+content-2026.10.23.4` 上线（线上现为 31 首 / `.23.4`），见本文件顶部与 [`docs/local-stage-delivery.md`](local-stage-delivery.md) §0g。
+
+## 2026-10-23 · **31 首正式发布**（同 app 版本内容刷新 + 新正式签名 APK）
+
+- **tag `v0.1.4+content-2026.10.23.4`** → commit `96299c0`；CI run **`39969924570`**（`workflow_dispatch` + `mode=same-app-content-refresh` + `dry_run=false`）**success**。
+- **门**：绿 **32** / 黄 0 / 跳 2 / 红 0（共 34；2 跳＝被同模式正面断言取代的 `app-version-bumped`/`apk-versioncode-bumped`）；真跑门 e2e **750/750**（**真旧基底**＝tag `.20.1` 的 `web/**` ＋ 线上 `content/2026.10.20.1/content.json`）、Android **175 例 / 0 失败**、MD 对照 **204/204**。
+- **内容事实**：31 首 / 4 组（汉 20 / 唐 4 / 宋 1 / 近现代 6）；组序 汉→唐→宋→近现代；tags 19 / 3（新三首 `tags: []`）；`notes` 全 `null`；`tracked-poems.json` 31。
+- **同一份字节**：**47124 字节 / sha256 `6e78eb3232d1600d6b527e07f7bd7ba02078f3cc59f286edab4037ea922c8718`**（`dist` ＝ Web ＝ `content/.23.4/` ＝ APK 内置 ＝ `latest.json.sha256` ＝ 线上 `content.json`）。
+  ⚠ 仓库里**提交的**内置产物是另一次（阶段）编译：`4be0b4cd…` / 54469 字节（缩进 JSON，供评审）；发布产物是 `--minify`，**字节不同是设计如此**。
+- **APK 亲核（下载 Release 附件后重算）**：`suofei-2026.10.23.4.apk` 7,075,882 字节、sha256 `106d98eb37e02b15b4e19e89d8285364c0670d39a9927f749cf6d331a4a2a55a`；`CN=Suofei, OU=suofei, O=WSQS, C=CN`、**`1346444c189a…`**（同证书）；`versionCode 5` / `versionName 0.1.4`；解包后内置内容 **31 首**且与线上 `content.json` **逐字节相同**。
+- **线上读回**：`APP_VERSION 0.1.4` / `CONTENT_REVISION 2026.10.23.4`（`config.js` 与 `sw.js` 同值）、缓存键 `pc-resources-0.1.4+2026.10.23.4`、4 组、两标签 19/3、近现代 6 序不变、宋组 1 首；`latest.json` → `.23.4` / `minAppVersionCode 5` / sha 同上。
+- **发布后自查出的两处问题**（详见交付包 §0g-1）：
+  ① **Release 说明模板把上一批内容写死** ⇒ 本次 Release 正文发出时是错的（**只改了我这次刚发的**那条正文；旧 `.20.1` 正文按约定**不改写历史**）；模板已改为不含本批事实、新增**逐版说明文件**优先 + `tests/release-notes.test.mjs`（含证伪）。
+  ② **Pages 只留当前部署的内容快照**：`content/2026.10.20.1|.19.3|.16.26` 现在 **404**（只有 `.23.4` 200）⇒ 与设计文档「已发版本一直可重取」措辞不符；**不阻塞**（`latest.json` 指向当前那份，下次基线也取得到），如实记录（门/行为未改，只修正了那句注释）。

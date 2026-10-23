@@ -291,7 +291,18 @@ jobs:
           CONTENT_V="${RELEASE_TAG##*+content-}"
           NOTES_SRC=release/notes/release-notes.md
           if [ "$RELEASE_MODE" = "same-app-content-refresh" ]; then
+            # ⚠️ 2026-10-23（实战事故）：**模板里绝不写具体批次的内容**。
+            # 原先本模板把「新增哪首／合计几首几组」写死（是 .19.3 那一批的描述），结果 .20.1 与 .23.4
+            # 两次同格式发布的 Release 正文都把**上一批**的描述又发了一遍（.23.4 真实是 28 → 31 首、
+            # 新增三首，正文却还写「新增望岳、 23 首 / 3 组」）。现在：**逐版说明文件优先**。
             NOTES_SRC=release/notes/release-notes-same-app.md
+            PER_RELEASE="release/notes/release-notes-same-app-${CONTENT_V}.md"
+            if [ -f "$PER_RELEASE" ]; then
+              NOTES_SRC="$PER_RELEASE"
+              echo "使用逐版说明：${PER_RELEASE}"
+            else
+              echo "::warning::没有 ${PER_RELEASE}：退到通用模板（模板不含本批具体内容，发布说明里「这一版有什么」会是空的）"
+            fi
           fi
           PREV_CONTENT_V=$(node -e "const m=require('./release/out/release-manifest.json');process.stdout.write(String(m.previousVersion??''))")
           VC=$(node -e "const m=require('./release/out/release-manifest.json');process.stdout.write(String(m.app?.versionCode??''))")
