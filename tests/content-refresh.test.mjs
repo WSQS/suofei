@@ -379,6 +379,22 @@ test('登记表的每一条都写了理由，且只登记排序键字段', () =>
   }
 });
 
+// 2026-10-23（31 首发布）：线上 .20.1 已经吸掉了上一条 `null → 5`，本批新增的 3 首在线上不存在
+// ⇒ 已发布 28 首里**没有一首**该变，登记表就应该是**空的**。下面两条钉住“空表不是没用嘴说”：
+// ① 它必须真的是 0 条（谁往回填一条就得同时改这里，不能静默变成“泛 allow”的滑坡）；
+// ② 空表下，已发布作品的任何字段变化（哪怕只是排序键）都红 —— 空表 ≠ 放松。
+test('本批（31 首，2026-10-23）登记表为空：已发布作品没有任何已批准的字段改动', () => {
+  assert.deepEqual([...PUBLISHED_POEM_FIELD_EDITS], [], '本批不应登记任何改动（线上 .20.1 的 28 首要逐字不变）');
+});
+
+test('空表下，已发布作品只改排序键也照旧红（空表不是泛 allow）', () => {
+  const before = poem({ orderInSource: 1 });
+  const after = poem({ orderInSource: 2 });
+  const d = diffPublishedPoems({ before: { poems: [before] }, after: { poems: [after] } });
+  assert.deepEqual(d.textModified.map((x) => x.id), [before.id]);
+  assert.deepEqual(d.reordered, []);
+});
+
 test('changedFieldNames：浅比较、按 JSON 串比（数字/字符串/null 都算不同）', () => {
   assert.deepEqual(changedFieldNames({ a: 1, b: null }, { a: 2, b: null }), ['a']);
   assert.deepEqual(changedFieldNames({ a: '1' }, { a: 1 }), ['a']);

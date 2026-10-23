@@ -301,19 +301,14 @@ export function compareAgainstBaselines({ contentVersion, liveContentVersion, ba
  * ⚠️ 2026-10-20（28 首发布）**就地替换**了旧条目：原来那两条（`杜甫-梦李白二首·其一/其二`，1→2、2→3）
  *   是**相对 2026.10.19.3 之前**那次内容基线的；2026.10.19.3 线上产物里唐组已经是 1/2/3，
  *   所以那两条**已经过期**（留着就是「登记了却没变」的红）。登记表按**线上现值**重写，只留本次真变了的那首。
+ *
+ * ✅ 2026-10-23（31 首发布）：**表清空（零条）**。线上 .20.1 已经把上面那条 `null → 5` 吸收了
+ *   （那首在线上就是 `orderInSource: 5`），本批新增的 3 首（《垓下歌》／《高轩过》／《唐多令·芦叶满汀洲》）
+ *   在线上**不存在**，所以「相对 .20.1」25 首里**没有任何一首**该变
+ *   ⇒ 表里留任何一条都会变成「登记了却没变」（红）。本批**不需要也不得**泛 allow：
+ *   已发布 28 首的任一字段只要有改动，`same-app-content-delta` 就应该报红。
  */
-export const PUBLISHED_POEM_FIELD_EDITS = Object.freeze([
-  {
-    id: '毛泽东-七律·和郭沫若同志',
-    fields: ['orderInSource'],
-    // 这次必须按**线上 .19.3 的真实产物**登记：那首在线上是 `orderInSource: null`
-    // （发布它的时候这个键还是可选的），不是本地某次提交里的 2 —— 按本地旧值登记会在门里对不上。
-    reason: '线上 2026.10.19.3 里这首是 orderInSource: null（发布它时该键仍可选）；'
-      + '2026-10-19 用户拍板 B 后 orderInSource 改为**必填正整数**，且本批近现代按本库编年排'
-      + '（忆秦娥·娄山关1／清平乐·六盘山2／浪淘沙·北戴河3／七律·到韶山4／七律·和郭沫若同志5／卜算子·咏梅6）'
-      + '⇒ 这一首 null → 5。标题/作者/朝代/体裁/source/detail/stanzas/notes/tags 一字未动。',
-  },
-]);
+export const PUBLISHED_POEM_FIELD_EDITS = Object.freeze([]);
 
 /** 两个对象里值不同的字段名（浅比较，值按 JSON 串比）。 */
 export function changedFieldNames(before, after) {

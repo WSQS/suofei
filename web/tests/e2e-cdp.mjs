@@ -2464,17 +2464,29 @@ async function main() {
     //   而本批新增的 5 首都在**近现代**（不带任何标签）⇒ 标签成员数**不变是预期结果**，不是「没刷新」。
     //   本批真正的增量在**总首数**与**近现代组**，所以把「确有增量」的两条断言放在那两处，
     //   标签这侧只保留恒成立的不变式：旧成员一个不丢、旧次序保持为子序列。
-    check('总首数是**增**的（本批：23 首 → 28 首）',
+    // ⚠️ 2026-10-23（本批 31 首）**再次就地改写**上面那两条：线上 .20.1 里「近现代」已经是 6 首，
+    //   本批新增的 3 首跨了三组（汉《垓下歌》20／唐《高轩过》4／宋《唐多令·芦叶满汀洲》1）⇒
+    //   增量在**总首数**、**组数（3 → 4、宋组首次出现）**，而「近现代」组与两个标签本批都没动
+    //   ⇒ 「近现代增」「标签成员增」在这个基线上都是**错的期望**（保持不变才是预期结果）。
+    check('总首数是**增**的（本批：28 首 → 31 首）',
       baseDoc.poems.length > oldDoc.poems.length, dump({ old: oldDoc.poems.length, new: baseDoc.poems.length }));
+    const oldDyn = oldDoc.dynasties ?? [];
+    const newDyn = baseDoc.dynasties ?? [];
+    check('组数是**增**的（本批 3 组 → 4 组：宋组首次出现）',
+      newDyn.length > oldDyn.length, dump({ old: oldDyn, new: newDyn }));
+    check('「宋」组在旧基底里没有、在本轮产物里有（新组不是替换掉某个旧组）',
+      !oldDyn.includes('宋') && newDyn.includes('宋'), dump({ old: oldDyn, new: newDyn }));
+    check('旧组次序在新 dynasties 里保持为子序列（不删组、不乱序：汉 → 唐 → … → 近现代）',
+      subseq(oldDyn, newDyn), dump({ old: oldDyn, new: newDyn }));
     const oldModern = oldDoc.poems.filter((p) => p.dynasty === '近现代');
     const newModern = baseDoc.poems.filter((p) => p.dynasty === '近现代');
-    check('「近现代」组是**增**的（本批 1 首 → 6 首：新增的 5 首全在这一组）',
-      newModern.length > oldModern.length, dump({ old: oldModern.length, new: newModern.length }));
+    check('「近现代」组本批没动（.20.1 已是 6 首 ⇒ 相等才是预期，不是「没刷新」）',
+      newModern.length === oldModern.length, dump({ old: oldModern.length, new: newModern.length }));
     check('「唐诗三百首」成员数**不减**（本批新增都不带标签 ⇒ 不变是预期的）',
       newTangIds.length >= oldTang.members.length,
       dump({ old: oldTang.members.length, new: newTangIds.length }));
     console.log(`  「唐诗三百首」成员：已发布 ${oldTang.members.length} → 本轮 ${newTangIds.length}（本批新增均无标签）`);
-    console.log(`  总首数：已发布 ${oldDoc.poems.length} → 本轮 ${baseDoc.poems.length}；近现代 ${oldModern.length} → ${newModern.length}`);
+    console.log(`  总首数：已发布 ${oldDoc.poems.length} → 本轮 ${baseDoc.poems.length}；组数 ${oldDyn.length} → ${newDyn.length}；近现代 ${oldModern.length} → ${newModern.length}`);
     check('新内容每首都带 tags 数组（format 3 的必填键）',
       baseDoc.poems.every((p) => Array.isArray(p.tags)), dump(Object.keys(baseDoc.poems[0])));
     // 新内容的标签身份：唯一来源是本轮产物（客户端一律照产物顺序、不重排）。
