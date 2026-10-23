@@ -1,0 +1,28 @@
+# 设备身份与占用核对（2026-10-23 实测，本会话只用 -s emulator-5556）
+Fri Oct 23 09:55:04 TST 2026
+
+## 启动本机 AVD 之前，adb devices -l 里已有的设备（不是我起的）
+YOCTO                  device  (别人的设备)
+127.0.0.1:7666         device  product:vext_auto8668p1_64_vm_paravirt (别人的 vext 实例)
+
+## 我起的这台：启动后又出现的新序列号
+emulator-5556          device  product:sdk_gphone64_x86_64 model:sdk_gphone64_x86_64 device:emu64xa
+
+## AVD 身份（不是只凭序列号认 AVD）
+Pixel_6
+OK
+启动参数：-avd Pixel_6 -port 5556 -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect
+
+## 系统
+ro.build.version.release = 15
+ro.product.model = sdk_gphone64_x86_64
+Physical size: 1080x2400
+Physical density: 420
+
+## 起的瞬间前台（用于判断「是否被别人占用」）
+无 resumed activity（冷启后为空）
+
+## 我安装的包身份（只 debug）
+    versionCode=5 minSdk=26 targetSdk=36
+    versionName=0.1.4
+安装命令：adb -s emulator-5556 install -r android/app/build/outputs/apk/debug/app-debug.apk

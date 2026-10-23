@@ -79,7 +79,13 @@ const CHROME_BIN = process.env.CHROME_BIN
 const BASE = `http://127.0.0.1:${PORT}/`;
 const NODE = process.execPath;
 
-/** 用户 2026-10-14 拍板：组内次序 `--order source`（《文选》卷二十九原次序）。硬编码以便钉住重排。 */
+/** 用户 2026-10-14 拍板：组内次序 `--order source`（《文选》卷二十九原次序）。硬编码以便钉住重排。
+ *
+ * ⚠ 2026-10-23（录项羽《垓下歌》：汉组 19 → 20 首）：这张表原本被当成「**汉组**的次序」。
+ *   那是把「这一批」当永久契约 —— 汉组后来进了一首《垓下歌》（`orderInSource: 20`），
+ *   表本身仍是**真外部事实**（《古诗十九首》在《文选》卷二十九的原次序），但只该钉
+ *   「**《古诗十九首》这一子集**没被重排」，不该钉「汉组就是这 19 首」。见 0b 与 §1 的断言。
+ */
 const SOURCE_ORDER_TITLES = [
   '行行重行行', '青青河畔草', '青青陵上柏', '今日良宴会', '西北有高楼',
   '涉江采芙蓉', '明月皎夜光', '冉冉孤生竹', '庭中有奇树', '迢迢牵牛星',
@@ -133,6 +139,15 @@ function readSourcePoemFacts() {
         stanzas,
       };
     });
+}
+
+/** 源文里某个朝代组的诗，按 `orderInSource` 升序（**不写字面量**：哪个批次不是契约）。
+ * @param {string} label 中文朝代组名（与源文 `dynasty:` 逐字相等）
+ */
+function sourcePoemsOfDynasty(label) {
+  return readSourcePoemFacts()
+    .filter((p) => p.dynasty === label)
+    .sort((a, b) => a.orderInSource - b.orderInSource);
 }
 
 // ------------------------------------------------------------------ 断言工具
@@ -572,8 +587,23 @@ function unitTests(baseDoc, variants) {
     productOrderStatus(baseDoc),
     { present: withOrder.length, usable: usableOrder.length, productOrderAuthoritative: true, wrongType: false });
   const hanPoems = baseDoc.poems.filter((p) => p.dynasty === '汉');
-  eq(`真实产物「汉」组 ${hanPoems.length} 首的诗名次序 == 用户拍板的《文选》原次序`,
-    hanPoems.map((p) => p.title), SOURCE_ORDER_TITLES);
+  // ⚠ 2026-10-23：期望值**从源文派生**（汉组已不止《古诗十九首》那一批），
+  //   那 19 首的原次序改由下面「古诗十九首子集」两条断言钉住（不改弱：追加不得插队、不得重排）。
+  const hanFromSources = sourcePoemsOfDynasty('汉');
+  check('源文里汉诗非空且 orderInSource 都是 ≥1 的整数（否则下面几条是空断言）',
+    hanFromSources.length > 0 && hanFromSources.every((p) => Number.isInteger(p.orderInSource) && p.orderInSource >= 1),
+    dump(hanFromSources.map((p) => [p.title, p.orderInSource])));
+  check('源侧汉诗 orderInSource 唯一（否则「按次序」这条断言没有牙齿）',
+    new Set(hanFromSources.map((p) => p.orderInSource)).size === hanFromSources.length,
+    dump(hanFromSources.map((p) => p.orderInSource)));
+  eq(`真实产物「汉」组 ${hanPoems.length} 首的诗名次序 == 源文按 orderInSource 升序（客户端不重排）`,
+    hanPoems.map((p) => p.title), hanFromSources.map((p) => p.title));
+  const tag19 = baseDoc.tags.find((t) => t.id === '古诗十九首');
+  const titleById = new Map(baseDoc.poems.map((p) => [p.id, p.title]));
+  eq('「古诗十九首」标签成员次序 == 《文选》卷二十九原次序（19 首，产品 tags[].members 逐首）',
+    (tag19?.members ?? []).map((id) => titleById.get(id)), SOURCE_ORDER_TITLES);
+  eq('「汉」组里带《古诗十九首》标签的那一子集，相对次序 == 《文选》原次序（追加不插队、不重排）',
+    hanPoems.filter((p) => (p.tags ?? []).some((t) => t.id === '古诗十九首')).map((p) => p.title), SOURCE_ORDER_TITLES);
   eq('产物里的组与组序（＝注册表 order 升序：汉 → 唐 → 近现代）',
     baseDoc.dynasties, [...new Set(baseDoc.poems.map((p) => p.dynasty))]);
   eq('目录次序 == 产物数组次序', groupPoems(baseDoc).flatMap((g) => g.poems.map((p) => p.id)), expectedDomOrder(baseDoc));
@@ -1049,8 +1079,11 @@ async function main() {
       .find((x) => x.dataset.dynastyKey === ${JSON.stringify(key)});
     return g ? [...g.querySelectorAll('[data-test="poem-row"] .poem-row-title')].map((e) => e.textContent) : [];
   })()`);
-  eq('「汉」组目录的诗名次序 == 用户拍板的《文选》卷二十九原次序（19 首，确定性）',
-    await groupRowTitles('汉'), SOURCE_ORDER_TITLES);
+  // ⚠ 2026-10-23（录项羽《垓下歌》：汉组 19 → 20 首）：期望值从源文派生；
+  //   「那 19 首原次序未变」由 §0b 的「古诗十九首子集」两条断言钉住，不在这里写死。
+  const hanSources = sourcePoemsOfDynasty('汉');
+  eq('「汉」组目录的诗名次序 == 源文按 orderInSource 升序（确定性，客户端不重排）',
+    await groupRowTitles('汉'), hanSources.map((p) => p.title));
   // ⚠ 2026-10-20（录毛诗四首 24 → 28）：这里原先写死「近现代 2 首（忆秦娥 → 七律）」—— 那是把批次当契约。
   //   现在期望值**从源文派生**（按 orderInSource 升序），并把 DOM 与源两侧都对上。
   const modernFromSources = readSourcePoemFacts()
@@ -1070,7 +1103,7 @@ async function main() {
       .find((x) => x.dataset.dynastyKey === '汉');
     const t = [...g.querySelectorAll('[data-test="poem-row"] .poem-row-title')].map((e) => e.textContent);
     return [t[0], t[t.length - 1], t.length];
-  })()`), ['行行重行行', '明月何皎皎', 19]);
+  })()`), [hanSources[0]?.title, hanSources.at(-1)?.title, hanSources.length]);
   eq('真实产物第 1 首是 行行重行行 且 orderInSource === 1', [baseDoc.poems[0].title, baseDoc.poems[0].orderInSource], ['行行重行行', 1]);
   check('本机拼音重排不会把它排在第 1 位（所以上一条断言有牙齿）',
     fallbackOrder(baseDoc).indexOf(baseDoc.poems[0].id) !== 0, dump(fallbackOrder(baseDoc).slice(0, 3)));
@@ -1583,7 +1616,7 @@ async function main() {
     // 整页证据图（含滚到底）：给人看的，也是这个缺陷的回归底片。
     await fullPageShot(`no-panel-${slug}.png`);
   }
-  // 正向对照（防「把版本／内容整个删掉也能过」）：版本确实在关于页，目录确实渲染出 19 首。
+  // 正向对照（防「把版本／内容整个删掉也能过」）：版本确实在关于页，目录确实渲染出全部诗（首数从产物派生）。
   await hashTo('#/about');
   await waitForAboutView();
   eq('正向对照：关于页确实显示应用版本（不是把版本整个删了）',
@@ -1873,9 +1906,9 @@ async function main() {
   // ---- 结构记号：计数方括号（规范 §4.1 记号②）与题头无下划线（记号③）。
   // ⚠ §4.1 记号①（组名左沿发丝竖线）与采纳锚相抵，已在上面按采纳锚改为「无竖线」；
   //    这一条差异在报告里单列请负责人裁决（Android 侧仍是旧口径）。
-  // 注：`innerText` **不包含**伪元素生成的文字（实测 countText="19 首"），所以「渲染成 [19] 首」
-  // 由伪元素断言 + 截图共同证明（横幅那条不是靠 innerText）。
-  check('结构记号 2：计数在浏览器里渲染成 [19] 首（方括号来自伪元素）',
+  // 注：`innerText` **不包含**伪元素生成的文字（实测 countText="20 首"这种形式），所以「渲染成 [N] 首」
+  // 由伪元素断言 + 截图共同证明（横幅那条不是靠 innerText）。数字由产物派生，不在这里写死。
+  check('结构记号 2：计数在浏览器里渲染成 [N] 首（方括号来自伪元素）',
     indexVis.countBrackets[0] === '"["' && !indexVis.countText.includes('['),
     `innerText=${dump(indexVis.countText)}（不含伪元素）::before=${indexVis.countBrackets[0]}`);
   eq('结构记号 2：方括号来自伪元素（::before/::after）',
@@ -2271,7 +2304,7 @@ async function main() {
   s = await summary();
   eq('恢复后的站点版本', s.appVersion, deployVersions.good);
   eq('恢复后的内容版本', s.contentVersion, baseDoc.contentVersion);
-  eq('恢复后有完整 19 首', s.poems, total);
+  eq('恢复后有完整诗数（= 产物首数）', s.poems, total);
   eq('恢复后次序正确', await domPoemIds(), expectedDomOrder(baseDoc));
   check('恢复后没有残留失败状态', !(await evaluate(`Boolean(document.querySelector('[data-test="view-error"]'))`)));
 
@@ -2317,7 +2350,7 @@ async function main() {
   await waitForIndexExpanded();
   s = await summary();
   eq('重新访问后内容版本', s.contentVersion, baseDoc.contentVersion);
-  eq('重新访问后有完整 19 首', s.poems, total);
+  eq('重新访问后有完整诗数（= 产物首数）', s.poems, total);
   await waitForNonEmptyCache(v7.cacheName, '重新访问后新 cache 开始写入');
   await waitForSiteCaches([v7.cacheName], '重新访问后站点缓存重建');
   await waitForCacheEntry(v7.cacheName, '/content.json');

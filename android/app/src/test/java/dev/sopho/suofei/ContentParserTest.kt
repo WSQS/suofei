@@ -103,12 +103,39 @@ class ContentParserTest {
 
         // 契约：编译产物已按底本原次序排好，客户端不得重排。
         assertEquals("行行重行行", content.poems.first().title)
-        // 「汉」组＝《古诗十九首》19 首：首＝行行重行行、末＝明月何皎皎，orderInSource 1..19。
+        // 「汉」组：期望值**从源文派生**（`ContentSources.orderedPoemsOfDynasty`，直接读 `content/poems/**`）。
+        //   ⚠ 2026-10-23（录项羽《垓下歌》：汉组 19 → 20 首）之前，这里写死「19 首 / 末＝明月何皎皎 / 1..19」：
+        //   那是把**批次**当契约 —— 汉组后来进的那首《垓下歌》不是《古诗十九首》，`orderInSource` 是 20。
+        //   ⇒ 改成派生（产物与源不一致就红）；「那 19 首没被插队、没被重排」改由下面的**标签子集**断言钉住。
+        val expectedHan = ContentSources.orderedPoemsOfDynasty("汉")
+        assertTrue(
+            "「汉」组源文应非空（否则下面几条是空断言，不是通过）",
+            expectedHan.isNotEmpty(),
+        )
         val han = content.groups.first { it.name == "汉" }
-        assertEquals(19, han.poems.size)
-        assertEquals("行行重行行", han.poems.first().title)
-        assertEquals("明月何皎皎", han.poems.last().title)
-        assertEquals((1..19).toList(), han.poems.map { it.orderInSource })
+        assertEquals("「汉」组首数 == 源文里组为该朝代的文件数", expectedHan.size, han.poems.size)
+        assertEquals(
+            "「汉」组诗名次序 == 源文按 orderInSource 升序",
+            expectedHan.map { it.first }, han.poems.map { it.title },
+        )
+        assertEquals(
+            "「汉」组 orderInSource 与源文逐条相同（客户端不重排）",
+            expectedHan.map { it.second }, han.poems.map { it.orderInSource },
+        )
+        // 牙齿：《古诗十九首》这一**子集**仍是《文选》卷二十九原次序 —— 追加新诗不得插队，更不得重排那 19 首。
+        val guShiIds = ContentSources.tagsBySource["古诗十九首"]
+            ?: throw AssertionError("源文里没有任何「古诗十九首」归属，下面的断言会变成空的")
+        val hanGuShi = han.poems.filter { it.id in guShiIds }
+        assertEquals(
+            "《古诗十九首》在「汉」组里的相对次序 == 标签 members（客户端不重排）",
+            guShiIds, hanGuShi.map { it.id },
+        )
+        assertEquals(
+            "《古诗十九首》首末仍是 行行重行行 / 明月何皎皎",
+            listOf("行行重行行", "明月何皎皎"),
+            listOf(hanGuShi.first().title, hanGuShi.last().title),
+        )
+        assertEquals("《古诗十九首》orderInSource 仍是 1..19", (1..19).toList(), hanGuShi.map { it.orderInSource })
         // 「近现代」组：**期望值从源文派生**（`ContentSources.orderedPoemsOfDynasty`，直接读 `content/poems/**`
         //   的 front matter，不借产物自证）。
         //   ⚠ 2026-10-20（录毛诗四首：24 首 → 28 首）之前，这里写死「2 首 + 忆秦娥/七律 两个题名 + listOf(1, 2)」：
